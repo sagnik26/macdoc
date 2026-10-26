@@ -45,6 +45,8 @@ func TestFindings(t *testing.T) {
 			TopProcesses: []probe.ProcessGroup{{Name: "Docker", RSSBytes: 3 << 30}, {Name: "Finder", RSSBytes: 100 << 20}},
 			Snapshots:    probe.Snapshots{Count: 2}},
 			want: []string{"critical:Memory pressure is critical", "info:Docker is using 3.0 GB", "info:2 local Time Machine", "info:3.0 GB is purgeable"}},
+		{name: "swap with normal pressure is informational", rep: probe.Report{Disk: disk(60 * gb), Swap: probe.Swap{UsedBytes: 3 << 30}, Memory: probe.Memory{Pressure: probe.PressureNormal}},
+			want: []string{"info:3.0 GB of swap in use, but memory pressure is normal now."}},
 		{name: "warn pressure", rep: probe.Report{Memory: probe.Memory{Pressure: probe.PressureWarn}}, want: []string{"warn:Memory pressure is elevated"}},
 	}
 	for _, tt := range tests {

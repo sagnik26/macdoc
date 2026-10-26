@@ -1,0 +1,32 @@
+ 102400 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  51200 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/1.0/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+  20480 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/1.0/Helpers/Google Chrome Helper (GPU).app/Contents/MacOS/Google Chrome Helper (GPU)
+  30000 Slack Helper (Plugin)
+  10000 /Applications/Slack.app/Contents/MacOS/Slack
+   4000 Safari Web Content
+   6000 /Applications/Safari.app/Contents/MacOS/Safari
+   8000 Cursor Helper: shared-process
+   2048 /System/Library/CoreServices/Dock.app/Contents/XPCServices/DockHelper.xpc/Contents/MacOS/DockHelper
+ 900000 /Applications/Docker.app/Contents/MacOS/qemu-system-aarch64
+ 300000 /Applications/Docker.app/Contents/MacOS/com.docker.backend
+  50000 /Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop
+  10000 /Applications/Docker.app/Contents/MacOS/vpnkit
+   4032 /Library/PrivilegedHelperTools/com.docker.vmnetd
+ 700000 /Users/dev/Library/Android/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64
+  20000 /Users/dev/Library/Android/sdk/emulator/emulator
+ 250000 node
+ 150000 /opt/homebrew/bin/node
+ 600000 /Applications/Ollama.app/Contents/Resources/ollama_llama_server
+  20000 /usr/local/bin/ollama
+ 400000 /Applications/Xcode.app/Contents/MacOS/Xcode
+ 200000 /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/SourceKitService
+ 100000 /Applications/Xcode.app/Contents/SharedFrameworks/XCBuild.framework/Versions/A/PlugIns/XCBBuildService.bundle/Contents/MacOS/XCBBuildService
+ 800000 /Applications/Android Studio.app/Contents/MacOS/studio
+ 300000 /Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java
+  50000 /usr/bin/java
+ 120000 /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app/Contents/MacOS/Simulator
+  30000 /Library/Developer/PrivateFrameworks/CoreSimulator.framework/Resources/bin/launchd_sim
+   1000 /Users/dev/My Tools/bin/my tool
+   1000 another tool
+not-a-number /bin/zsh
+   7777

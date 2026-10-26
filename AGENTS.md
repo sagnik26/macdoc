@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**Planning only. No code exists yet.** Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phase 0 (foundations) is complete and Phase 1 (`macdoc doctor`) is in progress. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
@@ -49,13 +49,15 @@ Never weaken these, even if a task seems to require it. Ask the user instead.
 - **Output:** every command has a typed result struct and `--json` (versioned schema). Follow the tone rules in `docs/CLI_UX.md` §3: neutral words, show restore cost, no scare language.
 - **Recipes:** follow the checklist in `docs/RECIPE_CATALOG.md` §3. Each recipe needs a positive test, a look-alike negative test and a precondition-failure test.
 
-## Commands (planned; will exist after Phase 0)
+## Commands
 
 ```
 make build        # build ./bin/macdoc
 make test         # go test ./... (race on)
 make lint         # golangci-lint
 make importcheck  # fails if mcp/engine import executor
+make forbidcheck  # fails on delete/exec/shell calls outside the executor
+make check        # test + lint + importcheck + forbidcheck
 make fuzz         # fuzz safety/canonicalization
 ```
 
