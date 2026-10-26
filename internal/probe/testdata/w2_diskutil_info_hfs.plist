@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DeviceIdentifier</key>
+	<string>disk4s2</string>
+	<key>FilesystemType</key>
+	<string>hfs</string>
+	<key>FreeSpace</key>
+	<integer>1000000</integer>
+	<key>MountPoint</key>
+	<string>/Volumes/Old</string>
+	<key>TotalSize</key>
+	<integer>2000000</integer>
+</dict>
+</plist>
