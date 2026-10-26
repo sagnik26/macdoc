@@ -55,7 +55,7 @@ Each brief contains:
 - the reporting format: the worker writes `.task/REPORT.md` in its worktree (what was done, test output, open questions) and commits
 
 ### Worker runtime: `scripts/orchestration/run-worker.sh`
-- Workers run headless: `claude -p "<prompt>" --output-format stream-json --verbose --permission-mode acceptEdits` with explicit `--allowedTools` (Read/Edit/Write/Glob/Grep, `go`, `gofmt`, `make`, `golangci-lint`, `git status|diff|add|commit|log|show`, `mkdir`, `ls`) and `--disallowedTools` (`git push|checkout|merge|worktree|reset`, `rm`, `sudo`, `curl`, `wget`, WebFetch, WebSearch, Agent).
+- Workers run headless: `claude -p "<prompt>" --output-format stream-json --verbose --permission-mode acceptEdits` with explicit `--allowedTools` (Read/Glob/Grep — Edit/Write are deliberately not allowlisted so `acceptEdits` limits writes to the worktree, `go`, `gofmt`, `make`, `golangci-lint`, `git status|diff|add|commit|log|show`, `mkdir`, `ls`) and `--disallowedTools` (`git push|checkout|merge|worktree|reset`, `rm`, `sudo`, `curl`, `wget`, WebFetch, WebSearch, Agent).
 - The JSON stream is saved to `.task/stream.jsonl` and rendered in the pane by `scripts/orchestration/format-stream.jq` (messages, tool calls, errors, and a final summary line).
 - Workers can't ask questions mid-task. They record questions in `.task/REPORT.md`.
 - **Feedback loop:** the tech lead resumes the same session with `run-worker.sh <task> --continue "<review feedback>"`. Nobody types into a worker pane.

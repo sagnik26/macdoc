@@ -166,7 +166,10 @@ Estimates assume part-time work (~15–20 h/week).
 
 ### Phase 3: Recipe engine + catalog v1 → `wins`, `storage`, `dev`, `explain` (~1.5 wk)
 **Tasks**
-- Define the recipe YAML schema (see RECIPE_CATALOG.md §1) and loader. Validation runs at startup, and a bad recipe is a startup error in dev and is skipped with a warning in release.
+- Define the recipe YAML schema (see RECIPE_CATALOG.md §1) and loader. Recipe lint, from the P0-R1 findings:
+  - allow patterns must be `~`-relative (outside-home targets are native-only)
+  - no `..` in patterns
+  - no pattern broad enough to match at depth < 2 below home Validation runs at startup, and a bad recipe is a startup error in dev and is skipped with a warning in release.
 - Detectors are named Go functions such as `glob`, `xcode_device_support_versions`, `android_unused_system_images`, `docker_df`, `ollama_list`, `hf_cache_scan` and `node_modules_in_projects`.
 - Native-tool sizing: wherever the tool can report its own usage (`docker system df -v`, `brew cleanup -n`, `ollama list`, `hf cache scan`, `xcrun simctl runtime list -j`), use it and cross-check against crawl data.
 - Classifier: map crawl nodes to recipes and produce opportunities with stable IDs: `O-` + base32(sha256(recipe_id + canonical_target + scan_id))[:6].
@@ -209,6 +212,11 @@ Estimates assume part-time work (~15–20 h/week).
   - It still passes the recipe allowlist and the global deny list.
   - The recipe's preconditions are met (e.g. Xcode not running for DerivedData, Docker daemon reachable for docker recipes, Gradle daemons stopped for `~/.gradle`, Android emulator not running for AVDs).
   - If any check fails, **skip** that item, log it, and continue. Never "fix up" a target.
+- **Red-team carry-overs from P0-R1** (see `docs/tasks/reports/P0-R1.md`):
+  - Re-canonicalize and compare immediately before acting.
+  - Open the parent directory and use `O_NOFOLLOW` plus `renameatx_np` relative to the parent fd, to close the TOCTOU window.
+  - Before quarantining a directory, check its contents: refuse if it contains a `.git` directory or a bare-repo layout (`HEAD` + `objects/` + `refs/`) outside known artifact dirs, or a `.env*` file.
+  - Act only on the canonical string.
 - **Native runner:** `exec.Command` with a fixed argv from the recipe. No shell and no string interpolation of untrusted values (identifiers like a simulator runtime ID are validated against the tool's own listing first). Per-command timeout, with stdout and stderr captured to the audit log.
 - **Quarantine mover:** `os.Rename` into `quarantine/Q-XXXX/payload/` (same APFS volume, so it's instant). Write `manifest.json` with the original path, recipe, plan ID, bytes and `expires_at` (default 7 days). The quarantine root gets `tmutil addexclusion` and `.metadata_never_index`. A cross-volume target is refused, and the recipe must offer a native method instead.
 - `quarantine` commands:

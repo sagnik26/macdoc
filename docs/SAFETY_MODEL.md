@@ -25,7 +25,7 @@ Upgrades: a recipe's risk is **raised** by context, never lowered. Examples: a p
 
 ## 3. Protected paths (BLOCKED, always)
 
-Checked **after** canonicalization (symlinks resolved, `..` cleaned, Unicode NFC-normalized, case-folded for case-insensitive APFS):
+Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.` is rejected outright, symlinks in parent directories are resolved, the path is Unicode NFC-normalized, and comparisons use Unicode case folding to match case-insensitive APFS.
 
 - The system volume and its contents: `/System`, `/usr` (except Homebrew prefixes, acted on only via `brew`), `/bin`, `/sbin`, `/Library`, `/private`, `/cores`, `/Applications` (no app removal)
 - `/private/var/folders/**` (sized only, never acted on)
@@ -33,7 +33,10 @@ Checked **after** canonicalization (symlinks resolved, `..` cleaned, Unicode NFC
 - `~/Library/Mobile Documents` (iCloud Drive), `~/Library/CloudStorage` (Dropbox, Google Drive and similar)
 - `~/Library/Mail`, `~/Library/Messages`, `~/Library/Photos`, `~/Library/Keychains`, `~/Library/Containers/com.apple.*`
 - `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config`, `~/.kube`, `~/.docker/config.json`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`
-- Any `.git` directory, `.env*` files, `*.sqlite` / `*.db` outside known cache recipes
+- Any `.git` directory, any `.env*` file (including `.envrc`), and `*.sqlite` / `*.sqlite3` / `*.db` files plus their `-wal` / `-shm` / `-journal` sidecars. A directory *containing* such files can be a target; the Phase 6 executor adds content checks, e.g. for nested `.git` and bare repos.
+- **Any parent of a named protected path.** For example, `~/Library/Application Support` is protected because it contains `MobileSync/Backup` and macdoc's state, and `~/Library/Containers` because it contains `com.apple.*`.
+- **Everything outside `$HOME`.** No cleanup target may be outside the user's home. Cleanups outside home (Homebrew, Docker, simulators, SDKs) happen only through the owning tool's native command, never by path. The system roots (`/System`, `/usr`, `/private`, `/.vol`, `/Network`, …) are also protected explicitly as defense in depth.
+- Siblings of `$HOME` (other users' homes, `/Users/Shared`) and its ancestors.
 - Docker **volumes** (advise-only listing)
 - `~/Library/Application Support/MobileSync/Backup` (advise-only: Finder › device › Manage Backups)
 - macdoc's own state directory, except quarantine purge by manifest

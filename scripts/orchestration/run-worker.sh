@@ -13,10 +13,12 @@ wt="$root/.worktrees/$task"
 cd "$wt" || { echo "no worktree $wt"; exit 1; }
 mkdir -p .task
 echo "▶▶ worker $task · $(date '+%H:%M:%S') · ${cont[*]+continue}"
+# Edit/Write are NOT allowlisted: acceptEdits auto-approves edits inside the
+# worktree only; edits elsewhere would need approval, which headless refuses.
 claude -p ${cont[@]+"${cont[@]}"} "$prompt" \
   --output-format stream-json --verbose \
   --permission-mode acceptEdits \
-  --allowedTools "Read" "Edit" "Write" "Glob" "Grep" \
+  --allowedTools "Read" "Glob" "Grep" \
     "Bash(go:*)" "Bash(gofmt:*)" "Bash(make:*)" "Bash(golangci-lint:*)" \
     "Bash(git status:*)" "Bash(git diff:*)" "Bash(git add:*)" "Bash(git commit:*)" \
     "Bash(git log:*)" "Bash(git show:*)" "Bash(mkdir:*)" "Bash(ls:*)" \
