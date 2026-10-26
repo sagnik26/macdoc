@@ -82,6 +82,8 @@ macdoc/
     RECIPE_CATALOG.md
     CLI_UX.md
     MCP_DESIGN.md
+    BUILD_STRATEGY.md
+    ORCHESTRATION.md
 ```
 
 ## Documents
@@ -93,6 +95,8 @@ macdoc/
 | [docs/RECIPE_CATALOG.md](docs/RECIPE_CATALOG.md) | The v1 catalog of cleanup recipes, with paths, risk, removal method, preconditions and restore cost |
 | [docs/CLI_UX.md](docs/CLI_UX.md) | Commands, flags, report mockups, tone rules, and the JSON output contract |
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | Phase C: MCP tools, the Claude-to-terminal handoff, and prompt-injection hardening |
+| [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md) | One engine with two front doors (CLI + MCP), and the safety-first build order |
+| [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) | How the build is run: tech lead plus worker agents in tmux, task split, permissions, verification, checkpoints |
 
 ## Timeline at a glance (part-time, ~15–20 h/week)
 

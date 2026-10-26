@@ -15,6 +15,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 | Topic | Document |
 |---|---|
 | What and why, locked decisions | `README.md` |
+| Build order, how agents are orchestrated | `docs/BUILD_STRATEGY.md`, `docs/ORCHESTRATION.md` |
 | Architecture, layout, phases, tests, risks | `docs/DEVELOPMENT_PLAN.md` |
 | Safety rules (non-negotiable) | `docs/SAFETY_MODEL.md` |
 | What can be cleaned and how | `docs/RECIPE_CATALOG.md` |
