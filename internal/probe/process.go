@@ -26,6 +26,7 @@ const (
 	groupXcode           = "Xcode"
 	groupAndroidStudio   = "Android Studio"
 	groupIOSSimulator    = "iOS Simulator"
+	groupQEMU            = "Virtual machine (QEMU)"
 )
 
 // helperMarkers end an app name in a helper process name. A marker counts
@@ -112,8 +113,16 @@ func devGroup(comm, base string) (string, bool) {
 		return groupDocker, true
 	case strings.HasPrefix(base, "qemu-system-") && inDocker:
 		return groupDocker, true
-	case strings.HasPrefix(base, "qemu-system-"), strings.HasPrefix(base, "emulator"):
+	case strings.HasPrefix(base, "emulator"):
 		return groupAndroidEmulator, true
+	case strings.HasPrefix(base, "qemu-system-"):
+		// The Android emulator runs qemu from the SDK's emulator directory;
+		// any other qemu (Colima, Lima, UTM) is a generic VM.
+		lc := strings.ToLower(comm)
+		if strings.Contains(lc, "/emulator/") || strings.Contains(lc, "android") {
+			return groupAndroidEmulator, true
+		}
+		return groupQEMU, true
 	case base == "node":
 		return groupNode, true
 	case base == "ollama", base == "ollama_llama_server":

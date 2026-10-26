@@ -94,6 +94,11 @@ func Findings(rep probe.Report) []Finding {
 		f := Finding{SeverityWarn,
 			fmt.Sprintf("%s of swap in use.", BinaryBytes(swap)),
 			"RAM is overcommitted; macOS is paging to disk, which slows everything down."}
+		if rep.Memory.Pressure == probe.PressureNormal {
+			f = Finding{SeverityInfo,
+				fmt.Sprintf("%s of swap in use, but memory pressure is normal now.", BinaryBytes(swap)),
+				"Swap built up earlier and macOS keeps it until apps quit or the Mac restarts. Watch it if heavy apps (Docker, emulators, local models) are running."}
+		}
 		if haveDisk && free < lowFreeBytes {
 			f = Finding{SeverityCritical,
 				fmt.Sprintf("Low disk (%s free) while %s of swap is in use.", DecimalBytes(free), BinaryBytes(swap)),
