@@ -37,7 +37,7 @@ func newScanCmd(g *globalFlags) *cobra.Command {
 
 			errOut := cmd.ErrOrStderr()
 			showProgress := !g.json && !g.quiet && isTerminal(errOut)
-			opts := engine.ScanOptions{Home: home, Version: version, Workers: workers}
+			opts := engine.ScanOptions{Home: home, Version: version, Workers: workers, Runner: runner}
 			if showProgress {
 				opts.Progress = func(p scanner.Progress) {
 					_, _ = fmt.Fprintf(errOut, "\r\033[KScanning… %s · %d files · %s · %s",
@@ -71,6 +71,14 @@ func renderScan(w io.Writer, s engine.ScanSummary) error {
 		fmt.Fprintf(&b, " · %s (interrupted; results are partial)", in.Status)
 	}
 	b.WriteString("\n")
+	if du := s.DataVolumeUsed; du.Source != model.SourceUnknown && du.Value > 0 {
+		hidden := du.Value - in.TotalBytes
+		fmt.Fprintf(&b, "Measured %s of the %s APFS reports as used on the Data volume", engine.DecimalBytes(in.TotalBytes), engine.DecimalBytes(du.Value))
+		if hidden > du.Value/50 { // more than 2% not visible
+			fmt.Fprintf(&b, "; %s is not visible to the scan (locations needing Full Disk Access, plus system-managed indexes)", engine.DecimalBytes(hidden))
+		}
+		b.WriteString(".\n")
+	}
 
 	if len(s.TopLevel) > 0 {
 		fmt.Fprintln(&b, "\nBy top-level folder")

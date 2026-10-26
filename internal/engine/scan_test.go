@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"macdoc/internal/model"
@@ -12,7 +13,11 @@ import (
 )
 
 func n(path string, bytes int64) model.Node {
-	return model.Node{Path: path, Kind: model.NodeDir, Bytes: bytes}
+	d := 0
+	if path != "/" {
+		d = strings.Count(path, "/")
+	}
+	return model.Node{Path: path, Kind: model.NodeDir, Bytes: bytes, Depth: d}
 }
 
 func TestLargestPrefersWhereSpaceIs(t *testing.T) {
@@ -26,7 +31,8 @@ func TestLargestPrefersWhereSpaceIs(t *testing.T) {
 		n("/Users/me/Library/Developer/Xcode/DerivedData", 15*gb),
 		n("/Users/me/Library/Developer/Xcode/iOS DeviceSupport", 12*gb),
 		n("/Users/me/code", 20*gb), // no kept children → qualifies
-		{Path: "/Users/me/big.dmg", Kind: model.NodeFile, Bytes: 5 * gb},
+		{Path: "/Users/me/big.dmg", Kind: model.NodeFile, Bytes: 5 * gb, Depth: 3},
+		n("/Applications", 30*gb),  // top-level: never listed
 		n("/Users/me/small", gb/2), // below minBytes
 	}
 	got := Largest(nodes, 0, gb)

@@ -118,12 +118,13 @@ func TestRenderScan(t *testing.T) {
 		Largest:          []model.Node{{Path: "/Users/me/Library/Developer/Xcode/DerivedData", Bytes: 14_200_000_000}},
 		Unmeasured:       []model.Unmeasured{{Path: "/Users/me/Library/Mail", Reason: "permission denied (grant Full Disk Access to your terminal)"}},
 		HardlinkLimitHit: true,
+		DataVolumeUsed:   model.Bytes{Value: 220_000_000_000, Source: model.SourceTool},
 	}
 	if err := renderScan(&buf, s); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	for _, want := range []string{"Scan S-ABCDEFGH · 186 GB in 1234567 files", "interrupted", "150 GB  /Users",
+	for _, want := range []string{"Scan S-ABCDEFGH · 186 GB in 1234567 files", "interrupted", "150 GB  /Users", "Measured 186 GB of the 220 GB", "34.0 GB is not visible",
 		"14.2 GB  /Users/me/Library/Developer/Xcode/DerivedData", "grant Full Disk Access", "hard links", "Nothing has been changed."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q\n---\n%s", want, out)
