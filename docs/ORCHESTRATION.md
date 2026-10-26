@@ -6,11 +6,11 @@ The build is run by a **tech-lead Claude session** (the orchestrator), which del
 
 | Topic | Decision |
 |---|---|
-| Visibility | Every worker runs as its own Claude Code session in a **tmux pane** the user can watch |
+| Visibility | Every worker runs as its own **headless** Claude Code session (`claude -p`, stream rendered live) in a **tmux pane** the user can watch |
 | Concurrency | **1 implementer at a time**, plus 1 reviewer only when needed. The dev Mac has 8 GB of RAM and was already using ~2.8 GB of swap at baseline |
-| Permissions | **Narrow per-worktree allowlist.** Never "skip all permissions" |
+| Permissions | **Narrow allowlist passed as CLI flags** to each headless worker; anything else is refused automatically. Never "skip all permissions". (Interactive workers were dropped: the tech lead may not drive another Claude session via tmux keystrokes, and the user chose headless mode.) |
 | Checkpoints | Pause for user review **after Phase 0, after Phase 3, after Phase 6 (before any real apply), at v0.1 (Phase 7), and after Phase 9** |
-| Tooling | Go 1.26, tmux 3.8, golangci-lint 2.15, git, Claude Code CLI |
+| Tooling | Go 1.27.3 (auto toolchain via `GOTOOLCHAIN=auto`), tmux 3.8, golangci-lint 2.15, jq, git, Claude Code CLI |
 
 ## 2. Roles
 
@@ -54,30 +54,17 @@ Each brief contains:
 - the definition of done
 - the reporting format: the worker writes `.task/REPORT.md` in its worktree (what was done, test output, open questions) and commits
 
-### Worker permissions (per-worktree `.claude/settings.json`)
-```json
-{
-  "permissions": {
-    "allow": [
-      "Bash(go:*)", "Bash(gofmt:*)", "Bash(make:*)", "Bash(golangci-lint:*)",
-      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git add:*)",
-      "Bash(git commit:*)", "Bash(git log:*)", "Edit", "Write", "Read"
-    ],
-    "deny": [
-      "Bash(git push:*)", "Bash(git checkout main:*)", "Bash(git merge:*)",
-      "Bash(rm -rf:*)", "Bash(sudo:*)", "Bash(curl:*)", "Bash(wget:*)",
-      "WebFetch", "WebSearch"
-    ]
-  }
-}
-```
-Workers run with edits limited to their worktree. Anything outside the allowlist prompts in the pane for the user to decide.
+### Worker runtime: `scripts/orchestration/run-worker.sh`
+- Workers run headless: `claude -p "<prompt>" --output-format stream-json --verbose --permission-mode acceptEdits` with explicit `--allowedTools` (Read/Edit/Write/Glob/Grep, `go`, `gofmt`, `make`, `golangci-lint`, `git status|diff|add|commit|log|show`, `mkdir`, `ls`) and `--disallowedTools` (`git push|checkout|merge|worktree|reset`, `rm`, `sudo`, `curl`, `wget`, WebFetch, WebSearch, Agent).
+- The JSON stream is saved to `.task/stream.jsonl` and rendered in the pane by `scripts/orchestration/format-stream.jq` (messages, tool calls, errors, and a final summary line).
+- Workers can't ask questions mid-task. They record questions in `.task/REPORT.md`.
+- **Feedback loop:** the tech lead resumes the same session with `run-worker.sh <task> --continue "<review feedback>"`. Nobody types into a worker pane.
 
 ### tmux layout (`tmux attach -t macdoc-build`)
 ```
 ┌──────────────────────────────┬──────────────────────────────┐
 │ WORKER · current task        │ REVIEWER (only when active)  │
-│ claude session in worktree   │ claude session in worktree   │
+│ headless claude (stream)     │ headless claude (stream)     │
 ├──────────────────────────────┴──────────────────────────────┤
 │ STATUS · task branches, last commits, make test, mem/swap    │
 └─────────────────────────────────────────────────────────────┘
