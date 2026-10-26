@@ -158,7 +158,7 @@ func TestRedteamCheckPaths(t *testing.T) {
 		ok   bool
 	}{
 		{sb + "/x/../../outside", false}, // lexically outside
-		{sb + "/../sb/x", true},          // lexically inside, no symlink
+		{sb + "/../sb/x", false},         // P0-W3 D8: non-canonical input is refused (was ok)
 		{sb + "/.", false},               // equals root
 		{sb + "//", false},
 		{sb + "x", false}, // name-prefix sibling
@@ -172,12 +172,15 @@ func TestRedteamCheckPaths(t *testing.T) {
 	}
 }
 
-// Spec ambiguity A1: a set-but-empty variable disables the sandbox
-// (P0-W2 brief: "unset or empty"). Documented, not a bug under the brief.
+// Spec ambiguity A1, resolved by P0-W3 D10 (this test used to assert the old
+// "empty disables" behavior): a set-but-empty variable fails closed.
 func TestRedteamEmptyDisables(t *testing.T) {
-	setup(t)
+	base, _ := setup(t)
 	t.Setenv(EnvVar, "")
-	if _, active, err := Root(); active || err != nil {
-		t.Errorf("Root() with empty var = %v, %v; brief says inactive", active, err)
+	if root, active, err := Root(); root != "" || !active || err == nil {
+		t.Errorf("Root() with empty var = %q, %v, %v; want \"\", true, error", root, active, err)
+	}
+	if err := Check(filepath.Join(base, "x")); err == nil {
+		t.Error("Check with empty var = nil; want fail closed")
 	}
 }

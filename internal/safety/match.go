@@ -60,12 +60,9 @@ func matchComponents(pat, name []string) bool {
 	return next[0]
 }
 
-// depthOK reports whether pc satisfies the depth rule: outside $HOME always,
-// and at least 2 components below $HOME when inside it.
+// depthOK reports whether pc, already known to be within $HOME, is at least 2
+// components below $HOME.
 func (p *Policy) depthOK(pc []string) bool {
-	if !hasPrefixComps(p.homeComps, pc) {
-		return true
-	}
 	return len(pc)-len(p.homeComps) >= 2
 }
 

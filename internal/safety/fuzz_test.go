@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -61,6 +62,12 @@ func FuzzCheckTarget(f *testing.F) {
 		{h + "/a/.git", "~/a/*"},
 		{h + "/a/b.DB", "~/**"},
 		{"rel", "rel"},
+		{h + "/.gradle/caches/", "~/**"},
+		{h + "/.gradle/caches/.", "~/**"},
+		{h + "/./.gradle/./caches", "~/**"},
+		{"/nonexistent-macdoc/x/y", "/**"},
+		{h + "/secret/../secret/x", "~/**"},
+		{h + "/Library/Containers", "~/**"},
 	} {
 		f.Add(s[0], s[1])
 	}
@@ -80,7 +87,13 @@ func FuzzCheckTarget(f *testing.F) {
 		if prot, root := p.IsProtected(c); prot {
 			t.Fatalf("CheckTarget(%q) ok but %q is protected by %q", path, c, root)
 		}
-		if Within(h, c) && len(components(c))-len(components(h)) < 2 {
+		if !Within(h, c) {
+			t.Fatalf("CheckTarget(%q) ok but %q is not within home", path, c)
+		}
+		if strings.HasSuffix(c, "/") || strings.HasSuffix(path, "/") {
+			t.Fatalf("CheckTarget(%q) ok for a trailing slash (canonical %q)", path, c)
+		}
+		if len(components(c))-len(components(h)) < 2 {
 			t.Fatalf("CheckTarget(%q) ok but %q violates the depth rule", path, c)
 		}
 		if Within(filepath.Dir(h), c) && !Within(h, c) {

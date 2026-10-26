@@ -261,15 +261,16 @@ func TestRedteamPathTricks(t *testing.T) {
 		{"dotdot trailing", h + "/.cache/x/..", RuleInvalid},
 		{"double slash", h + "//Documents//x", RuleProtected},
 		{"slash dot", h + "/./Documents/./x", RuleProtected},
-		{"trailing slash dot", h + "/Documents/.", RuleProtected},
+		{"trailing slash dot", h + "/Documents/.", RuleInvalid}, // P0-W3 D2 (was RuleProtected)
 		{"leading double slash", "//System/Library", RuleProtected},
 		{"nul", h + "/.cache/x\x00/y", RuleInvalid},
 		{"relative", "Documents/x", RuleNotAbsolute},
 		{"tilde not expanded", "~/Documents/x", RuleNotAbsolute},
 		{"home", h, RuleTooShallow},
-		{"home trailing slash", h + "/", RuleTooShallow},
+		{"home trailing slash", h + "/", RuleInvalid}, // P0-W3 D2 (was RuleTooShallow)
 		{"depth 1", h + "/x", RuleTooShallow},
-		{"depth 1 via dot", h + "/./x/.", RuleTooShallow},
+		{"depth 1 via dot", h + "/./x/.", RuleInvalid}, // P0-W3 D2 (was RuleTooShallow)
+		{"depth 1 via inner dot", h + "/./x", RuleTooShallow},
 		{"newline name ok", h + "/.cache/a\nb", ""},
 		{"carriage return name ok", h + "/.cache/a\rb", ""},
 		{"three dots is a name", h + "/.cache/...", ""},
