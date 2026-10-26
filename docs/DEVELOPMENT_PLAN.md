@@ -218,6 +218,7 @@ Estimates assume part-time work (~15–20 h/week).
   - Open the parent directory and use `O_NOFOLLOW` plus `renameatx_np` relative to the parent fd, to close the TOCTOU window.
   - Before quarantining a directory, check its contents: refuse if it contains a `.git` directory or a bare-repo layout (`HEAD` + `objects/` + `refs/`) outside known artifact dirs, or a `.env*` file.
   - Act only on the canonical string.
+  - Tighten the macdoc-owned state dir (`~/Library/Application Support/macdoc`) to 0700 when creating plans and quarantine (P2-W2 Q4).
   - Build a **fresh `safety.Policy` right before applying** (P0-W3 Q2), so protected folders that became symlinks since planning are covered at their real location.
 - **Native runner:** `exec.Command` with a fixed argv from the recipe. No shell and no string interpolation of untrusted values (identifiers like a simulator runtime ID are validated against the tool's own listing first). Per-command timeout, with stdout and stderr captured to the audit log.
 - **Quarantine mover:** `os.Rename` into `quarantine/Q-XXXX/payload/` (same APFS volume, so it's instant). Write `manifest.json` with the original path, recipe, plan ID, bytes and `expires_at` (default 7 days). The quarantine root gets `tmutil addexclusion` and `.metadata_never_index`. A cross-volume target is refused, and the recipe must offer a native method instead.
@@ -238,7 +239,7 @@ Estimates assume part-time work (~15–20 h/week).
 ### Phase 7: `slow`, `trend`, polish → **v0.1 (MVP B)** (~1 wk)
 **Tasks**
 - `slow`: memory pressure, swap size and trend, top memory groups, and explanations such as "Docker VM 3.1 GB plus emulator 2.4 GB on 8 GB of RAM". It also links low disk to swap risk ("under 10 GB free and 6 GB swap: hangs likely"). It only explains and never acts.
-- `trend`: per-category growth across stored scans ("Gradle +6.1 GB in 30 days").
+- `trend`: per-category growth across stored scans ("Gradle +6.1 GB in 30 days"). Add a `nodes(path_fold)` index for `History` (P2-W2 Q3).
 - Freeze JSON schemas at v1 (`schema/*.json`) and add contract tests.
 - Shell completions, `--help` text, `config` command (show and edit thresholds), `version`, and an install script (`make install` → `~/bin`).
 - Dogfood for a week on the real Mac and tune thresholds and recipes.
