@@ -79,10 +79,10 @@ func TestCanonicalizeMacOSFirmlinks(t *testing.T) {
 		{"/var/folders/zz/does-not-exist/x", "/private/var/folders/zz/does-not-exist/x"},
 		{"/tmp/macdoc-nonexistent/a", "/private/tmp/macdoc-nonexistent/a"},
 		{"/etc/hosts/x/y", "/private/etc/hosts/x/y"}, // ancestor is a file
-		{"/tmp", "/tmp"},                             // final component not followed
+		{"/tmp", "/tmp"}, // final component not followed
 		{"/a/./b//c/", "/a/b/c"},
 		{"/a/..foo/foo../...", "/a/..foo/foo../..."}, // not ".." components
-		{"/TMP/x", "/private/tmp/x"}, // case-insensitive lookup; link target used
+		{"/TMP/x", "/private/tmp/x"},                 // case-insensitive lookup; link target used
 	}
 	for _, tt := range tests {
 		got, err := Canonicalize(tt.in)
@@ -459,7 +459,7 @@ func TestAllowPatterns(t *testing.T) {
 		{"~/", ".gradle/caches", false},
 		{"~/**", ".gradle/caches", true},
 		{h + "/.gradle/*", ".gradle/caches", true},
-		{".gradle/caches", ".gradle/caches", false},     // relative
+		{".gradle/caches", ".gradle/caches", false},        // relative
 		{"~other/.gradle/caches", ".gradle/caches", false}, // ~user form
 		{"", ".gradle/caches", false},
 		{"~/.gradle/\x00", ".gradle/caches", false},

@@ -1,5 +1,5 @@
 // Package safety decides whether a filesystem path may ever be a cleanup
-// target. It is the first line of defence described in docs/SAFETY_MODEL.md
+// target. It is the first line of defense described in docs/SAFETY_MODEL.md
 // §3 and is used by the planner and (again, at execution time) the executor.
 //
 // CONTRACT (tech lead): the exported API below is fixed. Implementation is

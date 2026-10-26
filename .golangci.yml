@@ -10,6 +10,8 @@ linters:
     - unconvert
     - nolintlint
   settings:
+    misspell:
+      locale: US
     nolintlint:
       # Every //nolint must name the linter and say why, and must still be
       # needed.
@@ -26,12 +28,7 @@ linters:
       - path: (_test\.go$|^internal/testutil/)
         linters: [gosec]
         text: "^G(204|301|304|306):"
-      # TEMPORARY: the read-only Runner must exec a caller-supplied argv
-      # (fixed argv from recipes, no shell). This belongs as a targeted
-      # `//nolint:gosec // G204: ...` on the exec.CommandContext line in
-      # internal/platform/runner.go (tech-lead file, see .task/REPORT.md).
-      # Remove this rule in the same change that adds that directive, or
-      # nolintlint will flag the directive as unused.
-      - path: ^internal/platform/runner\.go$
-        linters: [gosec]
-        text: "^G204:"
+
+formatters:
+  enable:
+    - gofmt

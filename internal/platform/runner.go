@@ -49,7 +49,7 @@ func (ExecRunner) Run(ctx context.Context, cmd Command) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...)
+	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...) //nolint:gosec // G204: read-only Runner; fixed argv from recipes, no shell (forbidcheck enforces).
 	var stdout, stderr bytes.Buffer
 	c.Stdout, c.Stderr = &stdout, &stderr
 	err := c.Run()
