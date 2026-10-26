@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"macdoc/internal/safety"
 )
@@ -18,12 +19,19 @@ import (
 const EnvVar = "MACDOC_SANDBOX"
 
 // Root returns the canonical sandbox directory and true if sandbox mode is
-// active. It returns an error if the variable is set but invalid (relative,
-// missing, not a directory, or "/" or $HOME).
+// active. Sandbox mode is inactive only when the variable is unset. It
+// returns active and an error if the variable is set but invalid: empty or
+// whitespace, relative, missing, not a directory, "/", $HOME or an ancestor
+// of it, equal to or containing a system root (safety.SystemRoots), or
+// within a system root other than strictly below /private/var/folders or
+// /private/tmp (temp dirs).
 func Root() (string, bool, error) {
-	v := os.Getenv(EnvVar)
-	if v == "" {
+	v, set := os.LookupEnv(EnvVar)
+	if !set {
 		return "", false, nil
+	}
+	if strings.TrimSpace(v) == "" {
+		return "", true, fmt.Errorf("sandbox: %s is set but empty; unset it to disable sandbox mode", EnvVar)
 	}
 	root, err := resolveRoot(v)
 	if err != nil {
@@ -33,7 +41,8 @@ func Root() (string, bool, error) {
 }
 
 // Check returns nil if sandbox mode is inactive, or if path is inside the
-// sandbox root. Otherwise it returns an error. path must be canonical.
+// sandbox root. Otherwise it returns an error. path must be canonical;
+// non-canonical input (as judged by safety.Canonicalize) is refused.
 func Check(path string) error {
 	root, active, err := Root()
 	if err != nil {
@@ -43,7 +52,14 @@ func Check(path string) error {
 	if !active {
 		return nil
 	}
-	if !filepath.IsAbs(path) || !safety.Within(root, path) || samePath(root, path) {
+	c, err := safety.Canonicalize(path)
+	if err != nil {
+		return fmt.Errorf("sandbox: refusing %q: %w", path, err)
+	}
+	if !samePath(c, path) {
+		return fmt.Errorf("sandbox: refusing non-canonical %q (canonical %q)", path, c)
+	}
+	if !safety.Within(root, c) || samePath(root, c) {
 		return fmt.Errorf("sandbox: %q is not inside sandbox root %s", path, root)
 	}
 	return nil
@@ -55,7 +71,7 @@ func resolveRoot(v string) (string, error) {
 	if !filepath.IsAbs(v) {
 		return "", fmt.Errorf("sandbox: %s=%q must be an absolute path", EnvVar, v)
 	}
-	c, err := safety.Canonicalize(v)
+	c, err := safety.Canonicalize(cleanRoot(v))
 	if err != nil {
 		return "", fmt.Errorf("sandbox: %s: %w", EnvVar, err)
 	}
@@ -69,7 +85,7 @@ func resolveRoot(v string) (string, error) {
 	if r, err = safety.Canonicalize(r); err != nil {
 		return "", fmt.Errorf("sandbox: %s: %w", EnvVar, err)
 	}
-	fi, err := os.Stat(r) //nolint:gosec // G703: the env var is a path by design; Stat is read-only and the result is validated below.
+	fi, err := os.Stat(r)
 	if err != nil {
 		return "", fmt.Errorf("sandbox: %s=%q: %w", EnvVar, v, err)
 	}
@@ -89,7 +105,46 @@ func resolveRoot(v string) (string, error) {
 		}
 		return "", fmt.Errorf("sandbox: %s=%s contains the home directory %s; use a dedicated temporary directory", EnvVar, r, home)
 	}
+	if err := checkSystemRoots(r); err != nil {
+		return "", err
+	}
 	return r, nil
+}
+
+// tempRoots are the only system areas a sandbox may live in.
+var tempRoots = []string{"/private/var/folders", "/private/tmp"}
+
+// checkSystemRoots rejects a resolved sandbox root that equals, contains or
+// is within a system root, unless it is strictly below a temp dir.
+func checkSystemRoots(r string) error {
+	for _, s := range safety.SystemRoots() {
+		if safety.Within(r, s) {
+			return fmt.Errorf("sandbox: %s=%s covers system path %s; use a dedicated temporary directory", EnvVar, r, s)
+		}
+	}
+	for _, t := range tempRoots {
+		if safety.Within(t, r) && !samePath(t, r) {
+			return nil
+		}
+	}
+	for _, s := range safety.SystemRoots() {
+		if safety.Within(s, r) {
+			return fmt.Errorf("sandbox: %s=%s is inside system path %s; use a dedicated temporary directory", EnvVar, r, s)
+		}
+	}
+	return nil
+}
+
+// cleanRoot lexically cleans the env var value so a trailing "/" or "/." is
+// accepted for the root. A value with a ".." component is returned unchanged
+// so that safety.Canonicalize rejects it.
+func cleanRoot(v string) string {
+	for _, c := range strings.Split(v, "/") {
+		if c == ".." {
+			return v
+		}
+	}
+	return filepath.Clean(v)
 }
 
 // canonicalHome returns the user's home directory, canonicalized and with
@@ -102,7 +157,7 @@ func canonicalHome() (string, error) {
 	if !filepath.IsAbs(h) {
 		return "", fmt.Errorf("sandbox: home directory %q is not absolute", h)
 	}
-	c, err := safety.Canonicalize(h)
+	c, err := safety.Canonicalize(cleanRoot(h))
 	if err != nil {
 		return "", fmt.Errorf("sandbox: home: %w", err)
 	}

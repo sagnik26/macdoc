@@ -38,22 +38,32 @@ func setup(t *testing.T) (string, string) {
 }
 
 func TestRootInactive(t *testing.T) {
+	// D10: only an unset variable means inactive; set-but-empty fails closed
+	// (TestRootSetButEmpty).
 	setup(t)
-	for _, v := range []string{"", "unset"} {
-		if v == "unset" {
-			t.Setenv(EnvVar, "")
-			if err := os.Unsetenv(EnvVar); err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			t.Setenv(EnvVar, v)
-		}
+	t.Setenv(EnvVar, "")
+	if err := os.Unsetenv(EnvVar); err != nil {
+		t.Fatal(err)
+	}
+	root, active, err := Root()
+	if root != "" || active || err != nil {
+		t.Errorf("Root() = %q, %v, %v; want inactive", root, active, err)
+	}
+	if err := Check("/anything/at/all"); err != nil {
+		t.Errorf("Check with inactive sandbox = %v", err)
+	}
+}
+
+func TestRootSetButEmpty(t *testing.T) {
+	base, _ := setup(t)
+	for _, v := range []string{"", " ", "\t\n"} {
+		t.Setenv(EnvVar, v)
 		root, active, err := Root()
-		if root != "" || active || err != nil {
-			t.Errorf("%s: Root() = %q, %v, %v; want inactive", v, root, active, err)
+		if root != "" || !active || err == nil || !strings.Contains(err.Error(), "set but empty") {
+			t.Errorf("Root() with %q = %q, %v, %v; want \"\", true, set-but-empty error", v, root, active, err)
 		}
-		if err := Check("/anything/at/all"); err != nil {
-			t.Errorf("%s: Check with inactive sandbox = %v", v, err)
+		if err := Check(filepath.Join(base, "x")); err == nil {
+			t.Errorf("Check with %s=%q = nil; want fail closed", EnvVar, v)
 		}
 	}
 }

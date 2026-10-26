@@ -79,8 +79,8 @@ func TestCanonicalizeMacOSFirmlinks(t *testing.T) {
 		{"/var/folders/zz/does-not-exist/x", "/private/var/folders/zz/does-not-exist/x"},
 		{"/tmp/macdoc-nonexistent/a", "/private/tmp/macdoc-nonexistent/a"},
 		{"/etc/hosts/x/y", "/private/etc/hosts/x/y"}, // ancestor is a file
-		{"/tmp", "/tmp"}, // final component not followed
-		{"/a/./b//c/", "/a/b/c"},
+		{"/tmp", "/tmp"},                             // final component not followed
+		{"/a/./b//c", "/a/b/c"},                      // D2: a trailing "/" is now rejected; inner "." and "//" are cleaned
 		{"/a/..foo/foo../...", "/a/..foo/foo../..."}, // not ".." components
 		{"/TMP/x", "/private/tmp/x"},                 // case-insensitive lookup; link target used
 	}
@@ -251,6 +251,7 @@ func TestIsProtected(t *testing.T) {
 		hp("Library/Containers/COM.APPLE.Notes"),
 		hp("code/app/.git/objects"), hp("code/app/.git"), hp("code/app/.GIT/x"),
 		hp("code/app/.env"), hp("code/app/.env.local"),
+		hp("code/app/.environment"), // D4: any final component starting with .env
 		hp("code/app/data.sqlite"), hp("code/app/data.SQLITE3"), hp("code/app/x.db"),
 		"/Users/other/x/.git/y",
 		hp("Café/x"), hp("Café/x"), // extra, NFC and NFD
@@ -272,7 +273,7 @@ func TestIsProtected(t *testing.T) {
 		hp("Library/Caches/com.apple.dt.Xcode"),
 		hp(".gradle/caches"), hp(".docker/buildx"),
 		hp("code/app/.gitignore"), hp("code/app/.github/x"),
-		hp("code/app/.environment"), hp("code/app/x.dbx"), hp("code/app/x.db/y"),
+		hp("code/app/x.dbx"), hp("code/app/x.db/y"),
 		hp("code/node_modules"),
 		hp("Cafe/x"),
 	}
@@ -327,7 +328,7 @@ func TestRealHomeLayout(t *testing.T) {
 		{"/USERS/OTHER/x/y", RuleProtected},
 		{"/Users/macdoc-test-nobodyx/a/b", RuleProtected},
 		{"/Users/MACDOC-TEST-NOBODY/.gradle/caches", ""},
-		{"/nonexistent-macdoc/x/y", RuleNotAllowed},
+		{"/nonexistent-macdoc/x/y", RuleOutsideHome}, // D6
 	}
 	for _, tt := range tests {
 		if got := violationRule(t, p.CheckTarget(tt.path, allow)); got != tt.rule {
@@ -399,7 +400,7 @@ func TestCheckTarget(t *testing.T) {
 		{"final symlink not followed", hp("proj/cache"), []string{"~/proj/*"}, ""},
 		{"symlink loop", hp("loop1/x/y"), all, RuleInvalid},
 		{"system root", "/System/Library/x", []string{"/**"}, RuleProtected},
-		{"outside home allowed by pattern", "/Users/someone-else/x", []string{"/Users/*/x"}, ""},
+		{"outside home never allowed", "/Users/someone-else/x", []string{"/Users/*/x"}, RuleOutsideHome}, // D6
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
