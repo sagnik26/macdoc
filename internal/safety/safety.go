@@ -7,12 +7,12 @@
 package safety
 
 import (
-	"errors"
 	"fmt"
-)
+	"path/filepath"
+	"strings"
 
-// ErrNotImplemented is returned by stubs until P0-W1 lands.
-var ErrNotImplemented = errors.New("safety: not implemented")
+	"golang.org/x/text/unicode/norm"
+)
 
 // Rule names reported in a Violation.
 const (
@@ -38,14 +38,73 @@ func (v *Violation) Error() string {
 // Policy holds the protected-path rules for one user.
 type Policy struct {
 	home           string   // canonical $HOME
-	extraProtected []string //nolint:unused // used once P0-W1 lands
+	extraProtected []string // canonical extra protected paths
+
+	homeComps       []string        // folded components of home
+	containersComps []string        // folded components of home/Library/Containers
+	roots           []protectedRoot // system, home-relative and extra roots
 }
 
 // NewPolicy builds a policy for the given home directory. home and every
 // extraProtected entry must be absolute; they are canonicalized. "~" prefixes
 // in extraProtected expand to home.
 func NewPolicy(home string, extraProtected []string) (*Policy, error) {
-	return nil, ErrNotImplemented
+	if !filepath.IsAbs(home) {
+		return nil, fmt.Errorf("safety: home %q is not absolute", home)
+	}
+	h, err := resolveFull(home)
+	if err != nil {
+		return nil, fmt.Errorf("safety: home: %w", err)
+	}
+	if len(components(h)) < 2 {
+		return nil, fmt.Errorf("safety: home %q must have at least 2 components", h)
+	}
+
+	p := &Policy{
+		home:            h,
+		homeComps:       foldedComponents(h),
+		containersComps: foldedComponents(filepath.Join(h, "Library", "Containers")),
+	}
+	for _, r := range systemRoots {
+		p.roots = append(p.roots, newRoot(r, true))
+	}
+	for _, rel := range homeProtected {
+		if err := p.addRoot(filepath.Join(h, rel)); err != nil {
+			return nil, err
+		}
+	}
+	for _, e := range extraProtected {
+		e = homeRelative(h, e)
+		if !filepath.IsAbs(e) {
+			return nil, fmt.Errorf("safety: protected path %q is not absolute", e)
+		}
+		n := len(p.roots)
+		if err := p.addRoot(e); err != nil {
+			return nil, err
+		}
+		for _, r := range p.roots[n:] {
+			p.extraProtected = append(p.extraProtected, r.path)
+		}
+	}
+	return p, nil
+}
+
+// addRoot protects path both as canonicalized (the symlink itself, if it is
+// one) and fully resolved (where a symlink points).
+func (p *Policy) addRoot(path string) error {
+	c, err := Canonicalize(path)
+	if err != nil {
+		return fmt.Errorf("safety: protected path: %w", err)
+	}
+	p.roots = append(p.roots, newRoot(c, false))
+	r, err := resolveFull(c)
+	if err != nil {
+		return fmt.Errorf("safety: protected path: %w", err)
+	}
+	if r != c {
+		p.roots = append(p.roots, newRoot(r, false))
+	}
+	return nil
 }
 
 // Home returns the canonical home directory of the policy.
@@ -61,14 +120,33 @@ func (p *Policy) Home() string { return p.home }
 // Case is preserved; comparisons elsewhere are case-insensitive because APFS
 // volumes are case-insensitive by default.
 func Canonicalize(path string) (string, error) {
-	return "", ErrNotImplemented
+	switch {
+	case path == "":
+		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "empty path"}
+	case strings.ContainsRune(path, 0):
+		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "path contains a NUL byte"}
+	case !filepath.IsAbs(path):
+		return "", &Violation{Path: path, Rule: RuleNotAbsolute, Detail: "path is relative"}
+	}
+	clean := filepath.Clean(path)
+	if clean == "/" {
+		return clean, nil
+	}
+	parent, err := resolveParents(filepath.Dir(clean))
+	if err != nil {
+		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "cannot resolve parent: " + err.Error()}
+	}
+	return norm.NFC.String(filepath.Join(parent, filepath.Base(clean))), nil
 }
 
 // Within reports whether path equals root or is a descendant of it. Both must
 // already be canonical. The comparison is component-wise (so "/a/bc" is not
 // within "/a/b"), Unicode NFC, and case-insensitive.
 func Within(root, path string) bool {
-	return false
+	if !filepath.IsAbs(root) || !filepath.IsAbs(path) {
+		return false
+	}
+	return hasPrefixComps(foldedComponents(root), foldedComponents(path))
 }
 
 // CheckTarget canonicalizes path and returns nil only if it may be a cleanup
@@ -85,11 +163,25 @@ func Within(root, path string) bool {
 //
 // On rejection the error is a *Violation.
 func (p *Policy) CheckTarget(path string, allow []string) error {
-	return ErrNotImplemented
+	c, err := Canonicalize(path)
+	if err != nil {
+		return err
+	}
+	if prot, root := p.isProtected(c); prot {
+		return &Violation{Path: c, Rule: RuleProtected, Detail: "inside protected path " + root}
+	}
+	pc := foldedComponents(c)
+	if !p.depthOK(pc) {
+		return &Violation{Path: c, Rule: RuleTooShallow, Detail: "must be at least 2 components below " + p.home}
+	}
+	if !p.matchAllow(pc, allow) {
+		return &Violation{Path: c, Rule: RuleNotAllowed, Detail: "matches no allow pattern"}
+	}
+	return nil
 }
 
 // IsProtected reports whether a canonical path is inside a protected area,
 // and if so which protected root matched.
 func (p *Policy) IsProtected(path string) (bool, string) {
-	return false, ""
+	return p.isProtected(path)
 }
