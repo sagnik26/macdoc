@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Containers</key>
+	<array>
+		<dict>
+			<key>ContainerReference</key>
+			<string>disk7</string>
+			<key>Volumes</key>
+			<array>
+				<dict>
+					<key>CapacityInUse</key>
+					<integer>100</integer>
+					<key>Name</key>
+					<string>Small</string>
+				</dict>
+				<dict>
+					<key>CapacityInUse</key>
+					<integer>5000</integer>
+					<key>MountPoint</key>
+					<string>/Volumes/Big</string>
+					<key>Name</key>
+					<string>Big</string>
+					<key>Roles</key>
+					<array>
+						<string>Data</string>
+					</array>
+				</dict>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
