@@ -38,7 +38,10 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVarP(&g.quiet, "quiet", "q", false, "minimal output")
 	root.PersistentFlags().BoolVarP(&g.verbose, "verbose", "v", false, "verbose output")
 
-	root.AddCommand(newVersionCmd(g))
+	doctor := newDoctorCmd(g)
+	root.AddCommand(newVersionCmd(g), doctor)
+	// Bare `macdoc` shows the doctor summary.
+	root.RunE = doctor.RunE
 	return root
 }
 

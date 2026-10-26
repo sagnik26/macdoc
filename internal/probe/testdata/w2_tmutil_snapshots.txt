@@ -1,0 +1,6 @@
+Snapshots for disk /:
+com.apple.TimeMachine.2026-10-25-091500.local
+
+  com.apple.TimeMachine.2026-10-26-101500.local  
+com.apple.TimeMachine.2026-10-27-111500.local
+com.bombich.ccc.2026-10-27-120000
