@@ -109,3 +109,27 @@ func TestBarAndTruncate(t *testing.T) {
 		t.Errorf("truncate = %q", got)
 	}
 }
+
+func TestRenderScan(t *testing.T) {
+	var buf bytes.Buffer
+	s := engine.ScanSummary{
+		Info:             model.ScanInfo{ID: "S-ABCDEFGH", TotalBytes: 186_000_000_000, TotalFiles: 1234567, Status: model.ScanIncomplete},
+		TopLevel:         []model.Node{{Path: "/Users", Bytes: 150_000_000_000}},
+		Largest:          []model.Node{{Path: "/Users/me/Library/Developer/Xcode/DerivedData", Bytes: 14_200_000_000}},
+		Unmeasured:       []model.Unmeasured{{Path: "/Users/me/Library/Mail", Reason: "permission denied (grant Full Disk Access to your terminal)"}},
+		HardlinkLimitHit: true,
+	}
+	if err := renderScan(&buf, s); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{"Scan S-ABCDEFGH · 186 GB in 1234567 files", "interrupted", "150 GB  /Users",
+		"14.2 GB  /Users/me/Library/Developer/Xcode/DerivedData", "grant Full Disk Access", "hard links", "Nothing has been changed."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n---\n%s", want, out)
+		}
+	}
+	if isTerminal(&buf) {
+		t.Error("buffer is not a terminal")
+	}
+}
