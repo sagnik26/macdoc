@@ -143,9 +143,7 @@ Estimates assume part-time work (~15–20 h/week).
 - **Hard links:** files with `nlink > 1` are tracked by `(dev, ino)` in a compact set and counted once.
 - **APFS clones:** can't be detected cheaply. Record a confidence flag ("may include cloned blocks") on Xcode/simulator recipes where clones are common.
 - **Streaming aggregation:** sizes roll up bottom-up as directories finish. Only directories that are ≥ `keep_threshold` (default 100 MB), recipe-matched, or project roots are kept, so memory stays bounded however many files there are.
-- **Priority:**
-  - Re-exec under `taskpolicy -b` (background CPU and I/O QoS) unless `--foreground`.
-  - Also call `setpriority(PRIO_PROCESS, 0, 10)`.
+- **Priority:** `scanner.SetBackgroundPriority()` calls `setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)`, which throttles both CPU and I/O to the macOS background band, unless `--foreground`. No re-exec and no cgo.
 - **Memory:** `debug.SetMemoryLimit(64 << 20)` (GOMEMLIMIT), with a `debug.FreeOSMemory()` call after the crawl.
 - **Progress:** a live single-line progress display (files/s, GB seen, current top dir). Ctrl-C saves a partial scan marked `incomplete`.
 - **Permissions:** EPERM/EACCES directories are recorded as `unmeasured` with a reason. If key paths are unreadable, show a one-time hint about granting Full Disk Access to the Terminal app.
@@ -173,6 +171,7 @@ Estimates assume part-time work (~15–20 h/week).
   - config `protected_paths` must not contain `..` and must not be an ancestor of home (P0-W3 Q4). Also reject these in `NewPolicy` Validation runs at startup, and a bad recipe is a startup error in dev and is skipped with a warning in release.
 - Detectors are named Go functions such as `glob`, `xcode_device_support_versions`, `android_unused_system_images`, `docker_df`, `ollama_list`, `hf_cache_scan` and `node_modules_in_projects`.
 - Native-tool sizing: wherever the tool can report its own usage (`docker system df -v`, `brew cleanup -n`, `ollama list`, `hf cache scan`, `xcrun simctl runtime list -j`), use it and cross-check against crawl data.
+- The scanner's `Keep` callback runs once per finished directory under a lock, so recipe and project roots must be **precomputed** (set or trie), not matched expensively per directory (P2-W1 Q2).
 - Classifier: map crawl nodes to recipes and produce opportunities with stable IDs: `O-` + base32(sha256(recipe_id + canonical_target + scan_id))[:6].
 - Ranking: tiers come first (SAFE, then CAUTION, then RISKY/ADVISE). Within a tier, sort by `reclaimable_bytes × confidence × staleness_factor`. Restore cost is shown but not weighted in v1.
 - "System Data" decoder: attribute snapshots, swap/VM, `/private/var/folders`, caches, logs, Docker, simulators and unknown, then show the remainder honestly as "unattributed".
