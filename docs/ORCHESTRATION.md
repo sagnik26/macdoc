@@ -58,6 +58,7 @@ Each brief contains:
 - Workers run headless: `claude -p "<prompt>" --output-format stream-json --verbose --permission-mode acceptEdits` with explicit `--allowedTools` (Read/Glob/Grep — Edit/Write are deliberately not allowlisted so `acceptEdits` limits writes to the worktree, `go`, `gofmt`, `make`, `golangci-lint`, `git status|diff|add|commit|log|show`, `mkdir`, `ls`) and `--disallowedTools` (`git push|checkout|merge|worktree|reset`, `rm`, `sudo`, `curl`, `wget`, WebFetch, WebSearch, Agent).
 - The JSON stream is saved to `.task/stream.jsonl` and rendered in the pane by `scripts/orchestration/format-stream.jq` (messages, tool calls, errors, and a final summary line).
 - Workers can't ask questions mid-task. They record questions in `.task/REPORT.md`.
+- Workers must run everything in the **foreground**. In headless mode, ending a turn ends the session, so a worker that backgrounds a job and "waits" just stops (this happened in P2-W1). `run-worker.sh` appends this rule to every prompt.
 - **Feedback loop:** the tech lead resumes the same session with `run-worker.sh <task> --continue "<review feedback>"`. Nobody types into a worker pane.
 
 ### tmux layout (`tmux attach -t macdoc-build`)

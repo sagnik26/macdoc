@@ -9,7 +9,9 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 task="$1"; shift
 cont=()
 if [ "${1:-}" = "--continue" ]; then cont=(--continue); shift; fi
-prompt="$1"
+prompt="$1
+
+HEADLESS RULES: run every command in the foreground (never run_in_background, Monitor, or waiting for notifications): when you end your turn the session ends."
 extra=()
 [ -n "${EXTRA_ALLOW:-}" ] && IFS=";" read -r -a extra <<< "$EXTRA_ALLOW"
 wt="$root/.worktrees/$task"
