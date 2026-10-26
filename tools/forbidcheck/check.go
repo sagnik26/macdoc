@@ -86,7 +86,8 @@ func shortName(importPath string) string { return path.Base(importPath) }
 type Finding struct {
 	File    string // module-relative, slash-separated
 	Line    int
-	Func    string // e.g. "os.RemoveAll"; empty for shell findings
+	pos     token.Pos // for ordering findings on the same line
+	Func    string    // e.g. "os.RemoveAll"; empty for shell findings
 	Message string
 }
 
@@ -106,9 +107,28 @@ func checkSource(filename string, src []byte) ([]Finding, error) {
 
 	named := map[string]string{} // local name -> import path
 	var dotted []string          // dot-imported paths
+	cmds := commandNames{
+		// Inside package platform itself, Command is unqualified.
+		bare: file.Name.Name == "platform" && strings.HasPrefix(filename, "internal/platform/"),
+		qual: map[string]bool{},
+	}
 	for _, imp := range file.Imports {
 		p, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || !watched(p) {
+		if err != nil {
+			continue
+		}
+		if p == platformPath {
+			switch {
+			case imp.Name == nil:
+				cmds.qual["platform"] = true
+			case imp.Name.Name == ".":
+				cmds.bare = true
+			case imp.Name.Name != "_":
+				cmds.qual[imp.Name.Name] = true
+			}
+			continue
+		}
+		if !watched(p) {
 			continue
 		}
 		switch {
@@ -121,7 +141,7 @@ func checkSource(filename string, src []byte) ([]Finding, error) {
 			named[imp.Name.Name] = p
 		}
 	}
-	if len(named) == 0 && len(dotted) == 0 {
+	if len(named) == 0 && len(dotted) == 0 && !cmds.any() {
 		return nil, nil
 	}
 
@@ -131,6 +151,7 @@ func checkSource(filename string, src []byte) ([]Finding, error) {
 		out = append(out, Finding{
 			File:    filename,
 			Line:    fset.Position(n.Pos()).Line,
+			pos:     n.Pos(),
 			Func:    fn,
 			Message: fmt.Sprintf("forbidden call %s (%s)", fn, r.reason),
 		})
@@ -174,6 +195,7 @@ func checkSource(filename string, src []byte) ([]Finding, error) {
 					out = append(out, Finding{
 						File:    filename,
 						Line:    fset.Position(x.Args[r.nameArg].Pos()).Line,
+						pos:     x.Args[r.nameArg].Pos(),
 						Message: fmt.Sprintf("forbidden shell %q as command name (no shell, no sudo)", s),
 					})
 				}
@@ -186,11 +208,107 @@ func checkSource(filename string, src []byte) ([]Finding, error) {
 			if p, name, r, ok := resolve(x); ok {
 				report(x, p, name, r)
 			}
+		case *ast.CompositeLit:
+			for _, lit := range cmds.literals(x) {
+				if v := commandName(lit); v != nil {
+					if s, ok := shellLiteral(v); ok {
+						out = append(out, Finding{
+							File:    filename,
+							Line:    fset.Position(v.Pos()).Line,
+							pos:     v.Pos(),
+							Message: fmt.Sprintf("forbidden shell %q in platform.Command (no shell, ever)", s),
+						})
+					}
+				}
+			}
 		}
 		return true
 	})
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Line < out[j].Line })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].pos < out[j].pos })
 	return out, nil
+}
+
+// platformPath is the package whose Command type feeds the Runner. A shell
+// as Command.Name is never allowed (and never allowlistable).
+const platformPath = "macdoc/internal/platform"
+
+// commandNames records how platform.Command can be spelled in one file.
+type commandNames struct {
+	qual map[string]bool // import names: platform.Command, p.Command
+	bare bool            // Command (dot import, or inside package platform)
+}
+
+func (c commandNames) any() bool { return c.bare || len(c.qual) > 0 }
+
+// isCommand reports whether a type expression is platform.Command or a
+// pointer to it.
+func (c commandNames) isCommand(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.StarExpr:
+		return c.isCommand(x.X)
+	case *ast.ParenExpr:
+		return c.isCommand(x.X)
+	case *ast.SelectorExpr:
+		id, ok := x.X.(*ast.Ident)
+		return ok && c.qual[id.Name] && x.Sel.Name == "Command"
+	case *ast.Ident:
+		return c.bare && x.Name == "Command"
+	}
+	return false
+}
+
+// literals returns the platform.Command literals that lit is or directly
+// contains with the type elided, e.g. []platform.Command{{Name: "sh"}}.
+func (c commandNames) literals(lit *ast.CompositeLit) []*ast.CompositeLit {
+	if lit.Type == nil {
+		return nil // handled by the enclosing literal
+	}
+	if c.isCommand(lit.Type) {
+		return []*ast.CompositeLit{lit}
+	}
+	var elem ast.Expr
+	switch t := lit.Type.(type) {
+	case *ast.ArrayType:
+		elem = t.Elt
+	case *ast.MapType:
+		elem = t.Value
+	default:
+		return nil
+	}
+	if !c.isCommand(elem) {
+		return nil
+	}
+	var out []*ast.CompositeLit
+	for _, e := range lit.Elts {
+		if kv, ok := e.(*ast.KeyValueExpr); ok {
+			e = kv.Value
+		}
+		if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
+			e = u.X
+		}
+		if inner, ok := e.(*ast.CompositeLit); ok && inner.Type == nil {
+			out = append(out, inner)
+		}
+	}
+	return out
+}
+
+// commandName returns the expression given for Command.Name: the keyed
+// Name field, or the first positional element.
+func commandName(lit *ast.CompositeLit) ast.Expr {
+	for i, e := range lit.Elts {
+		kv, ok := e.(*ast.KeyValueExpr)
+		if !ok {
+			if i == 0 {
+				return e
+			}
+			return nil
+		}
+		if k, ok := kv.Key.(*ast.Ident); ok && k.Name == "Name" {
+			return kv.Value
+		}
+	}
+	return nil
 }
 
 func watched(importPath string) bool {

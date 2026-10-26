@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -151,6 +153,108 @@ func f() { g().Close() }`, nil},
 				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(c.want, "\n"))
 			}
 		})
+	}
+}
+
+func TestPlatformCommandShell(t *testing.T) {
+	const msg = "forbidden shell %q in platform.Command (no shell, ever)"
+	shell := func(line int, name string) string {
+		return "p/f.go:" + strconv.Itoa(line) + ": " + fmt.Sprintf(msg, name)
+	}
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"keyed", `package p
+import "macdoc/internal/platform"
+var c = platform.Command{Args: []string{"-c", "x"}, Name: "sh"}`,
+			[]string{shell(3, "sh")}},
+		{"positional", `package p
+import "macdoc/internal/platform"
+var c = platform.Command{"bash", []string{"-c"}, 0}`,
+			[]string{shell(3, "bash")}},
+		{"aliased import, path form", `package p
+import pl "macdoc/internal/platform"
+var c = &pl.Command{
+	Name: "/bin/zsh",
+}`,
+			[]string{shell(4, "/bin/zsh")}},
+		{"dot import", `package p
+import . "macdoc/internal/platform"
+var c = Command{Name: "sudo"}`,
+			[]string{shell(3, "sudo")}},
+		{"elided in slice and map", `package p
+import "macdoc/internal/platform"
+var cs = []*platform.Command{{Name: "ls"}, &platform.Command{Name: "sh"}, {Name: "/usr/bin/sudo"}}
+var m = map[string]platform.Command{"a": {"zsh", nil, 0}}
+var arr = [2]platform.Command{1: {Name: "bash"}}`,
+			[]string{shell(3, "sh"), shell(3, "/usr/bin/sudo"), shell(4, "zsh"), shell(5, "bash")}},
+		{"non-shell name passes", `package p
+import "macdoc/internal/platform"
+var c = platform.Command{Name: "/usr/bin/du", Args: []string{"sh"}}
+var d = platform.Command{"du", []string{"bash"}, 0}`, nil},
+		{"non-literal name passes", `package p
+import "macdoc/internal/platform"
+func f(n string) platform.Command { return platform.Command{Name: n} }
+const sh = "sh"
+var c = platform.Command{sh, nil, 0}`, nil},
+		{"no name", `package p
+import "macdoc/internal/platform"
+var c = platform.Command{Args: []string{"sh"}}
+var e = platform.Command{}`, nil},
+		{"other Command types pass", `package p
+import (
+	"macdoc/internal/platform"
+	other "example.com/other"
+)
+type Command struct{ Name string }
+var a = Command{Name: "sh"}
+var b = other.Command{Name: "sh"}
+var c = platform.Result{}
+var d = []string{"sh"}
+var e = map[string]Command{"x": {Name: "sh"}}
+var f = struct{ Name string }{"sh"}`, nil},
+		{"blank import", `package p
+import _ "macdoc/internal/platform"
+type Command struct{ Name string }
+var a = Command{Name: "sh"}`, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := findings(t, c.src)
+			if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(c.want, "\n"))
+			}
+		})
+	}
+}
+
+func TestPlatformCommandInsidePackage(t *testing.T) {
+	src := []byte(`package platform
+var c = Command{Name: "sh"}
+var d = (*Command)(nil)`)
+	got, err := checkSource("internal/platform/x.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].String() != `internal/platform/x.go:2: forbidden shell "sh" in platform.Command (no shell, ever)` {
+		t.Errorf("got %v", got)
+	}
+	// Same source elsewhere is a different Command type.
+	if got, _ := checkSource("other/x.go", src); len(got) != 0 {
+		t.Errorf("outside internal/platform: got %v", got)
+	}
+}
+
+func TestPlatformCommandNotAllowlistable(t *testing.T) {
+	root := module(t, map[string]string{
+		"a/a.go":                      "package a\nimport \"macdoc/internal/platform\"\nvar c = platform.Command{Name: \"sh\"}\n",
+		"tools/forbidcheck/allow.txt": "a/a.go:platform.Command\n",
+	})
+	code, out, _ := runIn(t, root, "./a")
+	if code != 1 || !strings.Contains(out, `a/a.go:3: forbidden shell "sh" in platform.Command`) {
+		t.Errorf("code %d out %q", code, out)
 	}
 }
 

@@ -7,7 +7,6 @@
 package sandbox
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,9 +16,6 @@ import (
 
 // EnvVar is the environment variable that enables sandbox mode.
 const EnvVar = "MACDOC_SANDBOX"
-
-// ErrNotImplemented is returned by stubs until P0-W2 lands.
-var ErrNotImplemented = errors.New("sandbox: not implemented")
 
 // Root returns the canonical sandbox directory and true if sandbox mode is
 // active. It returns an error if the variable is set but invalid (relative,
