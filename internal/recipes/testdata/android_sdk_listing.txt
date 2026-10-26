@@ -1,0 +1,12 @@
+/Users/sagnikghosh/Library/Android/sdk/build-tools:
+34.0.0
+35.0.0
+36.0.0
+
+/Users/sagnikghosh/Library/Android/sdk/ndk:
+27.1.12297006
+
+/Users/sagnikghosh/Library/Android/sdk/platforms:
+android-33-ext5
+android-34
+android-36

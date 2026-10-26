@@ -99,3 +99,26 @@ func TestScanStoresResult(t *testing.T) {
 		t.Error("expected error without home")
 	}
 }
+
+func TestScanNodesAdapter(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	fstree.Build(t, root, fstree.File("a/b/c.bin", 2<<20))
+	home := filepath.Join(base, "home")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := Scan(context.Background(), ScanOptions{Home: home, Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(store.DefaultPath(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
+	ns, err := scanNodes{st: st, scanID: sum.Info.ID}.Nodes(sum.Info.Root, 0)
+	if err != nil || len(ns) == 0 {
+		t.Fatalf("nodes = %v, %v", ns, err)
+	}
+}

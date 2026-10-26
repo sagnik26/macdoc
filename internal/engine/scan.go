@@ -10,6 +10,7 @@ import (
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
 	"macdoc/internal/probe"
+	"macdoc/internal/recipes"
 	"macdoc/internal/scanner"
 	"macdoc/internal/store"
 )
@@ -79,6 +80,12 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 		opts.Root, opts.MapPrefix = scanner.DataVolume, scanner.DataVolume
 		opts.Skip, opts.Opaque = defaultScanLists(scanner.DataVolume, o.Home)
 	}
+
+	cat, err := recipes.Load()
+	if err != nil {
+		return ScanSummary{}, err
+	}
+	opts.Keep = recipes.KeepFunc(cat, o.Home)
 
 	st, err := store.Open(o.StorePath)
 	if err != nil {

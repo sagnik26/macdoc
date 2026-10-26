@@ -1,0 +1,4 @@
+DerivedData
+SDKToSimulatorIndexMapping.plist
+UserData
+XcodeToMetalToolchainIndexMapping.plist
