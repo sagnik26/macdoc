@@ -55,6 +55,14 @@ func (p *Policy) isProtected(path string) (bool, string) {
 	}
 
 	inHome := hasPrefixComps(p.homeComps, pc)
+
+	// Siblings of $HOME (other users' homes, /Users/Shared) are never targets.
+	// Checked first so the reported root is the most specific one.
+	parent := p.homeComps[:len(p.homeComps)-1]
+	if !inHome && len(pc) > len(parent) && hasPrefixComps(parent, pc) {
+		return true, "outside home: " + filepath.Dir(p.home)
+	}
+
 	for _, r := range p.roots {
 		if !hasPrefixComps(r.comps, pc) {
 			continue

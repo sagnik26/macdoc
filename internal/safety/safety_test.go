@@ -59,6 +59,11 @@ func TestCanonicalizeRejects(t *testing.T) {
 		{"a/b", RuleNotAbsolute},
 		{".", RuleNotAbsolute},
 		{"~/x", RuleNotAbsolute},
+		{"/a/..", RuleInvalid},
+		{"/a/../b", RuleInvalid},
+		{"/..", RuleInvalid},
+		{"/a/b/../", RuleInvalid},
+		{"//a/../../b", RuleInvalid},
 	}
 	for _, tt := range tests {
 		_, err := Canonicalize(tt.in)
@@ -75,7 +80,8 @@ func TestCanonicalizeMacOSFirmlinks(t *testing.T) {
 		{"/tmp/macdoc-nonexistent/a", "/private/tmp/macdoc-nonexistent/a"},
 		{"/etc/hosts/x/y", "/private/etc/hosts/x/y"}, // ancestor is a file
 		{"/tmp", "/tmp"},                             // final component not followed
-		{"/a/./b/../c//", "/a/c"},
+		{"/a/./b//c/", "/a/b/c"},
+		{"/a/..foo/foo../...", "/a/..foo/foo../..."}, // not ".." components
 		{"/TMP/x", "/private/tmp/x"}, // case-insensitive lookup; link target used
 	}
 	for _, tt := range tests {
@@ -181,6 +187,7 @@ func TestCanonicalizeSymlinks(t *testing.T) {
 		filepath.Join(dir, "loopa", "x"),
 		filepath.Join(dir, "loopa", "x", "y"),
 		filepath.Join(dir, "dangling", "x"),
+		dir + "/parent/../b", // ".." through a symlink: kernel and Clean disagree
 	} {
 		_, err := Canonicalize(in)
 		if got := violationRule(t, err); got != RuleInvalid {
@@ -315,12 +322,45 @@ func TestRealHomeLayout(t *testing.T) {
 		{"/Users/macdoc-test-nobody/.gradle", RuleTooShallow},
 		{"/Users", RuleProtected},
 		{"/Library/Caches/x", RuleProtected},
-		{"/Users/other/.gradle/caches", RuleNotAllowed},
+		{"/Users/other/.gradle/caches", RuleProtected},
+		{"/Users/Shared/x/y", RuleProtected},
+		{"/USERS/OTHER/x/y", RuleProtected},
+		{"/Users/macdoc-test-nobodyx/a/b", RuleProtected},
+		{"/Users/MACDOC-TEST-NOBODY/.gradle/caches", ""},
+		{"/nonexistent-macdoc/x/y", RuleNotAllowed},
 	}
 	for _, tt := range tests {
 		if got := violationRule(t, p.CheckTarget(tt.path, allow)); got != tt.rule {
 			t.Errorf("CheckTarget(%q) rule = %q, want %q", tt.path, got, tt.rule)
 		}
+	}
+
+	for _, path := range []string{"/Users/other/x", "/Users/Shared/x", "/users/OTHER/x"} {
+		got, root := p.IsProtected(path)
+		if !got || root != "outside home: /Users" {
+			t.Errorf("IsProtected(%q) = %v, %q; want true, %q", path, got, root, "outside home: /Users")
+		}
+	}
+}
+
+func TestHomeSiblingsTempHome(t *testing.T) {
+	p := newTestPolicy(t)
+	h := p.Home()
+	parent := filepath.Dir(h)
+	want := "outside home: " + parent
+	for _, path := range []string{
+		filepath.Join(parent, "other", "x"),
+		filepath.Join(parent, "homex", "a", "b"),
+		strings.ToUpper(filepath.Join(parent, "other")) + "/x",
+	} {
+		got, root := p.IsProtected(path)
+		if !got || root != want {
+			t.Errorf("IsProtected(%q) = %v, %q; want true, %q", path, got, root, want)
+		}
+	}
+	// Inside home is not a sibling.
+	if got, root := p.IsProtected(filepath.Join(h, ".gradle", "caches")); got {
+		t.Errorf("home path protected by %q", root)
 	}
 }
 
@@ -351,7 +391,10 @@ func TestCheckTarget(t *testing.T) {
 		{"no match", hp(".gradle/caches"), []string{"~/.npm/*"}, RuleNotAllowed},
 		{"relative", "Library/Caches/x", all, RuleNotAbsolute},
 		{"empty", "", all, RuleInvalid},
-		{"dotdot traversal", hp("Library/Caches/../../Documents/x"), all, RuleProtected},
+		// String concatenation, not hp(): filepath.Join would clean the "..".
+		{"dotdot traversal", h + "/Library/Caches/../../Documents/x", all, RuleInvalid},
+		{"dotdot through symlink", h + "/proj/docs/../x", all, RuleInvalid},
+		{"dotdot-like names are fine", h + "/proj/..foo/foo..", []string{"~/proj/*/*"}, ""},
 		{"symlinked parent into protected", hp("proj/docs/inner/x"), all, RuleProtected},
 		{"final symlink not followed", hp("proj/cache"), []string{"~/proj/*"}, ""},
 		{"symlink loop", hp("loop1/x/y"), all, RuleInvalid},
@@ -368,13 +411,17 @@ func TestCheckTarget(t *testing.T) {
 	}
 
 	// Violation carries the canonical path and a readable message.
-	err := p.CheckTarget(hp("Library/Caches/../../Documents/x"), all)
+	err := p.CheckTarget(h+"/Library/Caches/../../Documents/x", all)
 	var v *Violation
+	if !errors.As(err, &v) || v.Detail != "path contains .." {
+		t.Fatalf("want *Violation with Detail %q, got %v", "path contains ..", err)
+	}
+	err = p.CheckTarget(hp("proj/docs/inner/x"), all)
 	if !errors.As(err, &v) {
 		t.Fatalf("want *Violation, got %v", err)
 	}
-	if v.Path != hp("Documents/x") {
-		t.Errorf("Violation.Path = %q, want %q", v.Path, hp("Documents/x"))
+	if v.Path != hp("Documents/inner/x") {
+		t.Errorf("Violation.Path = %q, want %q", v.Path, hp("Documents/inner/x"))
 	}
 	if !strings.Contains(v.Error(), "protected") || !strings.Contains(v.Error(), v.Path) {
 		t.Errorf("Violation.Error() = %q", v.Error())

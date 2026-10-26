@@ -24,6 +24,9 @@ func FuzzCanonicalize(f *testing.F) {
 			}
 			return
 		}
+		if hasDotDot(in) || hasDotDot(c) {
+			t.Fatalf("Canonicalize(%q) = %q accepted a .. component", in, c)
+		}
 		c2, err := Canonicalize(c)
 		if err != nil {
 			t.Fatalf("Canonicalize(%q) = %q, then error %v", in, c, err)
@@ -53,6 +56,8 @@ func FuzzCheckTarget(f *testing.F) {
 		{h + "/Library/Containers/com.apple.x/y", "~/Library/Containers/*/y"},
 		{"/System/x", "/**"},
 		{"/Users/a/b", "/Users/*/b"},
+		{filepath.Dir(h) + "/other/x", "/**"},
+		{h + "/a/..b/c..", "~/**"},
 		{h + "/a/.git", "~/a/*"},
 		{h + "/a/b.DB", "~/**"},
 		{"rel", "rel"},
@@ -77,6 +82,9 @@ func FuzzCheckTarget(f *testing.F) {
 		}
 		if Within(h, c) && len(components(c))-len(components(h)) < 2 {
 			t.Fatalf("CheckTarget(%q) ok but %q violates the depth rule", path, c)
+		}
+		if Within(filepath.Dir(h), c) && !Within(h, c) {
+			t.Fatalf("CheckTarget(%q) ok but %q is a sibling of home", path, c)
 		}
 	})
 }

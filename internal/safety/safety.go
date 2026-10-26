@@ -127,6 +127,8 @@ func Canonicalize(path string) (string, error) {
 		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "path contains a NUL byte"}
 	case !filepath.IsAbs(path):
 		return "", &Violation{Path: path, Rule: RuleNotAbsolute, Detail: "path is relative"}
+	case hasDotDot(path):
+		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "path contains .."}
 	}
 	clean := filepath.Clean(path)
 	if clean == "/" {

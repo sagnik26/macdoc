@@ -39,6 +39,18 @@ func resolveParents(dir string) (string, error) {
 	return resolved, nil
 }
 
+// hasDotDot reports whether the raw path has a ".." component. Such paths are
+// rejected rather than cleaned: lexical cleaning disagrees with the kernel
+// when ".." follows a symlink, and scanner paths never contain "..".
+func hasDotDot(p string) bool {
+	for _, c := range strings.Split(p, "/") {
+		if c == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 // missing reports whether err means "nothing exists at this path", including
 // the case where an ancestor is a regular file.
 func missing(err error) bool {
