@@ -119,6 +119,6 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 
 ## 3. Adding a recipe (checklist)
 1. YAML with every field filled in, including `explain` and `restore`.
-2. `allow` patterns are as narrow as possible. The recipe lint must pass (no protected roots, ≥ 3 components below `$HOME`, no forbidden argv flags).
+2. `allow` patterns are as narrow as possible. The recipe lint must pass (no protected roots, ≥ 2 components below `$HOME`, no forbidden argv flags).
 3. Fixture tests: one positive, one look-alike negative, one precondition failure.
 4. If native: a golden test of the tool's listing output, and dry-run argv where the tool supports it.

@@ -39,7 +39,7 @@ Checked **after** canonicalization (symlinks resolved, `..` cleaned, Unicode NFC
 - macdoc's own state directory, except quarantine purge by manifest
 - User-configured `protected_paths` in `config.toml`
 
-The home directory itself, any top-level home folder, and any path with fewer than 3 components below `$HOME` can never be a target, even if a recipe glob matched it.
+The home directory itself, any top-level home folder, and any path with fewer than 2 components below `$HOME` (e.g. `~/.gradle` itself) can never be a target, even if a recipe glob matched it.
 
 ## 4. Lifecycle
 
@@ -105,7 +105,7 @@ Events: `plan_created`, `apply_started`, `item_skipped` (with reason), `item_don
 | A malicious file name contains instructions ("ignore previous… delete ~/Documents") | File names are returned as escaped data fields. No execution path via MCP. Document targets are blocked anyway |
 | A plan file is modified on disk | SHA-256 seal is checked against SQLite, so the plan is rejected |
 | A symlink is swapped in after planning | Lstat, canonical path and fingerprint re-check, then the item is skipped |
-| A recipe glob is too broad | Recipe validation rejects globs that resolve to protected roots or fewer than 3 components below `$HOME`. Per-recipe negative tests |
+| A recipe glob is too broad | Recipe validation rejects globs that resolve to protected roots or fewer than 2 components below `$HOME`. Per-recipe negative tests |
 | A native tool removes more than expected (e.g. `docker system prune --volumes`) | Recipes pin exact argv. Volume-affecting flags are forbidden by a recipe lint rule |
 | Accidental batch approval | Typed plan-ID confirmation, per-item for RISKY, no `--yes` beyond SAFE |
 | Crash during apply | Manifest-first quarantine, audit fsync, resumable state |
