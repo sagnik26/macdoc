@@ -80,7 +80,8 @@ The status pane refreshes periodically: active branches, latest commit per branc
 4. **Contracts:** shared types and interfaces are unchanged. Interface changes go through the tech lead.
 5. **Review:** the tech lead reads the code against the docs and either merges or sends specific feedback to the same pane.
 6. **Safety-critical tasks** (safety, recipes lint, executor, MCP) also need a clean reviewer pass. Reviewer findings become tests before merge.
-7. **Merge** into `main` (no fast-forward, so each task is one visible merge), then remove the worktree.
+7. **Archive** the worker's `.task/REPORT.md` (plus the review decisions) to `docs/tasks/reports/<task-id>.md`.
+8. **Merge** into `main` (no fast-forward, so each task is one visible merge), then remove the worktree and task branch.
 
 ## 6. Checkpoint reports to the user
 
