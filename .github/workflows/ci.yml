@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15
+
+      - name: Test
+        run: make test
+
+      # Invariant 3: internal/mcp and internal/engine never reach the executor.
+      - name: Import guard
+        run: make importcheck
+
+      # Invariants 2 and 8: no deletes, renames or exec outside internal/executor.
+      - name: Forbidden-call guard
+        run: make forbidcheck
+
+      - name: Build
+        run: make build
+
+      - name: Fuzz (short)
+        run: |
+          go test -run='^$' -fuzz=FuzzCanonicalize -fuzztime=10s ./internal/safety
+          go test -run='^$' -fuzz=FuzzCheckTarget -fuzztime=10s ./internal/safety

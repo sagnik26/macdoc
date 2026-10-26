@@ -1,0 +1,9 @@
+# forbidcheck allowlist: one "path:pkg.Func" per line (module-relative path).
+# Every entry needs a comment explaining why it is safe. Keep this short.
+#
+# internal/testutil needs no entries: fstree only creates files (os.Link,
+# os.Symlink, os.Chmod, os.Chtimes, (*os.File).Truncate), none forbidden.
+
+# The read-only Runner. Only fixed argv, no shell; mutating commands are
+# run solely by internal/executor (AGENTS.md invariant 2).
+internal/platform/runner.go:exec.CommandContext
