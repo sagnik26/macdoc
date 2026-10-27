@@ -82,7 +82,7 @@ func Findings(rep probe.Report) []Finding {
 		case free < criticalFreeBytes:
 			fs = append(fs, Finding{SeverityCritical,
 				fmt.Sprintf("Only %s free on disk.", DecimalBytes(free)),
-				"Below 5 GB, macOS updates fail and apps can hang. Run `macdoc wins` to see what can be reclaimed."})
+				"Below 5 GB, macOS updates fail and apps can hang. Run `macdoc doctor` to see what can be reclaimed."})
 		case free < lowFreeBytes:
 			fs = append(fs, Finding{SeverityWarn,
 				fmt.Sprintf("Free space is under 10 GB (%s).", DecimalBytes(free)),

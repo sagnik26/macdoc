@@ -103,7 +103,7 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 
 func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "macdoc wins · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
+	fmt.Fprintf(&b, "macdoc doctor wins · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
 	if len(res.Opportunities) == 0 {
 		if only != "" {
 			fmt.Fprintf(&b, " Nothing in %q in the latest scan.\n", tierNames[only])
@@ -126,7 +126,7 @@ func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		b.WriteString("\n")
 	}
 	writeNotes(&b, res.Warnings)
-	b.WriteString(" macdoc explain <id> · nothing has been changed\n")
+	b.WriteString(" macdoc doctor explain <id> · nothing has been changed\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }
@@ -177,7 +177,7 @@ func writeOpportunities(b *strings.Builder, ops []model.Opportunity, cat *recipe
 			}
 			grouped[op.RecipeID] = true
 			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], recipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
-			fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", "", "", title, "(macdoc wins --all)")
+			fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", "", "", title, "(macdoc doctor wins --all)")
 			continue
 		}
 		writeOpportunity(b, op)

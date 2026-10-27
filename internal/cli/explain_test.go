@@ -44,7 +44,7 @@ func TestExplainCommand(t *testing.T) {
 	}
 
 	_, err = run(t, "explain", "O-zzzzzz")
-	if err == nil || err.Error() != `O-zzzzzz not found in the latest scan; IDs change after "macdoc scan"` {
+	if err == nil || err.Error() != `O-zzzzzz not found in the latest scan; IDs change after a new scan` {
 		t.Errorf("err = %v", err)
 	}
 }

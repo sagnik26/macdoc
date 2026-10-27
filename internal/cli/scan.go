@@ -109,7 +109,7 @@ func renderScan(w io.Writer, s engine.ScanSummary) error {
 	if s.HardlinkLimitHit {
 		b.WriteString("\nNote: very many hard links; some may be counted more than once.\n")
 	}
-	b.WriteString("\nNothing has been changed. Results are saved for `macdoc wins` and `macdoc trend`.\n")
+	b.WriteString("\nNothing has been changed. Run `macdoc doctor` to see what you can reclaim.\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }

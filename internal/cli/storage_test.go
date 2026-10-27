@@ -16,7 +16,7 @@ func TestStorageCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "macdoc storage · scan S-", "Reclaimable, by category", "package-caches", "18.0 GB+", "7 item(s)",
+	mustContain(t, out, "macdoc doctor space · scan S-", "Reclaimable, by category", "package-caches", "18.0 GB+", "7 item(s)",
 		"SAFE 3.0 GB · CAUTION 15.0 GB", `"System Data", decoded`, "Local Time Machine snapshots", "—  unknown (",
 		" Notes\n", "nothing has been changed")
 	if strings.Contains(out, "Large items") {

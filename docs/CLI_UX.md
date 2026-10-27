@@ -2,6 +2,8 @@
 
 ## 1. Commands
 
+> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | scan`, plus `--scan` to refresh first. The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
+
 | Command | Mode | Purpose |
 |---|---|---|
 | `macdoc` / `macdoc doctor` | read | One-screen health summary and top findings |

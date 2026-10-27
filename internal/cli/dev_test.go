@@ -12,7 +12,7 @@ func TestDevCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "macdoc dev · scan S-", " node ─", "18.0 GB", " system ─", "5 × Stale node_modules folder", "nothing has been changed")
+	mustContain(t, out, "macdoc doctor dev · scan S-", " node ─", "18.0 GB", " system ─", "5 × Stale node_modules folder", "nothing has been changed")
 	if strings.Index(out, " node ─") > strings.Index(out, " system ─") {
 		t.Error("biggest toolchain first")
 	}

@@ -8,37 +8,49 @@
 
 ## What works today
 
-| Command | What it does | Speed (8 GB M1) |
-|---|---|---|
-| `macdoc` / `macdoc doctor` | One-screen health summary covering the disk bar, purgeable space, memory pressure, swap, snapshots, top memory users grouped by app/dev tool, and plain-language findings | ~1.3 s, 16 MB RAM |
-| `macdoc scan` | Full crawl of the Data volume at **background priority**. Stores results and shows "where the space actually is" plus how much of the volume it could see | ~45 s for 1M files, ~25 MB RAM |
-| `macdoc wins` | **Ranked cleanup suggestions** from the latest scan, by tier (Free & safe, Worth considering, Needs care, Your call), each with size, restore cost and the exact command | ~6 s |
-| `macdoc explain <id>` | What an item is, why it's there, risk, idle time, restore cost and the exact action | ~6 s |
-| `macdoc storage [--large]` | Reclaimable space by category, plus **"System Data" decoded** (swap, purgeable, snapshots, temp files, simulators, the part the scan can't see) | ~6 s |
-| `macdoc dev [toolchain]` | The same, per toolchain: xcode, android, node, homebrew, docker, python, ai, system… | ~6 s |
-| `macdoc version` | Version | n/a |
+**One command:** `macdoc doctor` (or just `macdoc`) shows everything on one screen: disk and memory health, where your space is, and what you can reclaim, ranked by safety. It scans automatically the first time. After that it reuses the latest scan and tells you when it's over a day old.
 
-Every command supports `--json`, which outputs a versioned envelope with top-level warnings.
+```
+$ macdoc
+macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 29m ago
+
+Disk       ▕█████████████████████       ▏ 191 GB / 245 GB used   54.1 GB free  (+3.2 GB purgeable)
+Memory     8.0 GB · pressure warn · 37% free · swap 3.4 GB used
+Snapshots  0 local Time Machine snapshot(s)
+
+What matters most
+  1. ! 3.4 GB of swap in use.
+  2. ! Memory pressure is elevated.
+  3. · Google Chrome is using 1.7 GB of RAM.
+
+Where your space is (Data volume, 127 GB measured)
+  /Users 50.9 GB · /System 39.0 GB · /Library 19.0 GB · /opt 7.5 GB · /private 5.1 GB · 36.4 GB not visible (needs Full Disk Access)
+
+Reclaimable                              1.4 GB actionable · 48.9 GB advice
+  Free & safe           825 MB   Homebrew old versions and downloads 412 MB · uv cache 394 MB · 4 × Old app logs 19.6 MB
+  Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB
+  Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
+
+More: macdoc doctor wins (every item + ID) · explain <id> · space · health · --scan
+Nothing has been changed.
+```
+
+**Sections, for more detail:**
+
+| Command | Shows |
+|---|---|
+| `macdoc doctor` / `macdoc` | Everything above (~7 s; ~55 s the first time, when it scans) |
+| `macdoc doctor --scan` | Refresh the scan first, then show everything |
+| `macdoc doctor health` | Disk, memory, swap, snapshots, all findings, top memory users grouped by app/dev tool |
+| `macdoc doctor space [--large]` | Reclaimable space by category, plus **"System Data" decoded** (swap, purgeable, snapshots, temp files, simulators, the part the scan can't see). `--large` adds big items no recipe covers |
+| `macdoc doctor wins [--all] [--tier …]` | Every suggestion with its ID, size, restore cost and exact command |
+| `macdoc doctor explain <id>` | One suggestion in detail: what, why, risk, idle time, how to restore |
+| `macdoc doctor dev [toolchain]` | Suggestions per toolchain: xcode, android, node, homebrew, docker, python, ai, system |
+| `macdoc doctor scan` | Just refresh the scan (full crawl at background priority, ~45 s, ~25 MB RAM) |
+
+Every view supports `--json`, which outputs a versioned envelope with top-level warnings.
 
 **Not yet:** `plan` (Phase 5), `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8).
-
-### Example (a real run on the dev Mac)
-```
-$ macdoc wins
- Free & safe ───────────── 825 MB
-  O-25nll7    394 MB  uv cache                     re-downloads on demand
-                      → uv cache prune
-  O-7gqit4    412 MB  Homebrew old versions        re-downloads on demand
-                      → brew cleanup --prune=all
- Worth considering ──────── 553 MB
-  O-fchu2g    197 MB  Android build-tools 34.0.0   re-downloads on demand
-  O-34d4dy    161 MB  Node.js v20.20.2 (nvm)       re-downloads on demand
- Your call (advice only) ── 48.9 GB
-  O-jdl3no   33.7 GB  Leftover iOS simulator runtime downloads
-  O-2zmhzj   15.2 GB  Leftover simulator dyld caches
-
- macdoc explain <id> · nothing has been changed
-```
 
 ## Quick start
 
@@ -47,13 +59,12 @@ Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew insta
 ```bash
 git clone <this repo> macdoc && cd macdoc
 make build                 # → ./bin/macdoc
-./bin/macdoc               # health summary
-./bin/macdoc scan          # where the space is (~45 s)
-./bin/macdoc wins          # what you could reclaim
-./bin/macdoc explain <id>  # details for one suggestion
+./bin/macdoc                       # everything: health, space, reclaimable (scans the first time)
+./bin/macdoc doctor wins           # every suggestion with its ID
+./bin/macdoc doctor explain <id>   # details for one suggestion
 ```
 
-**For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, `scan` reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
+**For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 
 Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The last 10 scans are kept.
 
@@ -117,7 +128,7 @@ Developer tooling quietly eats tens of gigabytes:
 | 0 | Foundations: path-safety layer, sandbox mode, import and forbidden-call guards, lint, CI | ✅ done (red-teamed, 9 findings fixed) |
 | 1 | System probe → `doctor` | ✅ done |
 | 2 | Full-crawl scanner + SQLite store → `scan` | ✅ done |
-| 3 | 46 recipes + classifier → `wins`, `storage`, `dev`, `explain` | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
+| 3 | 46 recipes + classifier; one `macdoc doctor` overview with sections (`health`, `space`, `wins`, `explain`, `dev`, `scan`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
 | 4 | Project awareness: stale `node_modules` by git activity, Pods, RN/Android build folders | next |
 | 5 | Planner: sealed, expiring dry-run plans → `plan` | |
 | 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | |
@@ -155,8 +166,8 @@ Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
 ```
 macdoc (one Go binary)
   cmd/macdoc            entry point
-  internal/cli          commands (render only): doctor, scan, wins, storage, dev, explain, version
-  internal/engine       UI-agnostic core: Doctor, Scan, Opportunities (classifier/ranking), Storage
+  internal/cli          `macdoc doctor` overview + sections (health, space, wins, explain, dev, scan), version
+  internal/engine       UI-agnostic core: Overview, Doctor, Scan, Opportunities (classifier/ranking), Storage
   internal/probe        hardware, memory, swap, processes, APFS, snapshots (read-only, via Runner)
   internal/scanner      parallel full crawl: allocated bytes, hard links once, bounded memory, background QoS
   internal/store        SQLite state (scans, nodes, unmeasured paths, history), pure Go

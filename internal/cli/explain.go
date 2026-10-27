@@ -31,7 +31,7 @@ func newExplainCmd(g *globalFlags) *cobra.Command {
 			}
 			op, ok := engine.FindOpportunity(res, args[0])
 			if !ok {
-				return fmt.Errorf(`%s not found in the latest scan; IDs change after "macdoc scan"`, args[0])
+				return fmt.Errorf(`%s not found in the latest scan; IDs change after a new scan`, args[0])
 			}
 			ex := ExplainResult{Scan: res.Scan, Opportunity: op, BaseRisk: op.Risk}
 			if base, raised := engine.RaisedFrom(op, cat); raised {

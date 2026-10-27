@@ -123,6 +123,13 @@ func run(t *testing.T, args ...string) (string, error) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
+	// The detail views are sections of `macdoc doctor`.
+	if len(args) > 0 {
+		switch args[0] {
+		case "wins", "dev", "explain", "storage", "space", "scan", "health":
+			args = append([]string{"doctor"}, args...)
+		}
+	}
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return buf.String(), err
@@ -145,13 +152,13 @@ func TestWinsCommand(t *testing.T) {
 	}
 	t.Logf("sample wins output:\n%s", out)
 	mustContain(t, out,
-		"macdoc wins · scan S-", "· 2h ago",
+		"macdoc doctor wins · scan S-", "· 2h ago",
 		" Free & safe ─", "3.0 GB\n",
 		"npm cache", "re-downloads on demand", "→ npm cache clean --force",
 		" Worth considering ─", "15.0 GB",
-		"5 × Stale node_modules folder · 15.0 GB", "(macdoc wins --all)",
+		"5 × Stale node_modules folder · 15.0 GB", "(macdoc doctor wins --all)",
 		" Your call (advice only) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
-		" macdoc explain <id> · nothing has been changed")
+		" macdoc doctor explain <id> · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
 		strings.Index(out, "Worth considering") > strings.Index(out, "Your call") {
@@ -326,7 +333,7 @@ func TestRenderWins(t *testing.T) {
 		" Needs care ─", "8.4 GB + unknown", "re-download ~1.2 GB", "—  ",
 		"can't be restored",
 		" Notes\n  · results are from a scan 9 hours old",
-		" macdoc explain <id> · nothing has been changed")
+		" macdoc doctor explain <id> · nothing has been changed")
 
 	buf.Reset()
 	empty := engine.OpportunityResult{Scan: model.ScanInfo{ID: "S-X"}, ScanAge: "just now"}

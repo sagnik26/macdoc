@@ -65,12 +65,12 @@ func TestRenderDoctorUnmeasured(t *testing.T) {
 	}
 }
 
-func TestDoctorJSONAndRootDefault(t *testing.T) {
+func TestDoctorHealthJSON(t *testing.T) {
 	old := runner
 	runner = &platform.FakeRunner{} // every command errors -> warnings, never a failure
 	t.Cleanup(func() { runner = old })
 
-	for _, args := range [][]string{{"doctor", "--json"}, {"--json"}} {
+	for _, args := range [][]string{{"doctor", "health", "--json"}} {
 		cmd := NewRootCmd()
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
@@ -86,7 +86,7 @@ func TestDoctorJSONAndRootDefault(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 			t.Fatalf("%v: bad JSON: %v\n%s", args, err, buf.String())
 		}
-		if env.SchemaVersion != model.SchemaVersion || env.Command != "doctor" {
+		if env.SchemaVersion != model.SchemaVersion || env.Command != "doctor health" {
 			t.Errorf("%v: envelope = %+v", args, env)
 		}
 		if len(env.Data.Report.Warnings) == 0 {

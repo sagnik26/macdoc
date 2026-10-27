@@ -46,7 +46,7 @@ func newStorageCmd(g *globalFlags) *cobra.Command {
 
 func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "macdoc storage · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
+	fmt.Fprintf(&b, "macdoc doctor space · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
 
 	b.WriteString(" Reclaimable, by category\n")
 	if len(res.Categories) == 0 {
@@ -77,7 +77,7 @@ func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	}
 	b.WriteString("\n")
 	writeNotes(&b, res.Warnings)
-	b.WriteString(" macdoc wins · macdoc dev · nothing has been changed\n")
+	b.WriteString(" macdoc doctor wins · macdoc doctor dev · nothing has been changed\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }

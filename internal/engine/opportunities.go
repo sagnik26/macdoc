@@ -43,7 +43,7 @@ type OpportunityResult struct {
 }
 
 // ErrNoScan is returned when there is no complete scan to work from.
-var ErrNoScan = errors.New(`no scan yet. Run "macdoc scan" first`)
+var ErrNoScan = errors.New(`no scan yet. Run "macdoc doctor" (it scans automatically) or "macdoc doctor scan"`)
 
 // Tunables; variables so tests can shorten them.
 var (
@@ -103,7 +103,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	age := o.Now.Sub(scanTime(info))
 	res.ScanAge = FormatAge(age)
 	if age > staleScanAge {
-		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc scan" to refresh`, int(age.Hours())))
+		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor --scan" to refresh`, int(age.Hours())))
 	}
 
 	env := recipes.Env{Home: o.Home, Nodes: scanNodes{st: st, scanID: info.ID}, Runner: o.Runner, Now: o.Now}

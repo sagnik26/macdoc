@@ -167,7 +167,7 @@ func ids(ops []model.Opportunity) []string {
 func TestNoScan(t *testing.T) {
 	home, _ := filepath.EvalSymlinks(t.TempDir())
 	_, err := Opportunities(context.Background(), OpportunityOptions{Home: home, Catalog: &recipes.Catalog{}})
-	if !errors.Is(err, ErrNoScan) || !strings.Contains(err.Error(), `Run "macdoc scan" first`) {
+	if !errors.Is(err, ErrNoScan) || !strings.Contains(err.Error(), `Run "macdoc doctor"`) {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := Opportunities(context.Background(), OpportunityOptions{}); err == nil {

@@ -85,7 +85,7 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 	if err != nil {
 		return ScanSummary{}, err
 	}
-	opts.Keep = recipes.KeepFunc(cat, o.Home)
+	opts.Keep = keepTopLevel(opts, recipes.KeepFunc(cat, o.Home))
 
 	st, err := store.Open(o.StorePath)
 	if err != nil {
@@ -153,6 +153,18 @@ func dataVolumeUsed(ctx context.Context, r platform.Runner) model.Bytes {
 		}
 	}
 	return unknown
+}
+
+// keepTopLevel wraps a Keep callback so the scan root's direct children are
+// always kept (the overview lists them), whatever their size.
+func keepTopLevel(opts scanner.Options, keep func(string) bool) func(string) bool {
+	root := opts.Root
+	if opts.MapPrefix != "" {
+		root = "/"
+	}
+	return func(p string) bool {
+		return filepath.Dir(p) == root || (keep != nil && keep(p))
+	}
 }
 
 // children returns the kept direct children of dir, biggest first.
