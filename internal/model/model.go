@@ -72,10 +72,16 @@ type Opportunity struct {
 	Bytes      Bytes   `json:"bytes"`
 	Risk       Risk    `json:"risk"`
 	Method     Method  `json:"method"`
-	IdleDays   int     `json:"idle_days"`
+	IdleDays   int     `json:"idle_days"` // -1 if unknown
 	Restore    Restore `json:"restore"`
 	Confidence float64 `json:"confidence"` // 0..1
 	Explain    string  `json:"explain"`
+
+	Category  string   `json:"category"`
+	Toolchain string   `json:"toolchain"`
+	Command   []string `json:"command,omitempty"` // native method: exact argv, {id} already substituted
+	DryRun    []string `json:"dry_run,omitempty"` // the tool's own dry-run argv, if any
+	Note      string   `json:"note,omitempty"`    // instance-specific detail from the detector
 }
 
 // Origin records who created a plan.
