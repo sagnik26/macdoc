@@ -10,7 +10,7 @@
     - native and dry-run commands must **exactly match an allow-list**
     - allow patterns must be `~`-relative, at least 2 deep, with no `..`, and can't reach protected folders, `.git`, `.env*` or SQLite files
     - preconditions use a strict character set
-- **47 recipes** across Xcode/simulators, CocoaPods, Android/Gradle, Node, Homebrew, Docker, Python, AI models and System (P3-W1, P3-W2).
+- **46 recipes** across Xcode/simulators, CocoaPods, Android/Gradle, Node, Homebrew, Docker, Python, AI models and System (P3-W1, P3-W2).
 - **Classifier and ranking** (`engine.Opportunities`, P3-W3):
   - Runs detectors in parallel with timeouts. Detector errors and panics become warnings.
   - Drops items for: a missing tool, an unsafe identifier, a reserved word, a failed `CheckTarget`, being too recently used, or an unknown age when a minimum idle time applies.
