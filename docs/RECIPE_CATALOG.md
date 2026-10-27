@@ -46,8 +46,8 @@ Legend for method: **N** = native command, **Q** = quarantine, **A** = advise-on
 | `gradle.wrapper_dists_old` | `~/.gradle/wrapper/dists/<ver>` not referenced by any project's `gradle-wrapper.properties` | SAFE | Q | none | Re-download on demand |
 | `android.avd` | `~/.android/avd/<name>.avd` idle > 60d | CAUTION | N `avdmanager delete avd -n <name>` | Emulator not running | Recreate (emulator data lost) |
 | `android.avd_snapshots` | `~/.android/avd/<name>.avd/snapshots` | SAFE | Q | Emulator not running | Cold boot next time |
-| `android.system_images_unused` | SDK system images not referenced by any AVD `config.ini` | CAUTION | N `sdkmanager --uninstall "<pkg>"` | Android Studio not running | Re-download (1–2 GB each) |
-| `android.build_tools_old` / `android.ndk_old` | Old build-tools / NDK versions not referenced by projects | CAUTION | N `sdkmanager --uninstall "<pkg>"` | Android Studio not running | Re-download |
+| `android.system_images_unused` | SDK system images not referenced by any AVD `config.ini` | CAUTION | Q (sdkmanager can't target the right SDK root; removing the package dir is the uninstall) | Android Studio not running | Re-download (1–2 GB each) |
+| `android.build_tools_old` / `android.ndk_old` | Old build-tools / NDK versions not referenced by projects | CAUTION | Q | Android Studio not running | Re-download |
 | `android_studio.old_versions_data` | `~/Library/{Application Support,Caches,Logs}/Google/AndroidStudio<old>` where a newer one exists | CAUTION | Q | Android Studio not running | Settings already migrated |
 
 ### Node / React Native
@@ -91,8 +91,7 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `uv.cache` | `uv cache dir` | SAFE | N `uv cache prune` | none | Re-download |
 | `poetry.cache` | `~/Library/Caches/pypoetry` | SAFE | Q | none | Re-download |
 | `conda.pkgs` | conda package cache | SAFE | N `conda clean --all -y` (dry-run `--dry-run`) | none | Re-download |
-| `python.venv_stale` | `.venv` / `venv` in idle projects | CAUTION (RISKY if git dirty) | Q | git clean, no python process in project | Recreate from requirements |
-| `pyenv.old_versions` | `~/.pyenv/versions/<ver>` not global and not in any `.python-version` | CAUTION | N `pyenv uninstall -f <ver>` | none | `pyenv install` |
+| `python.venv_stale` | `.venv` (with `pyvenv.cfg`) beside a project marker, idle 90d+, not in hidden/Library/protected folders | RISKY | Q | git clean, no python process in project | Recreate from requirements |
 
 ### Local AI models
 
@@ -112,10 +111,15 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `user.app_caches` | `~/Library/Caches/<bundle-id>` for non-Apple apps, > 500 MB | CAUTION | Q | That app not running | Regenerated |
 | `user.logs` | `~/Library/Logs/**` older than 30d, > 100 MB total | SAFE | Q | none | n/a |
 | `user.trash` | `~/.Trash` | ADVISE | A ("Empty Trash in Finder") | n/a | Gone after emptying |
-| `user.downloads_large_old` | `~/Downloads` files > 500 MB and older than 90d (installers, DMGs, ZIPs) | CAUTION | Q | none | Re-download if available |
+| `user.downloads_large_old` | `~/Downloads` files > 500 MB and older than 90d with installer/archive extensions only (`.dmg .pkg .zip .iso …`) | CAUTION | Q | none | Re-download if available |
+| `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
 | `swap.explain` | VM volume / swap files | ADVISE | A (explains swap and what reduces it) | n/a | n/a |
 | `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `storage --large`) | n/a | Unknown |
+
+## 2a. Allowed native commands
+
+Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test.
 
 ## 3. Adding a recipe (checklist)
 1. YAML with every field filled in, including `explain` and `restore`.

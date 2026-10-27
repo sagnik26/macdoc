@@ -6,7 +6,7 @@
 2. **Actions are recipes, not paths.** Nothing outside the recipe catalog can be acted on, and nothing a human or Claude types is interpreted as a path to delete.
 3. **Dry-run always comes first.** Every change is preceded by an immutable, hash-sealed plan the user has seen.
 4. **A human at a terminal is the only approver.** TTY plus typed confirmation. Claude can only propose.
-5. **Delegate to the owning tool.** Prefer `brew`, `xcrun simctl`, `docker`, `npm`/`pnpm`/`yarn`, `pip`/`uv`, `ollama`, `hf` and `sdkmanager` over touching their internals.
+5. **Delegate to the owning tool.** Prefer `brew`, `xcrun simctl`, `docker`, `npm`/`pnpm`/`yarn`, `pip`/`uv`, `ollama`, `pod` and `avdmanager` over touching their internals. The exact commands allowed are an allow-list in `internal/recipes/load.go`.
 6. **Reversible where possible, honest where not.** Use quarantine when no native command exists, and loudly label anything irreversible.
 7. **Re-validate at the last moment.** The state at apply time must match the state at plan time, or the item is skipped.
 8. **Everything is audited.**
