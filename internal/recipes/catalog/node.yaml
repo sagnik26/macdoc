@@ -10,6 +10,7 @@
   risk: CAUTION
   method: quarantine
   detector: node_modules_stale
+  params: {min_bytes: "50000000"}
   allow: ["~/*/**/node_modules"]
   keep_names: [node_modules]
   stale_days: 90
@@ -22,8 +23,10 @@
     keeps the project itself intact; reinstalling with npm i, pnpm i or yarn
     brings it back.
   confidence_notes: >-
-    Idle time comes from the newest file modification time inside the folder.
-    A later project scan will refine this with git history.
+    Only folders next to a package.json and a lockfile are reported; global
+    and tool installs aren't. Idle time is the newest modification time of the
+    folder, package.json and the lockfile. A later project scan will refine
+    this with git history.
 
 - id: npm.cache
   title: npm cache

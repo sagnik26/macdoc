@@ -148,7 +148,9 @@ func belowHome(home, p string) []string {
 // projectDirs returns the kept directories below home named name (case-
 // insensitive) that are at least two components below home and have no
 // ancestor below home with the same name, as patterns like
-// "~/*/**/node_modules" require.
+// "~/*/**/node_modules" require. Tool and app installs are skipped: the first
+// component below home must not be hidden (~/.nvm, ~/.cursor, ~/.local, …)
+// or Library.
 func projectDirs(env Env, name string) ([]model.Node, error) {
 	nodes, err := env.Nodes.Nodes(env.Home, 0)
 	if err != nil {
@@ -157,7 +159,8 @@ func projectDirs(env Env, name string) ([]model.Node, error) {
 	var out []model.Node
 	for _, n := range nodes {
 		comps := belowHome(env.Home, n.Path)
-		if n.Kind == model.NodeFile || len(comps) < 2 || !strings.EqualFold(comps[len(comps)-1], name) {
+		if n.Kind == model.NodeFile || len(comps) < 2 || !strings.EqualFold(comps[len(comps)-1], name) ||
+			strings.HasPrefix(comps[0], ".") || strings.EqualFold(comps[0], "Library") {
 			continue
 		}
 		nested := false

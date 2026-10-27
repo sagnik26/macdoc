@@ -6,24 +6,132 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"macdoc/internal/model"
+	"macdoc/internal/testutil/fstree"
 )
 
-func TestNodeModulesStale(t *testing.T) {
-	old, recent := w2DaysAgo(200), w2DaysAgo(10)
-	nodes := fakeNodes{
-		{Path: w2Home + "/code/web/node_modules", Bytes: 900 << 20, MtimeMax: old},
-		{Path: w2Home + "/code/web/node_modules/pkg/node_modules", Bytes: 100 << 20, MtimeMax: old}, // nested
-		{Path: w2Home + "/code/app/node_modules", Bytes: 500 << 20, MtimeMax: recent},               // recent
-		{Path: w2Home + "/code/legacy/node_modules_old", Bytes: 500 << 20, MtimeMax: old},           // look-alike
-		{Path: w2Home + "/code/nomtime/node_modules", Bytes: 500 << 20},                             // unknown mtime
-		{Path: w2Home + "/code/empty/node_modules", MtimeMax: old},                                  // empty
-		{Path: w2Home + "/node_modules", Bytes: 500 << 20, MtimeMax: old},                           // too shallow for the allow
-		{Path: w2Home + "/code/x/node_modules.json", Kind: "file", Bytes: 500 << 20, MtimeMax: old},
+// w2Project creates dir/package.json (unless pkg is false) and dir/<lock>
+// (unless lock is ""), all with mtime.
+func w2Project(dir string, pkg bool, lock string, mtime time.Time) []fstree.Entry {
+	var es []fstree.Entry
+	if pkg {
+		es = append(es, fstree.File(dir+"/package.json", 10).WithModTime(mtime))
 	}
-	fs, err := w2Run(t, "node.node_modules_stale", Env{Nodes: nodes})
-	w2WantTargets(t, fs, err, w2Home+"/code/web/node_modules")
-	if fs[0].Title != "node_modules in web" || fs[0].LastUsed.IsZero() {
-		t.Errorf("finding %+v", fs[0])
+	if lock != "" {
+		es = append(es, fstree.File(dir+"/"+lock, 10).WithModTime(mtime))
+	}
+	return append(es, fstree.Dir(dir+"/node_modules"))
+}
+
+func TestNodeModulesStale(t *testing.T) {
+	home := t.TempDir()
+	oldT := time.Unix(w2DaysAgo(200), 0)
+	old, recent := w2DaysAgo(200), w2DaysAgo(10)
+	const big = 900 << 20
+
+	// Real false positives from the developer's Mac. Each parent gets a
+	// package.json and a lockfile so only the path rules reject them.
+	tools := []string{
+		".npm-global/lib",
+		".nvm/versions/node/v20.20.2/lib",
+		".local/lib",
+		".local/share/mise/installs/node/lib",
+		".cursor/extensions/ms-python.vscode-1.0/dist",
+		".cursor/extensions/ms-python.vscode-1.0/out",
+		"Library/Application Support/Accomplish/opencode",
+		"Library/Caches/com.apple.python/Users/me/lib",
+		".cursor/projects/p1/canvases",
+		"code/tool/lib", // lib/node_modules outside a hidden tree
+	}
+	var entries []fstree.Entry
+	var nodes fakeNodes
+	for _, d := range tools {
+		entries = append(entries, w2Project(d, true, "package-lock.json", oldT)...)
+		nodes = append(nodes, model.Node{Path: home + "/" + d + "/node_modules", Bytes: big, MtimeMax: old})
+	}
+	nodes[len(tools)-2].Bytes = 127 << 10 // canvases: 127 KB noise
+
+	type proj struct {
+		dir   string
+		pkg   bool
+		lock  string
+		bytes int64
+		mtime int64
+	}
+	projects := []proj{
+		{"code/web", true, "package-lock.json", big, old},          // positive
+		{"code/yarnapp", true, "yarn.lock", big, old},              // positive
+		{"code/pnpmapp", true, "pnpm-lock.yaml", big, old},         // positive
+		{"code/bunapp", true, "bun.lock", big, old},                // positive
+		{"code/bunb", true, "bun.lockb", big, old},                 // positive
+		{"code/shrink", true, "npm-shrinkwrap.json", big, old},     // positive
+		{"code/nolock", true, "", big, old},                        // no lockfile
+		{"code/nopkg", false, "package-lock.json", big, old},       // no package.json
+		{"code/small", true, "package-lock.json", 40_000_000, old}, // below 50 MB
+		{"code/app", true, "package-lock.json", big, recent},       // recent node_modules
+		{"code/nomtime", true, "package-lock.json", big, 0},        // unknown folder mtime, old files
+	}
+	for _, p := range projects {
+		entries = append(entries, w2Project(p.dir, p.pkg, p.lock, oldT)...)
+		nodes = append(nodes, model.Node{Path: home + "/" + p.dir + "/node_modules", Bytes: p.bytes, MtimeMax: p.mtime})
+	}
+	entries = append(entries,
+		// Recently edited lockfile: the project isn't stale.
+		fstree.File("code/edited/package.json", 10).WithModTime(oldT),
+		fstree.File("code/edited/yarn.lock", 10).WithModTime(time.Unix(recent, 0)),
+		// Lockfile is a symlink or a directory, package.json is a directory.
+		fstree.File("code/linked/package.json", 10).WithModTime(oldT),
+		fstree.Symlink("code/linked/package-lock.json", "../web/package-lock.json"),
+		fstree.File("code/lockdir/package.json", 10).WithModTime(oldT),
+		fstree.Dir("code/lockdir/yarn.lock"),
+		fstree.Dir("code/pkgdir/package.json"),
+		fstree.File("code/pkgdir/yarn.lock", 10).WithModTime(oldT),
+		fstree.File("code/legacy/package.json", 10).WithModTime(oldT),
+		fstree.File("code/legacy/yarn.lock", 10).WithModTime(oldT),
+	)
+	nodes = append(nodes, fakeNodes{
+		{Path: home + "/code/edited/node_modules", Bytes: big, MtimeMax: old},
+		{Path: home + "/code/linked/node_modules", Bytes: big, MtimeMax: old},
+		{Path: home + "/code/lockdir/node_modules", Bytes: big, MtimeMax: old},
+		{Path: home + "/code/pkgdir/node_modules", Bytes: big, MtimeMax: old},
+		{Path: home + "/code/web/node_modules/pkg/node_modules", Bytes: big, MtimeMax: old}, // nested
+		{Path: home + "/code/legacy/node_modules_old", Bytes: big, MtimeMax: old},           // look-alike name
+		{Path: home + "/node_modules", Bytes: big, MtimeMax: old},                           // too shallow
+		{Path: home + "/code/x/node_modules.json", Kind: model.NodeFile, Bytes: big, MtimeMax: old},
+	}...)
+	fstree.Build(t, home, entries...)
+
+	fs, err := w2Run(t, "node.node_modules_stale", Env{Home: home, Nodes: nodes})
+	var want []string
+	for _, d := range []string{"web", "yarnapp", "pnpmapp", "bunapp", "bunb", "shrink", "nomtime"} {
+		want = append(want, home+"/code/"+d+"/node_modules")
+	}
+	w2WantTargets(t, fs, err, want...)
+	for _, f := range fs {
+		if f.LastUsed.Unix() != oldT.Unix() { // nomtime: from the files
+			t.Errorf("%s: LastUsed %v, want %v", f.Target, f.LastUsed, oldT)
+		}
+		if f.Title != "node_modules in "+filepath.Base(filepath.Dir(f.Target)) {
+			t.Errorf("title %q", f.Title)
+		}
+	}
+
+	// LastUsed is the newest of the three mtimes: here the folder.
+	nodes2 := fakeNodes{{Path: home + "/code/web/node_modules", Bytes: big, MtimeMax: w2DaysAgo(150)}}
+	fs, err = w2Run(t, "node.node_modules_stale", Env{Home: home, Nodes: nodes2})
+	if err != nil || len(fs) != 1 || fs[0].LastUsed.Unix() != w2DaysAgo(150) {
+		t.Fatalf("got %+v, %v", fs, err)
+	}
+
+	r := w2Recipe(t, "node.node_modules_stale")
+	if r.Params["min_bytes"] != "50000000" {
+		t.Errorf("min_bytes = %q", r.Params["min_bytes"])
+	}
+	r.Params = map[string]string{"min_bytes": "x"}
+	if _, err := detectNodeModulesStale(t.Context(), Env{Home: home, Nodes: nodes}, r); err == nil {
+		t.Error("bad min_bytes accepted")
 	}
 	fs, err = w2Run(t, "node.node_modules_stale", Env{})
 	w2WantNone(t, fs, err)
