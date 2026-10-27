@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phase 0 (foundations) is complete and Phase 1 (`macdoc doctor`) is in progress. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–3 are complete (`doctor`, `scan`, `wins`, `storage`, `dev`, `explain`; all read-only). Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
