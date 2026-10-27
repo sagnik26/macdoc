@@ -108,8 +108,8 @@ type loadStep struct {
 }
 
 type keyMap struct {
-	Tabs, Move, Explain, Back, Scan, Slash, Filter, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel                                            key.Binding
+	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
+	Run, Complete, Cancel                                    key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -120,7 +120,6 @@ func newKeyMap() keyMap {
 		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Scan:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rescan")),
 		Slash:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "commands")),
-		Filter:   key.NewBinding(key.WithKeys("@"), key.WithHelp("@", "toolchain")),
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 		Stop:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "stop")),
@@ -163,15 +162,14 @@ type tuiModel struct {
 
 	// suggestions
 	cursor int
-	detail bool   // narrow screens: the detail replaces the list
-	filter string // toolchain from @
+	detail bool // narrow screens: the detail replaces the list
 
 	scroll  int
 	overlay overlay
 	jsonDoc string
 
 	input     textinput.Model
-	inputMode rune // 0, '/' or '@'
+	inputMode rune // 0 or '/'
 	pick      int  // highlighted completion
 	flash     string
 
@@ -179,7 +177,6 @@ type tuiModel struct {
 }
 
 func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
-	t.tui = true
 	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
 		FPS:    time.Second / 10,
@@ -378,16 +375,10 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch k {
 	case "esc":
-		switch {
-		case m.detail:
-			m.detail = false
-		case m.filter != "":
-			m.filter, m.cursor = "", 0
-			m.flash = "Showing every toolchain."
-		}
+		m.detail = false
 	case "?":
 		m.overlay, m.scroll = overlayHelp, 0
-	case "/", "@":
+	case "/":
 		m.inputMode, m.pick = rune(k[0]), 0
 		m.input.SetValue("")
 		m.input.Focus()
@@ -455,7 +446,7 @@ func (m *tuiModel) scrollBy(k string) {
 	m.scroll = max(0, m.scroll)
 }
 
-// --- command input (/ and @) ---
+// --- command input (/) ---
 
 // completion is one row of the palette.
 type completion struct{ value, desc string }
@@ -463,18 +454,6 @@ type completion struct{ value, desc string }
 func (m tuiModel) completions() []completion {
 	q := strings.ToLower(strings.TrimSpace(m.input.Value()))
 	var out []completion
-	if m.inputMode == '@' {
-		for _, tc := range append([]string{"all"}, recipes.Toolchains...) {
-			if strings.HasPrefix(tc, q) {
-				desc := "every toolchain"
-				if tc != "all" {
-					desc = m.toolchainSummary(tc)
-				}
-				out = append(out, completion{tc, desc})
-			}
-		}
-		return out
-	}
 	name, _, _ := strings.Cut(q, " ")
 	for _, c := range slashCommands {
 		if strings.HasPrefix(c.name, name) {
@@ -486,19 +465,6 @@ func (m tuiModel) completions() []completion {
 		}
 	}
 	return out
-}
-
-// toolchainSummary is "3 items · 1.2 GB" for the @ palette.
-func (m tuiModel) toolchainSummary(tc string) string {
-	if m.data == nil {
-		return ""
-	}
-	for _, g := range m.data.dev.Toolchains {
-		if g.Toolchain == tc {
-			return fmt.Sprintf("%d item(s) · %s", len(g.Opportunities), tierTotal(g.Bytes, g.Opportunities))
-		}
-	}
-	return "nothing found"
 }
 
 func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -534,37 +500,14 @@ func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				v = c
 			}
 		}
-		mode := m.inputMode
 		m.inputMode = 0
 		m.input.Blur()
-		if mode == '@' {
-			return m.applyFilter(v)
-		}
 		return m.runCommand(v)
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	m.pick = 0
 	return m, cmd
-}
-
-func (m tuiModel) applyFilter(tc string) (tea.Model, tea.Cmd) {
-	tc = strings.ToLower(strings.TrimPrefix(tc, "@"))
-	if tc == "" || tc == "all" {
-		m.filter = ""
-		m.flash = "Showing every toolchain."
-		return m, nil
-	}
-	tc, err := parseToolchain(tc)
-	if err != nil {
-		m.flash = err.Error()
-		return m, nil
-	}
-	m.filter, m.cursor = tc, 0
-	if m.tab != tabToolchains {
-		m.setTab(tabSuggestions)
-	}
-	return m, nil
 }
 
 func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
@@ -607,7 +550,6 @@ func (m tuiModel) explain(id string) (tea.Model, tea.Cmd) {
 		m.flash = "Usage: /explain <id>, e.g. /explain O-ab12cd"
 		return m, nil
 	}
-	m.filter = ""
 	for i, op := range m.items() {
 		if strings.EqualFold(op.ID, id) {
 			m.setTab(tabSuggestions)
@@ -619,18 +561,12 @@ func (m tuiModel) explain(id string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// items are the suggestions shown, in ranked order, after the @ filter.
+// items are the suggestions, in ranked order.
 func (m tuiModel) items() []model.Opportunity {
 	if m.data == nil {
 		return nil
 	}
-	var out []model.Opportunity
-	for _, op := range m.data.res.Opportunities.Opportunities {
-		if m.filter == "" || op.Toolchain == m.filter {
-			out = append(out, op)
-		}
-	}
-	return out
+	return m.data.res.Opportunities.Opportunities
 }
 
 // currentJSON is the current view's data, as the matching --json command
@@ -648,12 +584,9 @@ func (m tuiModel) currentJSON() string {
 			v = ops[m.cursor]
 		} else {
 			v = m.data.res.Opportunities
-			if m.filter != "" {
-				v = m.devData()
-			}
 		}
 	case tabToolchains:
-		v = m.devData()
+		v = m.data.dev
 	case tabSpace:
 		v = m.data.space
 	case tabHealth:
@@ -664,13 +597,6 @@ func (m tuiModel) currentJSON() string {
 		return err.Error()
 	}
 	return string(b)
-}
-
-func (m tuiModel) devData() DevResult {
-	return devResult(engine.OpportunityResult{
-		Scan: m.data.res.Opportunities.Scan, ScanAge: m.data.res.Opportunities.ScanAge,
-		Opportunities: m.items(), Warnings: m.data.res.Opportunities.Warnings,
-	}, m.filter)
 }
 
 // --- view ---
@@ -763,9 +689,6 @@ func (m tuiModel) headerView() string {
 		}
 		right = append(right, st.Render(age))
 	}
-	if m.filter != "" {
-		right = append(right, t.accent.Bold(true).Render("@"+m.filter))
-	}
 	right = append(right, t.ok.Render("read-only"))
 	r := strings.Join(right, t.faint.Render(" · ")) + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
@@ -799,12 +722,9 @@ func (m tuiModel) footerView() string {
 	case m.tab == tabSuggestions && m.detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.tab == tabSuggestions:
-		keys = []key.Binding{m.keys.Move, m.keys.Explain, m.keys.Tabs, m.keys.Filter, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Move, m.keys.Explain, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	default:
-		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Filter, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
-	}
-	if m.filter != "" && m.inputMode == 0 && !m.loading {
-		keys = append(keys, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear @"+m.filter)))
+		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	}
 	m.help.Width = m.w - 2
 	return " " + m.help.ShortHelpView(keys)
@@ -873,25 +793,17 @@ func (m tuiModel) scanProgressView() string {
 	return b.String()
 }
 
-// textView renders a non-list tab with the shared renderers.
+// textView renders a non-list tab as tables.
 func (m tuiModel) textView() string {
-	var buf strings.Builder
-	w := &themedWriter{Writer: &buf, t: m.t}
-	var err error
 	switch m.tab {
-	case tabOverview:
-		err = renderOverview(w, m.data.res, m.deps.cat)
 	case tabToolchains:
-		err = renderDev(w, m.devData(), m.deps.cat)
+		return m.toolchainTables()
 	case tabSpace:
-		err = renderStorage(w, m.data.space, true)
+		return m.spaceTables()
 	case tabHealth:
-		err = renderDoctor(w, m.data.res.Health)
+		return m.healthTables()
 	}
-	if err != nil {
-		return err.Error()
-	}
-	return "\n" + indentLines(buf.String(), " ")
+	return m.overviewTables()
 }
 
 func indentLines(s, pad string) string {
@@ -904,16 +816,12 @@ func indentLines(s, pad string) string {
 	return strings.Join(lines, "\n")
 }
 
-// suggestionsView is the selectable list, with the selected item's details
+// suggestionsView is the selectable table, with the selected item's details
 // beside it (wide screens) or instead of it (Enter on narrow ones).
 func (m tuiModel) suggestionsView() string {
 	ops := m.items()
 	if len(ops) == 0 {
-		msg := "Nothing to reclaim was found in the latest scan."
-		if m.filter != "" {
-			msg = "Nothing for @" + m.filter + ". Esc shows every toolchain."
-		}
-		return "\n  " + m.t.muted.Render(msg)
+		return "\n  " + m.t.muted.Render("Nothing to reclaim was found in the latest scan.")
 	}
 	h := m.bodyHeight()
 	if m.detail && m.w < 120 {
@@ -921,9 +829,9 @@ func (m tuiModel) suggestionsView() string {
 	}
 	listW := m.w
 	if m.w >= 120 {
-		listW = 72
+		listW = m.w - max(46, m.w*2/5)
 	}
-	list := fitHeight("\n"+m.listView(ops, listW, h-1), h, listW)
+	list := fitHeight(m.listView(ops, listW, h), h, listW)
 	if m.w < 120 {
 		return list
 	}
@@ -936,60 +844,23 @@ func (m tuiModel) suggestionsView() string {
 	return b.String()
 }
 
+// listView is the tier totals and a window of the suggestions table that
+// keeps the cursor in view.
 func (m tuiModel) listView(ops []model.Opportunity, w, h int) string {
 	t := m.t
-	type row struct {
-		text string
-		item int // -1 for headers
-	}
-	var rows []row
-	var last model.Risk
-	for i, op := range ops {
-		if op.Risk != last {
-			if i > 0 {
-				rows = append(rows, row{"", -1})
-			}
-			last = op.Risk
-			total := tierTotal(m.data.res.Opportunities.Totals[op.Risk], opsInTier(ops, op.Risk))
-			if m.filter != "" {
-				var sum int64
-				for _, o := range opsInTier(ops, op.Risk) {
-					if o.Bytes.Source != model.SourceUnknown {
-						sum += o.Bytes.Value
-					}
-				}
-				total = tierTotal(sum, opsInTier(ops, op.Risk))
-			}
-			rows = append(rows, row{strings.TrimRight(t.section(t.riskStyle(op.Risk), t.dot(op.Risk)+tierNames[op.Risk], total), "\n"), -1})
-		}
-		// ID, size and title; the restore cost too when there is room.
-		titleW, note := max(10, w-24), ""
-		if w >= 96 {
-			titleW = 44
-			note = "  " + t.muted.Render(truncate(restoreNote(op), w-24-titleW-2))
-		}
-		title := fmt.Sprintf("%-*s", titleW, truncate(op.Title, titleW))
-		cells := fmt.Sprintf("  %s  %s  %s%s", t.id.Render(fmt.Sprintf("%-8s", op.ID)),
-			t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))), t.text.Render(title), note)
-		if i == m.cursor {
-			cells = t.brand.Render("▌") + " " + fmt.Sprintf("%s  %s  %s%s", t.id.Bold(true).Render(fmt.Sprintf("%-8s", op.ID)),
-				t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))), t.title.Render(title), note)
-		}
-		rows = append(rows, row{cells, i})
-	}
-	// Keep the cursor row (and its tier header) in view.
-	at := 0
-	for i, r := range rows {
-		if r.item == m.cursor {
-			at = i
+	var totals []string
+	for _, tier := range engine.TierOrder {
+		if tierOps := opsInTier(ops, tier); len(tierOps) > 0 {
+			totals = append(totals, t.riskStyle(tier).Bold(true).Render(riskLabel(tier))+" "+
+				t.size.Render(tierTotal(m.data.res.Opportunities.Totals[tier], tierOps)))
 		}
 	}
-	start := max(0, min(at-h/2, len(rows)-h))
-	var b strings.Builder
-	for _, r := range rows[start:min(len(rows), start+h)] {
-		b.WriteString(r.text + "\n")
-	}
-	return b.String()
+	rowsFit := max(1, h-6) // blank, totals, table top border, header, header rule, bottom border
+	start := max(0, min(m.cursor-rowsFit/2, len(ops)-rowsFit))
+	end := min(len(ops), start+rowsFit)
+	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.cursor+1, len(ops)))
+	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
+	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.cursor-start, w-2, w < m.w), " ")
 }
 
 func (m tuiModel) detailView(op model.Opportunity, w int) string {
@@ -1014,9 +885,8 @@ func (m tuiModel) helpView() string {
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "explain the selected suggestion"},
 		{"/", "command palette"},
-		{"@", "filter by toolchain (@node, @docker, @xcode …)"},
 		{"r", "rescan the disk"},
-		{"esc", "stop a scan · close · clear the filter"},
+		{"esc", "stop a scan · close"},
 		{"q, ctrl+c", "quit"},
 	}
 	for _, k := range keys {

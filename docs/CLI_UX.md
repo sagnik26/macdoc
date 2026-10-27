@@ -29,15 +29,21 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 
 - **Bare `macdoc` in an interactive terminal opens the dashboard** (`internal/cli/tui.go`, Bubble Tea). `macdoc doctor` always prints. Bare `macdoc` prints too when stdin or stdout isn't a TTY, with `--json`/`--quiet`, or on `TERM=dumb`.
 - **Layout:**
-  - Header: brand, machine, free space, scan age, active `@filter`, and a `read-only` marker.
+  - Header: brand, machine, free space, scan age, and a `read-only` marker.
   - Tab row: Overview, Suggestions, Toolchains, Space, Health.
   - Body.
   - A context-sensitive help footer, generated from the key bindings.
 - **Suggestions:**
-  - A selectable list grouped by tier.
+  - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `enter` swaps the list for it.
 - **`/` palette:** `/overview /wins /dev /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
-- **`@` palette:** filters Suggestions and Toolchains by toolchain. It never accepts a path (safety invariant 4).
+- **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
+- **Accessible tables** (`internal/cli/tui_tables.go`). Every list in every view is a table:
+  - Rounded border with column rules and an underlined, bold header row.
+  - Right-aligned sizes and counts.
+  - Text labels for risk and severity, so color is never the only signal.
+  - A `▶` marker on the selected row, plus a background tint that keeps every foreground readable.
+  - `fitColumns` shrinks only long text columns (wrap or cut with …), so IDs, sizes and risk labels are never truncated.
 - **Loading:**
   - The real engine stages appear as a checklist with timings (`engine.OverviewOptions.Step`).
   - A scan shows a progress bar measured against the previous scan's size, plus bytes, files and the current folder.

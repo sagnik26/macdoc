@@ -212,10 +212,6 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		fmt.Fprintln(&b, t.muted.Render(fmt.Sprintf("\n%d note(s) about skipped items: macdoc doctor wins", n)))
 	}
 	switch {
-	case t.tui:
-		b.WriteString("\n" + t.muted.Render("Tab through the views · enter on a suggestion explains it · / for commands") + "\n")
-		_, err := io.WriteString(w, b.String())
-		return err
 	case t.on:
 		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc doctor scan") + t.muted.Render(" (rescan + full report) · ") +
 			t.accent.Render("wins") + t.muted.Render(" (every item + ID) · ") + t.accent.Render("explain <id>") + t.muted.Render(" · ") +

@@ -22,8 +22,7 @@ type theme struct {
 	on    bool
 	dark  bool
 	r     *lipgloss.Renderer
-	width int  // terminal width for boxes; 0 = unknown
-	tui   bool // inside the dashboard: it draws its own header and footer
+	width int // terminal width for boxes; 0 = unknown
 
 	brand, title, text, muted, faint, accent, id, size lipgloss.Style
 	ok, warn, bad, info, risky                         lipgloss.Style
@@ -52,6 +51,9 @@ var (
 	colRed    = pc("#F26B6B", "203", "9", "#C62828", "160", "1")
 	colBlue   = pc("#8FB3FF", "111", "12", "#2457C5", "26", "4")
 	colViolet = pc("#C3A6FF", "183", "13", "#6B3FC4", "98", "5")
+	// colSelect is the selected-row background: a quiet tint that keeps
+	// every foreground color readable.
+	colSelect = pc("#2F3340", "236", "8", "#E3E7F2", "254", "7")
 	// colOnBadge is the text on a colored badge: near-black in both themes.
 	colOnBadge = pc("#141414", "233", "0", "#FFFFFF", "231", "15")
 )
@@ -319,9 +321,6 @@ func (t *theme) pressure(p string) string {
 // commandHeader is the first line of a section view, e.g.
 // "macdoc doctor wins · scan S-… · 2 hours ago".
 func (t *theme) commandHeader(section, scanID, age string) string {
-	if t.tui {
-		return ""
-	}
 	if !t.on {
 		return fmt.Sprintf("macdoc doctor %s · scan %s · %s\n\n", section, scanID, age)
 	}
@@ -342,9 +341,6 @@ func (t *theme) section(s lipgloss.Style, name, total string) string {
 
 // footer is the closing line of a section view.
 func (t *theme) footer(next string) string {
-	if t.tui {
-		return ""
-	}
 	if !t.on {
 		return " " + next + " · nothing has been changed\n"
 	}

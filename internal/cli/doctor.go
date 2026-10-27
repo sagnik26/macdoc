@@ -72,7 +72,6 @@ func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra st
 		machine += " · macOS " + hw.OSVersion
 	}
 	switch {
-	case t.tui: // the dashboard header already shows the machine
 	case t.on:
 		b.WriteString(t.card(t.brand.Render("◆ macdoc") + t.muted.Render(machine+extra)))
 		b.WriteString("\n")

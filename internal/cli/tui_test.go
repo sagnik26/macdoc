@@ -78,7 +78,12 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	out := m.View()
 	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Health", "read-only", "scan 2h ago", "What matters most", "Reclaimable",
-		"tab switch view", "/ commands", "@ toolchain", "? help")
+		"tab switch view", "/ commands", "? help",
+		// Tables: headers, text risk labels, severities spelled out.
+		"│ Metric", "│ Risk", "│ Tier", "Size │ Items", "SAFE", "RISKY", "ADVICE", "Critical", "╭", "╰")
+	if strings.Contains(out, "@") {
+		t.Error("the @ toolchain shortcut was removed")
+	}
 	if strings.Contains(out, "More: macdoc doctor scan") {
 		t.Error("the dashboard should not print the CLI's More line")
 	}
@@ -90,12 +95,12 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.tab != tabSuggestions {
 		t.Fatalf("tab = %d", m.tab)
 	}
-	mustContain(t, m.View(), "▌ O-ab12cd", "Free & safe", "enter explain")
+	mustContain(t, m.View(), "│ ▶ │ O-ab12cd", "│ ID", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter explain")
 	m = step(t, m, keys("down", "down")...)
 	if m.cursor != 2 {
 		t.Fatalf("cursor = %d", m.cursor)
 	}
-	mustContain(t, m.View(), "▌ O-z4n1ty")
+	mustContain(t, m.View(), "│ ▶ │ O-z4n1ty", "item 3 of 5")
 
 	// Narrow: enter swaps the list for the detail; esc goes back.
 	m = step(t, m, keys("enter")...)
@@ -105,13 +110,17 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 		t.Error("esc should close the detail")
 	}
 	m = step(t, m, keys("5")...)
-	mustContain(t, m.View(), "Top memory users")
+	mustContain(t, m.View(), "Top memory users", "│ App or tool", "│ Why it matters")
+	m = step(t, m, keys("4")...)
+	mustContain(t, m.View(), "Reclaimable, by category")
+	m = step(t, m, keys("3")...)
+	mustContain(t, m.View(), "│ Toolchain", "xcode", "docker")
 }
 
 func TestTUIWideShowsDetailBesideList(t *testing.T) {
 	m := step(t, loaded(t, 140, 30), keys("2")...)
 	out := m.View()
-	mustContain(t, out, "▌ O-ab12cd", "│", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
+	mustContain(t, out, "│ ▶ │ O-ab12cd", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
 }
 
 func TestTUISlashCommands(t *testing.T) {
@@ -143,27 +152,6 @@ func TestTUISlashCommands(t *testing.T) {
 	if cmd == nil || cmd() != tea.Quit() {
 		t.Error("/quit should quit")
 	}
-}
-
-func TestTUIToolchainFilter(t *testing.T) {
-	m := loaded(t, 100, 30)
-	m = step(t, m, keys("@", "dock")...)
-	mustContain(t, m.View(), "▸ @docker", "1 item(s)")
-	m = step(t, m, keys("enter")...)
-	if m.filter != "docker" || m.tab != tabSuggestions {
-		t.Fatalf("filter=%q tab=%d", m.filter, m.tab)
-	}
-	out := m.View()
-	mustContain(t, out, "@docker", "O-k3m9pq", "esc clear @docker")
-	if strings.Contains(out, "O-ab12cd") {
-		t.Error("filtered list shows another toolchain")
-	}
-	m = step(t, m, keys("esc")...)
-	if m.filter != "" {
-		t.Error("esc should clear the filter")
-	}
-	m = step(t, m, keys("@", "nonsense", "enter")...)
-	mustContain(t, m.View(), "unknown toolchain")
 }
 
 func TestTUIStopKeepsPreviousResults(t *testing.T) {
@@ -250,4 +238,28 @@ func TestThemeDegrades(t *testing.T) {
 	if got := pt.meter(50, 100, 10); got != bar(50, 100, 10) {
 		t.Errorf("plain meter = %q", got)
 	}
+}
+
+func TestFitColumnsKeepsShortColumnsWhole(t *testing.T) {
+	cols := []column{{title: "ID"}, {title: "Size", right: true}, {title: "Risk"}, {title: "Suggestion", flex: true}, {title: "Why", wrap: true}}
+	rows := [][]string{{"O-ab12cd", "10.7 MB", "CAUTION", "A very long suggestion title that will not fit", "a long explanation that has to wrap onto lines"}}
+	out := plainLayoutTheme().grid(cols, rows, 70, nil)
+	for _, want := range []string{"O-ab12cd", "10.7 MB", "CAUTION", "…"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in\n%s", want, out)
+		}
+	}
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if w := lipgloss.Width(l); w > 70 {
+			t.Errorf("line is %d wide: %q", w, l)
+		}
+	}
+	if strings.Count(out, "\n") < 6 {
+		t.Errorf("the wrap column should wrap:\n%s", out)
+	}
+}
+
+func TestTUINarrowSuggestionsKeepSizes(t *testing.T) {
+	m := step(t, loaded(t, 80, 30), keys("2")...)
+	mustContain(t, m.View(), "14.2 GB", "~11.0 GB", "RISKY", "│ Restore")
 }

@@ -19,20 +19,34 @@ macdoc has **two everyday commands**:
 
 ### `macdoc`: the dashboard
 ```
- ◆ macdoc  MacBookAir10,1 · M1                         51.2 GB free · scan 16m ago · read-only
+ ◆ macdoc  MacBookAir10,1 · M1                                         51.2 GB free · scan 6m ago · read-only
   1 Overview   2 Suggestions   3 Toolchains   4 Space   5 Health
-──────────────────────────────────────────────────────────────────────────────────────────────
- ● Free & safe ────────────────────────────────────────────────── 825 MB │ ╭────────────────────────────╮
-▌ O-ruitsj    394 MB  uv cache                                           │ │  SAFE  O-ruitsj · uv cache │
-  O-jydjmu    412 MB  Homebrew old versions and downloads                │ ╰────────────────────────────╯
-  O-jov6zr   10.7 MB  Old app logs · Claude                              │   Size        394 MB (measured)
- ● Worth considering ──────────────────────────────────────────── 553 MB │   Method      the tool's own command: uv cache prune
-  O-d5w4xw    197 MB  Android build-tools 34.0.0                         │   Restore     re-downloads on demand …
- ↑↓ move • enter explain • tab switch view • @ toolchain • / commands • r rescan • ? help • q quit
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ SAFE 825 MB  ·  CAUTION 553 MB  ·  ADVICE 48.9 GB   item 1 of 12
+ ╭───┬──────────┬─────────┬─────────┬────────────────────────────────┬──────────────────────────────╮
+ │   │ ID       │    Size │ Risk    │ Suggestion                     │ Restore                      │
+ ├───┼──────────┼─────────┼─────────┼────────────────────────────────┼──────────────────────────────┤
+ │ ▶ │ O-gmyov5 │  394 MB │ SAFE    │ uv cache                       │ re-downloads on demand       │
+ │   │ O-kcxrej │  412 MB │ SAFE    │ Homebrew old versions and dow… │ re-downloads on demand       │
+ │   │ O-gg6lrb │  197 MB │ CAUTION │ Android build-tools 34.0.0     │ re-downloads on demand       │
+ │   │ O-dkuv2w │ 33.7 GB │ ADVICE  │ Leftover iOS simulator runtim… │ Runtimes can be downloaded … │
+ ╰───┴──────────┴─────────┴─────────┴────────────────────────────────┴──────────────────────────────╯
+ ↑↓ move • enter explain • tab switch view • / commands • r rescan • ? help • q quit
 ```
-- **Views:** `tab`/`shift+tab` or `1`–`5`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the list. On narrower ones, `enter` opens them and `esc` goes back.
+- **Every list is a table:**
+  - Each table has a header row and a rounded border.
+  - Sizes and counts are right-aligned.
+  - Risk (`SAFE`, `CAUTION`, `RISKY`, `ADVICE`) and severity (`Critical`, `Warning`, `Info`) are spelled out, never shown by color alone.
+  - The selected row has a `▶` marker as well as a highlight.
+  - On narrow terminals only the long text columns shrink (cut with … or wrapped), so IDs, sizes and risk labels always show in full.
+- **What each view shows:**
+  - **Overview:** your Mac (disk, memory, pressure, swap, snapshots), the top findings, reclaimable space per tier, where your space is.
+  - **Suggestions:** every item.
+  - **Toolchains:** a summary plus one table per toolchain.
+  - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
+  - **Health:** findings with explanations, and the top memory users.
+- **Views:** `tab`/`shift+tab` or `1`–`5`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `enter` opens them and `esc` goes back.
 - **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/wins` `/dev` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
-- **`@` filters by toolchain:** `@node`, `@docker`, `@xcode`, … (`@all` or `esc` clears it). The palette shows each toolchain's item count and size. There is no `@file`, because macdoc never takes paths (see the safety model).
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Read-only:** the dashboard can scan and show, never change. `q` quits.
