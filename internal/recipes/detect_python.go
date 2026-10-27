@@ -99,7 +99,9 @@ func detectCondaPkgs(ctx context.Context, env Env, r Recipe) ([]Finding, error) 
 			return nil, fmt.Errorf("conda clean --dry-run: bad size %q", m[2])
 		}
 		if n, _ := strconv.Atoi(m[1]); n > 0 && b > 0 {
-			total += b
+			if total, ok = addSize(total, b); !ok {
+				return []Finding{{Bytes: implausibleSize("conda clean --dry-run"), Note: "Would remove " + strings.Join(append(parts, m[1]+" "+m[3]), ", ")}}, nil
+			}
 			parts = append(parts, m[1]+" "+m[3])
 		}
 	}

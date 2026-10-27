@@ -74,7 +74,9 @@ func init() {
 
 // detectChildren emits one finding per kept direct child of params["dir"]
 // (from the scan), sized from the scan, LastUsed = newest mtime below.
-// Optional params["min_bytes"] (default 1) skips tiny children.
+// Optional params["min_bytes"] (default 1) skips tiny children, and
+// params["exclude"] (comma-separated base names, case-insensitive) skips
+// children that other recipes own.
 func detectChildren(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	dir := r.Params["dir"]
 	if dir == "" {
@@ -92,14 +94,26 @@ func detectChildren(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
+	exclude := paramSet(r, "exclude")
 	var out []Finding
 	for _, n := range nodes {
-		if n.Path == dir || n.Bytes < minBytes {
+		if n.Path == dir || n.Bytes < minBytes || exclude[strings.ToLower(filepath.Base(n.Path))] {
 			continue
 		}
 		out = append(out, nodeFinding(n))
 	}
 	return out, nil
+}
+
+// paramSet reads a comma-separated parameter as a set of lowercase names.
+func paramSet(r Recipe, key string) map[string]bool {
+	set := map[string]bool{}
+	for _, n := range strings.Split(r.Params[key], ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			set[strings.ToLower(n)] = true
+		}
+	}
+	return set
 }
 
 // detectPath emits one finding for params["path"] if the scan kept it.

@@ -207,8 +207,10 @@ func TestR1DryRunArgvNotCheckedAndExecutedByDetector(t *testing.T) {
 
 	r1AllTools(t)
 	runner := &platform.FakeRunner{Responses: map[string]platform.Result{"brew cleanup --prune=all": {}}}
-	if _, err := detectBrewCleanup(context.Background(), Env{Home: w2Home, Runner: runner, Now: w2Now}, r); err != nil {
-		t.Fatal(err)
+	// P3-W4 D2: runDryRun refuses an argv outside the dry-run allow-list,
+	// so the detector now returns an error instead of running it.
+	if _, err := detectBrewCleanup(context.Background(), Env{Home: w2Home, Runner: runner, Now: w2Now}, r); err == nil {
+		t.Error("detector accepted a non-dry-run argv")
 	}
 	for _, c := range runner.Calls {
 		if !slices.Contains(r1ReadOnlyCommands, platform.Key(c)) {
@@ -654,14 +656,16 @@ func TestR1NvmHostileAliasesHeld(t *testing.T) {
 			t.Errorf("%s: unresolvable default must emit nothing, got %v, %v", name, w2Targets(fs), err)
 		}
 	}
-	// A symlinked alias file is only read; the newest and the default stay.
+	// P3-W4 D6: a symlinked alias file is never followed (readSmallFile
+	// uses Lstat and O_NOFOLLOW). The default can't be resolved, so the
+	// detector reports an error and emits nothing.
 	_ = os.RemoveAll(alias)
 	mkdir(t, alias)
 	if err := os.Symlink(outside, alias+"/default"); err != nil {
 		t.Fatal(err)
 	}
 	fs, err := r1Run(t, "nvm.old_versions", Env{Home: home, Nodes: nodes})
-	if err != nil || !slices.Equal(w2Targets(fs), []string{vers + "/v20.0.0"}) {
+	if fs != nil || !errors.Is(err, errNotRegular) {
 		t.Errorf("symlinked default: %v, %v", w2Targets(fs), err)
 	}
 }

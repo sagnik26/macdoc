@@ -83,10 +83,11 @@ var Preconditions = []string{
 	"ollama_model_not_loaded", "git_clean",
 }
 
-// NativeTools are the only programs a native argv may start with.
+// NativeTools are the only programs a native argv may start with. They are
+// the tools of the exact argv allow-list in load.go.
 var NativeTools = []string{
 	"brew", "xcrun", "docker", "npm", "pnpm", "yarn", "pip3", "uv", "conda",
-	"ollama", "hf", "sdkmanager", "avdmanager", "pod", "pyenv",
+	"ollama", "avdmanager", "pod",
 }
 
 // Finding is one concrete instance a detector found for a recipe.

@@ -77,7 +77,9 @@
   title: Stale Python virtual environment
   category: build-artifacts
   toolchain: python
-  risk: CAUTION
+  # RISKY (docs/SAFETY_MODEL.md §2): a venv may hold packages edited in
+  # place, and rebuilding it only matches if the requirements are pinned.
+  risk: RISKY
   method: quarantine
   detector: venv_stale
   allow: ["~/*/**/.venv"]
@@ -85,7 +87,10 @@
   stale_days: 90
   restore:
     kind: redownload
-    note: Recreate it with python3 -m venv .venv and reinstall the project's requirements.
+    note: >-
+      Recreate it with python3 -m venv .venv and reinstall the project's
+      requirements. Without pinned requirements or a lock file you may get
+      different package versions, and edits made inside the venv are lost.
   explain: >-
     A .venv folder holds a project's own Python and installed packages. This
     one hasn't changed in a while. Moving it leaves the project's code

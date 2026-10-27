@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
+	"macdoc/internal/safety"
 )
 
 func init() {
@@ -31,12 +37,7 @@ func detectAppCaches(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
-	exclude := map[string]bool{}
-	for _, n := range strings.Split(r.Params["exclude"], ",") {
-		if n = strings.TrimSpace(n); n != "" {
-			exclude[strings.ToLower(n)] = true
-		}
-	}
+	exclude := paramSet(r, "exclude")
 	dir = ExpandHome(env.Home, dir)
 	nodes, err := env.Nodes.Nodes(dir, 1)
 	if err != nil {
@@ -56,13 +57,32 @@ func detectAppCaches(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	return out, nil
 }
 
+// installerExts are the extensions (lowercase) of installers and archives,
+// which can be downloaded again. Any other large download may be the only
+// copy (an AirDrop or a phone import, for example).
+var installerExts = []string{
+	".dmg", ".pkg", ".mpkg", ".xip", ".zip", ".iso", ".tar", ".tgz", ".gz",
+	".bz2", ".xz", ".7z", ".rar", ".ipa", ".apk", ".aab",
+}
+
 // detectDownloadsLargeOld emits kept file nodes directly in params["dir"]
 // (~/Downloads) of at least params["min_bytes"] that are older than
-// stale_days.
+// stale_days. params["files"] picks which: "installers" (an installerExts
+// extension, case-insensitive) or "other" (everything else).
 func detectDownloadsLargeOld(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	dir, err := requireParam(r, "dir")
-	if err != nil || env.Nodes == nil {
+	if err != nil {
 		return nil, err
+	}
+	files, err := requireParam(r, "files")
+	if err != nil {
+		return nil, err
+	}
+	if files != "installers" && files != "other" {
+		return nil, fmt.Errorf("recipe %s: params.files must be installers or other", r.ID)
+	}
+	if env.Nodes == nil {
+		return nil, nil
 	}
 	minBytes, err := paramInt(r, "min_bytes", 1)
 	if err != nil {
@@ -77,6 +97,10 @@ func detectDownloadsLargeOld(_ context.Context, env Env, r Recipe) ([]Finding, e
 	for _, n := range nodes {
 		if n.Kind != model.NodeFile || filepath.Dir(n.Path) != dir || n.Bytes < minBytes ||
 			!stale(env, n.MtimeMax, r.StaleDays) {
+			continue
+		}
+		installer := slices.Contains(installerExts, strings.ToLower(filepath.Ext(n.Path)))
+		if installer != (files == "installers") {
 			continue
 		}
 		out = append(out, nodeFinding(n))
@@ -124,7 +148,8 @@ func requireParam(r Recipe, key string) (string, error) {
 }
 
 // stale reports whether mtime (unix seconds) is at least days before
-// env.Now. An unknown mtime (0) is never stale; days <= 0 always is.
+// env.Now, or the wall clock if env.Now is zero. An unknown mtime (0) is
+// never stale; days <= 0 always is.
 func stale(env Env, mtime int64, days int) bool {
 	if days <= 0 {
 		return true
@@ -132,7 +157,7 @@ func stale(env Env, mtime int64, days int) bool {
 	if mtime <= 0 {
 		return false
 	}
-	return env.Now.Sub(unixTime(mtime)) >= time.Duration(days)*24*time.Hour
+	return env.now().Sub(unixTime(mtime)) >= time.Duration(days)*24*time.Hour
 }
 
 // belowHome returns p's components below home, or nil if p isn't strictly
@@ -150,9 +175,14 @@ func belowHome(home, p string) []string {
 // ancestor below home with the same name, as patterns like
 // "~/*/**/node_modules" require. Tool and app installs are skipped: the first
 // component below home must not be hidden (~/.nvm, ~/.cursor, ~/.local, …)
-// or Library.
+// or Library. Directories in protected folders (~/Documents, ~/Desktop, …)
+// are skipped too: CheckTarget would reject them anyway.
 func projectDirs(env Env, name string) ([]model.Node, error) {
 	nodes, err := env.Nodes.Nodes(env.Home, 0)
+	if err != nil {
+		return nil, err
+	}
+	pol, err := safety.NewPolicy(env.Home, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +191,14 @@ func projectDirs(env Env, name string) ([]model.Node, error) {
 		comps := belowHome(env.Home, n.Path)
 		if n.Kind == model.NodeFile || len(comps) < 2 || !strings.EqualFold(comps[len(comps)-1], name) ||
 			strings.HasPrefix(comps[0], ".") || strings.EqualFold(comps[0], "Library") {
+			continue
+		}
+		// IsProtected is lexical and needs the canonical path.
+		c, err := safety.Canonicalize(n.Path)
+		if err != nil {
+			continue
+		}
+		if prot, _ := pol.IsProtected(c); prot {
 			continue
 		}
 		nested := false
@@ -174,6 +212,48 @@ func projectDirs(env Env, name string) ([]model.Node, error) {
 	return out, nil
 }
 
+// maxSmallFile is the default limit of readSmallFile.
+const maxSmallFile int64 = 64 << 10
+
+// readSmallFile errors: anything but a regular file, or over the limit.
+var (
+	errNotRegular = errors.New("not a regular file")
+	errTooLarge   = errors.New("file too large")
+)
+
+// readSmallFile reads a small regular file. It never follows a symlink in the
+// final component, never blocks on a FIFO or device (it checks with Lstat,
+// opens non-blocking and checks again), and fails if the file is larger than
+// limit bytes. Every detector file read goes through it.
+func readSmallFile(path string, limit int64) ([]byte, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0) //nolint:gosec // G304: read-only, regular files under fixed tool directories (checked above and below).
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	if fi, err = f.Stat(); err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%s: %w (over %d bytes)", path, errTooLarge, limit)
+	}
+	return b, nil
+}
+
 // errNoDryRun is returned when a native detector's recipe lacks the dry-run
 // argv it runs.
 var errNoDryRun = errors.New("needs native.dry_run_argv")
@@ -184,7 +264,31 @@ func runDryRun(ctx context.Context, env Env, r Recipe, timeout time.Duration) (p
 		return platform.Result{}, fmt.Errorf("recipe %s: %w", r.ID, errNoDryRun)
 	}
 	argv := r.Native.DryRunArgv
+	// Validate checks this too; refusing here as well means a recipe that
+	// skipped validation still can't make a detector mutate anything.
+	if !argvIn(argv, dryRunArgvAllowed) {
+		return platform.Result{}, fmt.Errorf("recipe %s: dry-run argv %q not in the allow-list", r.ID, argv)
+	}
 	return env.Runner.Run(ctx, platform.Command{Name: argv[0], Args: argv[1:], Timeout: timeout})
+}
+
+// maxPlausibleBytes (1 PB) caps any size a detector reports. A larger value
+// from a tool or a sum is a parse error or overflow, never a real size.
+const maxPlausibleBytes int64 = 1_000_000_000_000_000
+
+// addSize returns total+b, or false if b is negative or the sum would pass
+// maxPlausibleBytes (which also rules out int64 overflow).
+func addSize(total, b int64) (int64, bool) {
+	if b < 0 || total < 0 || b > maxPlausibleBytes-total {
+		return 0, false
+	}
+	return total + b, true
+}
+
+// implausibleSize is the size of a sum that overflowed or passed
+// maxPlausibleBytes.
+func implausibleSize(what string) model.Bytes {
+	return model.Bytes{Source: model.SourceUnknown, Reason: what + " reported an implausibly large size"}
 }
 
 // parseSize parses a human size like "377MB", "1.1GB (45%)", "4.7 GB",
@@ -213,6 +317,11 @@ func parseSize(s string, base float64) (int64, bool) {
 	}
 	for range e {
 		v *= base
+	}
+	// Reject NaN, infinities and anything over 1 PB before converting:
+	// float64 to int64 is implementation-defined out of range.
+	if math.IsNaN(v) || math.IsInf(v, 0) || v >= math.MaxInt64 || v > float64(maxPlausibleBytes) {
+		return 0, false
 	}
 	return int64(v + 0.5), true
 }

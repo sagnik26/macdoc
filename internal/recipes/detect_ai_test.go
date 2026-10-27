@@ -23,7 +23,8 @@ func TestOllamaModels(t *testing.T) {
 		bytes int64
 		last  time.Time
 	}{
-		{"llama3.2:latest", 2_000_000_000, time.Time{}},
+		// "3 weeks ago" is parsed relative to Env.Now since P3-W4 D15.
+		{"llama3.2:latest", 2_000_000_000, w2Now.Add(-21 * 24 * time.Hour)},
 		{"qwen2.5-coder:7b", 4_700_000_000, time.Date(2026, 5, 2, 14, 3, 11, 0, time.UTC)},
 		{"nomic-embed-text:latest", 274_000_000, time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)},
 	}
@@ -36,7 +37,7 @@ func TestOllamaModels(t *testing.T) {
 			t.Errorf("finding %d = %+v, want %+v", i, f, w)
 		}
 	}
-	if fs[0].Note != "Last modified 3 weeks ago." || fs[1].Note != "" {
+	if fs[0].Note != "" || fs[1].Note != "" {
 		t.Errorf("notes %q %q", fs[0].Note, fs[1].Note)
 	}
 }

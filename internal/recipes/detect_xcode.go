@@ -36,7 +36,14 @@ func init() {
 // leading "-" (which a tool would read as an option).
 var nativeArgRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 
-func validNativeArg(s string) bool { return len(s) <= 255 && nativeArgRE.MatchString(s) }
+// reservedNativeArgs are tool keywords that select more than one listed item
+// (e.g. `xcrun simctl runtime delete all`) or change what the command does.
+var reservedNativeArgs = []string{"all", "unavailable", "booted", "help", "version"}
+
+func validNativeArg(s string) bool {
+	return len(s) <= 255 && nativeArgRE.MatchString(s) &&
+		!slices.ContainsFunc(reservedNativeArgs, func(r string) bool { return strings.EqualFold(r, s) })
+}
 
 // toolMissing reports whether a listing command failed only because the tool
 // (or a sub-tool such as simctl) isn't installed. That is not an error.
@@ -119,15 +126,6 @@ func (env Env) now() time.Time {
 		return time.Now()
 	}
 	return env.Now
-}
-
-// idleFor reports whether mtimeMax (unix seconds) is at least days old.
-// An unknown mtime (0) is never idle.
-func idleFor(env Env, mtimeMax int64, days int) bool {
-	if mtimeMax <= 0 {
-		return false
-	}
-	return env.now().Sub(unixTime(mtimeMax)) >= time.Duration(days)*24*time.Hour
 }
 
 // versionRE finds a dotted numeric version, e.g. "17.2" in "iPhone15,2 17.2 (21C62)".
@@ -261,22 +259,35 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 	var names []string
 	var total int64
 	missing, fromTool := 0, 0
+	sumOK := true
 	for _, d := range devs {
 		if d.IsAvailable {
 			continue
 		}
 		names = append(names, d.Name+" ("+runtimeName(d.runtime)+")")
+		// The UDID is joined into a path to size the device, so it must look
+		// like an identifier; otherwise the device counts as not measured.
+		if !validNativeArg(d.UDID) {
+			missing++
+			continue
+		}
 		n, found, err := scanNode(env, simDeviceDir(env, d.UDID))
+		var size int64
 		switch {
 		case err != nil:
 			return nil, err
 		case found:
-			total += n.Bytes
+			size = n.Bytes
 		case d.DataPathSize > 0:
-			total += d.DataPathSize
+			size = d.DataPathSize
 			fromTool++
 		default:
 			missing++
+			continue
+		}
+		var ok bool
+		if total, ok = addSize(total, size); !ok {
+			sumOK = false
 		}
 	}
 	if len(names) == 0 {
@@ -284,6 +295,8 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 	}
 	b := model.Bytes{Value: total, Source: model.SourceMeasured}
 	switch {
+	case !sumOK:
+		b = implausibleSize("simctl or the scan")
 	case missing == len(names):
 		b = model.Bytes{Source: model.SourceUnknown, Reason: "the unavailable simulators are not in the latest scan"}
 	case missing > 0:
@@ -321,7 +334,7 @@ func detectSimctlIdle(ctx context.Context, env Env, r Recipe) ([]Finding, error)
 		if err != nil {
 			return nil, err
 		}
-		if !found || !idleFor(env, n.MtimeMax, days) {
+		if !found || !stale(env, n.MtimeMax, days) {
 			continue
 		}
 		f := nodeFinding(n)
@@ -390,6 +403,8 @@ func detectSimctlRuntimes(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 		}
 		if rt.SizeBytes <= 0 {
 			f.Bytes = model.Bytes{Source: model.SourceUnknown, Reason: "simctl did not report a size"}
+		} else if rt.SizeBytes > maxPlausibleBytes {
+			f.Bytes = implausibleSize("simctl")
 		}
 		if t, err := time.Parse(time.RFC3339, rt.LastUsedAt); err == nil {
 			f.LastUsed = t.UTC()

@@ -186,7 +186,7 @@ func nvmDefault(aliasDir string, versions []nodeVersion) (string, bool, error) {
 		if alias == "" || strings.Contains(alias, "..") || strings.HasPrefix(alias, "/") {
 			return "", false, nil
 		}
-		b, err := os.ReadFile(filepath.Join(aliasDir, alias)) //nolint:gosec // G304: read-only, fixed dir under ~/.nvm/alias, ".." rejected above.
+		b, err := readSmallFile(filepath.Join(aliasDir, alias), maxSmallFile)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				if alias == "default" {
@@ -194,6 +194,8 @@ func nvmDefault(aliasDir string, versions []nodeVersion) (string, bool, error) {
 				}
 				return "", false, nil
 			}
+			// Includes a symlink, FIFO, directory or oversized alias file
+			// (readSmallFile): a warning, and nothing is emitted.
 			return "", false, err
 		}
 		val := strings.TrimSpace(string(b))

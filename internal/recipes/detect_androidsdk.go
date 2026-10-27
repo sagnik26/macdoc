@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"macdoc/internal/model"
+	"macdoc/internal/safety"
 )
 
 // Detectors for Gradle, the Android SDK, emulators and Android Studio
@@ -62,9 +63,10 @@ func avdHome(env Env) string {
 	return filepath.Join(env.Home, ".android/avd")
 }
 
-// readIni parses key=value lines. Lines without "=" are ignored.
+// readIni parses key=value lines of a small regular file (readSmallFile).
+// Lines without "=" are ignored.
 func readIni(path string) (map[string]string, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: read-only parse of an emulator .ini file under the AVD home.
+	data, err := readSmallFile(path, maxSmallFile)
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +85,16 @@ type avd struct {
 	name string
 	dir  string            // the <name>.avd data directory
 	cfg  map[string]string // its config.ini; nil if it has none
+	// ok means dir is safe to act on: avdmanager deletes the directory the
+	// registry names, so only a real "*.avd" directory strictly inside the
+	// AVD home, holding a regular config.ini and not protected, qualifies.
+	ok bool
 }
 
 // listAVDs reads the AVD registry. A missing AVD home means no AVDs; any
 // other read error is returned, so callers never treat an unreadable
-// registry as "no AVDs reference this".
+// registry as "no AVDs reference this". Every AVD is returned, so all their
+// system images count as used; only those with ok set may become findings.
 func listAVDs(env Env) ([]avd, error) {
 	dir := avdHome(env)
 	ents, err := os.ReadDir(dir)
@@ -97,6 +104,17 @@ func listAVDs(env Env) ([]avd, error) {
 	if err != nil {
 		return nil, err
 	}
+	pol, err := safety.NewPolicy(env.Home, nil)
+	if err != nil {
+		return nil, err
+	}
+	// The AVD home with every symlink resolved, as Canonicalize resolves
+	// the parents of each AVD directory.
+	c, err := safety.Canonicalize(filepath.Join(dir, "x"))
+	if err != nil {
+		return nil, err
+	}
+	canonHome := filepath.Dir(c)
 	var out []avd
 	for _, e := range ents {
 		name, ok := strings.CutSuffix(e.Name(), ".ini")
@@ -115,9 +133,26 @@ func listAVDs(env Env) ([]avd, error) {
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
+		a.ok = a.cfg != nil && avdDirOK(pol, canonHome, a.dir)
 		out = append(out, a)
 	}
 	return out, nil
+}
+
+// avdDirOK reports whether dir canonicalizes strictly inside the canonical
+// AVD home, is named "*.avd", is a real directory (not a symlink) and is not
+// protected.
+func avdDirOK(pol *safety.Policy, canonHome, dir string) bool {
+	c, err := safety.Canonicalize(dir)
+	if err != nil || !strings.HasSuffix(strings.ToLower(filepath.Base(c)), ".avd") ||
+		!safety.Within(canonHome, c) || safety.Within(c, canonHome) {
+		return false
+	}
+	if fi, err := os.Lstat(c); err != nil || !fi.IsDir() {
+		return false
+	}
+	prot, _ := pol.IsProtected(c)
+	return !prot
 }
 
 // subdirs lists the real directories (not symlinks) in dir, sorted. A missing
@@ -209,14 +244,14 @@ func detectAndroidAVDs(_ context.Context, env Env, r Recipe) ([]Finding, error) 
 	}
 	var out []Finding
 	for _, a := range avds {
-		if !validNativeArg(a.name) {
+		if !a.ok || !validNativeArg(a.name) {
 			continue
 		}
 		n, found, err := scanNode(env, a.dir)
 		if err != nil {
 			return nil, err
 		}
-		if !found || !idleFor(env, n.MtimeMax, days) {
+		if !found || !stale(env, n.MtimeMax, days) {
 			continue
 		}
 		f := nodeFinding(n)
@@ -240,6 +275,9 @@ func detectAVDSnapshots(_ context.Context, env Env, _ Recipe) ([]Finding, error)
 	}
 	var out []Finding
 	for _, a := range avds {
+		if !a.ok {
+			continue
+		}
 		snap := filepath.Join(a.dir, "snapshots")
 		if fi, err := os.Lstat(snap); err != nil || !fi.IsDir() {
 			continue
