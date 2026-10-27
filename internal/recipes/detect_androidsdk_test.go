@@ -136,13 +136,13 @@ func TestAndroidAVDs(t *testing.T) {
 	home, nodes := avdFixture(t)
 	withTools(t, "avdmanager")
 	fs := mustDetect(t, "android.avd", Env{Home: home, Nodes: nodes, Now: w1Now})
-	if len(fs) != 2 {
+	// Custom's data directory is outside the AVD home, so it is skipped
+	// since P3-W4 D5 (avdmanager deletes whatever path= names).
+	if len(fs) != 1 {
 		t.Fatalf("avds = %+v", fs)
 	}
-	slices.SortFunc(fs, func(a, b Finding) int { return strings.Compare(a.NativeArg, b.NativeArg) })
-	if fs[0].NativeArg != "Custom" || fs[0].Target != home+"/emus/Custom.avd" ||
-		fs[1].NativeArg != "Pixel_7" || fs[1].Title != "Android emulator Pixel 7" ||
-		fs[1].Bytes != (model.Bytes{Value: 8 << 30, Source: model.SourceMeasured}) {
+	if fs[0].NativeArg != "Pixel_7" || fs[0].Title != "Android emulator Pixel 7" ||
+		fs[0].Bytes != (model.Bytes{Value: 8 << 30, Source: model.SourceMeasured}) {
 		t.Errorf("avds = %+v", fs)
 	}
 	withTools(t)
@@ -154,7 +154,7 @@ func TestAndroidAVDs(t *testing.T) {
 		t.Errorf("no AVD home = %+v", fs)
 	}
 	// stale_days unset: default 60.
-	if fs, err := detectAndroidAVDs(context.Background(), Env{Home: home, Nodes: nodes, Now: w1Now}, Recipe{}); err != nil || len(fs) != 2 {
+	if fs, err := detectAndroidAVDs(context.Background(), Env{Home: home, Nodes: nodes, Now: w1Now}, Recipe{}); err != nil || len(fs) != 1 {
 		t.Errorf("default = %+v, %v", fs, err)
 	}
 }

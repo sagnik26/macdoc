@@ -181,7 +181,9 @@ func TestAppCaches(t *testing.T) {
 		{Path: c + "/com.spotify.client/Data", Bytes: 2 << 30},       // grandchild
 	}
 	fs, err := w2Run(t, "user.app_caches", Env{Nodes: nodes})
-	w2WantTargets(t, fs, err, c+"/com.spotify.client", c+"/Google")
+	// Google is excluded since P3-W4 D10 (android_studio.old_versions_data
+	// owns Caches/Google/AndroidStudio*).
+	w2WantTargets(t, fs, err, c+"/com.spotify.client")
 	for _, f := range fs {
 		if f.Title == "" || f.Bytes.Source != model.SourceMeasured {
 			t.Errorf("finding %+v", f)

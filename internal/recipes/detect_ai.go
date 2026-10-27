@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ func init() {
 var ollamaNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9._-]+)?$`)
 
 // ollamaDateLayouts are the absolute MODIFIED formats accepted; relative
-// ones ("3 weeks ago") leave LastUsed unknown.
+// ones ("3 weeks ago") are parsed by ollamaRelative.
 var ollamaDateLayouts = []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"}
 
 // detectOllamaModels parses `ollama list` (testdata/w2_ollama_list.txt):
@@ -73,12 +74,46 @@ func detectOllamaModels(ctx context.Context, env Env, _ Recipe) ([]Finding, erro
 				break
 			}
 		}
+		if d, ok := ollamaRelative(modified); fd.LastUsed.IsZero() && ok {
+			fd.LastUsed = env.now().Add(-d).UTC()
+		}
 		if fd.LastUsed.IsZero() && modified != "" {
 			fd.Note = "Last modified " + modified + "."
 		}
 		out = append(out, fd)
 	}
 	return out, nil
+}
+
+// ollamaRelativeRe matches "3 weeks ago" and "1 day ago".
+var ollamaRelativeRe = regexp.MustCompile(`^(\d{1,4}) (second|minute|hour|day|week|month|year)s? ago$`)
+
+// ollamaUnits are approximate: a month is 30 days and a year 365.
+var ollamaUnits = map[string]time.Duration{
+	"second": time.Second, "minute": time.Minute, "hour": time.Hour,
+	"day": 24 * time.Hour, "week": 7 * 24 * time.Hour,
+	"month": 30 * 24 * time.Hour, "year": 365 * 24 * time.Hour,
+}
+
+// ollamaRelative parses ollama's relative MODIFIED forms into an
+// approximate age. Anything else is unknown (ok false).
+func ollamaRelative(s string) (time.Duration, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "less than a second ago":
+		return 0, true
+	case "about a minute ago":
+		return time.Minute, true
+	case "about an hour ago":
+		return time.Hour, true
+	case "yesterday":
+		return 24 * time.Hour, true
+	}
+	m := ollamaRelativeRe.FindStringSubmatch(strings.ToLower(strings.TrimSpace(s)))
+	if m == nil {
+		return 0, false
+	}
+	n, _ := strconv.Atoi(m[1])
+	return time.Duration(n) * ollamaUnits[m[2]], true
 }
 
 // isSizeUnit reports whether s is a bare unit such as "GB" or "kB".

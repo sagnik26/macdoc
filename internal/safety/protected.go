@@ -46,6 +46,13 @@ var homeProtected = []string{
 	".netrc", ".npmrc", ".pypirc",
 }
 
+// HomeProtected returns a copy of the home-relative protected paths
+// (docs/SAFETY_MODEL.md §3), "/"-separated and without a leading "~/". The
+// recipe lint uses it to reject allow patterns that could match them.
+func HomeProtected() []string {
+	return append([]string(nil), homeProtected...)
+}
+
 // protectedSuffixes protect a path whose final component ends in them, or in
 // them followed by one of sqliteSidecars.
 var protectedSuffixes = []string{".sqlite", ".sqlite3", ".db"}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"macdoc/internal/model"
+	"macdoc/internal/safety"
 )
 
 //go:embed catalog
@@ -79,12 +81,45 @@ func LoadFS(fsys fs.FS, dir string) (*Catalog, error) {
 	return &Catalog{Recipes: all}, nil
 }
 
-// forbiddenArgs may never appear in a native argv (docs/SAFETY_MODEL.md §5).
-var forbiddenArgs = []string{"--volumes", "sudo", "sh", "bash", "zsh", "rm", "-rf", "--force-all"}
+// nativeArgvAllowed is the exact allow-list of native argvs
+// (docs/SAFETY_MODEL.md §5: recipes pin exact argv). "{id}" is literal here
+// and stands for Finding.NativeArg. Anything else is rejected, so no recipe
+// can run code through a tool, touch Docker volumes or wipe everything a tool
+// owns.
+var nativeArgvAllowed = [][]string{
+	{"brew", "cleanup", "--prune=all"},
+	{"brew", "autoremove"},
+	{"docker", "builder", "prune", "-f"},
+	{"docker", "image", "prune", "-f"},
+	{"docker", "image", "prune", "-a", "-f"},
+	{"docker", "container", "prune", "-f"},
+	{"xcrun", "simctl", "delete", "unavailable"},
+	{"xcrun", "simctl", "delete", Placeholder},
+	{"xcrun", "simctl", "runtime", "delete", Placeholder},
+	{"npm", "cache", "clean", "--force"},
+	{"pnpm", "store", "prune"},
+	{"yarn", "cache", "clean"},
+	{"pip3", "cache", "purge"},
+	{"uv", "cache", "prune"},
+	{"conda", "clean", "--all", "-y"},
+	{"ollama", "rm", Placeholder},
+	{"pod", "cache", "clean", "--all"},
+	{"avdmanager", "delete", "avd", "-n", Placeholder},
+}
 
-// allowedSubcommands are tool-specific exceptions to forbiddenArgs: "rm" is a
-// legitimate subcommand of these tools (and only as their first argument).
-var allowedSubcommands = map[string]string{"ollama": "rm"}
+// dryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
+// run these during scan and wins, so each must be the tool's own read-only
+// dry run. None takes "{id}".
+var dryRunArgvAllowed = [][]string{
+	{"brew", "cleanup", "-n", "--prune=all"},
+	{"brew", "autoremove", "-n"},
+	{"conda", "clean", "--all", "--dry-run"},
+}
+
+// argvIn reports whether argv is exactly one of set.
+func argvIn(argv []string, set [][]string) bool {
+	return slices.ContainsFunc(set, func(a []string) bool { return slices.Equal(a, argv) })
+}
 
 // Validate checks one recipe, including the safety lint from the P0-R1/P0-W3
 // carry-overs. It returns all problems joined.
@@ -157,6 +192,8 @@ func Validate(r Recipe) error {
 	for _, p := range r.Allow {
 		if err := lintPattern(p); err != nil {
 			bad("allow %q: %v", p, err)
+		} else if err := lintAllowProtected(p); err != nil {
+			bad("allow %q: %v", p, err)
 		}
 	}
 	for _, p := range r.KeepChildrenOf {
@@ -174,6 +211,12 @@ func Validate(r Recipe) error {
 			if err := lintArgv(argv); err != nil {
 				bad("native argv %q: %v", argv, err)
 			}
+		}
+		if len(r.Native.Argv) > 0 && !argvIn(r.Native.Argv, nativeArgvAllowed) {
+			bad("native argv %q: native argv not in the allow-list", r.Native.Argv)
+		}
+		if len(r.Native.DryRunArgv) > 0 && !argvIn(r.Native.DryRunArgv, dryRunArgvAllowed) {
+			bad("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
 		}
 	}
 	for _, pc := range r.Preconditions {
@@ -214,6 +257,88 @@ func lintPattern(p string) error {
 	return nil
 }
 
+// projectTreePatterns are the allow patterns for project folders anywhere in
+// home. Their leading "~/*/**" can match inside protected folders such as
+// ~/Documents, so they are exempt from the protected-root and
+// two-wildcard rules of lintAllowProtected, and only from those. projectDirs
+// skips protected folders, and CheckTarget rejects them again at plan and
+// apply time.
+var projectTreePatterns = []string{"~/*/**/node_modules", "~/*/**/.venv"}
+
+// protectedNameSamples are names a final pattern component must not be able
+// to match: what IsProtected protects by name anywhere in home.
+var protectedNameSamples = []string{".git", ".env", ".env.local", "x.sqlite", "x.sqlite3", "x.db", "x.db-wal"}
+
+// appleContainers stands for every ~/Library/Containers/com.apple.* entry.
+const appleContainers = "library/containers/com.apple.*"
+
+// lintAllowProtected rejects an allow pattern that could match a protected
+// path (docs/SAFETY_MODEL.md §5): one whose leading components could match a
+// home-relative protected root, or a folder inside or containing one; one
+// whose first two components below "~" are both wildcards; or one whose final
+// component could match a protected name. Matching is case-insensitive. A
+// final "*" in a pattern without "**" is the children of one fixed folder
+// and is left to CheckTarget, which rejects protected names at runtime.
+func lintAllowProtected(p string) error {
+	comps := strings.Split(strings.ToLower(strings.TrimPrefix(p, "~/")), "/")
+	if !slices.Contains(projectTreePatterns, p) {
+		if len(comps) >= 2 && isGlob(comps[0]) && isGlob(comps[1]) {
+			return errors.New("first two components below ~ are both wildcards")
+		}
+		for _, root := range append(safety.HomeProtected(), appleContainers) {
+			if couldOverlap(comps, strings.Split(strings.ToLower(root), "/")) {
+				return fmt.Errorf("could match protected path ~/%s, or a folder inside or containing it", root)
+			}
+		}
+	}
+	last := comps[len(comps)-1]
+	if last == "*" && !slices.Contains(comps, "**") {
+		return nil
+	}
+	for _, n := range protectedNameSamples {
+		if ok, _ := path.Match(last, n); ok {
+			return fmt.Errorf("final component could match protected name %q", n)
+		}
+	}
+	return nil
+}
+
+func isGlob(c string) bool { return strings.ContainsAny(c, `*?[\`) }
+
+// couldOverlap reports whether a pattern (lowercased components below home)
+// could match the protected root, a descendant or an ancestor of it: every
+// component both have could match, or a "**" comes before the root ends.
+func couldOverlap(pat, root []string) bool {
+	for i := 0; i < len(pat) && i < len(root); i++ {
+		if pat[i] == "**" {
+			return true
+		}
+		if !componentCouldMatch(pat[i], root[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// componentCouldMatch reports whether pattern component pc could match the
+// root component rc. "com.apple.*" stands for any name with that prefix: pc
+// could match one if its literal prefix (before any glob character) and
+// "com.apple." agree as far as both go.
+func componentCouldMatch(pc, rc string) bool {
+	if prefix, ok := strings.CutSuffix(rc, "*"); ok {
+		lit := pc
+		if i := strings.IndexAny(pc, `*?[\`); i >= 0 {
+			lit = pc[:i]
+		}
+		return strings.HasPrefix(prefix, lit) || strings.HasPrefix(lit, prefix)
+	}
+	ok, err := path.Match(pc, rc)
+	return ok || err != nil
+}
+
+// lintArgv checks the shape of a native argv: a known tool, at most one
+// whole-element "{id}", and no interpolation or shell characters. The exact
+// allow-lists checked in Validate are the real gate; this is defense in depth.
 func lintArgv(argv []string) error {
 	if len(argv) == 0 {
 		return nil
@@ -222,16 +347,7 @@ func lintArgv(argv []string) error {
 		return fmt.Errorf("program %q is not an allowed native tool", argv[0])
 	}
 	placeholders := 0
-	for i, a := range argv {
-		if i == 1 && allowedSubcommands[argv[0]] == a {
-			continue
-		}
-		if slices.Contains(forbiddenArgs, a) || strings.HasPrefix(a, "--volumes") {
-			return fmt.Errorf("forbidden argument %q", a)
-		}
-		if i > 0 && a == "prune" && argv[i-1] == "system" {
-			return errors.New(`"system prune" is forbidden`)
-		}
+	for _, a := range argv {
 		if a == Placeholder {
 			placeholders++
 		} else if strings.Contains(a, "{") || strings.ContainsAny(a, "$`;|&<>\n") {
@@ -244,10 +360,15 @@ func lintArgv(argv []string) error {
 	return nil
 }
 
+// preconditionArgRE is what the argument of a "name:" precondition may look
+// like. Phase 5 passes it to a process check, so it may not start with "-"
+// or contain path separators, control or shell characters.
+var preconditionArgRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]*$`)
+
 func validPrecondition(pc string) bool {
 	for _, p := range Preconditions {
 		if strings.HasSuffix(p, ":") {
-			if arg, ok := strings.CutPrefix(pc, p); ok && arg != "" && !strings.ContainsAny(arg, "/\n") {
+			if arg, ok := strings.CutPrefix(pc, p); ok && preconditionArgRE.MatchString(arg) {
 				return true
 			}
 		} else if pc == p {

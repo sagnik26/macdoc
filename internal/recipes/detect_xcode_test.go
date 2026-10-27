@@ -414,8 +414,12 @@ func TestXcodeHelpers(t *testing.T) {
 	if parseVersion("1.x") != nil || parseVersion("99999999999999999999") != nil || !slices.Equal(parseVersion("8.10.2"), []int{8, 10, 2}) {
 		t.Error("parseVersion")
 	}
-	if (Env{}).now().IsZero() || idleFor(Env{Now: w1Now}, 0, 1) {
-		t.Error("now/idleFor")
+	if (Env{}).now().IsZero() || stale(Env{Now: w1Now}, 0, 1) {
+		t.Error("now/stale")
+	}
+	// A zero Env.Now falls back to the wall clock (D16).
+	if !stale(Env{}, time.Now().Add(-48*time.Hour).Unix(), 1) || stale(Env{}, time.Now().Unix(), 1) {
+		t.Error("stale with zero Env.Now")
 	}
 	if toolMissing(platform.Result{}, nil) {
 		t.Error("success is not a missing tool")

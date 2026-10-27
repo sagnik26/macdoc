@@ -134,7 +134,10 @@ func detectDockerDangling(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 			f.Bytes = model.Bytes{Source: model.SourceUnknown, Reason: fmt.Sprintf("docker reported an unreadable size %q", row.Size)}
 			return []Finding{f}, nil
 		}
-		total += b
+		if total, ok = addSize(total, b); !ok {
+			f.Bytes = implausibleSize("docker images")
+			return []Finding{f}, nil
+		}
 	}
 	f.Bytes = model.Bytes{Value: total, Source: model.SourceEstimated, Reason: "sum of image sizes; shared layers may be counted more than once"}
 	return []Finding{f}, nil

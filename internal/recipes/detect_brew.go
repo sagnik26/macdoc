@@ -53,6 +53,8 @@ func detectBrewCleanup(ctx context.Context, env Env, r Recipe) ([]Finding, error
 	if m := brewFreeRe.FindStringSubmatch(out); m != nil {
 		if b, ok := parseSize(m[1], 1024); ok {
 			f.Bytes = model.Bytes{Value: b, Source: model.SourceTool}
+		} else {
+			f.Bytes.Reason = fmt.Sprintf("brew reported an unreadable or implausible size %q", m[1])
 		}
 	}
 	return []Finding{f}, nil

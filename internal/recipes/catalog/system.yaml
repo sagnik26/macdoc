@@ -12,9 +12,12 @@
   params:
     dir: "~/Library/Caches"
     min_bytes: "524288000"
-    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew"
+    # Google and JetBrains: Android Studio's caches are their own recipe, and
+    # JetBrains IDEs keep Local History (unrecoverable) under Caches.
+    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew,Google,JetBrains"
   allow: ["~/Library/Caches/*"]
   keep_children_of: ["~/Library/Caches"]
+  stale_days: 14
   restore:
     kind: rebuild
     note: The app recreates its cache as you use it.
@@ -30,7 +33,8 @@
   risk: SAFE
   method: quarantine
   detector: children
-  params: {dir: "~/Library/Logs"}
+  # Google and JetBrains: Android Studio's logs are their own recipe.
+  params: {dir: "~/Library/Logs", exclude: "Google,JetBrains"}
   allow: ["~/Library/Logs/*"]
   keep_children_of: ["~/Library/Logs"]
   stale_days: 30
@@ -57,23 +61,45 @@
     Review it and choose Empty Trash in Finder.
 
 - id: user.downloads_large_old
-  title: Large old download
+  title: Large old installer or archive
   category: downloads
   toolchain: system
   risk: CAUTION
   method: quarantine
   detector: downloads_large_old
-  params: {dir: "~/Downloads", min_bytes: "524288000"}
+  # Only installers and archives (.dmg, .pkg, .zip, .xip, .iso, .ipa, …).
+  params: {dir: "~/Downloads", min_bytes: "524288000", files: installers}
   allow: ["~/Downloads/*"]
   stale_days: 90
   restore:
     kind: redownload
-    note: Download it again from where it came from, if it's still available.
+    note: >-
+      Re-download from the original source, if it's still available. Other
+      large downloads aren't included, because they may be the only copy.
   explain: >-
-    Large files in Downloads, such as installers, disk images, archives and
-    videos, often stay after they've been used. This one hasn't changed in
-    months. Check that you don't need it, or can download it again, before
-    cleaning.
+    Installers, disk images and archives in Downloads often stay after
+    they've been used. This one is large and hasn't changed in months. Check
+    that you don't need it, or can download it again, before cleaning.
+
+- id: user.downloads_large_other
+  title: Large old download
+  category: downloads
+  toolchain: system
+  risk: ADVISE
+  method: advise
+  detector: downloads_large_old
+  # Everything that isn't an installer or archive: videos, AirDrop and phone
+  # imports may be the only copy, so macdoc only points at them.
+  params: {dir: "~/Downloads", min_bytes: "524288000", files: other}
+  stale_days: 90
+  restore:
+    kind: irreplaceable
+    note: This file may be the only copy. Check before you remove it.
+  explain: >-
+    This large file in Downloads hasn't changed in months. It isn't an
+    installer or archive, so it may be the only copy (for example a video
+    from AirDrop or a phone). Review it in Finder and move or delete it
+    yourself if you don't need it.
 
 - id: ios.device_backups
   title: iPhone or iPad backup
