@@ -172,7 +172,7 @@ Estimates assume part-time work (~15–20 h/week).
 - Detectors are named Go functions such as `glob`, `xcode_device_support_versions`, `android_unused_system_images`, `docker_df`, `ollama_list`, `hf_cache_scan` and `node_modules_in_projects`.
 - Native-tool sizing: wherever the tool can report its own usage (`docker system df -v`, `brew cleanup -n`, `ollama list`, `hf cache scan`, `xcrun simctl runtime list -j`), use it and cross-check against crawl data.
 - The scanner's `Keep` callback runs once per finished directory under a lock, so recipe and project roots must be **precomputed** (set or trie), not matched expensively per directory (P2-W1 Q2).
-- Classifier: map crawl nodes to recipes and produce opportunities with stable IDs: `O-` + base32(sha256(recipe_id + canonical_target + scan_id))[:6].
+- Classifier: map crawl nodes to recipes and produce opportunities with stable IDs: `O-` + lowercase base32(sha256(scan_id ␀ recipe_id ␀ target ␀ native_arg))[:6], extended to 8 or more characters on collision (P3-W3).
 - Ranking: tiers come first (SAFE, then CAUTION, then RISKY/ADVISE). Within a tier, sort by `reclaimable_bytes × confidence × staleness_factor`. Restore cost is shown but not weighted in v1.
 - "System Data" decoder: attribute snapshots, swap/VM, `/private/var/folders`, caches, logs, Docker, simulators and unknown, then show the remainder honestly as "unattributed".
 - Unknown large items from the full crawl appear in `storage --large` as **ADVISE-ONLY**. With no recipe there's no action.
