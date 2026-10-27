@@ -1,0 +1,147 @@
+# Gradle, Android SDK, emulators and Android Studio. Schema: internal/recipes/recipe.go.
+# Detectors: internal/recipes/detect_android.go and the generic path.
+#
+# SDK packages are quarantined rather than removed with sdkmanager: the
+# sdkmanager on PATH may manage a different SDK root, and argv can't template
+# --sdk_root. Removing a package directory is what an uninstall does, and
+# quarantine keeps it restorable. Allow patterns cover the default SDK root
+# (~/Library/Android/sdk); targets under another root inside home are dropped
+# by the classifier with a warning.
+
+- id: gradle.caches
+  title: Gradle caches
+  category: package-caches
+  toolchain: android
+  risk: SAFE
+  method: quarantine
+  detector: path
+  params: {path: "~/.gradle/caches"}
+  allow: ["~/.gradle/caches"]
+  preconditions: ["gradle_daemons_stopped", "app_not_running:Android Studio"]
+  restore: {kind: redownload, note: "Gradle downloads dependencies and rebuilds transforms on the next build (often 2–10 GB)."}
+  explain: >-
+    Gradle keeps downloaded dependencies, transformed artifacts and its build cache
+    here, shared by every Gradle and Android project. It grows over time and is never
+    trimmed fully. Removing it means the next build of each project downloads and
+    transforms its dependencies again.
+
+- id: gradle.wrapper_dists_old
+  title: Old Gradle wrapper distributions
+  category: package-caches
+  toolchain: android
+  risk: SAFE
+  method: quarantine
+  detector: gradle_wrapper_old
+  allow: ["~/.gradle/wrapper/dists/*"]
+  keep_children_of: ["~/.gradle/wrapper/dists"]
+  restore: {kind: redownload, note: "The Gradle wrapper downloads its version again the next time a project that uses it builds."}
+  explain: >-
+    Each project's Gradle wrapper downloads the Gradle version it asks for, and old
+    versions stay behind after projects upgrade. These are every version except the
+    newest. A project still pinned to one will download it again on its next build.
+    The Phase 4 project scan will refine this by checking which versions your projects
+    actually use.
+
+- id: android.avd
+  title: Idle Android emulators
+  category: simulators-emulators
+  toolchain: android
+  risk: CAUTION
+  method: native
+  detector: android_avds
+  native: {argv: [avdmanager, delete, avd, -n, "{id}"]}
+  keep_children_of: ["~/.android/avd"]
+  stale_days: 60
+  preconditions: ["emulator_not_running"]
+  restore: {kind: rebuild, note: "Create the emulator again in Android Studio's Device Manager; apps and data on it are lost."}
+  explain: >-
+    An Android Virtual Device keeps its own disk images, installed apps and data.
+    These ones haven't been used for 60 days or more. Deleting one removes everything
+    on it; the system image it uses stays installed.
+
+- id: android.avd_snapshots
+  title: Android emulator snapshots
+  category: simulators-emulators
+  toolchain: android
+  risk: SAFE
+  method: quarantine
+  detector: android_avd_snapshots
+  allow: ["~/.android/avd/*.avd/snapshots"]
+  preconditions: ["emulator_not_running"]
+  restore: {kind: rebuild, note: "The emulator cold boots next time and saves a new snapshot."}
+  explain: >-
+    Snapshots save an emulator's running state so it can resume quickly instead of
+    booting. They can be several gigabytes each. Removing them only means the next
+    start is a cold boot; the emulator's apps and data stay.
+
+- id: android.system_images_unused
+  title: Unused Android system images
+  category: simulators-emulators
+  toolchain: android
+  risk: CAUTION
+  method: quarantine
+  detector: android_system_images
+  allow: ["~/Library/Android/sdk/system-images/*/*/*"]
+  preconditions: ["app_not_running:Android Studio", "emulator_not_running"]
+  restore: {kind: redownload, note: "Download it again in Android Studio's SDK Manager or with sdkmanager (usually 1–2 GB, up to 6 GB for some images)."}
+  explain: >-
+    A system image is the Android OS an emulator boots from. These ones are installed
+    in the SDK but no emulator uses them. Removing one means creating an emulator with
+    that Android version downloads it again.
+
+- id: android.build_tools_old
+  title: Old Android build-tools
+  category: package-caches
+  toolchain: android
+  risk: CAUTION
+  method: quarantine
+  detector: android_old_versions
+  params: {subdir: build-tools}
+  allow: ["~/Library/Android/sdk/build-tools/*"]
+  keep_children_of: ["~/Library/Android/sdk/build-tools"]
+  preconditions: ["app_not_running:Android Studio"]
+  restore: {kind: redownload, note: "Android Studio or Gradle downloads a build-tools version again when a project asks for it (about 100–200 MB)."}
+  explain: >-
+    Build-tools are the compilers and packagers the Android build uses, one folder per
+    version. These are every version except the newest. A project that pins an older
+    version downloads it again on its next build.
+
+- id: android.ndk_old
+  title: Old Android NDKs
+  category: package-caches
+  toolchain: android
+  risk: CAUTION
+  method: quarantine
+  detector: android_old_versions
+  params: {subdir: ndk}
+  allow: ["~/Library/Android/sdk/ndk/*"]
+  keep_children_of: ["~/Library/Android/sdk/ndk"]
+  preconditions: ["app_not_running:Android Studio"]
+  restore: {kind: redownload, note: "Android Studio or Gradle downloads an NDK version again when a project asks for it (often 1–2 GB)."}
+  explain: >-
+    The NDK is the toolchain for building native C and C++ code in Android apps, one
+    folder per version, each often over a gigabyte. These are every version except the
+    newest. A project that pins an older NDK downloads it again on its next build.
+
+- id: android_studio.old_versions_data
+  title: Old Android Studio data
+  category: app-caches
+  toolchain: android
+  risk: CAUTION
+  method: quarantine
+  detector: android_studio_old
+  allow:
+    - "~/Library/Application Support/Google/AndroidStudio*"
+    - "~/Library/Caches/Google/AndroidStudio*"
+    - "~/Library/Logs/Google/AndroidStudio*"
+  keep_children_of:
+    - "~/Library/Application Support/Google"
+    - "~/Library/Caches/Google"
+    - "~/Library/Logs/Google"
+  preconditions: ["app_not_running:Android Studio"]
+  restore: {kind: none, note: "A newer Android Studio already imported these settings when it was first started."}
+  explain: >-
+    Each Android Studio version keeps its own settings, caches and logs in a folder
+    named after the version. When you upgrade, the new version copies the settings it
+    needs and the old folders stay behind. These are folders for versions older than
+    the newest one on this Mac.

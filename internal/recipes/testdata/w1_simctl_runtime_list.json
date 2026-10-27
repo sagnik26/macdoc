@@ -1,0 +1,70 @@
+{
+  "5D5B4E2A-1C7F-4C0B-9E33-6A0D3B1F7A01" : {
+    "build" : "21C62",
+    "deletable" : true,
+    "identifier" : "5D5B4E2A-1C7F-4C0B-9E33-6A0D3B1F7A01",
+    "kind" : "Disk Image",
+    "lastUsedAt" : "2024-03-01T12:00:00Z",
+    "mountPath" : "/Library/Developer/CoreSimulator/Volumes/iOS_21C62",
+    "path" : "/Library/Developer/CoreSimulator/Images/5D5B4E2A-1C7F-4C0B-9E33-6A0D3B1F7A01.dmg",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeBundlePath" : "/Library/Developer/CoreSimulator/Volumes/iOS_21C62/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 17.2.simruntime",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-17-2",
+    "signatureState" : "Verified",
+    "sizeBytes" : 7516192768,
+    "state" : "Ready",
+    "version" : "17.2"
+  },
+  "8E2C1F44-7B6A-4D9E-A1C2-3F4B5C6D7E02" : {
+    "build" : "22B81",
+    "deletable" : true,
+    "identifier" : "8E2C1F44-7B6A-4D9E-A1C2-3F4B5C6D7E02",
+    "kind" : "Disk Image",
+    "lastUsedAt" : "2026-10-20T08:00:00Z",
+    "mountPath" : "/Library/Developer/CoreSimulator/Volumes/iOS_22B81",
+    "path" : "/Library/Developer/CoreSimulator/Images/8E2C1F44-7B6A-4D9E-A1C2-3F4B5C6D7E02.dmg",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeBundlePath" : "/Library/Developer/CoreSimulator/Volumes/iOS_22B81/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.1.simruntime",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-18-1",
+    "signatureState" : "Verified",
+    "sizeBytes" : 8589934592,
+    "state" : "Ready",
+    "version" : "18.1"
+  },
+  "A0B1C2D3-E4F5-4607-8899-AABBCCDDEE03" : {
+    "build" : "21S364",
+    "deletable" : true,
+    "identifier" : "A0B1C2D3-E4F5-4607-8899-AABBCCDDEE03",
+    "kind" : "Disk Image",
+    "mountPath" : "/Library/Developer/CoreSimulator/Volumes/watchOS_21S364",
+    "path" : "/Library/Developer/CoreSimulator/Images/A0B1C2D3-E4F5-4607-8899-AABBCCDDEE03.dmg",
+    "platformIdentifier" : "com.apple.platform.watchsimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.watchOS-10-2",
+    "signatureState" : "Verified",
+    "state" : "Ready",
+    "version" : "10.2"
+  },
+  "B1C2D3E4-F5A6-4708-9900-BBCCDDEEFF04" : {
+    "build" : "22J5",
+    "deletable" : false,
+    "identifier" : "B1C2D3E4-F5A6-4708-9900-BBCCDDEEFF04",
+    "kind" : "Bundled with Xcode",
+    "path" : "/Applications/Xcode.app/Contents/Developer/Platforms/XROS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/xrOS.simruntime",
+    "platformIdentifier" : "com.apple.platform.xrsimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.xrOS-2-1",
+    "sizeBytes" : 4294967296,
+    "state" : "Ready",
+    "version" : "2.1"
+  },
+  "C2D3E4F5-A6B7-4809-AA11-CCDDEEFF0005" : {
+    "build" : "21C62",
+    "deletable" : true,
+    "identifier" : "MISMATCHED-ID",
+    "kind" : "Disk Image",
+    "path" : "/Library/Developer/CoreSimulator/Images/C2D3E4F5.dmg",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-17-2",
+    "sizeBytes" : 1,
+    "state" : "Ready",
+    "version" : "17.2"
+  }
+}

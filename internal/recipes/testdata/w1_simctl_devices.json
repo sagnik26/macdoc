@@ -1,0 +1,72 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-16-4" : [
+      {
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-4000-8000-000000000001/data",
+        "dataPathSize" : 2147483648,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/0A1B2C3D-0000-4000-8000-000000000001",
+        "udid" : "0A1B2C3D-0000-4000-8000-000000000001",
+        "isAvailable" : false,
+        "availabilityError" : "runtime profile not found using \"System\" match policy",
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-14",
+        "state" : "Shutdown",
+        "name" : "iPhone 14"
+      },
+      {
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-4000-8000-000000000002/data",
+        "dataPathSize" : 1073741824,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/0A1B2C3D-0000-4000-8000-000000000002",
+        "udid" : "0A1B2C3D-0000-4000-8000-000000000002",
+        "isAvailable" : false,
+        "availabilityError" : "runtime profile not found using \"System\" match policy",
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPad-Air-5th-generation",
+        "state" : "Shutdown",
+        "name" : "iPad Air (5th generation)"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-17-2" : [
+      {
+        "lastBootedAt" : "2024-01-10T09:30:00Z",
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/1A1B2C3D-0000-4000-8000-000000000003/data",
+        "dataPathSize" : 3221225472,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/1A1B2C3D-0000-4000-8000-000000000003",
+        "udid" : "1A1B2C3D-0000-4000-8000-000000000003",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "state" : "Shutdown",
+        "name" : "iPhone 15"
+      },
+      {
+        "lastBootedAt" : "2026-10-20T09:30:00Z",
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/1A1B2C3D-0000-4000-8000-000000000004/data",
+        "dataPathSize" : 1610612736,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/1A1B2C3D-0000-4000-8000-000000000004",
+        "udid" : "1A1B2C3D-0000-4000-8000-000000000004",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro",
+        "state" : "Shutdown",
+        "name" : "iPhone 15 Pro"
+      },
+      {
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/1A1B2C3D-0000-4000-8000-000000000005/data",
+        "dataPathSize" : 1610612736,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/1A1B2C3D-0000-4000-8000-000000000005",
+        "udid" : "1A1B2C3D-0000-4000-8000-000000000005",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state" : "Booted",
+        "name" : "iPhone SE (3rd generation)"
+      },
+      {
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/not a udid; rm/data",
+        "dataPathSize" : 1024,
+        "udid" : "not a udid; rm",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "state" : "Shutdown",
+        "name" : "Bogus"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.watchOS-10-2" : [ ]
+  }
+}
