@@ -58,10 +58,12 @@ Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew insta
 
 ```bash
 git clone <this repo> macdoc && cd macdoc
-make build                 # → ./bin/macdoc
-./bin/macdoc                       # everything: health, space, reclaimable (scans the first time)
-./bin/macdoc doctor wins           # every suggestion with its ID
-./bin/macdoc doctor explain <id>   # details for one suggestion
+make install               # builds and installs macdoc into ~/.local/bin
+                           # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
+macdoc                     # everything: health, space, reclaimable (scans the first time)
+macdoc doctor --scan       # refresh the scan first
+macdoc doctor wins         # every suggestion with its ID
+macdoc doctor explain <id> # details for one suggestion
 ```
 
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
@@ -188,6 +190,7 @@ The CLI and (later) the MCP server are two front doors over the same engine. See
 
 ```bash
 make build        # ./bin/macdoc
+make install      # build + copy to ~/.local/bin (BINDIR=… to change)
 make test         # go test -race ./...
 make lint         # golangci-lint (0 issues required)
 make importcheck  # MCP/engine must not reach the executor
