@@ -17,6 +17,8 @@ extra=()
 wt="$root/.worktrees/$task"
 cd "$wt" || { echo "no worktree $wt"; exit 1; }
 mkdir -p .task
+# Keep the Mac from idle-sleeping while this worker runs (ends with it).
+caffeinate -i -w $$ >/dev/null 2>&1 &
 echo "▶▶ worker $task · $(date '+%H:%M:%S') · ${cont[*]+continue}"
 # Edit/Write are NOT allowlisted: acceptEdits auto-approves edits inside the
 # worktree only; edits elsewhere would need approval, which headless refuses.
