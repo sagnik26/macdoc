@@ -15,12 +15,23 @@ func init() {
 	Register("nvm_old_versions", detectNvmOldVersions)
 }
 
-// detectNodeModulesStale emits top-level node_modules directories (no
-// node_modules ancestor) whose newest mtime is older than stale_days. It
-// never runs npm, pnpm or yarn.
+// nodeLockfiles are the lockfiles that mark a project's node_modules.
+var nodeLockfiles = []string{"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock"}
+
+// detectNodeModulesStale emits project node_modules directories that are at
+// least params["min_bytes"] and idle for stale_days. A project is a parent
+// with package.json and a lockfile (regular files, via os.Lstat); global and
+// tool installs (…/lib/node_modules, hidden or Library trees) are skipped.
+// Idle time is the newest of the folder's mtime and the manifest/lockfile
+// mtimes, so a recently edited project isn't stale. It never runs npm, pnpm
+// or yarn.
 func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
+	}
+	minBytes, err := paramInt(r, "min_bytes", 50_000_000)
+	if err != nil {
+		return nil, err
 	}
 	nodes, err := projectDirs(env, "node_modules")
 	if err != nil {
@@ -28,14 +39,43 @@ func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, er
 	}
 	var out []Finding
 	for _, n := range nodes {
-		if n.Bytes <= 0 || !stale(env, n.MtimeMax, r.StaleDays) {
+		parent := filepath.Dir(n.Path)
+		if n.Bytes < minBytes || strings.EqualFold(filepath.Base(parent), "lib") {
+			continue
+		}
+		mtime, ok := nodeProjectMtime(parent)
+		if !ok {
+			continue
+		}
+		mtime = max(mtime, n.MtimeMax)
+		if !stale(env, mtime, r.StaleDays) {
 			continue
 		}
 		f := nodeFinding(n)
-		f.Title = "node_modules in " + filepath.Base(filepath.Dir(n.Path))
+		f.LastUsed = unixTime(mtime)
+		f.Title = "node_modules in " + filepath.Base(parent)
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+// nodeProjectMtime reports whether dir holds package.json and a lockfile as
+// regular files, and the newest of their mtimes.
+func nodeProjectMtime(dir string) (int64, bool) {
+	pkg, err := os.Lstat(filepath.Join(dir, "package.json"))
+	if err != nil || !pkg.Mode().IsRegular() {
+		return 0, false
+	}
+	newest, found := pkg.ModTime().Unix(), false
+	for _, name := range nodeLockfiles {
+		fi, err := os.Lstat(filepath.Join(dir, name))
+		if err != nil || !fi.Mode().IsRegular() {
+			continue
+		}
+		found = true
+		newest = max(newest, fi.ModTime().Unix())
+	}
+	return newest, found
 }
 
 // nodeVersion is a parsed "vMAJOR.MINOR.PATCH" directory name.

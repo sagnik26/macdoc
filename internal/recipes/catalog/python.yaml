@@ -92,5 +92,7 @@
     intact; recreate it and reinstall the requirements when you need it
     again.
   confidence_notes: >-
-    Only folders named .venv that contain pyvenv.cfg are reported. Idle time
-    comes from the newest file modification time inside it.
+    Only folders named .venv that contain pyvenv.cfg, next to a Python
+    project file (pyproject.toml, requirements*.txt, setup.py, setup.cfg,
+    Pipfile, poetry.lock or uv.lock), are reported. Idle time comes from the
+    newest file modification time inside it.

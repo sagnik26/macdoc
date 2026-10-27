@@ -17,10 +17,35 @@ func init() {
 	Register("conda_pkgs", detectCondaPkgs)
 }
 
-// detectVenvStale emits top-level .venv directories that contain pyvenv.cfg
-// (checked with os.Lstat, so a symlinked marker doesn't count) and whose
-// newest mtime is older than stale_days. The generic name "venv" is not
-// matched.
+// pythonProjectFiles mark a directory as a Python project (besides
+// requirements-*.txt, see isPythonProject).
+var pythonProjectFiles = map[string]bool{
+	"pyproject.toml": true, "requirements.txt": true, "setup.py": true, "setup.cfg": true,
+	"Pipfile": true, "poetry.lock": true, "uv.lock": true,
+}
+
+// isPythonProject reports whether dir directly holds a regular project file.
+// It reads names only (os.ReadDir); a symlinked marker doesn't count.
+func isPythonProject(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		n := e.Name()
+		if e.Type().IsRegular() && (pythonProjectFiles[n] ||
+			strings.HasPrefix(n, "requirements-") && strings.HasSuffix(n, ".txt")) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectVenvStale emits project .venv directories that contain pyvenv.cfg
+// (checked with os.Lstat, so a symlinked marker doesn't count), whose parent
+// is a Python project (isPythonProject) and whose newest mtime is older than
+// stale_days. Hidden and Library trees are skipped, and the generic name
+// "venv" is not matched.
 func detectVenvStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
@@ -35,7 +60,7 @@ func detectVenvStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 			continue
 		}
 		fi, err := os.Lstat(filepath.Join(n.Path, "pyvenv.cfg"))
-		if err != nil || !fi.Mode().IsRegular() {
+		if err != nil || !fi.Mode().IsRegular() || !isPythonProject(filepath.Dir(n.Path)) {
 			continue
 		}
 		f := nodeFinding(n)

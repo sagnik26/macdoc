@@ -2,6 +2,7 @@ package recipes
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 
 	"macdoc/internal/model"
@@ -21,6 +22,10 @@ func TestVenvStale(t *testing.T) {
 		fstree.File("code/plain/venv/pyvenv.cfg", 10),                                // generic name
 		fstree.File("code/api/.venv/lib/x/.venv/pyvenv.cfg", 10),                     // nested
 	)
+	// Every parent is a project, so only the rule under test rejects it.
+	for _, d := range []string{"api", "fresh", "nocfg", "linked", "plain", "zero", "api/.venv/lib/x"} {
+		fstree.Build(t, home, fstree.File("code/"+d+"/requirements.txt", 10))
+	}
 	old, recent := w2DaysAgo(200), w2DaysAgo(5)
 	nodes := fakeNodes{
 		{Path: home + "/code/api/.venv", Bytes: 300 << 20, MtimeMax: old},
@@ -36,6 +41,39 @@ func TestVenvStale(t *testing.T) {
 	w2WantTargets(t, fs, err, home+"/code/api/.venv")
 	if fs[0].Title != ".venv in api" {
 		t.Errorf("title %q", fs[0].Title)
+	}
+}
+
+func TestVenvProjectRules(t *testing.T) {
+	home := t.TempDir()
+	markers := []string{"pyproject.toml", "requirements.txt", "requirements-dev.txt", "setup.py", "setup.cfg", "Pipfile", "poetry.lock", "uv.lock"}
+	var entries []fstree.Entry
+	var nodes fakeNodes
+	var want []string
+	add := func(dir string, extra ...fstree.Entry) {
+		entries = append(entries, fstree.File(dir+"/.venv/pyvenv.cfg", 10))
+		entries = append(entries, extra...)
+		nodes = append(nodes, model.Node{Path: home + "/" + dir + "/.venv", Bytes: 300 << 20, MtimeMax: w2DaysAgo(200)})
+	}
+	for i, m := range markers { // positives: one marker each
+		dir := "code/p" + strconv.Itoa(i)
+		add(dir, fstree.File(dir+"/"+m, 10))
+		want = append(want, home+"/"+dir+"/.venv")
+	}
+	// Look-alikes: tool and app trees, even with a project file.
+	for _, dir := range []string{".local/share/pipx/venvs/black", ".cursor/extensions/ms-python-1.0", "Library/Application Support/SomeApp/python"} {
+		add(dir, fstree.File(dir+"/pyproject.toml", 10))
+	}
+	add("code/nomarker", fstree.File("code/nomarker/README.md", 10))
+	add("code/reqdir", fstree.Dir("code/reqdir/requirements.txt"))                             // marker is a directory
+	add("code/reqlink", fstree.Symlink("code/reqlink/pyproject.toml", "../p0/pyproject.toml")) // marker is a symlink
+	add("code/reqlook", fstree.File("code/reqlook/requirements.md", 10), fstree.File("code/reqlook/my-requirements.txt", 10))
+	fstree.Build(t, home, entries...)
+
+	fs, err := w2Run(t, "python.venv_stale", Env{Home: home, Nodes: nodes})
+	w2WantTargets(t, fs, err, want...)
+	if isPythonProject(home + "/missing") {
+		t.Error("missing dir is a project")
 	}
 	fs, err = w2Run(t, "python.venv_stale", Env{})
 	w2WantNone(t, fs, err)
