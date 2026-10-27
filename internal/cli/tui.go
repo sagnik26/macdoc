@@ -174,6 +174,11 @@ type tuiModel struct {
 	flash     string
 
 	initCmd tea.Cmd
+
+	// welcome screen
+	intro       bool
+	introPick   int
+	introStatus introStatus
 }
 
 func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
@@ -208,7 +213,8 @@ func runTUI(home string, cat *recipes.Catalog) error {
 	}
 	deps := &tuiDeps{home: home, cat: cat, load: engineLoad}
 	m := newTUIModel(deps, t)
-	m.initCmd = m.startLoad(false)
+	// Open on the welcome screen; nothing runs until the user picks.
+	m.intro, m.introStatus = true, loadIntroStatus(home)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	deps.send = p.Send
 	final, err := p.Run()
@@ -372,6 +378,9 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.intro {
+		return m.updateIntroKey(k)
+	}
 
 	switch k {
 	case "esc":
@@ -513,24 +522,30 @@ func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
+	views := map[string]tab{
+		"overview": tabOverview, "wins": tabSuggestions, "suggestions": tabSuggestions,
+		"dev": tabToolchains, "toolchains": tabToolchains, "space": tabSpace, "storage": tabSpace, "health": tabHealth,
+	}
+	if v, ok := views[name]; ok {
+		m.setTab(v)
+		if m.intro { // a view from the welcome screen starts the dashboard there
+			return m, m.leaveIntro(false)
+		}
+		return m, nil
+	}
 	switch name {
 	case "":
-		return m, nil
-	case "overview":
-		m.setTab(tabOverview)
-	case "wins", "suggestions":
-		m.setTab(tabSuggestions)
-	case "dev", "toolchains":
-		m.setTab(tabToolchains)
-	case "space", "storage":
-		m.setTab(tabSpace)
-	case "health":
-		m.setTab(tabHealth)
 	case "scan":
+		m.intro = false
 		return m, m.startLoad(true)
-	case "explain":
-		return m.explain(arg)
-	case "json":
+	case "explain", "json":
+		if m.intro {
+			m.flash = "Choose “Check my Mac” first: /" + name + " needs results."
+			return m, nil
+		}
+		if name == "explain" {
+			return m.explain(arg)
+		}
 		m.jsonDoc = m.currentJSON()
 		m.overlay, m.scroll = overlayJSON, 0
 	case "mcp":
@@ -614,6 +629,20 @@ func (m tuiModel) bodyHeight() int {
 func (m tuiModel) View() string {
 	t := m.t
 	var b strings.Builder
+	if m.intro && m.overlay == overlayNone && !m.loading {
+		b.WriteString(fitHeight(m.introView(), m.introHeight(), m.w))
+		if m.inputMode != 0 {
+			b.WriteString(m.inputView())
+		} else if m.flash != "" {
+			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(m.flash), m.w-4) + "\n")
+		}
+		if m.inputMode != 0 {
+			b.WriteString(m.footerView())
+		} else {
+			b.WriteString(m.introFooter())
+		}
+		return b.String()
+	}
 	b.WriteString(m.headerView() + "\n")
 	b.WriteString(m.tabsView() + "\n")
 

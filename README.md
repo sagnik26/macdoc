@@ -12,10 +12,25 @@ macdoc has **two everyday commands**:
 
 | Command | When to use it | What you get | Time |
 |---|---|---|---|
-| **`macdoc`** | Any time: "how is my Mac doing?" | **The interactive dashboard** (in a terminal): overview, a browsable list of suggestions with details, toolchains, space and health. Scans automatically only if there's no scan yet | ~7–15 s to load |
+| **`macdoc`** | Any time: "how is my Mac doing?" | **A welcome screen, then the interactive dashboard** (in a terminal): overview, a browsable table of suggestions with details, toolchains, space and health. Nothing runs until you choose. Scans automatically only if there's no scan yet | instant, then ~7–15 s to load |
 | **`macdoc doctor scan`** | After installing or cleaning things, or when the summary says the scan is old | **Fresh scan + the full report:** everything in the summary, plus scan details, every health finding and the top apps, space by category with "System Data" decoded, big items no recipe covers, every suggestion with its ID, and per-toolchain totals | ~45 s–2 min (background priority) |
 
 `macdoc doctor` prints the **short summary** instead of opening the dashboard. Bare `macdoc` does the same when its output is piped, with `--json` or `--quiet`, or on `TERM=dumb`.
+
+### `macdoc`: the welcome screen
+`macdoc` opens on an introduction and **does nothing until you choose**. It shows:
+- The macdoc logo and a one-line description.
+- The last scan's age and size. On the first run it says a scan will happen.
+- A menu:
+  - **`enter`** check my Mac (loads the latest scan)
+  - **`s`** fresh scan first
+  - **`?`** keys and commands
+  - **`q`** quit
+- "How it works" in four steps: Check, Explore, Understand, Clean up.
+- macdoc's promises.
+- The shell commands, when the window is tall enough.
+
+`/` commands work here too: for example, `/space` opens the dashboard on the Space view. Small windows get a compact layout.
 
 ### `macdoc`: the dashboard
 ```

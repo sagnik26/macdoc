@@ -263,3 +263,94 @@ func TestTUINarrowSuggestionsKeepSizes(t *testing.T) {
 	m := step(t, loaded(t, 80, 30), keys("2")...)
 	mustContain(t, m.View(), "14.2 GB", "~11.0 GB", "RISKY", "│ Restore")
 }
+
+// newIntroTUI is the dashboard as `macdoc` opens it: on the welcome screen.
+func newIntroTUI(t *testing.T, w, h int, st introStatus) (tuiModel, *[]bool) {
+	t.Helper()
+	var loads []bool
+	deps := &tuiDeps{load: func(_ context.Context, _ *tuiDeps, rescan bool) (*tuiData, error) {
+		loads = append(loads, rescan)
+		return tuiFixture(), nil
+	}}
+	m := newTUIModel(deps, plainLayoutTheme())
+	m.intro, m.introStatus = true, st
+	return step(t, m, tea.WindowSizeMsg{Width: w, Height: h}), &loads
+}
+
+func TestTUIWelcomeScreen(t *testing.T) {
+	m, _ := newIntroTUI(t, 110, 45, introStatus{hasScan: true, age: "2h ago", bytes: 128_000_000_000, files: 1_031_292})
+	if m.Init() != nil {
+		t.Fatal("nothing may run before the user chooses")
+	}
+	out := m.View()
+	mustContain(t, out, "███╗   ███╗", "Why is my Mac full and slow?", "Last scan 2h ago · 128 GB in 1,031,292 files",
+		"▶ enter", "Check my Mac", "Fresh scan first", "Keys and commands", "How it works", "Explore", "Clean up",
+		"Read-only unless you confirm", "Nothing leaves your Mac", "From the shell", "macdoc doctor scan",
+		"enter start", "s fresh scan", "q quit")
+	if strings.Contains(out, "1 Overview") {
+		t.Error("the welcome screen has no tabs")
+	}
+	if n := strings.Count(out, "\n"); n != 44 {
+		t.Errorf("view is %d lines; want the window height", n+1)
+	}
+
+	// First run: says a scan will happen.
+	m, _ = newIntroTUI(t, 70, 24, introStatus{})
+	mustContain(t, m.View(), "◆ macdoc", "No scan yet", "First run: scans your disk once")
+}
+
+func TestTUIWelcomeActions(t *testing.T) {
+	m, loads := newIntroTUI(t, 110, 45, introStatus{hasScan: true, age: "1h ago"})
+	next, cmd := m.Update(keys("enter")[0])
+	m = next.(tuiModel)
+	if m.intro || !m.loading || cmd == nil {
+		t.Fatal("enter should leave the welcome screen and load")
+	}
+	runBatch(cmd)
+	if len(*loads) != 1 || (*loads)[0] {
+		t.Errorf("enter should load the latest scan, not rescan: %v", *loads)
+	}
+
+	m, loads = newIntroTUI(t, 110, 45, introStatus{})
+	_, cmd = m.Update(keys("s")[0])
+	runBatch(cmd)
+	if len(*loads) != 1 || !(*loads)[0] {
+		t.Errorf("s should rescan: %v", *loads)
+	}
+
+	// Arrow down to "Keys and commands", enter opens help; esc returns.
+	m, _ = newIntroTUI(t, 110, 45, introStatus{})
+	m = step(t, m, keys("down", "down", "enter")...)
+	mustContain(t, m.View(), "Keys", "Commands", "Safety")
+	m = step(t, m, keys("esc")...)
+	mustContain(t, m.View(), "How it works")
+
+	// A view command starts the dashboard on that view; /json needs results.
+	m, _ = newIntroTUI(t, 110, 45, introStatus{})
+	m = step(t, m, keys("/", "json", "enter")...)
+	mustContain(t, m.View(), "Choose “Check my Mac” first")
+	m = step(t, m, keys("/", "space", "enter")...)
+	if m.intro || m.tab != tabSpace || !m.loading {
+		t.Errorf("/space from the welcome screen: intro=%v tab=%d loading=%v", m.intro, m.tab, m.loading)
+	}
+
+	m, _ = newIntroTUI(t, 110, 45, introStatus{})
+	if _, cmd := m.Update(keys("q")[0]); cmd == nil || cmd() != tea.Quit() {
+		t.Error("q quits from the welcome screen")
+	}
+}
+
+// runBatch runs a command and the commands it batches (the engine load and
+// a spinner tick).
+func runBatch(cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if b, ok := cmd().(tea.BatchMsg); ok {
+		for _, c := range b {
+			if c != nil {
+				c()
+			}
+		}
+	}
+}

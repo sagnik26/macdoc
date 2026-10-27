@@ -28,6 +28,15 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 ### 1a. The dashboard and colors (implemented 2026-10-28)
 
 - **Bare `macdoc` in an interactive terminal opens the dashboard** (`internal/cli/tui.go`, Bubble Tea). `macdoc doctor` always prints. Bare `macdoc` prints too when stdin or stdout isn't a TTY, with `--json`/`--quiet`, or on `TERM=dumb`.
+- **Welcome screen first** (`internal/cli/tui_intro.go`). Nothing runs until the user chooses.
+  - It shows:
+    - A gradient ANSI-Shadow logo, or `◆ macdoc` when the window is under 34 rows.
+    - The tagline.
+    - The last scan, from `engine.LastScan`, which only reads macdoc's own store.
+    - An action menu: `enter` check, `s` fresh scan, `?` help, `q` quit.
+    - "How it works" in four steps, the promises, and the shell commands (at ≥ 40 rows).
+  - Under 104 columns, the menu drops its descriptions and shows only the selected one's.
+  - `/view` commands start the dashboard on that view. `/json` and `/explain` ask the user to check first.
 - **Layout:**
   - Header: brand, machine, free space, scan age, and a `read-only` marker.
   - Tab row: Overview, Suggestions, Toolchains, Space, Health.

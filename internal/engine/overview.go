@@ -135,3 +135,13 @@ func topLevel(storePath string, info model.ScanInfo) ([]model.Node, error) {
 	}
 	return children(nodes, root), nil
 }
+
+// LastScan returns the latest complete scan and its age, or store.ErrNoScan.
+// It only reads macdoc's own store, so it is fast enough for a welcome screen.
+func LastScan(home string, now time.Time) (model.ScanInfo, string, error) {
+	info, err := latestComplete(store.DefaultPath(home))
+	if err != nil {
+		return model.ScanInfo{}, "", err
+	}
+	return info, FormatAge(now.Sub(scanTime(info))), nil
+}
