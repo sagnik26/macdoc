@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -217,6 +218,51 @@ func TestWinsJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvelopeWarnings(t *testing.T) {
+	home := cliFixture(t)
+	// A target outside the recipe's allow patterns becomes a warning.
+	cliMu.Lock()
+	cliFindings["node.nm"] = append(cliFindings["node.nm"], recipes.Finding{Target: filepath.Join(home, "other", "node_modules"), Bytes: measured(gb)})
+	cliMu.Unlock()
+	out, err := run(t, "wins", "--all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := regexpID.FindString(out)
+	for _, args := range [][]string{{"wins"}, {"dev"}, {"storage"}, {"explain", id}} {
+		out, err := run(t, append(args, "--json")...)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		var env struct {
+			Command  string   `json:"command"`
+			Warnings []string `json:"warnings"`
+		}
+		if err := json.Unmarshal([]byte(out), &env); err != nil {
+			t.Fatalf("%v: bad JSON: %v", args, err)
+		}
+		if env.Command != args[0] || !strings.Contains(strings.Join(env.Warnings, "\n"), "node.nm: skipped") {
+			t.Errorf("%v: top-level warnings = %q", args, env.Warnings)
+		}
+	}
+	// Commands without warnings omit the field; doctor and version still work.
+	for _, args := range [][]string{{"version", "--json"}, {"doctor", "--json"}} {
+		out, err := run(t, args...)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if !strings.Contains(out, `"schema_version": "1"`) {
+			t.Errorf("%v: %s", args, out)
+		}
+	}
+	out, _ = run(t, "version", "--json")
+	if strings.Contains(out, `"warnings"`) {
+		t.Errorf("version has warnings: %s", out)
+	}
+}
+
+var regexpID = regexp.MustCompile(`O-[a-z2-7]{6}`)
 
 func TestWinsNoScanAndWarnings(t *testing.T) {
 	home := cliFixture(t)

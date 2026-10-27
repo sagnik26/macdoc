@@ -38,7 +38,7 @@ func newExplainCmd(g *globalFlags) *cobra.Command {
 				ex.BaseRisk = base
 			}
 			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "explain", ex)
+				return writeJSONWarn(cmd.OutOrStdout(), "explain", ex, res.Warnings)
 			}
 			return renderExplain(cmd.OutOrStdout(), ex)
 		},

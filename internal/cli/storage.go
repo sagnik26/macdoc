@@ -35,7 +35,7 @@ func newStorageCmd(g *globalFlags) *cobra.Command {
 				return err
 			}
 			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "storage", res)
+				return writeJSONWarn(cmd.OutOrStdout(), "storage", res, res.Warnings)
 			}
 			return renderStorage(cmd.OutOrStdout(), res, large)
 		},

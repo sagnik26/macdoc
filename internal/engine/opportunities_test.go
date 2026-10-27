@@ -246,6 +246,8 @@ func TestNativeDropRules(t *testing.T) {
 			{NativeArg: "x\x01", Bytes: measured(1)},
 			{NativeArg: "x$y", Bytes: measured(1)},
 			{NativeArg: "x*", Bytes: measured(1)},
+			{NativeArg: "Unavailable", Bytes: measured(1)},
+			{NativeArg: "ALL", Bytes: measured(1)},
 		},
 	})
 	res := f.run(t, plain, missing, withID)
@@ -264,8 +266,8 @@ func TestNativeDropRules(t *testing.T) {
 	if strings.Join(rt.Command, " ") != "xcrun simctl runtime delete ABC-123" || strings.Join(rt.DryRun, " ") != "xcrun simctl runtime list ABC-123" {
 		t.Errorf("command = %v dry = %v", rt.Command, rt.DryRun)
 	}
-	// 8 bad identifiers: each dropped with a warning; missing tool is silent.
-	if len(res.Warnings) != 8 {
+	// 10 bad identifiers: each dropped with a warning; missing tool is silent.
+	if len(res.Warnings) != 10 {
 		t.Fatalf("warnings = %q", res.Warnings)
 	}
 	for _, w := range res.Warnings {
@@ -313,7 +315,8 @@ func TestStalenessRiskAndConfidence(t *testing.T) {
 		"t.stale": {
 			{Target: f.p("code/app/node_modules"), Bytes: measured(100), LastUsed: f.now.Add(-120 * day)},
 			{Target: f.p("code/new/node_modules"), Bytes: measured(100), LastUsed: f.now.Add(-30 * day)}, // too fresh: dropped
-			{Target: f.p("code/unk/node_modules"), Bytes: measured(100)},                                 // unknown idle: kept, ×0.5
+			{Target: f.p("code/unk/node_modules"), Bytes: measured(100)},                                 // unknown idle: dropped, counted
+			{Target: f.p("code/unk2/node_modules"), Bytes: measured(100)},                                // unknown idle: dropped, counted
 		},
 		"t.safe": {
 			{Target: "/x/1", Bytes: model.Bytes{Value: 50, Source: model.SourceTool}, LastUsed: f.now.Add(-2 * day), Title: "fresh"},
@@ -328,8 +331,12 @@ func TestStalenessRiskAndConfidence(t *testing.T) {
 	for _, o := range res.Opportunities {
 		got[o.Title] = o
 	}
-	if len(res.Opportunities) != 7 {
+	if len(res.Opportunities) != 6 {
 		t.Fatalf("got %v", ids(res.Opportunities))
+	}
+	// Unknown idle time with stale_days is dropped and reported once.
+	if len(res.Warnings) != 1 || res.Warnings[0] != "2 item(s) skipped because their last use is unknown" {
+		t.Errorf("warnings = %q", res.Warnings)
 	}
 	check := func(title string, risk model.Risk, conf float64, idle int) {
 		t.Helper()
@@ -342,7 +349,6 @@ func TestStalenessRiskAndConfidence(t *testing.T) {
 		}
 	}
 	check("Title t.stale · app", model.RiskCaution, 1.0, 120)
-	check("Title t.stale · unk", model.RiskCaution, 0.5, -1)
 	check("fresh", model.RiskCaution, 0.9, 2) // SAFE raised
 	check("old", model.RiskSafe, 0.6, 30)
 	check("unknown", model.RiskSafe, 0.3, -1)
@@ -363,7 +369,7 @@ func TestStalenessRiskAndConfidence(t *testing.T) {
 		t.Error("nil catalog")
 	}
 	// Totals: known bytes only, by final risk.
-	if res.Totals[model.RiskCaution] != 250 || res.Totals[model.RiskSafe] != 50 || res.Totals[model.RiskRisky] != 1 {
+	if res.Totals[model.RiskCaution] != 150 || res.Totals[model.RiskSafe] != 50 || res.Totals[model.RiskRisky] != 1 {
 		t.Errorf("totals = %v", res.Totals)
 	}
 }
@@ -653,7 +659,7 @@ func TestCheckNativeArgAndSubstitute(t *testing.T) {
 			t.Errorf("%q: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"", "-x", "a b", "a\tb", "a/b", "a\\b", "a'b", `a"b`, "a(b)", "a{b}", "a?b", "a[b]", "a<b", "a>b", "a|b", "a&b", "a`b", "a\nb", "a\x7fb"} {
+	for _, bad := range []string{"all", "All", "unavailable", "BOOTED", "help", "version", "", "-x", "a b", "a\tb", "a/b", "a\\b", "a'b", `a"b`, "a(b)", "a{b}", "a?b", "a[b]", "a<b", "a>b", "a|b", "a&b", "a`b", "a\nb", "a\x7fb"} {
 		if err := checkNativeArg(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
@@ -677,5 +683,108 @@ func TestHasAncestor(t *testing.T) {
 	}
 	if !hasAncestor(map[string]bool{"/a/b": true}, "/a/b/c/d") || hasAncestor(map[string]bool{"/a/b": true}, "/a/bc") {
 		t.Error("component-wise ancestor")
+	}
+}
+
+func TestEqualTargets(t *testing.T) {
+	f := newFixture(t, time.Hour)
+	mk := func(id string, risk model.Risk) recipes.Recipe {
+		r := rec(id, risk, model.MethodQuarantine)
+		r.Allow = []string{"~/Library/Caches/*"}
+		return r
+	}
+	// Same path from three recipes (different case): the highest risk wins.
+	// Several SAFE recipes on another path: the lower recipe ID wins.
+	nat := rec("t.native", model.RiskSafe, model.MethodNative)
+	adv := rec("t.adv", model.RiskAdvise, model.MethodAdvise)
+	setFindings(t, map[string][]recipes.Finding{
+		"t.b.safe":    {{Target: f.p("Library/Caches/X"), Bytes: measured(5)}},
+		"t.a.caution": {{Target: f.p("library/caches/x"), Bytes: measured(5)}},
+		"t.c.safe":    {{Target: f.p("Library/Caches/X"), Bytes: measured(5)}, {Target: f.p("Library/Caches/Y"), Bytes: measured(2)}},
+		"t.d.safe":    {{Target: f.p("Library/Caches/Y"), Bytes: measured(2)}},
+		"t.native":    {{Target: f.p("Library/Caches/Y"), Bytes: measured(2)}},
+		"t.adv":       {{Target: f.p("Library/Caches/X"), Bytes: measured(5)}}, // advise is never deduplicated
+	})
+	res := f.run(t, mk("t.b.safe", model.RiskSafe), mk("t.a.caution", model.RiskCaution),
+		mk("t.c.safe", model.RiskSafe), mk("t.d.safe", model.RiskSafe), nat, adv)
+	var got []string
+	for _, o := range res.Opportunities {
+		got = append(got, o.RecipeID+"@"+filepath.Base(o.Target))
+	}
+	if s := strings.Join(got, " "); len(got) != 3 || !strings.Contains(s, "t.a.caution@x") || !strings.Contains(s, "t.c.safe@Y") || !strings.Contains(s, "t.adv@X") {
+		t.Fatalf("kept %s", s)
+	}
+	w := strings.Join(res.Warnings, "\n")
+	for _, want := range []string{
+		"t.b.safe duplicates t.a.caution for " + f.p("Library/Caches/X"),
+		"t.c.safe duplicates t.a.caution for " + f.p("Library/Caches/X"),
+		"t.d.safe duplicates t.c.safe for " + f.p("Library/Caches/Y"),
+		"t.native duplicates t.c.safe for " + f.p("Library/Caches/Y"),
+	} {
+		if !strings.Contains(w, want) {
+			t.Errorf("missing %q in\n%s", want, w)
+		}
+	}
+	if len(res.Warnings) != 4 {
+		t.Errorf("warnings = %q", res.Warnings)
+	}
+}
+
+func TestEqualTargetsSameRecipeKept(t *testing.T) {
+	ops := []model.Opportunity{
+		{RecipeID: "r", Target: "/a/b", Method: model.MethodNative, Risk: model.RiskSafe, ID: "1"},
+		{RecipeID: "r", Target: "/a/b", Method: model.MethodNative, Risk: model.RiskSafe, ID: "2"},
+	}
+	out, w := dropEqualTargets(ops)
+	if len(out) != 2 || len(w) != 0 {
+		t.Errorf("out %v warnings %v", out, w)
+	}
+}
+
+func TestContainedBytesSubtracted(t *testing.T) {
+	f := newFixture(t, time.Hour)
+	unused := rec("docker.unused_images", model.RiskCaution, model.MethodNative)
+	dangling := rec("docker.dangling_images", model.RiskSafe, model.MethodNative)
+	run := func(u, d model.Bytes, note string) model.Opportunity {
+		t.Helper()
+		setFindings(t, map[string][]recipes.Finding{
+			"docker.unused_images":   {{Bytes: u, Note: note, Title: "unused"}},
+			"docker.dangling_images": {{Bytes: d, Title: "dangling"}},
+		})
+		res := f.run(t, unused, dangling)
+		for _, o := range res.Opportunities {
+			if o.RecipeID == "docker.unused_images" {
+				return o
+			}
+		}
+		t.Fatal("unused_images missing")
+		return model.Opportunity{}
+	}
+	tool := func(n int64) model.Bytes { return model.Bytes{Value: n, Source: model.SourceTool} }
+	est := func(n int64) model.Bytes { return model.Bytes{Value: n, Source: model.SourceEstimated} }
+
+	o := run(tool(10*gb), est(3*gb), "")
+	if o.Bytes.Value != 7*gb || o.Bytes.Source != model.SourceEstimated || o.Confidence != 0.6 || o.Note != "excludes dangling images listed separately" {
+		t.Errorf("subtracted = %+v", o)
+	}
+	o = run(tool(2*gb), tool(3*gb), "4 images")
+	if o.Bytes.Value != 0 || o.Bytes.Source != model.SourceTool || o.Note != "4 images; excludes dangling images listed separately" {
+		t.Errorf("floored = %+v", o)
+	}
+	o = run(tool(10*gb), model.Bytes{Source: model.SourceUnknown}, "")
+	if o.Bytes.Value != 10*gb || o.Note != "" {
+		t.Errorf("unknown dangling must not change unused: %+v", o)
+	}
+	o = run(model.Bytes{Source: model.SourceUnknown}, tool(1), "")
+	if o.Bytes.Source != model.SourceUnknown || o.Note != "" {
+		t.Errorf("unknown unused must stay unknown: %+v", o)
+	}
+	// Only the container is present: nothing changes.
+	setFindings(t, map[string][]recipes.Finding{"docker.unused_images": {{Bytes: tool(5), Title: "unused"}}})
+	if res := f.run(t, unused, dangling); res.Opportunities[0].Bytes.Value != 5 || res.Opportunities[0].Note != "" {
+		t.Errorf("alone = %+v", res.Opportunities[0])
+	}
+	if weaker(model.SourceMeasured, model.SourceTool) != model.SourceTool || weaker(model.SourceUnknown, model.SourceTool) != model.SourceUnknown {
+		t.Error("weaker")
 	}
 }

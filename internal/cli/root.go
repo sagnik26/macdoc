@@ -70,6 +70,11 @@ func newVersionCmd(g *globalFlags) *cobra.Command {
 }
 
 func writeJSON(w io.Writer, command string, data any) error {
+	return writeJSONWarn(w, command, data, nil)
+}
+
+// writeJSONWarn is writeJSON with the envelope's top-level warnings filled.
+func writeJSONWarn(w io.Writer, command string, data any, warnings []string) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(model.Envelope{
@@ -77,5 +82,6 @@ func writeJSON(w io.Writer, command string, data any) error {
 		Command:       command,
 		GeneratedAt:   time.Now().UTC(),
 		Data:          data,
+		Warnings:      warnings,
 	})
 }

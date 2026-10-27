@@ -110,6 +110,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	runs := runDetectors(ctx, env, o.Catalog.Recipes)
 
 	var ops []model.Opportunity
+	unknownIdleCount := 0
 	for _, run := range runs {
 		if run.err != "" {
 			res.Warnings = append(res.Warnings, run.recipe.ID+": "+run.err)
@@ -117,7 +118,11 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 		for _, f := range run.findings {
 			op, warn, ok := classify(run.recipe, f, info.ID, o.Now, policy, len(run.findings))
-			if warn != "" {
+			switch warn {
+			case "":
+			case unknownIdle:
+				unknownIdleCount++
+			default:
 				res.Warnings = append(res.Warnings, warn)
 			}
 			if ok {
@@ -125,11 +130,17 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 			}
 		}
 	}
+	if unknownIdleCount > 0 {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))
+	}
 
-	ops, merged := mergeOverlaps(dedupe(ops))
+	ops, dupWarnings := dropEqualTargets(dedupe(ops))
+	res.Warnings = append(res.Warnings, dupWarnings...)
+	ops, merged := mergeOverlaps(ops)
 	if merged > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) inside another listed folder were merged into it", merged))
 	}
+	subtractContained(ops)
 	assignIDs(ops)
 	rank(ops)
 	for _, op := range ops {
@@ -273,8 +284,13 @@ func runDetector(ctx context.Context, env recipes.Env, r recipes.Recipe) ([]reci
 	}
 }
 
+// unknownIdle is the warning classify returns for a finding dropped because
+// its recipe needs a minimum idle time and the last use is unknown. The
+// caller counts these and reports them once.
+const unknownIdle = "\x00unknown-idle"
+
 // classify turns one finding into an opportunity, or drops it. A dropped
-// finding may come with a warning.
+// finding may come with a warning (or unknownIdle).
 func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time, policy *safety.Policy, siblings int) (model.Opportunity, string, bool) {
 	op := model.Opportunity{
 		ScanID:    scanID,
@@ -315,14 +331,14 @@ func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 		}
 	}
 
-	conf := sourceConfidence(op.Bytes.Source)
 	if !f.LastUsed.IsZero() {
 		op.IdleDays = max(0, int(now.Sub(f.LastUsed).Hours()/24))
 	}
 	if r.StaleDays > 0 {
 		switch {
 		case op.IdleDays < 0:
-			conf *= 0.5
+			// Unknown idle time can't prove the item is stale (P3-R1).
+			return op, unknownIdle, false
 		case op.IdleDays < r.StaleDays:
 			return op, "", false
 		}
@@ -330,7 +346,7 @@ func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 	if op.Risk == model.RiskSafe && op.IdleDays >= 0 && op.IdleDays < recentChange {
 		op.Risk = model.RiskCaution
 	}
-	op.Confidence = conf
+	op.Confidence = sourceConfidence(op.Bytes.Source)
 
 	if op.Title == "" {
 		op.Title = r.Title
@@ -395,12 +411,20 @@ func substitute(argv []string, arg string) ([]string, error) {
 // nativeArgForbidden are characters a native identifier may never contain.
 const nativeArgForbidden = ";|&$`<>(){}*?[]'\"\\/"
 
+// reservedNativeArgs are words tools accept in place of an identifier to
+// select many items or change behavior (e.g. `xcrun simctl delete
+// unavailable`, `… all`). Compared case-insensitively.
+var reservedNativeArgs = []string{"all", "unavailable", "booted", "help", "version"}
+
 func checkNativeArg(arg string) error {
 	if arg == "" {
 		return errors.New("tool identifier is empty")
 	}
 	if strings.HasPrefix(arg, "-") {
 		return fmt.Errorf("tool identifier %q starts with -", arg)
+	}
+	if slices.Contains(reservedNativeArgs, strings.ToLower(arg)) {
+		return fmt.Errorf("tool identifier %q is a reserved word the tool may treat as a selector", arg)
 	}
 	for _, c := range arg {
 		if unicode.IsSpace(c) || unicode.IsControl(c) || strings.ContainsRune(nativeArgForbidden, c) {
@@ -448,6 +472,103 @@ func mergeOverlaps(ops []model.Opportunity) ([]model.Opportunity, int) {
 		out = append(out, op)
 	}
 	return out, merged
+}
+
+// dropEqualTargets keeps one actionable opportunity per target when
+// different recipes report the same path: the higher risk (more
+// conservative), then the lower recipe ID. Findings of the same recipe are
+// left alone (they differ by tool identifier; exact duplicates are already
+// gone).
+func dropEqualTargets(ops []model.Opportunity) ([]model.Opportunity, []string) {
+	winner := map[string]int{} // folded target -> index in ops
+	for i, op := range ops {
+		if !actionable(op) {
+			continue
+		}
+		k := foldPath(op.Target)
+		j, ok := winner[k]
+		if !ok || better(op, ops[j]) {
+			winner[k] = i
+		}
+	}
+	var out []model.Opportunity
+	var warnings []string
+	for i, op := range ops {
+		if actionable(op) {
+			w := ops[winner[foldPath(op.Target)]]
+			if winner[foldPath(op.Target)] != i && w.RecipeID != op.RecipeID {
+				warnings = append(warnings, fmt.Sprintf("%s duplicates %s for %s", op.RecipeID, w.RecipeID, op.Target))
+				continue
+			}
+		}
+		out = append(out, op)
+	}
+	return out, warnings
+}
+
+// better reports whether a should be kept over b for the same target.
+func better(a, b model.Opportunity) bool {
+	if ta, tb := tierIndex(a.Risk), tierIndex(b.Risk); ta != tb {
+		return ta > tb
+	}
+	return a.RecipeID < b.RecipeID
+}
+
+// containment pairs: the container recipe's size includes the contained
+// recipe's items, which are also listed on their own.
+var containment = []struct {
+	container, contained, note string
+}{
+	{"docker.unused_images", "docker.dangling_images", "excludes dangling images listed separately"},
+}
+
+// sourceStrength orders sources from weakest to strongest.
+var sourceStrength = []model.Source{model.SourceUnknown, model.SourceEstimated, model.SourceTool, model.SourceMeasured}
+
+// subtractContained removes the contained recipe's bytes from the container
+// recipe's size, so totals don't count them twice. It only acts when both
+// sizes are known.
+func subtractContained(ops []model.Opportunity) {
+	for _, c := range containment {
+		var sum int64
+		weakest := model.SourceMeasured
+		found := false
+		for _, op := range ops {
+			if op.RecipeID != c.contained {
+				continue
+			}
+			if op.Bytes.Source == model.SourceUnknown {
+				found = false
+				break
+			}
+			found = true
+			sum += op.Bytes.Value
+			weakest = weaker(weakest, op.Bytes.Source)
+		}
+		if !found {
+			continue
+		}
+		for i := range ops {
+			op := &ops[i]
+			if op.RecipeID != c.container || op.Bytes.Source == model.SourceUnknown {
+				continue
+			}
+			op.Bytes.Value = max(0, op.Bytes.Value-sum)
+			op.Bytes.Source = weaker(op.Bytes.Source, weakest)
+			op.Confidence = sourceConfidence(op.Bytes.Source)
+			if op.Note != "" {
+				op.Note += "; "
+			}
+			op.Note += c.note
+		}
+	}
+}
+
+func weaker(a, b model.Source) model.Source {
+	if slices.Index(sourceStrength, a) < slices.Index(sourceStrength, b) {
+		return a
+	}
+	return b
 }
 
 func hasAncestor(set map[string]bool, p string) bool {

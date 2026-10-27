@@ -45,7 +45,7 @@ func newDevCmd(g *globalFlags) *cobra.Command {
 			}
 			dev := devResult(res, tc)
 			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "dev", dev)
+				return writeJSONWarn(cmd.OutOrStdout(), "dev", dev, dev.Warnings)
 			}
 			return renderDev(cmd.OutOrStdout(), dev, cat)
 		},

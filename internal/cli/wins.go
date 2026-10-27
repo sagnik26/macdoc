@@ -67,7 +67,7 @@ func newWinsCmd(g *globalFlags) *cobra.Command {
 				res = filterTier(res, risk)
 			}
 			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "wins", res)
+				return writeJSONWarn(cmd.OutOrStdout(), "wins", res, res.Warnings)
 			}
 			return renderWins(cmd.OutOrStdout(), res, cat, all, risk)
 		},
