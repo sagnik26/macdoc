@@ -36,9 +36,29 @@ func NewRootCmd() *cobra.Command {
 
 	doctor := newDoctorCmd(g)
 	root.AddCommand(newVersionCmd(g), doctor)
-	// Bare `macdoc` is `macdoc doctor`.
-	root.RunE = doctor.RunE
+	// Bare `macdoc` opens the dashboard in an interactive terminal and is
+	// `macdoc doctor` everywhere else (pipes, --json, --quiet, TERM=dumb).
+	root.Args = cobra.NoArgs
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		if g.json || g.quiet || !interactive(cmd) {
+			return doctor.RunE(cmd, args)
+		}
+		home, err := userHome()
+		if err != nil {
+			return err
+		}
+		cat, err := loadCatalog()
+		if err != nil {
+			return err
+		}
+		return runTUI(home, cat)
+	}
 	return root
+}
+
+// interactive reports whether stdin and stdout are a capable terminal.
+func interactive(cmd *cobra.Command) bool {
+	return isTerminal(cmd.InOrStdin()) && isTerminal(cmd.OutOrStdout()) && os.Getenv("TERM") != "dumb"
 }
 
 // Execute runs the CLI and returns the process exit code.

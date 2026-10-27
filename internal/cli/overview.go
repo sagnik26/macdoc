@@ -128,9 +128,14 @@ func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 		{"ALL SUGGESTIONS", func(w io.Writer) error { return renderWins(w, res.Opportunities, cat, true, "") }},
 		{"BY TOOLCHAIN", func(w io.Writer) error { return renderDev(w, dev, cat) }},
 	}
+	t := themeFor(w)
 	for i, s := range sections {
 		if i > 0 {
-			if _, err := fmt.Fprintf(w, "\n══════ %s %s\n\n", s.title, strings.Repeat("═", max(0, 70-len(s.title)))); err != nil {
+			head := fmt.Sprintf("\n══════ %s %s\n\n", s.title, strings.Repeat("═", max(0, 70-len(s.title))))
+			if t.on {
+				head = "\n" + t.brand.Render("━━ "+s.title+" ") + t.faint.Render(strings.Repeat("━", max(0, 70-len(s.title)))) + "\n\n"
+			}
+			if _, err := io.WriteString(w, head); err != nil {
 				return err
 			}
 		}
@@ -143,32 +148,34 @@ func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 
 func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
 	var b strings.Builder
+	t := themeFor(w)
 
 	scanNote := " · scan " + res.ScanAge
 	if res.Scanned {
 		scanNote = " · scanned just now"
 	}
-	writeVitals(&b, res.Health, scanNote)
+	writeVitals(&b, t, res.Health, scanNote)
 	b.WriteString("\n")
-	writeFindings(&b, res.Health.Findings, 3, false)
+	writeFindings(&b, t, res.Health.Findings, 3, false)
 
 	// Where the space is.
 	measured := res.Scan.TotalBytes
-	fmt.Fprintf(&b, "\nWhere your space is (Data volume, %s measured)\n  ", engine.DecimalBytes(measured))
+	fmt.Fprintf(&b, "\n%s %s\n  ", t.heading("Where your space is"),
+		t.muted.Render(fmt.Sprintf("(Data volume, %s measured)", engine.DecimalBytes(measured))))
 	var parts []string
 	for i, n := range res.TopLevel {
 		if i == overviewTopLevel {
 			break
 		}
-		parts = append(parts, fmt.Sprintf("%s %s", n.Path, engine.DecimalBytes(n.Bytes)))
+		parts = append(parts, fmt.Sprintf("%s %s", t.text.Render(n.Path), t.size.Render(engine.DecimalBytes(n.Bytes))))
 	}
 	if du := res.DataVolume; du.Source != model.SourceUnknown && du.Value > measured+du.Value/50 {
-		parts = append(parts, engine.DecimalBytes(du.Value-measured)+" not visible (needs Full Disk Access)")
+		parts = append(parts, t.muted.Render(engine.DecimalBytes(du.Value-measured)+" not visible (needs Full Disk Access)"))
 	}
 	if len(parts) == 0 {
 		parts = append(parts, "—")
 	}
-	b.WriteString(strings.Join(parts, " · "))
+	b.WriteString(strings.Join(parts, t.faint.Render(" · ")))
 	b.WriteString("\n")
 
 	// Reclaimable.
@@ -184,8 +191,8 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 			actionable += op.Bytes.Value
 		}
 	}
-	fmt.Fprintf(&b, "\nReclaimable%s%s actionable · %s advice\n",
-		strings.Repeat(" ", 30), engine.DecimalBytes(actionable), engine.DecimalBytes(advice))
+	fmt.Fprintf(&b, "\n%s%s%s actionable · %s advice\n", t.heading("Reclaimable"),
+		strings.Repeat(" ", 30), t.ok.Bold(t.on).Render(engine.DecimalBytes(actionable)), t.info.Render(engine.DecimalBytes(advice)))
 	if len(ops) == 0 {
 		b.WriteString("  Nothing to reclaim was found in the latest scan.\n")
 	}
@@ -194,18 +201,29 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		if len(tierOps) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "  %-18s %9s   %s\n", shortTierName(tier),
-			tierTotal(res.Opportunities.Totals[tier], tierOps), tierSummary(tierOps, cat))
+		fmt.Fprintf(&b, "  %s%s %s   %s\n", t.dot(tier), t.riskStyle(tier).Render(fmt.Sprintf("%-18s", shortTierName(tier))),
+			t.size.Render(fmt.Sprintf("%9s", tierTotal(res.Opportunities.Totals[tier], tierOps))), t.muted.Render(tierSummary(tierOps, cat)))
 	}
 
 	if res.ScanStale {
-		fmt.Fprintf(&b, "\nNote: the scan is %s old. Run `macdoc doctor scan` to refresh.\n", strings.TrimSuffix(res.ScanAge, " ago"))
+		fmt.Fprintf(&b, "\n%s the scan is %s old. Run `macdoc doctor scan` to refresh.\n", t.warn.Render("Note:"), strings.TrimSuffix(res.ScanAge, " ago"))
 	}
 	if n := len(res.Warnings); n > 0 {
-		fmt.Fprintf(&b, "\n%d note(s) about skipped items: macdoc doctor wins\n", n)
+		fmt.Fprintln(&b, t.muted.Render(fmt.Sprintf("\n%d note(s) about skipped items: macdoc doctor wins", n)))
 	}
-	b.WriteString("\nMore: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health\n")
-	b.WriteString("Nothing has been changed.\n")
+	switch {
+	case t.tui:
+		b.WriteString("\n" + t.muted.Render("Tab through the views · enter on a suggestion explains it · / for commands") + "\n")
+		_, err := io.WriteString(w, b.String())
+		return err
+	case t.on:
+		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc doctor scan") + t.muted.Render(" (rescan + full report) · ") +
+			t.accent.Render("wins") + t.muted.Render(" (every item + ID) · ") + t.accent.Render("explain <id>") + t.muted.Render(" · ") +
+			t.accent.Render("space") + t.muted.Render(" · ") + t.accent.Render("health") + "\n")
+	default:
+		b.WriteString("\nMore: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health\n")
+	}
+	b.WriteString(t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }

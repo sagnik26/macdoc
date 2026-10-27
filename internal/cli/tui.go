@@ -1,0 +1,1115 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"macdoc/internal/engine"
+	"macdoc/internal/model"
+	"macdoc/internal/recipes"
+	"macdoc/internal/scanner"
+)
+
+// The interactive dashboard behind bare `macdoc` in a terminal. It is
+// read-only like every other view: it can scan and show, never change.
+
+type tab int
+
+const (
+	tabOverview tab = iota
+	tabSuggestions
+	tabToolchains
+	tabSpace
+	tabHealth
+)
+
+var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Space", "Health"}
+
+// slashCommand is one entry of the / palette.
+type slashCommand struct {
+	name, args, desc string
+}
+
+var slashCommands = []slashCommand{
+	{"overview", "", "health, space and reclaimable at a glance"},
+	{"wins", "", "every suggestion, ranked by safety"},
+	{"dev", "", "suggestions per developer toolchain"},
+	{"space", "", `space by category, "System Data" decoded`},
+	{"health", "", "disk, memory, swap and top memory users"},
+	{"scan", "", "rescan the disk (Esc stops it)"},
+	{"explain", "<id>", "one suggestion in detail"},
+	{"json", "", "this view as JSON"},
+	{"mcp", "", "Claude integration status"},
+	{"help", "", "keys and commands"},
+	{"quit", "", "leave macdoc"},
+}
+
+// stepLabels describe the loading stages.
+var stepLabels = map[engine.OverviewStep]string{
+	engine.StepHealth: "Checking disk, memory and swap",
+	engine.StepScan:   "Scanning your Mac",
+	engine.StepLoad:   "Reading the latest scan",
+	engine.StepRank:   "Ranking cleanup suggestions",
+	stepSpace:         `Decoding "System Data"`,
+}
+
+const stepSpace engine.OverviewStep = "space"
+
+type (
+	stepMsg     engine.OverviewStep
+	progressMsg scanner.Progress
+	loadedMsg   struct {
+		data *tuiData
+		err  error
+	}
+)
+
+// tuiData is everything the dashboard shows.
+type tuiData struct {
+	res   engine.OverviewResult
+	space engine.StorageResult
+	dev   DevResult
+}
+
+// tuiDeps are shared by every copy of the model.
+type tuiDeps struct {
+	home string
+	cat  *recipes.Catalog
+	send func(tea.Msg) // set once the program exists; nil in tests
+	// load replaces the engine in tests.
+	load func(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error)
+}
+
+func (d *tuiDeps) post(msg tea.Msg) {
+	if d.send != nil {
+		d.send(msg)
+	}
+}
+
+type loadStep struct {
+	step  engine.OverviewStep
+	start time.Time
+	took  time.Duration
+	done  bool
+}
+
+type keyMap struct {
+	Tabs, Move, Explain, Back, Scan, Slash, Filter, Help, Quit, Stop key.Binding
+	Run, Complete, Cancel                                            key.Binding
+}
+
+func newKeyMap() keyMap {
+	return keyMap{
+		Tabs:     key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "switch view")),
+		Move:     key.NewBinding(key.WithKeys("up", "down", "j", "k"), key.WithHelp("↑↓", "move")),
+		Explain:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explain")),
+		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Scan:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rescan")),
+		Slash:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "commands")),
+		Filter:   key.NewBinding(key.WithKeys("@"), key.WithHelp("@", "toolchain")),
+		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Stop:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "stop")),
+		Run:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
+		Complete: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")),
+		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+	}
+}
+
+type overlay int
+
+const (
+	overlayNone overlay = iota
+	overlayHelp
+	overlayJSON
+)
+
+type tuiModel struct {
+	deps *tuiDeps
+	t    *theme
+	keys keyMap
+	help help.Model
+
+	w, h int
+	tab  tab
+
+	// loading
+	loading  bool
+	stopping bool // Esc pressed; waiting for the engine to return
+	quitting bool // quit once loading returns
+	steps    []loadStep
+	prog     scanner.Progress
+	estimate int64 // bytes the scan is expected to reach (last scan), 0 = unknown
+	spin     spinner.Model
+	bar      progress.Model
+	cancel   context.CancelFunc
+
+	data *tuiData
+	note string // empty-state or error text when there is no data
+
+	// suggestions
+	cursor int
+	detail bool   // narrow screens: the detail replaces the list
+	filter string // toolchain from @
+
+	scroll  int
+	overlay overlay
+	jsonDoc string
+
+	input     textinput.Model
+	inputMode rune // 0, '/' or '@'
+	pick      int  // highlighted completion
+	flash     string
+
+	initCmd tea.Cmd
+}
+
+func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
+	t.tui = true
+	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
+		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
+		FPS:    time.Second / 10,
+	}), spinner.WithStyle(t.brand))
+	bar := progress.New(progress.WithScaledGradient("#E8875F", "#F2CC60"), progress.WithoutPercentage(),
+		progress.WithFillCharacters('━', '━'), progress.WithColorProfile(t.r.ColorProfile()))
+	bar.EmptyColor = "#3A3A3A"
+	in := textinput.New()
+	in.Prompt = ""
+	in.CharLimit = 64
+	in.Cursor.Style = t.brand
+	h := help.New()
+	h.Styles.ShortKey = t.accent
+	h.Styles.ShortDesc = t.muted
+	h.Styles.ShortSeparator = t.faint
+	h.ShortSeparator = " • "
+	return tuiModel{deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, bar: bar, input: in, w: 100, h: 30}
+}
+
+// runTUI starts the dashboard on the terminal.
+func runTUI(home string, cat *recipes.Catalog) error {
+	if err := scanner.SetBackgroundPriority(); err != nil {
+		fmt.Fprintln(os.Stderr, "macdoc: could not lower priority:", err)
+	}
+	t := newTheme(os.Stdout)
+	if !t.on {
+		// NO_COLOR or a monochrome terminal: keep the layout, drop colors.
+		t = plainLayoutTheme()
+	}
+	deps := &tuiDeps{home: home, cat: cat, load: engineLoad}
+	m := newTUIModel(deps, t)
+	m.initCmd = m.startLoad(false)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	deps.send = p.Send
+	final, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if fm, ok := final.(tuiModel); ok && fm.data != nil {
+		fmt.Println(t.done("Nothing has been changed."))
+	}
+	return nil
+}
+
+// plainLayoutTheme draws boxes and badges without color.
+func plainLayoutTheme() *theme {
+	t := plainTheme()
+	t.on = true
+	return t
+}
+
+// engineLoad is the real loader: overview, then space and toolchains.
+func engineLoad(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error) {
+	res, err := engine.Overview(ctx, engine.OverviewOptions{
+		Home: d.home, Runner: runner, Version: version, Rescan: rescan, Catalog: d.cat, ScanRoot: scanRoot,
+		Step:     func(s engine.OverviewStep) { d.post(stepMsg(s)) },
+		Progress: func(p scanner.Progress) { d.post(progressMsg(p)) },
+	})
+	if err != nil {
+		return nil, err
+	}
+	d.post(stepMsg(stepSpace))
+	space, err := engine.Storage(ctx, engine.StorageOptions{
+		OpportunityOptions: engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat},
+		Large:              true,
+		Precomputed:        &res.Opportunities,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &tuiData{res: res, space: space, dev: devResult(res.Opportunities, "")}, nil
+}
+
+func (m tuiModel) Init() tea.Cmd { return m.initCmd }
+
+// startLoad puts m into the loading state and returns the command that runs
+// the engine. Call it on the model that Update returns (or before the program
+// starts, for the first load).
+func (m *tuiModel) startLoad(rescan bool) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	m.loading, m.stopping = true, false
+	m.steps, m.prog = nil, scanner.Progress{}
+	m.estimate = 0
+	if m.data != nil {
+		m.estimate = m.data.res.Scan.TotalBytes
+	}
+	deps := m.deps
+	run := func() tea.Msg {
+		data, err := deps.load(ctx, deps, rescan)
+		return loadedMsg{data: data, err: err}
+	}
+	return tea.Batch(run, m.spin.Tick)
+}
+
+func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.w, m.h = msg.Width, msg.Height
+		m.t.width = msg.Width
+		m.bar.Width = min(48, max(10, msg.Width-30))
+		return m, nil
+
+	case stepMsg:
+		now := time.Now()
+		for i := range m.steps {
+			if !m.steps[i].done {
+				m.steps[i].done, m.steps[i].took = true, now.Sub(m.steps[i].start)
+			}
+		}
+		m.steps = append(m.steps, loadStep{step: engine.OverviewStep(msg), start: now})
+		return m, nil
+
+	case progressMsg:
+		m.prog = scanner.Progress(msg)
+		return m, nil
+
+	case loadedMsg:
+		return m.loaded(msg)
+
+	case spinner.TickMsg:
+		if !m.loading {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+
+	case tea.KeyMsg:
+		m.flash = ""
+		if m.inputMode != 0 {
+			return m.updateInput(msg)
+		}
+		return m.updateKey(msg)
+	}
+	return m, nil
+}
+
+func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
+	m.loading, m.cancel = false, nil
+	if m.quitting {
+		return m, tea.Quit
+	}
+	// A stopped scan can still return (partial) results; they are never shown.
+	switch {
+	case msg.err == nil && !m.stopping:
+		m.data, m.note = msg.data, ""
+		m.cursor = min(m.cursor, max(0, len(m.items())-1))
+	case m.stopping || errors.Is(msg.err, context.Canceled):
+		if m.data != nil {
+			m.flash = "Scan stopped. Showing the previous results."
+		} else {
+			m.note = "Scan stopped before it finished. Press r (or /scan) to scan again."
+		}
+	default:
+		if m.data != nil {
+			m.flash = "Error: " + msg.err.Error()
+		} else {
+			m.note = msg.err.Error()
+		}
+	}
+	m.stopping = false
+	return m, nil
+}
+
+func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	if k == "ctrl+c" || (k == "q" && m.overlay == overlayNone) {
+		if m.loading && m.cancel != nil {
+			if m.quitting { // second press: leave now
+				return m, tea.Quit
+			}
+			m.quitting = true
+			m.cancel()
+			return m, nil
+		}
+		return m, tea.Quit
+	}
+	if m.loading {
+		if k == "esc" && m.cancel != nil {
+			m.stopping = true
+			m.cancel()
+		}
+		return m, nil
+	}
+
+	if m.overlay != overlayNone {
+		switch k {
+		case "esc", "q", "?", "enter":
+			m.overlay, m.scroll = overlayNone, 0
+		default:
+			m.scrollBy(k)
+		}
+		return m, nil
+	}
+
+	switch k {
+	case "esc":
+		switch {
+		case m.detail:
+			m.detail = false
+		case m.filter != "":
+			m.filter, m.cursor = "", 0
+			m.flash = "Showing every toolchain."
+		}
+	case "?":
+		m.overlay, m.scroll = overlayHelp, 0
+	case "/", "@":
+		m.inputMode, m.pick = rune(k[0]), 0
+		m.input.SetValue("")
+		m.input.Focus()
+		return m, textinput.Blink
+	case "tab", "right", "l":
+		m.setTab((m.tab + 1) % tab(len(tabTitles)))
+	case "shift+tab", "left", "h":
+		m.setTab((m.tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
+	case "1", "2", "3", "4", "5":
+		m.setTab(tab(k[0] - '1'))
+	case "r":
+		return m, m.startLoad(true)
+	case "enter":
+		if m.tab == tabSuggestions && len(m.items()) > 0 {
+			m.detail = !m.detail
+		}
+	default:
+		if m.tab == tabSuggestions && !m.detail {
+			m.moveCursor(k)
+		} else {
+			m.scrollBy(k)
+		}
+	}
+	return m, nil
+}
+
+func (m *tuiModel) setTab(t tab) {
+	m.tab, m.scroll, m.detail = t, 0, false
+}
+
+func (m *tuiModel) moveCursor(k string) {
+	n := len(m.items())
+	switch k {
+	case "up", "k":
+		m.cursor--
+	case "down", "j":
+		m.cursor++
+	case "pgup":
+		m.cursor -= 10
+	case "pgdown", " ":
+		m.cursor += 10
+	case "home", "g":
+		m.cursor = 0
+	case "end", "G":
+		m.cursor = n - 1
+	}
+	m.cursor = max(0, min(m.cursor, n-1))
+}
+
+func (m *tuiModel) scrollBy(k string) {
+	switch k {
+	case "up", "k":
+		m.scroll--
+	case "down", "j":
+		m.scroll++
+	case "pgup":
+		m.scroll -= m.bodyHeight() - 1
+	case "pgdown", " ":
+		m.scroll += m.bodyHeight() - 1
+	case "home", "g":
+		m.scroll = 0
+	case "end", "G":
+		m.scroll = 1 << 30
+	}
+	m.scroll = max(0, m.scroll)
+}
+
+// --- command input (/ and @) ---
+
+// completion is one row of the palette.
+type completion struct{ value, desc string }
+
+func (m tuiModel) completions() []completion {
+	q := strings.ToLower(strings.TrimSpace(m.input.Value()))
+	var out []completion
+	if m.inputMode == '@' {
+		for _, tc := range append([]string{"all"}, recipes.Toolchains...) {
+			if strings.HasPrefix(tc, q) {
+				desc := "every toolchain"
+				if tc != "all" {
+					desc = m.toolchainSummary(tc)
+				}
+				out = append(out, completion{tc, desc})
+			}
+		}
+		return out
+	}
+	name, _, _ := strings.Cut(q, " ")
+	for _, c := range slashCommands {
+		if strings.HasPrefix(c.name, name) {
+			v := c.name
+			if c.args != "" {
+				v += " " + c.args
+			}
+			out = append(out, completion{v, c.desc})
+		}
+	}
+	return out
+}
+
+// toolchainSummary is "3 items · 1.2 GB" for the @ palette.
+func (m tuiModel) toolchainSummary(tc string) string {
+	if m.data == nil {
+		return ""
+	}
+	for _, g := range m.data.dev.Toolchains {
+		if g.Toolchain == tc {
+			return fmt.Sprintf("%d item(s) · %s", len(g.Opportunities), tierTotal(g.Bytes, g.Opportunities))
+		}
+	}
+	return "nothing found"
+}
+
+func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	comps := m.completions()
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.inputMode = 0
+		m.input.Blur()
+		return m, nil
+	case "up":
+		m.pick = max(0, m.pick-1)
+		return m, nil
+	case "down":
+		m.pick = min(len(comps)-1, m.pick+1)
+		return m, nil
+	case "tab":
+		if len(comps) > 0 {
+			v, _, _ := strings.Cut(comps[min(m.pick, len(comps)-1)].value, " <")
+			if strings.Contains(comps[m.pick].value, "<") {
+				v += " "
+			}
+			m.input.SetValue(v)
+			m.input.CursorEnd()
+		}
+		return m, nil
+	case "enter":
+		v := strings.TrimSpace(m.input.Value())
+		// Enter on a partial word runs the highlighted completion.
+		if len(comps) > 0 && !strings.Contains(v, " ") {
+			if c, _, _ := strings.Cut(comps[min(m.pick, len(comps)-1)].value, " "); c != v {
+				v = c
+			}
+		}
+		mode := m.inputMode
+		m.inputMode = 0
+		m.input.Blur()
+		if mode == '@' {
+			return m.applyFilter(v)
+		}
+		return m.runCommand(v)
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	m.pick = 0
+	return m, cmd
+}
+
+func (m tuiModel) applyFilter(tc string) (tea.Model, tea.Cmd) {
+	tc = strings.ToLower(strings.TrimPrefix(tc, "@"))
+	if tc == "" || tc == "all" {
+		m.filter = ""
+		m.flash = "Showing every toolchain."
+		return m, nil
+	}
+	tc, err := parseToolchain(tc)
+	if err != nil {
+		m.flash = err.Error()
+		return m, nil
+	}
+	m.filter, m.cursor = tc, 0
+	if m.tab != tabToolchains {
+		m.setTab(tabSuggestions)
+	}
+	return m, nil
+}
+
+func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
+	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
+	arg = strings.TrimSpace(arg)
+	switch name {
+	case "":
+		return m, nil
+	case "overview":
+		m.setTab(tabOverview)
+	case "wins", "suggestions":
+		m.setTab(tabSuggestions)
+	case "dev", "toolchains":
+		m.setTab(tabToolchains)
+	case "space", "storage":
+		m.setTab(tabSpace)
+	case "health":
+		m.setTab(tabHealth)
+	case "scan":
+		return m, m.startLoad(true)
+	case "explain":
+		return m.explain(arg)
+	case "json":
+		m.jsonDoc = m.currentJSON()
+		m.overlay, m.scroll = overlayJSON, 0
+	case "mcp":
+		m.flash = "MCP arrives in Phase 8: Claude will read diagnoses and propose plans. Only you apply them."
+	case "help":
+		m.overlay, m.scroll = overlayHelp, 0
+	case "quit", "exit", "q":
+		return m, tea.Quit
+	default:
+		m.flash = fmt.Sprintf("Unknown command /%s. Type / to see the list.", name)
+	}
+	return m, nil
+}
+
+func (m tuiModel) explain(id string) (tea.Model, tea.Cmd) {
+	if id == "" {
+		m.flash = "Usage: /explain <id>, e.g. /explain O-ab12cd"
+		return m, nil
+	}
+	m.filter = ""
+	for i, op := range m.items() {
+		if strings.EqualFold(op.ID, id) {
+			m.setTab(tabSuggestions)
+			m.cursor, m.detail = i, true
+			return m, nil
+		}
+	}
+	m.flash = id + " is not in the latest scan; IDs change after a new scan."
+	return m, nil
+}
+
+// items are the suggestions shown, in ranked order, after the @ filter.
+func (m tuiModel) items() []model.Opportunity {
+	if m.data == nil {
+		return nil
+	}
+	var out []model.Opportunity
+	for _, op := range m.data.res.Opportunities.Opportunities {
+		if m.filter == "" || op.Toolchain == m.filter {
+			out = append(out, op)
+		}
+	}
+	return out
+}
+
+// currentJSON is the current view's data, as the matching --json command
+// would print it (without the envelope).
+func (m tuiModel) currentJSON() string {
+	if m.data == nil {
+		return "null"
+	}
+	var v any
+	switch m.tab {
+	case tabOverview:
+		v = m.data.res
+	case tabSuggestions:
+		if ops := m.items(); m.detail && m.cursor < len(ops) {
+			v = ops[m.cursor]
+		} else {
+			v = m.data.res.Opportunities
+			if m.filter != "" {
+				v = m.devData()
+			}
+		}
+	case tabToolchains:
+		v = m.devData()
+	case tabSpace:
+		v = m.data.space
+	case tabHealth:
+		v = m.data.res.Health
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}
+
+func (m tuiModel) devData() DevResult {
+	return devResult(engine.OpportunityResult{
+		Scan: m.data.res.Opportunities.Scan, ScanAge: m.data.res.Opportunities.ScanAge,
+		Opportunities: m.items(), Warnings: m.data.res.Opportunities.Warnings,
+	}, m.filter)
+}
+
+// --- view ---
+
+func (m tuiModel) bodyHeight() int {
+	h := m.h - 4 // header, tabs, rule, footer
+	if m.inputMode != 0 {
+		h -= 2 + min(6, len(m.completions()))
+	} else if m.flash != "" {
+		h--
+	}
+	return max(3, h)
+}
+
+func (m tuiModel) View() string {
+	t := m.t
+	var b strings.Builder
+	b.WriteString(m.headerView() + "\n")
+	b.WriteString(m.tabsView() + "\n")
+
+	var body string
+	switch {
+	case m.loading:
+		body = m.loadingView()
+	case m.overlay == overlayHelp:
+		body = m.scrolled(m.helpView())
+	case m.overlay == overlayJSON:
+		body = m.scrolled(highlightJSON(t, m.jsonDoc))
+	case m.data == nil:
+		body = "\n  " + t.muted.Render(m.note)
+	case m.tab == tabSuggestions:
+		body = m.suggestionsView()
+	default:
+		body = m.scrolled(m.textView())
+	}
+	b.WriteString(fitHeight(body, m.bodyHeight(), m.w))
+
+	if m.inputMode != 0 {
+		b.WriteString(m.inputView())
+	} else if m.flash != "" {
+		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(m.flash), m.w-4) + "\n")
+	}
+	b.WriteString(m.footerView())
+	return b.String()
+}
+
+// fitHeight pads or cuts s to exactly h lines, each at most w cells wide.
+func fitHeight(s string, h, w int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	for len(lines) < h {
+		lines = append(lines, "")
+	}
+	for i, l := range lines {
+		lines[i] = truncateANSI(l, w)
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// scrolled applies the scroll offset to a text body.
+func (m *tuiModel) scrolled(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	maxOff := max(0, len(lines)-m.bodyHeight())
+	m.scroll = min(m.scroll, maxOff)
+	return strings.Join(lines[m.scroll:], "\n")
+}
+
+func (m tuiModel) headerView() string {
+	t := m.t
+	left := " " + t.brand.Render("◆ macdoc")
+	var right []string
+	if m.data != nil {
+		hw := m.data.res.Health.Report.Hardware
+		if hw.Model != "" {
+			left += t.muted.Render("  " + hw.Model + " · " + strings.TrimPrefix(hw.Chip, "Apple "))
+		}
+		if d := m.data.res.Health.Report.Disk; d.ContainerTotalBytes > 0 {
+			used := d.ContainerTotalBytes - d.ContainerFreeBytes
+			right = append(right, t.usageStyle(used, d.ContainerTotalBytes).Render(engine.DecimalBytes(d.ContainerFreeBytes)+" free"))
+		}
+		age := "scan " + m.data.res.ScanAge
+		if m.data.res.Scanned {
+			age = "scanned just now"
+		}
+		st := t.muted
+		if m.data.res.ScanStale {
+			st = t.warn
+		}
+		right = append(right, st.Render(age))
+	}
+	if m.filter != "" {
+		right = append(right, t.accent.Bold(true).Render("@"+m.filter))
+	}
+	right = append(right, t.ok.Render("read-only"))
+	r := strings.Join(right, t.faint.Render(" · ")) + " "
+	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
+	return left + strings.Repeat(" ", gap) + r
+}
+
+func (m tuiModel) tabsView() string {
+	t := m.t
+	var parts []string
+	for i, title := range tabTitles {
+		label := fmt.Sprintf("%d %s", i+1, title)
+		if tab(i) == m.tab {
+			parts = append(parts, t.r.NewStyle().Background(colBrand).Foreground(colOnBadge).Bold(true).Padding(0, 1).Render(label))
+		} else {
+			parts = append(parts, t.muted.Padding(0, 1).Render(label))
+		}
+	}
+	row := " " + strings.Join(parts, " ")
+	return row + "\n" + t.rule(m.w)
+}
+
+func (m tuiModel) footerView() string {
+	var keys []key.Binding
+	switch {
+	case m.inputMode != 0:
+		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel}
+	case m.loading:
+		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
+	case m.overlay != overlayNone:
+		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
+	case m.tab == tabSuggestions && m.detail:
+		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
+	case m.tab == tabSuggestions:
+		keys = []key.Binding{m.keys.Move, m.keys.Explain, m.keys.Tabs, m.keys.Filter, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+	default:
+		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Filter, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+	}
+	if m.filter != "" && m.inputMode == 0 && !m.loading {
+		keys = append(keys, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear @"+m.filter)))
+	}
+	m.help.Width = m.w - 2
+	return " " + m.help.ShortHelpView(keys)
+}
+
+func (m tuiModel) inputView() string {
+	t := m.t
+	var b strings.Builder
+	comps := m.completions()
+	for i, c := range comps {
+		if i == 6 {
+			break
+		}
+		prefix := string(m.inputMode)
+		name := t.accent.Render(fmt.Sprintf("%-18s", prefix+c.value))
+		line := "   " + name + " " + t.muted.Render(c.desc)
+		if i == m.pick {
+			line = " " + t.brand.Render("▸") + " " + t.accent.Bold(true).Render(fmt.Sprintf("%-18s", prefix+c.value)) + " " + t.text.Render(c.desc)
+		}
+		b.WriteString(truncateANSI(line, m.w) + "\n")
+	}
+	b.WriteString(t.rule(m.w) + "\n")
+	b.WriteString(" " + t.brand.Render("› "+string(m.inputMode)) + m.input.View() + "\n")
+	return b.String()
+}
+
+func (m tuiModel) loadingView() string {
+	t := m.t
+	var b strings.Builder
+	b.WriteString("\n")
+	if len(m.steps) == 0 {
+		fmt.Fprintf(&b, "  %s %s\n", m.spin.View(), t.text.Render("Starting…"))
+	}
+	for _, s := range m.steps {
+		label := stepLabels[s.step]
+		if s.done {
+			fmt.Fprintf(&b, "  %s %s %s\n", t.ok.Render("✓"), t.muted.Render(label), t.faint.Render(fmtDur(s.took)))
+			continue
+		}
+		fmt.Fprintf(&b, "  %s %s %s\n", m.spin.View(), t.title.Render(label+"…"), t.faint.Render(fmtDur(time.Since(s.start))))
+		if s.step == engine.StepScan {
+			b.WriteString(m.scanProgressView())
+		}
+	}
+	if m.stopping || m.quitting {
+		b.WriteString("\n  " + t.warn.Render("Stopping… partial results are not used."))
+	}
+	return b.String()
+}
+
+func (m tuiModel) scanProgressView() string {
+	t := m.t
+	p := m.prog
+	var b strings.Builder
+	b.WriteString("\n")
+	if m.estimate > 0 {
+		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
+		fmt.Fprintf(&b, "    %s %s\n", m.bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
+	}
+	fmt.Fprintf(&b, "    %s  %s  %s\n", t.size.Render(engine.DecimalBytes(p.Bytes)),
+		t.muted.Render(fmt.Sprintf("%s files", groupDigits(p.Files))), t.faint.Render(p.Elapsed.Round(time.Second).String()))
+	if p.CurrentDir != "" {
+		fmt.Fprintf(&b, "    %s\n", t.faint.Render(truncateMiddle(p.CurrentDir, max(20, m.w-8))))
+	}
+	b.WriteString("\n    " + t.muted.Render("Runs at background priority so your apps stay responsive.") + "\n")
+	return b.String()
+}
+
+// textView renders a non-list tab with the shared renderers.
+func (m tuiModel) textView() string {
+	var buf strings.Builder
+	w := &themedWriter{Writer: &buf, t: m.t}
+	var err error
+	switch m.tab {
+	case tabOverview:
+		err = renderOverview(w, m.data.res, m.deps.cat)
+	case tabToolchains:
+		err = renderDev(w, m.devData(), m.deps.cat)
+	case tabSpace:
+		err = renderStorage(w, m.data.space, true)
+	case tabHealth:
+		err = renderDoctor(w, m.data.res.Health)
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "\n" + indentLines(buf.String(), " ")
+}
+
+func indentLines(s, pad string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if l != "" {
+			lines[i] = pad + l
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// suggestionsView is the selectable list, with the selected item's details
+// beside it (wide screens) or instead of it (Enter on narrow ones).
+func (m tuiModel) suggestionsView() string {
+	ops := m.items()
+	if len(ops) == 0 {
+		msg := "Nothing to reclaim was found in the latest scan."
+		if m.filter != "" {
+			msg = "Nothing for @" + m.filter + ". Esc shows every toolchain."
+		}
+		return "\n  " + m.t.muted.Render(msg)
+	}
+	h := m.bodyHeight()
+	if m.detail && m.w < 120 {
+		return m.scrolled(m.detailView(ops[m.cursor], m.w))
+	}
+	listW := m.w
+	if m.w >= 120 {
+		listW = 72
+	}
+	list := fitHeight("\n"+m.listView(ops, listW, h-1), h, listW)
+	if m.w < 120 {
+		return list
+	}
+	detail := fitHeight(m.detailView(ops[m.cursor], m.w-listW-3), h, m.w-listW-3)
+	l, d := strings.Split(list, "\n"), strings.Split(detail, "\n")
+	var b strings.Builder
+	for i := 0; i < h; i++ {
+		b.WriteString(l[i] + strings.Repeat(" ", max(0, listW-lipgloss.Width(l[i]))) + " " + m.t.faint.Render("│") + " " + d[i] + "\n")
+	}
+	return b.String()
+}
+
+func (m tuiModel) listView(ops []model.Opportunity, w, h int) string {
+	t := m.t
+	type row struct {
+		text string
+		item int // -1 for headers
+	}
+	var rows []row
+	var last model.Risk
+	for i, op := range ops {
+		if op.Risk != last {
+			if i > 0 {
+				rows = append(rows, row{"", -1})
+			}
+			last = op.Risk
+			total := tierTotal(m.data.res.Opportunities.Totals[op.Risk], opsInTier(ops, op.Risk))
+			if m.filter != "" {
+				var sum int64
+				for _, o := range opsInTier(ops, op.Risk) {
+					if o.Bytes.Source != model.SourceUnknown {
+						sum += o.Bytes.Value
+					}
+				}
+				total = tierTotal(sum, opsInTier(ops, op.Risk))
+			}
+			rows = append(rows, row{strings.TrimRight(t.section(t.riskStyle(op.Risk), t.dot(op.Risk)+tierNames[op.Risk], total), "\n"), -1})
+		}
+		// ID, size and title; the restore cost too when there is room.
+		titleW, note := max(10, w-24), ""
+		if w >= 96 {
+			titleW = 44
+			note = "  " + t.muted.Render(truncate(restoreNote(op), w-24-titleW-2))
+		}
+		title := fmt.Sprintf("%-*s", titleW, truncate(op.Title, titleW))
+		cells := fmt.Sprintf("  %s  %s  %s%s", t.id.Render(fmt.Sprintf("%-8s", op.ID)),
+			t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))), t.text.Render(title), note)
+		if i == m.cursor {
+			cells = t.brand.Render("▌") + " " + fmt.Sprintf("%s  %s  %s%s", t.id.Bold(true).Render(fmt.Sprintf("%-8s", op.ID)),
+				t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))), t.title.Render(title), note)
+		}
+		rows = append(rows, row{cells, i})
+	}
+	// Keep the cursor row (and its tier header) in view.
+	at := 0
+	for i, r := range rows {
+		if r.item == m.cursor {
+			at = i
+		}
+	}
+	start := max(0, min(at-h/2, len(rows)-h))
+	var b strings.Builder
+	for _, r := range rows[start:min(len(rows), start+h)] {
+		b.WriteString(r.text + "\n")
+	}
+	return b.String()
+}
+
+func (m tuiModel) detailView(op model.Opportunity, w int) string {
+	ex := ExplainResult{Scan: m.data.res.Scan, Opportunity: op, BaseRisk: op.Risk}
+	if base, raised := engine.RaisedFrom(op, m.deps.cat); raised {
+		ex.BaseRisk = base
+	}
+	var buf strings.Builder
+	saved := m.t.width
+	m.t.width = w
+	_ = renderExplain(&themedWriter{Writer: &buf, t: m.t}, ex)
+	m.t.width = saved
+	return "\n" + buf.String()
+}
+
+func (m tuiModel) helpView() string {
+	t := m.t
+	var b strings.Builder
+	b.WriteString("\n " + t.heading("Keys") + "\n")
+	keys := [][2]string{
+		{"tab / shift+tab, 1–5", "switch view"},
+		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
+		{"enter", "explain the selected suggestion"},
+		{"/", "command palette"},
+		{"@", "filter by toolchain (@node, @docker, @xcode …)"},
+		{"r", "rescan the disk"},
+		{"esc", "stop a scan · close · clear the filter"},
+		{"q, ctrl+c", "quit"},
+	}
+	for _, k := range keys {
+		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", k[0])), t.muted.Render(k[1]))
+	}
+	b.WriteString("\n " + t.heading("Commands") + "\n")
+	for _, c := range slashCommands {
+		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.name+" "+c.args))), t.muted.Render(c.desc))
+	}
+	b.WriteString("\n " + t.heading("Safety") + "\n")
+	b.WriteString(t.muted.Render("   This dashboard only reads. Nothing is deleted or moved from here.\n"))
+	b.WriteString(t.muted.Render("   Cleanup arrives later as dry-run plans you confirm in Terminal.\n"))
+	return b.String()
+}
+
+// --- small helpers ---
+
+func fmtDur(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return d.Round(100 * time.Millisecond).String()
+}
+
+func groupDigits(n int64) string {
+	s := fmt.Sprint(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
+}
+
+// truncateMiddle keeps the start and end of a long path.
+func truncateMiddle(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	half := (n - 1) / 2
+	return string(r[:half]) + "…" + string(r[len(r)-(n-1-half):])
+}
+
+// highlightJSON colors keys, strings, numbers and literals.
+func highlightJSON(t *theme, src string) string {
+	var b strings.Builder
+	b.WriteString("\n")
+	for _, line := range strings.Split(src, "\n") {
+		b.WriteString(" ")
+		i := 0
+		for i < len(line) {
+			c := line[i]
+			switch {
+			case c == '"':
+				j := i + 1
+				for j < len(line) && line[j] != '"' {
+					if line[j] == '\\' {
+						j++
+					}
+					j++
+				}
+				j = min(j+1, len(line))
+				tok := line[i:j]
+				rest := strings.TrimLeft(line[j:], " ")
+				if strings.HasPrefix(rest, ":") {
+					b.WriteString(t.jsonKey.Render(tok))
+				} else {
+					b.WriteString(t.jsonString.Render(tok))
+				}
+				i = j
+			case c == '-' || (c >= '0' && c <= '9'):
+				j := i + 1
+				for j < len(line) && strings.IndexByte("0123456789.eE+-", line[j]) >= 0 {
+					j++
+				}
+				b.WriteString(t.jsonNumber.Render(line[i:j]))
+				i = j
+			case strings.HasPrefix(line[i:], "true"), strings.HasPrefix(line[i:], "null"):
+				b.WriteString(t.jsonLiteral.Render(line[i : i+4]))
+				i += 4
+			case strings.HasPrefix(line[i:], "false"):
+				b.WriteString(t.jsonLiteral.Render(line[i : i+5]))
+				i += 5
+			case strings.IndexByte("{}[],:", c) >= 0:
+				b.WriteString(t.faint.Render(string(c)))
+				i++
+			default:
+				b.WriteByte(c)
+				i++
+			}
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+var _ io.Writer = (*themedWriter)(nil)

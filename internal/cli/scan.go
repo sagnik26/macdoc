@@ -31,11 +31,12 @@ func newScanCmd(g *globalFlags) *cobra.Command {
 
 func renderScan(w io.Writer, s engine.ScanSummary) error {
 	var b strings.Builder
+	t := themeFor(w)
 	in := s.Info
 	dur := in.FinishedAt.Sub(in.StartedAt).Round(time.Second)
-	fmt.Fprintf(&b, "Scan %s · %s in %d files · %s", in.ID, engine.DecimalBytes(in.TotalBytes), in.TotalFiles, dur)
+	fmt.Fprintf(&b, "%s %s · %s in %d files · %s", t.heading("Scan"), t.id.Render(in.ID), t.size.Render(engine.DecimalBytes(in.TotalBytes)), in.TotalFiles, dur)
 	if in.Status != model.ScanComplete {
-		fmt.Fprintf(&b, " · %s (interrupted; results are partial)", in.Status)
+		b.WriteString(t.warn.Render(fmt.Sprintf(" · %s (interrupted; results are partial)", in.Status)))
 	}
 	b.WriteString("\n")
 	if du := s.DataVolumeUsed; du.Source != model.SourceUnknown && du.Value > 0 {
@@ -48,16 +49,12 @@ func renderScan(w io.Writer, s engine.ScanSummary) error {
 	}
 
 	if len(s.TopLevel) > 0 {
-		fmt.Fprintln(&b, "\nBy top-level folder")
-		for _, n := range s.TopLevel {
-			fmt.Fprintf(&b, "  %9s  %s\n", engine.DecimalBytes(n.Bytes), n.Path)
-		}
+		fmt.Fprintln(&b, "\n"+t.heading("By top-level folder"))
+		writeSizeList(&b, t, s.TopLevel)
 	}
 	if len(s.Largest) > 0 {
-		fmt.Fprintln(&b, "\nWhere the space actually is (folders ≥ 1 GB)")
-		for _, n := range s.Largest {
-			fmt.Fprintf(&b, "  %9s  %s\n", engine.DecimalBytes(n.Bytes), n.Path)
-		}
+		fmt.Fprintln(&b, "\n"+t.heading("Where the space actually is")+t.muted.Render(" (folders ≥ 1 GB)"))
+		writeSizeList(&b, t, s.Largest)
 	}
 	if len(s.Unmeasured) > 0 {
 		fmt.Fprintf(&b, "\nCould not measure %d location(s)", len(s.Unmeasured))
@@ -70,15 +67,36 @@ func renderScan(w io.Writer, s engine.ScanSummary) error {
 				fmt.Fprintf(&b, "  … and %d more (see --json)\n", len(s.Unmeasured)-5)
 				break
 			}
-			fmt.Fprintf(&b, "  — %s (%s)\n", u.Path, u.Reason)
+			b.WriteString(t.muted.Render(fmt.Sprintf("  — %s (%s)", u.Path, u.Reason)) + "\n")
 		}
 	}
 	if s.HardlinkLimitHit {
 		b.WriteString("\nNote: very many hard links; some may be counted more than once.\n")
 	}
-	b.WriteString("\nNothing has been changed.\n")
+	b.WriteString("\n" + t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// writeSizeList writes "  <size>  <path>" lines; with color, a small bar
+// shows each item relative to the first (largest).
+func writeSizeList(b *strings.Builder, t *theme, nodes []model.Node) {
+	var top int64
+	for _, n := range nodes {
+		top = max(top, n.Bytes)
+	}
+	for _, n := range nodes {
+		size := t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(n.Bytes)))
+		if t.on {
+			filled := 0
+			if top > 0 {
+				filled = max(1, int(12*float64(n.Bytes)/float64(top)))
+			}
+			fmt.Fprintf(b, "  %s  %s%s  %s\n", size, t.accent.Render(strings.Repeat("▬", filled)), strings.Repeat(" ", 12-filled), t.text.Render(n.Path))
+			continue
+		}
+		fmt.Fprintf(b, "  %s  %s\n", size, n.Path)
+	}
 }
 
 func hasPermissionGap(us []model.Unmeasured) bool {
@@ -90,8 +108,8 @@ func hasPermissionGap(us []model.Unmeasured) bool {
 	return false
 }
 
-// isTerminal reports whether w is a character device (a TTY).
-func isTerminal(w io.Writer) bool {
+// isTerminal reports whether w (a reader or writer) is a character device (a TTY).
+func isTerminal(w any) bool {
 	f, ok := w.(*os.File)
 	if !ok {
 		return false

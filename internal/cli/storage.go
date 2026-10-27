@@ -46,9 +46,10 @@ func newStorageCmd(g *globalFlags) *cobra.Command {
 
 func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "macdoc doctor space · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
+	t := themeFor(w)
+	b.WriteString(t.commandHeader("space", res.Scan.ID, res.ScanAge))
 
-	b.WriteString(" Reclaimable, by category\n")
+	b.WriteString(" " + t.heading("Reclaimable, by category") + "\n")
 	if len(res.Categories) == 0 {
 		b.WriteString("  Nothing to reclaim was found in the latest scan.\n")
 	}
@@ -57,40 +58,41 @@ func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 		if c.UnknownCount > 0 {
 			size += "+"
 		}
-		fmt.Fprintf(&b, "  %-22s %9s  %3d item(s)  %s\n", c.Category, size, c.Count, byRisk(c))
+		fmt.Fprintf(&b, "  %s %s  %s  %s\n", t.text.Render(fmt.Sprintf("%-22s", c.Category)), t.size.Render(fmt.Sprintf("%9s", size)),
+			t.muted.Render(fmt.Sprintf("%3d item(s)", c.Count)), t.byRisk(c))
 	}
 
-	b.WriteString("\n \"System Data\", decoded\n")
+	b.WriteString("\n " + t.heading(`"System Data", decoded`) + "\n")
 	for _, p := range res.SystemData {
-		fmt.Fprintf(&b, "  %-58s %s\n", truncate(p.Name, 58), partSize(p.Bytes))
-		fmt.Fprintf(&b, "      %s\n", p.Explain)
+		fmt.Fprintf(&b, "  %s %s\n", t.text.Render(fmt.Sprintf("%-58s", truncate(p.Name, 58))), t.size.Render(partSize(p.Bytes)))
+		fmt.Fprintln(&b, t.muted.Render("      "+p.Explain))
 	}
 
 	if large {
-		b.WriteString("\n Large items with no recipe (≥ 1 GB): advice only, review manually\n")
+		b.WriteString("\n " + t.heading("Large items with no recipe (≥ 1 GB)") + t.muted.Render(": advice only, review manually") + "\n")
 		if len(res.Large) == 0 {
 			b.WriteString("  None.\n")
 		}
 		for _, n := range res.Large {
-			fmt.Fprintf(&b, "  %9s  %s\n", engine.DecimalBytes(n.Bytes), n.Path)
+			fmt.Fprintf(&b, "  %s  %s\n", t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(n.Bytes))), t.text.Render(n.Path))
 		}
 	}
 	b.WriteString("\n")
-	writeNotes(&b, res.Warnings)
-	b.WriteString(" macdoc doctor wins · macdoc doctor dev · nothing has been changed\n")
+	writeNotes(&b, t, res.Warnings)
+	b.WriteString(t.footer("macdoc doctor wins · macdoc doctor dev"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }
 
 // byRisk lists a category's known bytes per tier, in tier order.
-func byRisk(c engine.CategoryTotal) string {
+func (t *theme) byRisk(c engine.CategoryTotal) string {
 	var parts []string
 	for _, r := range engine.TierOrder {
 		if v, ok := c.ByRisk[r]; ok {
-			parts = append(parts, fmt.Sprintf("%s %s", r, engine.DecimalBytes(v)))
+			parts = append(parts, t.riskStyle(r).Render(fmt.Sprintf("%s %s", r, engine.DecimalBytes(v))))
 		}
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, t.faint.Render(" · "))
 }
 
 // partSize renders a System Data size; unknown says why instead of "0".

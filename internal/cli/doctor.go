@@ -56,46 +56,54 @@ no scan yet. Use a section for more detail:
 }
 
 // writeVitals writes the header and the disk, memory and snapshot lines.
-func writeVitals(b *strings.Builder, res engine.DoctorResult, extra string) {
+func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra string) {
 	rep := res.Report
 	hw := rep.Hardware
 
-	head := "macdoc"
+	machine := ""
 	if hw.Model != "" {
 		spec := strings.TrimPrefix(hw.Chip, "Apple ")
 		if hw.MemoryBytes > 0 {
 			spec = strings.TrimSpace(spec + ", " + engine.BinaryBytes(hw.MemoryBytes))
 		}
-		head += fmt.Sprintf(" · %s (%s)", hw.Model, strings.Trim(spec, ", "))
+		machine = fmt.Sprintf(" · %s (%s)", hw.Model, strings.Trim(spec, ", "))
 	}
 	if hw.OSVersion != "" {
-		head += " · macOS " + hw.OSVersion
+		machine += " · macOS " + hw.OSVersion
 	}
-	fmt.Fprintf(b, "%s%s\n\n", head, extra)
+	switch {
+	case t.tui: // the dashboard header already shows the machine
+	case t.on:
+		b.WriteString(t.card(t.brand.Render("◆ macdoc") + t.muted.Render(machine+extra)))
+		b.WriteString("\n")
+	default:
+		fmt.Fprintf(b, "macdoc%s%s\n\n", machine, extra)
+	}
 
+	label := func(s string) string { return t.muted.Render(fmt.Sprintf("%-11s", s)) }
 	d := rep.Disk
 	if d.ContainerTotalBytes > 0 {
 		used := d.ContainerTotalBytes - d.ContainerFreeBytes
-		line := fmt.Sprintf("Disk       %s %s / %s used   %s free",
-			bar(used, d.ContainerTotalBytes, 28), engine.DecimalBytes(used),
-			engine.DecimalBytes(d.ContainerTotalBytes), engine.DecimalBytes(d.ContainerFreeBytes))
+		line := fmt.Sprintf("%s%s %s / %s used   %s free", label("Disk"),
+			t.meter(used, d.ContainerTotalBytes, 28), t.size.Render(engine.DecimalBytes(used)),
+			engine.DecimalBytes(d.ContainerTotalBytes), t.usageStyle(used, d.ContainerTotalBytes).Render(engine.DecimalBytes(d.ContainerFreeBytes)))
 		if d.PurgeableBytes.Value > 0 {
-			line += fmt.Sprintf("  (+%s purgeable)", engine.DecimalBytes(d.PurgeableBytes.Value))
+			line += t.muted.Render(fmt.Sprintf("  (+%s purgeable)", engine.DecimalBytes(d.PurgeableBytes.Value)))
 		}
 		fmt.Fprintln(b, line)
 	} else {
-		fmt.Fprintln(b, "Disk       —  unmeasured (see warnings)")
+		fmt.Fprintln(b, label("Disk")+t.muted.Render("—  unmeasured (see warnings)"))
 	}
 
 	m := rep.Memory
-	mem := "Memory     "
+	mem := label("Memory")
 	if m.TotalBytes > 0 {
 		mem += engine.BinaryBytes(m.TotalBytes)
 	} else {
 		mem += "—"
 	}
 	if m.Pressure != "" {
-		mem += " · pressure " + string(m.Pressure)
+		mem += " · pressure " + t.pressure(string(m.Pressure))
 	}
 	if m.FreePercent >= 0 && m.TotalBytes > 0 {
 		mem += fmt.Sprintf(" · %d%% free", m.FreePercent)
@@ -104,23 +112,23 @@ func writeVitals(b *strings.Builder, res engine.DoctorResult, extra string) {
 		mem += fmt.Sprintf(" · swap %s used", engine.BinaryBytes(rep.Swap.UsedBytes))
 	}
 	fmt.Fprintln(b, mem)
-	fmt.Fprintf(b, "Snapshots  %d local Time Machine snapshot(s)\n", rep.Snapshots.Count)
+	fmt.Fprintf(b, "%s%d local Time Machine snapshot(s)\n", label("Snapshots"), rep.Snapshots.Count)
 }
 
 // writeFindings writes "What matters most" (at most max findings; 0 = all).
-func writeFindings(b *strings.Builder, fs []engine.Finding, max int, details bool) {
-	fmt.Fprintln(b, "What matters most")
+func writeFindings(b *strings.Builder, t *theme, fs []engine.Finding, max int, details bool) {
+	fmt.Fprintln(b, t.heading("What matters most"))
 	if len(fs) == 0 {
-		fmt.Fprintln(b, "  Nothing urgent. Disk, memory, and swap look healthy.")
+		fmt.Fprintln(b, "  "+t.ok.Render("Nothing urgent.")+" Disk, memory, and swap look healthy.")
 	}
 	for i, f := range fs {
 		if max > 0 && i == max {
-			fmt.Fprintf(b, "  … %d more (macdoc doctor health)\n", len(fs)-max)
+			fmt.Fprintln(b, t.muted.Render(fmt.Sprintf("  … %d more (macdoc doctor health)", len(fs)-max)))
 			break
 		}
-		fmt.Fprintf(b, "  %d. %s %s\n", i+1, severityMark(f.Severity), f.Title)
+		fmt.Fprintf(b, "  %s %s %s\n", t.muted.Render(fmt.Sprintf("%d.", i+1)), t.sev(f.Severity), t.text.Render(f.Title))
 		if details && f.Detail != "" {
-			fmt.Fprintf(b, "       %s\n", f.Detail)
+			fmt.Fprintln(b, t.muted.Render("       "+f.Detail))
 		}
 	}
 }
@@ -128,30 +136,32 @@ func writeFindings(b *strings.Builder, fs []engine.Finding, max int, details boo
 // renderDoctor renders `macdoc doctor health`.
 func renderDoctor(w io.Writer, res engine.DoctorResult) error {
 	var b strings.Builder
+	t := themeFor(w)
 	rep := res.Report
-	writeVitals(&b, res, "")
+	writeVitals(&b, t, res, "")
 	b.WriteString("\n")
-	writeFindings(&b, res.Findings, 0, true)
+	writeFindings(&b, t, res.Findings, 0, true)
 
 	if len(rep.TopProcesses) > 0 {
-		fmt.Fprintln(&b, "\nTop memory users")
+		fmt.Fprintln(&b, "\n"+t.heading("Top memory users"))
 		for _, p := range rep.TopProcesses {
 			count := ""
 			if p.Count > 1 {
 				count = fmt.Sprintf(" (%d processes)", p.Count)
 			}
-			fmt.Fprintf(&b, "  %-28s %9s%s\n", truncate(p.Name, 28), engine.BinaryBytes(p.RSSBytes), count)
+			fmt.Fprintf(&b, "  %s %s%s\n", t.text.Render(fmt.Sprintf("%-28s", truncate(p.Name, 28))),
+				t.size.Render(fmt.Sprintf("%9s", engine.BinaryBytes(p.RSSBytes))), t.muted.Render(count))
 		}
 	}
 
 	if len(rep.Warnings) > 0 {
-		fmt.Fprintln(&b, "\nCould not measure")
+		fmt.Fprintln(&b, "\n"+t.heading("Could not measure"))
 		for _, wn := range rep.Warnings {
-			fmt.Fprintf(&b, "  — %s\n", wn)
+			fmt.Fprintln(&b, t.muted.Render("  — "+wn))
 		}
 	}
 
-	fmt.Fprintln(&b, "\nNothing has been changed. macdoc only reads unless you run `apply`.")
+	fmt.Fprintln(&b, "\n"+t.done("Nothing has been changed. macdoc only reads unless you run `apply`."))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

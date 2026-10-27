@@ -28,7 +28,20 @@ type OverviewOptions struct {
 	// ScanRoot overrides the scan root (tests); empty means the Data volume.
 	ScanRoot string
 	Workers  int // scanner concurrency (0 = default)
+	// Step, if set, is called as each stage starts: StepHealth, StepScan
+	// (a fresh scan), StepLoad (reading the latest scan), StepRank.
+	Step func(OverviewStep)
 }
+
+// OverviewStep names a stage of Overview.
+type OverviewStep string
+
+const (
+	StepHealth OverviewStep = "health"
+	StepScan   OverviewStep = "scan"
+	StepLoad   OverviewStep = "load"
+	StepRank   OverviewStep = "rank"
+)
 
 // OverviewResult is everything `macdoc doctor` shows on one screen.
 type OverviewResult struct {
@@ -51,12 +64,19 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	if o.Now.IsZero() {
 		o.Now = time.Now()
 	}
+	step := func(s OverviewStep) {
+		if o.Step != nil {
+			o.Step(s)
+		}
+	}
+	step(StepHealth)
 	res := OverviewResult{Health: Doctor(ctx, o.Runner)}
 	sp := store.DefaultPath(o.Home)
 
 	info, err := latestComplete(sp)
 	switch {
 	case o.Rescan || errors.Is(err, store.ErrNoScan):
+		step(StepScan)
 		sum, err := Scan(ctx, ScanOptions{Home: o.Home, Version: o.Version, Progress: o.Progress, Runner: o.Runner, Root: o.ScanRoot, Workers: o.Workers})
 		if err != nil {
 			return res, err
@@ -68,6 +88,7 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	case err != nil:
 		return res, err
 	default:
+		step(StepLoad)
 		res.DataVolume = dataVolumeUsed(ctx, o.Runner)
 		if res.TopLevel, err = topLevel(sp, info); err != nil {
 			return res, err
@@ -78,6 +99,7 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	res.ScanAge = FormatAge(age)
 	res.ScanStale = age > staleOverviewScan
 
+	step(StepRank)
 	opps, err := Opportunities(ctx, OpportunityOptions{Home: o.Home, Runner: o.Runner, Now: o.Now, Catalog: o.Catalog})
 	if err != nil {
 		return res, err

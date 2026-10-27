@@ -82,7 +82,8 @@ func devResult(res engine.OpportunityResult, tc string) DevResult {
 
 func renderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "macdoc doctor dev · scan %s · %s\n\n", d.Scan.ID, d.ScanAge)
+	t := themeFor(w)
+	b.WriteString(t.commandHeader("dev", d.Scan.ID, d.ScanAge))
 	if len(d.Toolchains) == 0 {
 		if d.Toolchain != "" {
 			fmt.Fprintf(&b, " Nothing for %s in the latest scan.\n\n", d.Toolchain)
@@ -91,12 +92,12 @@ func renderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 		}
 	}
 	for _, gr := range d.Toolchains {
-		b.WriteString(sectionHeader(gr.Toolchain, tierTotal(gr.Bytes, gr.Opportunities)))
-		writeOpportunities(&b, gr.Opportunities, cat, d.Toolchain != "")
+		b.WriteString(t.section(t.accent, gr.Toolchain, tierTotal(gr.Bytes, gr.Opportunities)))
+		writeOpportunities(&b, t, gr.Opportunities, cat, d.Toolchain != "")
 		b.WriteString("\n")
 	}
-	writeNotes(&b, d.Warnings)
-	b.WriteString(" macdoc doctor explain <id> · nothing has been changed\n")
+	writeNotes(&b, t, d.Warnings)
+	b.WriteString(t.footer("macdoc doctor explain <id>"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

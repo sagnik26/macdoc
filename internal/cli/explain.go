@@ -47,17 +47,25 @@ func newExplainCmd(g *globalFlags) *cobra.Command {
 
 func renderExplain(w io.Writer, ex ExplainResult) error {
 	var b strings.Builder
+	t := themeFor(w)
 	op := ex.Opportunity
-	row := func(label, value string) { fmt.Fprintf(&b, "  %-11s %s\n", label, value) }
-
-	fmt.Fprintf(&b, "%s · %s\n\n", op.ID, op.Title)
-	if op.Target != "" {
-		row("Target", op.Target)
+	row := func(label, value string) {
+		fmt.Fprintf(&b, "  %s %s\n", t.muted.Render(fmt.Sprintf("%-11s", label)), t.wrap(value, 14))
 	}
-	row("Size", sizeWithSource(op.Bytes))
-	risk := string(op.Risk)
+
+	if t.on {
+		b.WriteString(t.card(t.badge(op.Risk) + " " + t.id.Render(op.ID) + t.faint.Render(" · ") + t.title.Render(op.Title)))
+		b.WriteString("\n")
+	} else {
+		fmt.Fprintf(&b, "%s · %s\n\n", op.ID, op.Title)
+	}
+	if op.Target != "" {
+		row("Target", t.text.Render(op.Target))
+	}
+	row("Size", t.size.Render(sizeWithSource(op.Bytes)))
+	risk := t.riskStyle(op.Risk).Render(string(op.Risk))
 	if ex.BaseRisk != "" && ex.BaseRisk != op.Risk {
-		risk += fmt.Sprintf(" (raised from %s: it changed in the last 7 days)", ex.BaseRisk)
+		risk += t.muted.Render(fmt.Sprintf(" (raised from %s: it changed in the last 7 days)", ex.BaseRisk))
 	}
 	row("Risk", risk)
 	if op.IdleDays >= 0 {
@@ -67,9 +75,9 @@ func renderExplain(w io.Writer, ex ExplainResult) error {
 	}
 	switch op.Method {
 	case model.MethodNative:
-		row("Method", "the tool's own command: "+strings.Join(op.Command, " "))
+		row("Method", "the tool's own command: "+t.command(op.Command))
 		if len(op.DryRun) > 0 {
-			row("", "preview with: "+strings.Join(op.DryRun, " "))
+			row("", t.muted.Render("preview with: ")+t.command(op.DryRun))
 		}
 	case model.MethodQuarantine:
 		row("Method", "moved to macdoc quarantine; restorable for 7 days")
@@ -81,12 +89,12 @@ func renderExplain(w io.Writer, ex ExplainResult) error {
 	row("Confidence", fmt.Sprintf("%.0f%%", op.Confidence*100))
 
 	if op.Explain != "" {
-		fmt.Fprintf(&b, "\nWhat it is\n  %s\n", op.Explain)
+		fmt.Fprintf(&b, "\n%s\n  %s\n", t.heading("What it is"), t.wrap(t.text.Render(op.Explain), 2))
 	}
 	if op.Note != "" {
-		fmt.Fprintf(&b, "\nNote\n  %s\n", op.Note)
+		fmt.Fprintf(&b, "\n%s\n  %s\n", t.heading("Note"), t.wrap(t.warn.Render(op.Note), 2))
 	}
-	b.WriteString("\nNothing has been changed.\n")
+	b.WriteString("\n" + t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }

@@ -54,8 +54,8 @@
 | Concern | Choice | Notes |
 |---|---|---|
 | CLI framework | `spf13/cobra` | Standard choice, gives shell completions |
-| Styling | `charmbracelet/lipgloss` | Tables and colors. Respects `NO_COLOR` |
-| TUI (Phase 10) | `charmbracelet/bubbletea` | Only for the interactive cleanup picker |
+| Styling | `charmbracelet/lipgloss` | Colors with truecolor → 256 → 16 fallback and light/dark variants. Respects `NO_COLOR` |
+| TUI | `charmbracelet/bubbletea` + `bubbles` | The read-only `macdoc` dashboard (added after Phase 3), and later the interactive cleanup picker (Phase 10) |
 | Storage | `modernc.org/sqlite` | Pure Go, so no cgo. WAL mode |
 | Recipe files | `gopkg.in/yaml.v3` + `embed` | Validated against a Go struct at startup |
 | MCP (Phase 8) | Official `modelcontextprotocol/go-sdk` | stdio transport |

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"macdoc/internal/engine"
@@ -103,7 +104,8 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 
 func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "macdoc doctor wins · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
+	t := themeFor(w)
+	b.WriteString(t.commandHeader("wins", res.Scan.ID, res.ScanAge))
 	if len(res.Opportunities) == 0 {
 		if only != "" {
 			fmt.Fprintf(&b, " Nothing in %q in the latest scan.\n", tierNames[only])
@@ -121,21 +123,19 @@ func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		if len(ops) == 0 {
 			continue
 		}
-		b.WriteString(sectionHeader(tierNames[risk], tierTotal(res.Totals[risk], ops)))
-		writeOpportunities(&b, ops, cat, all)
+		b.WriteString(t.section(t.riskStyle(risk), t.dot(risk)+tierNames[risk], tierTotal(res.Totals[risk], ops)))
+		writeOpportunities(&b, t, ops, cat, all)
 		b.WriteString("\n")
 	}
-	writeNotes(&b, res.Warnings)
-	b.WriteString(" macdoc doctor explain <id> · nothing has been changed\n")
+	writeNotes(&b, t, res.Warnings)
+	b.WriteString(t.footer("macdoc doctor explain <id>"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }
 
 // sectionHeader renders " Name ─────── total" to a fixed width.
 func sectionHeader(name, total string) string {
-	const width = 72
-	dashes := max(3, width-len([]rune(name))-len([]rune(total))-3)
-	return fmt.Sprintf(" %s %s %s\n", name, strings.Repeat("─", dashes), total)
+	return plainTheme().section(lipgloss.Style{}, name, total)
 }
 
 // tierTotal is the known total, flagged when some sizes are unknown. A total
@@ -160,7 +160,7 @@ func tierTotal(known int64, ops []model.Opportunity) string {
 
 // writeOpportunities lists ops, folding recipes with many items into one
 // line unless all is set.
-func writeOpportunities(b *strings.Builder, ops []model.Opportunity, cat *recipes.Catalog, all bool) {
+func writeOpportunities(b *strings.Builder, t *theme, ops []model.Opportunity, cat *recipes.Catalog, all bool) {
 	count := map[string]int{}
 	sum := map[string]int64{}
 	for _, op := range ops {
@@ -177,18 +177,19 @@ func writeOpportunities(b *strings.Builder, ops []model.Opportunity, cat *recipe
 			}
 			grouped[op.RecipeID] = true
 			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], recipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
-			fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", "", "", title, "(macdoc doctor wins --all)")
+			fmt.Fprintf(b, "  %-8s  %8s  %s  %s\n", "", "", t.text.Render(fmt.Sprintf("%-44s", title)), t.muted.Render("(macdoc doctor wins --all)"))
 			continue
 		}
-		writeOpportunity(b, op)
+		writeOpportunity(b, t, op)
 	}
 }
 
 // writeOpportunity renders one line, plus the native command below it.
-func writeOpportunity(b *strings.Builder, op model.Opportunity) {
-	fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", op.ID, sizeCell(op.Bytes), truncate(op.Title, 44), restoreNote(op))
+func writeOpportunity(b *strings.Builder, t *theme, op model.Opportunity) {
+	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.id.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
+		t.text.Render(fmt.Sprintf("%-44s", truncate(op.Title, 44))), t.muted.Render(restoreNote(op)))
 	if op.Method == model.MethodNative && len(op.Command) > 0 {
-		fmt.Fprintf(b, "  %-8s  %8s  → %s\n", "", "", strings.Join(op.Command, " "))
+		fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render("→"), t.command(op.Command))
 	}
 }
 
@@ -235,13 +236,13 @@ func restoreNote(op model.Opportunity) string {
 	return ""
 }
 
-func writeNotes(b *strings.Builder, warnings []string) {
+func writeNotes(b *strings.Builder, t *theme, warnings []string) {
 	if len(warnings) == 0 {
 		return
 	}
-	b.WriteString(" Notes\n")
+	b.WriteString(" " + t.heading("Notes") + "\n")
 	for _, w := range warnings {
-		fmt.Fprintf(b, "  · %s\n", w)
+		b.WriteString(t.muted.Render("  · "+w) + "\n")
 	}
 	b.WriteString("\n")
 }

@@ -12,34 +12,61 @@ macdoc has **two everyday commands**:
 
 | Command | When to use it | What you get | Time |
 |---|---|---|---|
-| **`macdoc`** (same as `macdoc doctor`) | Any time: "how is my Mac doing?" | **Short summary** from the latest scan: health, where your space is, reclaimable space per tier. Scans automatically only if there's no scan yet, and tells you when the scan is over a day old | ~7 s |
+| **`macdoc`** | Any time: "how is my Mac doing?" | **The interactive dashboard** (in a terminal): overview, a browsable list of suggestions with details, toolchains, space and health. Scans automatically only if there's no scan yet | ~7–15 s to load |
 | **`macdoc doctor scan`** | After installing or cleaning things, or when the summary says the scan is old | **Fresh scan + the full report:** everything in the summary, plus scan details, every health finding and the top apps, space by category with "System Data" decoded, big items no recipe covers, every suggestion with its ID, and per-toolchain totals | ~45 s–2 min (background priority) |
 
-### `macdoc`: the short summary
-```
-$ macdoc
-macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 29m ago
+`macdoc doctor` prints the **short summary** instead of opening the dashboard. Bare `macdoc` does the same when its output is piped, with `--json` or `--quiet`, or on `TERM=dumb`.
 
-Disk       ▕█████████████████████       ▏ 191 GB / 245 GB used   54.1 GB free  (+3.2 GB purgeable)
-Memory     8.0 GB · pressure warn · 37% free · swap 3.4 GB used
+### `macdoc`: the dashboard
+```
+ ◆ macdoc  MacBookAir10,1 · M1                         51.2 GB free · scan 16m ago · read-only
+  1 Overview   2 Suggestions   3 Toolchains   4 Space   5 Health
+──────────────────────────────────────────────────────────────────────────────────────────────
+ ● Free & safe ────────────────────────────────────────────────── 825 MB │ ╭────────────────────────────╮
+▌ O-ruitsj    394 MB  uv cache                                           │ │  SAFE  O-ruitsj · uv cache │
+  O-jydjmu    412 MB  Homebrew old versions and downloads                │ ╰────────────────────────────╯
+  O-jov6zr   10.7 MB  Old app logs · Claude                              │   Size        394 MB (measured)
+ ● Worth considering ──────────────────────────────────────────── 553 MB │   Method      the tool's own command: uv cache prune
+  O-d5w4xw    197 MB  Android build-tools 34.0.0                         │   Restore     re-downloads on demand …
+ ↑↓ move • enter explain • tab switch view • @ toolchain • / commands • r rescan • ? help • q quit
+```
+- **Views:** `tab`/`shift+tab` or `1`–`5`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the list. On narrower ones, `enter` opens them and `esc` goes back.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/wins` `/dev` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **`@` filters by toolchain:** `@node`, `@docker`, `@xcode`, … (`@all` or `esc` clears it). The palette shows each toolchain's item count and size. There is no `@file`, because macdoc never takes paths (see the safety model).
+- **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
+- **Footer:** shows the keys for the current context. `?` lists every key and command.
+- **Read-only:** the dashboard can scan and show, never change. `q` quits.
+
+**Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
+
+### `macdoc doctor`: the short summary
+```
+$ macdoc doctor
+╭─────────────────────────────────────────────────────────────────────╮
+│ ◆ macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 9m ago │
+╰─────────────────────────────────────────────────────────────────────╯
+
+Disk       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 194 GB / 245 GB used   51.3 GB free  (+3.4 GB purgeable)
+Memory     8.0 GB · pressure ● warn · 39% free · swap 3.6 GB used
 Snapshots  0 local Time Machine snapshot(s)
 
 What matters most
-  1. ! 3.4 GB of swap in use.
-  2. ! Memory pressure is elevated.
-  3. · Google Chrome is using 1.7 GB of RAM.
+  1. ▲ 3.6 GB of swap in use.
+  2. ▲ Memory pressure is elevated.
+  3. • Google Chrome is using 1.6 GB of RAM.
 
-Where your space is (Data volume, 127 GB measured)
-  /Users 50.9 GB · /System 39.0 GB · /Library 19.0 GB · /opt 7.5 GB · /private 5.1 GB · 36.4 GB not visible (needs Full Disk Access)
+Where your space is (Data volume, 128 GB measured)
+  /Users 52.3 GB · /System 39.0 GB · /Library 19.0 GB · /opt 7.5 GB · /private 5.2 GB · 36.7 GB not visible (needs Full Disk Access)
 
 Reclaimable                              1.4 GB actionable · 48.9 GB advice
-  Free & safe           825 MB   Homebrew old versions and downloads 412 MB · uv cache 394 MB · 4 × Old app logs 19.6 MB
-  Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB
-  Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
+  ● Free & safe           825 MB   Homebrew old versions and downloads 412 MB · uv cache 394 MB · 4 × Old app logs 19.6 MB
+  ● Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB · pip cache 8.2 KB
+  ● Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
 
 More: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health
-Nothing has been changed.
+✓ Nothing has been changed.
 ```
+In a terminal it's colored: the disk bar turns yellow at 80% and red at 90%, tiers are color-coded, IDs are cyan, and commands are syntax-highlighted. The boxes, dots and colors only appear in a terminal.
 
 ### `macdoc doctor scan`: the full report
 It rescans the Data volume at background priority, so your Mac stays responsive, with a live progress line. Ctrl-C keeps a partial scan. Then it prints every section in order:
@@ -77,7 +104,8 @@ Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew insta
 git clone <this repo> macdoc && cd macdoc
 make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
-macdoc                     # short summary (scans automatically the first time)
+macdoc                     # interactive dashboard (scans automatically the first time)
+macdoc doctor              # the short summary, printed
 macdoc doctor scan         # fresh scan + the full report
 macdoc doctor explain <id> # details for one suggestion
 ```
@@ -147,7 +175,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 0 | Foundations: path-safety layer, sandbox mode, import and forbidden-call guards, lint, CI | ✅ done (red-teamed, 9 findings fixed) |
 | 1 | System probe → `doctor` | ✅ done |
 | 2 | Full-crawl scanner + SQLite store → `scan` | ✅ done |
-| 3 | 46 recipes + classifier; `macdoc` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
+| 3 | 46 recipes + classifier; `macdoc doctor` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
+| 3.5 | Terminal UI: the `macdoc` dashboard (Bubble Tea) and colored output (Lip Gloss), with truecolor → 256 → 16 fallback | ✅ done |
 | 4 | Project awareness: stale `node_modules` by git activity, Pods, RN/Android build folders | next |
 | 5 | Planner: sealed, expiring dry-run plans → `plan` | |
 | 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | |

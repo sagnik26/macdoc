@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phases 0–3 are complete. `macdoc doctor` is the single overview, with sections `health`, `space`, `wins`, `explain`, `dev` and `scan`, all read-only. Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–3 are complete. Bare `macdoc` opens a read-only Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev` and `scan`, all read-only. Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
@@ -41,12 +41,12 @@ Never weaken these, even if a task seems to require it. Ask the user instead.
 
 ## Development rules
 
-- **Language:** Go. Follow the package layout in `docs/DEVELOPMENT_PLAN.md` §3. Keep dependencies minimal: cobra, lipgloss, `modernc.org/sqlite`, yaml.v3, and the official MCP Go SDK in Phase 8. Ask before adding others.
+- **Language:** Go. Follow the package layout in `docs/DEVELOPMENT_PLAN.md` §3. Keep dependencies minimal: cobra, lipgloss, bubbletea + bubbles (the `macdoc` dashboard), `modernc.org/sqlite`, yaml.v3, and the official MCP Go SDK in Phase 8. Ask before adding others.
 - **Never run real cleanups on the developer's machine while developing.** Executor tests run only under `MACDOC_SANDBOX=<tmpdir>` with fixture trees from `t.TempDir()`. Read-only commands (`doctor`, `scan`, `wins`, …) are fine to run for real.
 - **Path-dependent code takes a root/home override** so it can be tested against fixtures.
 - **External commands** go through the `platform.Runner` interface with timeouts and golden-file fakes in tests.
 - **Low-RAM budget:** keep scanner peak RSS ≤ 64 MB and never hold the full file tree in memory. Benchmark scanner changes.
-- **Output:** every command has a typed result struct and `--json` (versioned schema). Follow the tone rules in `docs/CLI_UX.md` §3: neutral words, show restore cost, no scare language.
+- **Output:** every command has a typed result struct and `--json` (versioned schema). Style human output only through `internal/cli/theme.go`. The plain theme must render exactly the uncolored text, so non-TTY output and tests stay stable. Follow the tone rules in `docs/CLI_UX.md` §3: neutral words, show restore cost, no scare language.
 - **File names:** never end a Go file name in a GOOS or GOARCH suffix such as `_android.go`, `_ios.go`, `_linux.go`, `_windows.go` or `_arm64.go`. Go treats these as build constraints and silently excludes the file on macOS. This happened in P3-W1.
 - **Recipes:** follow the checklist in `docs/RECIPE_CATALOG.md` §3. Each recipe needs a positive test, a look-alike negative test and a precondition-failure test.
 

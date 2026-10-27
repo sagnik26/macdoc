@@ -23,7 +23,37 @@
 | `macdoc mcp` | read + plans (Phase C) | MCP stdio server |
 | `macdoc schedule enable\|disable` | Phase 10 | Daily read-only scan via launchd |
 
-Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as unused; they'll come back if colors or extra output are added.)
+Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as unused. Color follows the `NO_COLOR` convention instead.)
+
+### 1a. The dashboard and colors (implemented 2026-10-28)
+
+- **Bare `macdoc` in an interactive terminal opens the dashboard** (`internal/cli/tui.go`, Bubble Tea). `macdoc doctor` always prints. Bare `macdoc` prints too when stdin or stdout isn't a TTY, with `--json`/`--quiet`, or on `TERM=dumb`.
+- **Layout:**
+  - Header: brand, machine, free space, scan age, active `@filter`, and a `read-only` marker.
+  - Tab row: Overview, Suggestions, Toolchains, Space, Health.
+  - Body.
+  - A context-sensitive help footer, generated from the key bindings.
+- **Suggestions:**
+  - A selectable list grouped by tier.
+  - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `enter` swaps the list for it.
+- **`/` palette:** `/overview /wins /dev /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
+- **`@` palette:** filters Suggestions and Toolchains by toolchain. It never accepts a path (safety invariant 4).
+- **Loading:**
+  - The real engine stages appear as a checklist with timings (`engine.OverviewOptions.Step`).
+  - A scan shows a progress bar measured against the previous scan's size, plus bytes, files and the current folder.
+  - `esc` cancels. Results of a stopped scan are discarded, and the previous results stay.
+  - `q` while loading stops the engine before exiting.
+- **Read-only:** the dashboard calls the same engine as the read-only commands and nothing else.
+- **Theme** (`internal/cli/theme.go`):
+  - Every color is a `CompleteAdaptiveColor`: truecolor, 256 and 16 values, for light and dark backgrounds. Lip Gloss picks the depth from the terminal.
+  - Palette:
+    - coral brand
+    - cyan IDs and accents
+    - SAFE green, CAUTION yellow, RISKY orange, ADVISE blue
+    - muted and faint grays
+  - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color.
+  - Non-terminal output uses a plain theme that renders the exact pre-color text, with no boxes, dots or escapes, so pipes, files and golden tests stay stable.
+  - Native commands are highlighted: tool green, flags yellow, arguments plain.
 
 ## 2. Report mockups
 
