@@ -407,7 +407,7 @@ func TestNativeArgValidation(t *testing.T) {
 	}
 }
 
-func TestHelpers(t *testing.T) {
+func TestXcodeHelpers(t *testing.T) {
 	if runtimeName("com.apple.CoreSimulator.SimRuntime.iOS-17-2") != "iOS 17.2" || runtimeName("Weird") != "Weird" {
 		t.Error("runtimeName")
 	}

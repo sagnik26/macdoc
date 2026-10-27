@@ -1,16 +1,15 @@
 # Local AI models (docs/RECIPE_CATALOG.md §2). hf.cache_detached_revisions
 # and ai.duplicate_models are not in this phase.
 
-# ollama.model is advise-only for now: the intended native argv
-# [ollama, rm, "{id}"] fails the recipe lint, which forbids "rm" as any argv
-# element (see .task/REPORT.md, question 1).
 - id: ollama.model
   title: Ollama model
   category: ai-models
   toolchain: ai
-  risk: ADVISE
-  method: advise
+  risk: CAUTION
+  method: native
   detector: ollama_models
+  native:
+    argv: [ollama, rm, "{id}"]
   stale_days: 30
   preconditions: [ollama_model_not_loaded]
   restore:

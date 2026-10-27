@@ -82,6 +82,10 @@ func LoadFS(fsys fs.FS, dir string) (*Catalog, error) {
 // forbiddenArgs may never appear in a native argv (docs/SAFETY_MODEL.md §5).
 var forbiddenArgs = []string{"--volumes", "sudo", "sh", "bash", "zsh", "rm", "-rf", "--force-all"}
 
+// allowedSubcommands are tool-specific exceptions to forbiddenArgs: "rm" is a
+// legitimate subcommand of these tools (and only as their first argument).
+var allowedSubcommands = map[string]string{"ollama": "rm"}
+
 // Validate checks one recipe, including the safety lint from the P0-R1/P0-W3
 // carry-overs. It returns all problems joined.
 func Validate(r Recipe) error {
@@ -219,6 +223,9 @@ func lintArgv(argv []string) error {
 	}
 	placeholders := 0
 	for i, a := range argv {
+		if i == 1 && allowedSubcommands[argv[0]] == a {
+			continue
+		}
 		if slices.Contains(forbiddenArgs, a) || strings.HasPrefix(a, "--volumes") {
 			return fmt.Errorf("forbidden argument %q", a)
 		}

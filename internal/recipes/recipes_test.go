@@ -83,6 +83,7 @@ func TestValidateArgv(t *testing.T) {
 		{"rm", "-rf", "x"}, {"bash", "-c", "x"}, {"docker", "system", "prune"},
 		{"docker", "volume", "prune", "--volumes"}, {"brew", "cleanup", "$(id)"},
 		{"brew", "{id}", "{id}"}, {"brew", "pre{id}"}, {"curl", "x"}, {"brew", "a;b"},
+		{"brew", "rm", "x"}, {"ollama", "run", "rm"}, {"docker", "rm", "{id}"},
 	}
 	for _, argv := range bad {
 		r := validRecipe()
@@ -90,6 +91,11 @@ func TestValidateArgv(t *testing.T) {
 		if Validate(r) == nil {
 			t.Errorf("accepted argv %q", argv)
 		}
+	}
+	ok := validRecipe()
+	ok.Method, ok.Allow, ok.Native = model.MethodNative, nil, &Native{Argv: []string{"ollama", "rm", "{id}"}}
+	if err := Validate(ok); err != nil {
+		t.Errorf("ollama rm rejected: %v", err)
 	}
 	r := validRecipe()
 	r.Method, r.Allow = model.MethodNative, nil
