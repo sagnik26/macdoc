@@ -54,6 +54,9 @@ func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, er
 		f := nodeFinding(n)
 		f.LastUsed = unixTime(mtime)
 		f.Title = "node_modules in " + filepath.Base(parent)
+		if !withProject(env, &f, parent, r.StaleDays) {
+			continue
+		}
 		out = append(out, f)
 	}
 	return out, nil

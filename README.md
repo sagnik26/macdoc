@@ -58,10 +58,11 @@ macdoc has **two everyday commands**:
   - **Overview:** your Mac (disk, memory, pressure, swap, snapshots), the top findings, reclaimable space per tier, where your space is.
   - **Suggestions:** every item.
   - **Toolchains:** a summary plus one table per toolchain.
+  - **Projects:** every project with build folders: how long it's been idle (last commit, file change or build), their size, git state (clean or uncommitted changes) and the biggest folders. Projects in protected folders such as ~/Desktop are listed but never suggested.
   - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
   - **Health:** findings with explanations, and the top memory users.
-- **Views:** `tab`/`shift+tab` or `1`–`5`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `enter` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/wins` `/dev` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `enter` opens them and `esc` goes back.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/wins` `/dev` `/projects` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Read-only:** the dashboard can scan and show, never change. `q` quits.
@@ -120,6 +121,7 @@ These read the latest scan and don't rescan.
 | `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
 | `macdoc doctor explain <id>` | One suggestion in detail: what it is, why it's there, risk, idle time, how to restore, the exact action |
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
+| `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 
 Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. `--quiet` hides the progress line. Other top-level commands: `macdoc version`.
 
@@ -204,10 +206,10 @@ Developer tooling quietly eats tens of gigabytes:
 | 0 | Foundations: path-safety layer, sandbox mode, import and forbidden-call guards, lint, CI | ✅ done (red-teamed, 9 findings fixed) |
 | 1 | System probe → `doctor` | ✅ done |
 | 2 | Full-crawl scanner + SQLite store → `scan` | ✅ done |
-| 3 | 46 recipes + classifier; `macdoc doctor` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
+| 3 | 46 recipes + classifier; `macdoc doctor` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed, reviewed) |
 | 3.5 | Terminal UI: the `macdoc` dashboard (Bubble Tea) and colored output (Lip Gloss), with truecolor → 256 → 16 fallback | ✅ done |
-| 4 | Project awareness: stale `node_modules` by git activity, Pods, RN/Android build folders | next |
-| 5 | Planner: sealed, expiring dry-run plans → `plan` | |
+| 4 | Project awareness: `doctor projects` and the Projects tab; idle time from git commits, file changes and builds; uncommitted changes raise the risk; Pods, RN/Android build folders, `.next`; DerivedData mapped to its project | ✅ done |
+| 5 | Planner: sealed, expiring dry-run plans → `plan` | next |
 | 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | |
 | 7 | `slow`, `trend`, JSON schemas, polish → **v0.1 (MVP B)** | |
 | 8–9 | MCP server for Claude (read + propose plans), handoff, hardening | |

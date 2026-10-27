@@ -29,6 +29,7 @@ no scan yet. Use a section for more detail:
   macdoc doctor space           space by category, "System Data" decoded
   macdoc doctor wins            every suggestion with its ID
   macdoc doctor dev [toolchain] suggestions per developer toolchain
+  macdoc doctor projects        projects: idle days, build folders, git state
   macdoc doctor explain <id>    one suggestion in detail
   macdoc doctor scan            rescan, then show the full report (every section)`,
 		Args: cobra.NoArgs,
@@ -51,7 +52,7 @@ no scan yet. Use a section for more detail:
 	}
 	space := newStorageCmd(g)
 	space.Use, space.Aliases = "space", []string{"storage"}
-	cmd.AddCommand(health, space, newWinsCmd(g), newDevCmd(g), newExplainCmd(g), newScanCmd(g))
+	cmd.AddCommand(health, space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newExplainCmd(g), newScanCmd(g))
 	return cmd
 }
 

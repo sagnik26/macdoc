@@ -128,7 +128,7 @@ func (m tuiModel) introView() string {
 	// How it works.
 	steps := []struct{ n, title, desc string }{
 		{"1", "Check", "health, where your space went, what's safe to reclaim"},
-		{"2", "Explore", "Overview · Suggestions · Toolchains · Space · Health"},
+		{"2", "Explore", "Overview · Suggestions · Toolchains · Projects · Space · Health"},
 		{"3", "Understand", "enter on a suggestion: what it is, its risk, how to undo"},
 		{"4", "Clean up", "soon: dry-run plans you confirm yourself in Terminal"},
 	}

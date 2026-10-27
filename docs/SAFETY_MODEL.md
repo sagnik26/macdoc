@@ -23,6 +23,8 @@
 
 Upgrades: a recipe's risk is **raised** by context, never lowered. Examples: a project with uncommitted changes, an item modified in the last 7 days, the owning app running, or low classification confidence.
 
+Reading a project's git state (Phase 4) must not change the repository or run code from it. Only `git status --porcelain` and `git log -1 --format=%ct` are used, each with `--no-optional-locks` (so the index isn't rewritten), `-c core.fsmonitor=false` (a repo's config can't start a program) and `-c core.untrackedCache=false`, through the read-only `platform.Runner` with a timeout. If the state can't be confirmed, the risk is raised as if there were uncommitted changes.
+
 ## 3. Protected paths (BLOCKED, always)
 
 Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.` is rejected outright, symlinks in parent directories are resolved, the path is Unicode NFC-normalized, and comparisons use Unicode case folding to match case-insensitive APFS.

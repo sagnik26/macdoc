@@ -82,6 +82,9 @@ type Opportunity struct {
 	Command   []string `json:"command,omitempty"` // native method: exact argv, {id} already substituted
 	DryRun    []string `json:"dry_run,omitempty"` // the tool's own dry-run argv, if any
 	Note      string   `json:"note,omitempty"`    // instance-specific detail from the detector
+	// RiskReason says why Risk is above the recipe's base risk, e.g. "it
+	// changed in the last 7 days" or "the project has uncommitted changes".
+	RiskReason string `json:"risk_reason,omitempty"`
 }
 
 // Origin records who created a plan.

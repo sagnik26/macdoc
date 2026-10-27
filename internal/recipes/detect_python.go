@@ -65,6 +65,9 @@ func detectVenvStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 		}
 		f := nodeFinding(n)
 		f.Title = ".venv in " + filepath.Base(filepath.Dir(n.Path))
+		if !withProject(env, &f, filepath.Dir(n.Path), r.StaleDays) {
+			continue
+		}
 		out = append(out, f)
 	}
 	return out, nil

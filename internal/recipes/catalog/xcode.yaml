@@ -7,7 +7,7 @@
   toolchain: xcode
   risk: SAFE
   method: quarantine
-  detector: children
+  detector: derived_data
   params: {dir: "~/Library/Developer/Xcode/DerivedData"}
   allow: ["~/Library/Developer/Xcode/DerivedData/*"]
   keep_children_of: ["~/Library/Developer/Xcode/DerivedData"]

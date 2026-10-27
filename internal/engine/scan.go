@@ -10,6 +10,7 @@ import (
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
 	"macdoc/internal/probe"
+	"macdoc/internal/projects"
 	"macdoc/internal/recipes"
 	"macdoc/internal/scanner"
 	"macdoc/internal/store"
@@ -85,7 +86,10 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 	if err != nil {
 		return ScanSummary{}, err
 	}
-	opts.Keep = keepTopLevel(opts, recipes.KeepFunc(cat, o.Home))
+	recipeKeep, projectKeep := recipes.KeepFunc(cat, o.Home), projects.Keep(o.Home)
+	opts.Keep = keepTopLevel(opts, func(p string) bool {
+		return projectKeep(p) || (recipeKeep != nil && recipeKeep(p))
+	})
 
 	st, err := store.Open(o.StorePath)
 	if err != nil {

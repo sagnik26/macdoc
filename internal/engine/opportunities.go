@@ -18,6 +18,7 @@ import (
 
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
+	"macdoc/internal/projects"
 	"macdoc/internal/recipes"
 	"macdoc/internal/safety"
 	"macdoc/internal/store"
@@ -31,6 +32,9 @@ type OpportunityOptions struct {
 	Runner    platform.Runner
 	Now       time.Time        // default time.Now()
 	Catalog   *recipes.Catalog // default recipes.Load()
+	// MinBytes hides items of known size below it (0: 1 MB; negative: show
+	// everything).
+	MinBytes int64
 }
 
 // OpportunityResult is the data behind `macdoc wins`, `dev` and `explain`.
@@ -52,8 +56,11 @@ var (
 )
 
 const (
-	staleScanAge  = 6 * time.Hour
-	recentChange  = 7 // days: a SAFE item changed more recently becomes CAUTION
+	staleScanAge = 6 * time.Hour
+	recentChange = 7 // days: a SAFE item changed more recently becomes CAUTION
+	// minShownBytes is the default MinBytes: smaller items aren't worth a
+	// decision. Items of unknown size are always shown.
+	minShownBytes = 1_000_000
 	idLen         = 6
 	idLenExtended = 8
 )
@@ -73,6 +80,9 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	}
 	if o.Now.IsZero() {
 		o.Now = time.Now()
+	}
+	if o.MinBytes == 0 {
+		o.MinBytes = minShownBytes
 	}
 	if o.Catalog == nil {
 		cat, err := recipes.Load()
@@ -106,11 +116,15 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor scan" to refresh`, int(age.Hours())))
 	}
 
-	env := recipes.Env{Home: o.Home, Nodes: scanNodes{st: st, scanID: info.ID}, Runner: o.Runner, Now: o.Now}
+	nodes := scanNodes{st: st, scanID: info.ID}
+	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
+	env.Projects = sync.OnceValues(func() (projects.Result, error) {
+		return discoverProjects(ctx, o, nodes, info.ID)
+	})
 	runs := runDetectors(ctx, env, o.Catalog.Recipes)
 
 	var ops []model.Opportunity
-	unknownIdleCount := 0
+	unknownIdleCount, tiny := 0, 0
 	for _, run := range runs {
 		if run.err != "" {
 			res.Warnings = append(res.Warnings, run.recipe.ID+": "+run.err)
@@ -125,10 +139,17 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 			default:
 				res.Warnings = append(res.Warnings, warn)
 			}
-			if ok {
+			switch {
+			case !ok:
+			case op.Bytes.Source != model.SourceUnknown && op.Bytes.Value < o.MinBytes:
+				tiny++
+			default:
 				ops = append(ops, op)
 			}
 		}
+	}
+	if tiny > 0 {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) under 1 MB not shown", tiny))
 	}
 	if unknownIdleCount > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))
@@ -344,7 +365,10 @@ func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 		}
 	}
 	if op.Risk == model.RiskSafe && op.IdleDays >= 0 && op.IdleDays < recentChange {
-		op.Risk = model.RiskCaution
+		op.Risk, op.RiskReason = model.RiskCaution, "it changed in the last 7 days"
+	}
+	if f.MinRisk != "" && tierIndex(f.MinRisk) > tierIndex(op.Risk) && f.MinRisk != model.RiskAdvise {
+		op.Risk, op.RiskReason = f.MinRisk, f.RiskReason
 	}
 	op.Confidence = sourceConfidence(op.Bytes.Source)
 
@@ -371,10 +395,10 @@ func RaisedFrom(op model.Opportunity, cat *recipes.Catalog) (model.Risk, bool) {
 }
 
 // multiInstance reports whether a recipe yields several findings (or is the
-// one-per-folder "children" detector), so each needs its own name in the
+// one-per-folder "children" or "derived_data" detector), so each needs its own name in the
 // title.
 func multiInstance(r recipes.Recipe, siblings int) bool {
-	return r.Detector == "children" || siblings > 1
+	return r.Detector == "children" || r.Detector == "derived_data" || siblings > 1
 }
 
 // instanceName is the base name of target, or of its parent when the base

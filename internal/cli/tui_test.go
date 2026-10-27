@@ -11,6 +11,7 @@ import (
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
+	"macdoc/internal/projects"
 )
 
 // tuiFixture is dashboard data built from the shared test samples.
@@ -21,12 +22,20 @@ func tuiFixture() *tuiData {
 		opps.Opportunities[i].Toolchain = toolchains[i]
 	}
 	res := engine.OverviewResult{Health: sampleResult(), Scan: opps.Scan, ScanAge: "2h ago", Opportunities: opps}
-	return &tuiData{res: res, dev: devResult(opps, "")}
+	return &tuiData{res: res, dev: devResult(opps, ""), projects: engine.ProjectsResult{
+		Projects: []projects.Project{
+			{Root: "/Users/me/code/app", IdleDays: 120, ActivitySource: projects.ActivityCommit, Git: projects.GitDirty, ArtifactBytes: 800_000_000,
+				Artifacts: []projects.Artifact{{Rel: "node_modules", Bytes: 500_000_000}, {Rel: "ios/Pods", Bytes: 300_000_000}}},
+			{Root: "/Users/me/Desktop/site", IdleDays: -1, Git: projects.GitClean, Protected: true, ArtifactBytes: 2_000_000,
+				Artifacts: []projects.Artifact{{Rel: ".next", Bytes: 2_000_000}}},
+		},
+		DerivedData: []projects.DerivedData{{Workspace: "/Users/me/old/Gone.xcodeproj", Bytes: 900_000_000, Missing: true}},
+	}}
 }
 
 func newTestTUI(t *testing.T, w, h int) tuiModel {
 	t.Helper()
-	deps := &tuiDeps{load: func(context.Context, *tuiDeps, bool) (*tuiData, error) { return tuiFixture(), nil }}
+	deps := &tuiDeps{home: "/Users/me", load: func(context.Context, *tuiDeps, bool) (*tuiData, error) { return tuiFixture(), nil }}
 	m := newTUIModel(deps, plainLayoutTheme())
 	m.initCmd = m.startLoad(false)
 	return step(t, m, tea.WindowSizeMsg{Width: w, Height: h})
@@ -77,7 +86,7 @@ func TestTUILoadingSteps(t *testing.T) {
 func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	out := m.View()
-	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Health", "read-only", "scan 2h ago", "What matters most", "Reclaimable",
+	mustContain(t, out, "◆ macdoc", "1 Overview", "6 Health", "read-only", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
 		"│ Metric", "│ Risk", "│ Tier", "Size │ Items", "SAFE", "RISKY", "ADVICE", "Critical", "╭", "╰")
@@ -109,10 +118,13 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.detail {
 		t.Error("esc should close the detail")
 	}
-	m = step(t, m, keys("5")...)
+	m = step(t, m, keys("6")...)
 	mustContain(t, m.View(), "Top memory users", "│ App or tool", "│ Why it matters")
-	m = step(t, m, keys("4")...)
+	m = step(t, m, keys("5")...)
 	mustContain(t, m.View(), "Reclaimable, by category")
+	m = step(t, m, keys("4")...)
+	mustContain(t, m.View(), "│ Project", "~/code/app", "120 d · git commit", "uncommitted", "~/Desktop/site", "(protected)",
+		"ios/Pods\u00a0300\u00a0MB", "DerivedData of deleted projects", "~/old/Gone.xcodeproj")
 	m = step(t, m, keys("3")...)
 	mustContain(t, m.View(), "│ Toolchain", "xcode", "docker")
 }
@@ -351,6 +363,25 @@ func runBatch(cmd tea.Cmd) {
 			if c != nil {
 				c()
 			}
+		}
+	}
+}
+
+func TestFitColumnsKeepsWordsWhole(t *testing.T) {
+	cols := []column{{title: "Project", wrap: true}, {title: "Folders", wrap: true}}
+	rows := [][]string{{"~/code/a-rather-long-project-name and more", "node_modules 416 MB · ios/Pods 300 MB"}}
+	out := plainLayoutTheme().grid(cols, rows, 60, nil)
+	mustContain(t, out, "~/code/a-rather-long-project-name", "node_modules 416 MB")
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if w := lipgloss.Width(l); w > 60 {
+			t.Errorf("line is %d wide: %q", w, l)
+		}
+	}
+	// Too narrow for whole words: it still fits, splitting words.
+	out = plainLayoutTheme().grid(cols, rows, 40, nil)
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if w := lipgloss.Width(l); w > 40 {
+			t.Errorf("narrow: line is %d wide: %q", w, l)
 		}
 	}
 }

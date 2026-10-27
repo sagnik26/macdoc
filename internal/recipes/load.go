@@ -156,6 +156,9 @@ func Validate(r Recipe) error {
 	if r.StaleDays < 0 {
 		bad("stale_days must be >= 0")
 	}
+	if v, ok := r.Params["dirty_risk"]; ok && !slices.Contains([]model.Risk{model.RiskCaution, model.RiskRisky}, model.Risk(v)) {
+		bad("params.dirty_risk must be CAUTION or RISKY")
+	}
 
 	switch r.Method {
 	case model.MethodQuarantine:
@@ -258,12 +261,16 @@ func lintPattern(p string) error {
 }
 
 // projectTreePatterns are the allow patterns for project folders anywhere in
-// home. Their leading "~/*/**" can match inside protected folders such as
+// home (Phase 4 project artifacts). Their leading "~/*/**" can match inside protected folders such as
 // ~/Documents, so they are exempt from the protected-root and
 // two-wildcard rules of lintAllowProtected, and only from those. projectDirs
 // skips protected folders, and CheckTarget rejects them again at plan and
 // apply time.
-var projectTreePatterns = []string{"~/*/**/node_modules", "~/*/**/.venv"}
+var projectTreePatterns = []string{
+	"~/*/**/node_modules", "~/*/**/.venv", "~/*/**/.next",
+	"~/*/**/ios/Pods", "~/*/**/Pods", "~/*/**/ios/build",
+	"~/*/**/android/build", "~/*/**/android/app/build", "~/*/**/android/.gradle",
+}
 
 // protectedNameSamples are names a final pattern component must not be able
 // to match: what IsProtected protects by name anywhere in home.

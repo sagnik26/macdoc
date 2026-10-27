@@ -14,6 +14,7 @@ import (
 
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
+	"macdoc/internal/projects"
 )
 
 // Recipe is one entry of the catalog (docs/RECIPE_CATALOG.md §1).
@@ -104,6 +105,12 @@ type Finding struct {
 	Bytes     model.Bytes // reclaimable size and its source
 	LastUsed  time.Time   // zero if unknown
 	Note      string      // optional extra explanation for this instance
+
+	// MinRisk raises the recipe's risk to at least this tier for this
+	// instance (never lowers it), with RiskReason saying why, e.g. the
+	// project has uncommitted changes.
+	MinRisk    model.Risk
+	RiskReason string
 }
 
 // NodeSource gives detectors read-only access to the latest stored scan.
@@ -120,6 +127,9 @@ type Env struct {
 	Nodes  NodeSource      // latest scan (may be nil if there is none)
 	Runner platform.Runner // read-only commands (e.g. `xcrun simctl list -j`)
 	Now    time.Time
+	// Projects returns the projects found in the latest scan (computed once
+	// and shared by all detectors). Nil if unavailable.
+	Projects func() (projects.Result, error)
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
+	"macdoc/internal/fsread"
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
 	"macdoc/internal/safety"
@@ -213,45 +211,19 @@ func projectDirs(env Env, name string) ([]model.Node, error) {
 }
 
 // maxSmallFile is the default limit of readSmallFile.
-const maxSmallFile int64 = 64 << 10
+const maxSmallFile = fsread.MaxSmallFile
 
 // readSmallFile errors: anything but a regular file, or over the limit.
 var (
-	errNotRegular = errors.New("not a regular file")
-	errTooLarge   = errors.New("file too large")
+	errNotRegular = fsread.ErrNotRegular
+	errTooLarge   = fsread.ErrTooLarge
 )
 
-// readSmallFile reads a small regular file. It never follows a symlink in the
-// final component, never blocks on a FIFO or device (it checks with Lstat,
-// opens non-blocking and checks again), and fails if the file is larger than
-// limit bytes. Every detector file read goes through it.
+// readSmallFile reads a small regular file without following a final
+// symlink or blocking on a FIFO (fsread.SmallFile). Every detector file read
+// goes through it.
 func readSmallFile(path string, limit int64) ([]byte, error) {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
-	}
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0) //nolint:gosec // G304: read-only, regular files under fixed tool directories (checked above and below).
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	if fi, err = f.Stat(); err != nil {
-		return nil, err
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
-	}
-	b, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) > limit {
-		return nil, fmt.Errorf("%s: %w (over %d bytes)", path, errTooLarge, limit)
-	}
-	return b, nil
+	return fsread.SmallFile(path, limit)
 }
 
 // errNoDryRun is returned when a native detector's recipe lacks the dry-run

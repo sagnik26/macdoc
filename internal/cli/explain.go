@@ -65,7 +65,11 @@ func renderExplain(w io.Writer, ex ExplainResult) error {
 	row("Size", t.size.Render(sizeWithSource(op.Bytes)))
 	risk := t.riskStyle(op.Risk).Render(string(op.Risk))
 	if ex.BaseRisk != "" && ex.BaseRisk != op.Risk {
-		risk += t.muted.Render(fmt.Sprintf(" (raised from %s: it changed in the last 7 days)", ex.BaseRisk))
+		reason := op.RiskReason
+		if reason == "" {
+			reason = "it changed in the last 7 days"
+		}
+		risk += t.muted.Render(fmt.Sprintf(" (raised from %s: %s)", ex.BaseRisk, reason))
 	}
 	row("Risk", risk)
 	if op.IdleDays >= 0 {

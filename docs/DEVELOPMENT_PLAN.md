@@ -194,6 +194,14 @@ Estimates assume part-time work (~15–20 h/week).
 
 **Done when:** the mapping from DerivedData to projects works on the real Mac, and projects with uncommitted changes never get SAFE-tier artifact suggestions except for pure caches.
 
+> **As built (2026-10-28, `internal/projects`, see `docs/checkpoints/PHASE-4.md`):**
+> - Roots are found from the artifact folders the scan keeps (`projects.Keep` adds `node_modules`, `Pods`, `build`, `.gradle`, `.venv`, `.next`, `.expo` under home, outside hidden/Library trees and dependency folders), confirmed by marker files with `Lstat`. Projects with no artifacts aren't listed because there's nothing to reclaim. Scanner memory is unchanged.
+> - git runs for projects with ≥ **50 MB** of artifacts (lowered from 200 MB so most stale candidates get a real git state). It runs read-only and hardened: `git -C <root> --no-pager --no-optional-locks -c core.fsmonitor=false -c core.untrackedCache=false`, limited to the project with the `.` pathspec. It is never invoked for a folder that isn't inside a repo. Untracked `.DS_Store` files don't count as changes.
+> - Spotlight `kMDItemLastUsedDate` isn't used: folders rarely carry it. Activity is the newest of last commit, source mtimes (bounded walk of 20,000 entries, artifacts excluded) and artifact mtimes. A cut-short walk is trusted only when git says clean.
+> - `dist` isn't counted (often committed or a deploy output). There's no config file yet: the 90-day threshold is the recipes' `stale_days`, and `doctor projects --idle N` filters the report.
+> - Uncommitted changes, or a git state that couldn't be confirmed, raise artifact suggestions through `Finding.MinRisk` with a `risk_reason` (native build and `.next` SAFE→CAUTION, Pods CAUTION→RISKY). Risk is never lowered. Projects in protected folders are listed only.
+> - DerivedData mapping is unit-tested (XML plists; binary plists stay unmapped). It couldn't be checked on the dev Mac, which has only the Command Line Tools and no DerivedData.
+
 ### Phase 5: Planner → `plan` (~1 wk)
 **Tasks**
 - Input is opportunity IDs (`plan O-ab12 O-cd34`), a tier selector (`plan --safe`), or a recipe selector (`plan --recipe xcode.derived_data`). It never takes paths.

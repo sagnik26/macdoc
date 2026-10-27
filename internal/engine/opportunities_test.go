@@ -13,6 +13,7 @@ import (
 
 	"macdoc/internal/model"
 	"macdoc/internal/recipes"
+	"macdoc/internal/safety"
 	"macdoc/internal/store"
 )
 
@@ -93,6 +94,17 @@ func newFixture(t *testing.T, age time.Duration, nodes ...model.Node) fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return newFixtureIn(t, home, age, nodes...)
+}
+
+// newFixtureAt stores a new scan (one hour old) in an existing fixture home.
+func newFixtureAt(t *testing.T, home string, nodes ...model.Node) fixture {
+	t.Helper()
+	return newFixtureIn(t, home, time.Hour, nodes...)
+}
+
+func newFixtureIn(t *testing.T, home string, age time.Duration, nodes ...model.Node) fixture {
+	t.Helper()
 	for _, d := range []string{"Library/Caches", "Documents", "code/app/node_modules"} {
 		if err := os.MkdirAll(filepath.Join(home, d), 0o755); err != nil {
 			t.Fatal(err)
@@ -138,7 +150,7 @@ func (f fixture) run(t *testing.T, rs ...recipes.Recipe) OpportunityResult {
 }
 
 func (f fixture) opts(rs ...recipes.Recipe) OpportunityOptions {
-	return OpportunityOptions{Home: f.home, StorePath: f.storePath, Now: f.now, Catalog: &recipes.Catalog{Recipes: rs}}
+	return OpportunityOptions{Home: f.home, StorePath: f.storePath, Now: f.now, Catalog: &recipes.Catalog{Recipes: rs}, MinBytes: -1}
 }
 
 func rec(id string, risk model.Risk, method model.Method) recipes.Recipe {
@@ -786,5 +798,41 @@ func TestContainedBytesSubtracted(t *testing.T) {
 	}
 	if weaker(model.SourceMeasured, model.SourceTool) != model.SourceTool || weaker(model.SourceUnknown, model.SourceTool) != model.SourceUnknown {
 		t.Error("weaker")
+	}
+}
+
+// A detector's MinRisk raises the recipe risk with its reason, never lowers
+// it, and never turns an actionable item into advice.
+func TestFindingMinRisk(t *testing.T) {
+	home := t.TempDir()
+	policy, err := safety.NewPolicy(home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	r := recipes.Recipe{ID: "t.p", Risk: model.RiskSafe, Method: model.MethodAdvise}
+	f := recipes.Finding{Title: "x", Bytes: model.Bytes{Value: 5_000_000, Source: model.SourceMeasured}, LastUsed: now.Add(-400 * 24 * time.Hour)}
+	cases := []struct {
+		base, min, want model.Risk
+		reason          string
+	}{
+		{model.RiskSafe, model.RiskCaution, model.RiskCaution, "dirty"},
+		{model.RiskCaution, model.RiskRisky, model.RiskRisky, "dirty"},
+		{model.RiskRisky, model.RiskCaution, model.RiskRisky, ""},
+		{model.RiskSafe, model.RiskAdvise, model.RiskSafe, ""},
+		{model.RiskSafe, "", model.RiskSafe, ""},
+	}
+	for _, c := range cases {
+		r.Risk = c.base
+		f.MinRisk, f.RiskReason = c.min, "dirty"
+		op, _, ok := classify(r, f, "S-1", now, policy, 1)
+		if !ok || op.Risk != c.want || op.RiskReason != c.reason {
+			t.Errorf("%s raised to %q: got %s (%q), want %s (%q)", c.base, c.min, op.Risk, op.RiskReason, c.want, c.reason)
+		}
+	}
+	// The 7-day rule records its own reason.
+	r.Risk, f.MinRisk, f.LastUsed = model.RiskSafe, "", now.Add(-24*time.Hour)
+	if op, _, _ := classify(r, f, "S-1", now, policy, 1); op.Risk != model.RiskCaution || op.RiskReason != "it changed in the last 7 days" {
+		t.Errorf("recent: %s (%q)", op.Risk, op.RiskReason)
 	}
 }

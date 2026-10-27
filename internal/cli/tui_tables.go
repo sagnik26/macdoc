@@ -6,9 +6,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/charmbracelet/x/ansi"
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
+	"macdoc/internal/projects"
 )
 
 // Every dashboard list is a bordered table with a header row. Meaning never
@@ -84,13 +86,51 @@ func fitColumns(cols []column, rows [][]string, width int) [][]string {
 	if excess <= 0 || shrinkable == 0 {
 		return rows
 	}
-	limit := make([]int, len(cols))
+	// Each shrinkable column gives up width in proportion to its slack
+	// above a floor: 8 cells or its title, and for a wrapping column its longest word
+	// (so wrapping never splits a word). Width a column can't give passes
+	// to the others.
+	limit, floor := make([]int, len(cols)), make([]int, len(cols))
 	for i, c := range cols {
-		limit[i] = widths[i]
+		limit[i], floor[i] = widths[i], widths[i]
 		if c.wrap || c.flex {
-			cut := (excess*widths[i] + shrinkable - 1) / shrinkable
-			limit[i] = max(8, widths[i]-cut)
+			floor[i] = max(min(widths[i], 8), lipgloss.Width(c.title))
 		}
+	}
+	for _, r := range rows {
+		for i, cell := range r {
+			if cols[i].wrap {
+				// Split on plain spaces only: a no-break space joins words.
+				for _, word := range strings.Split(ansi.Strip(cell), " ") {
+					floor[i] = min(widths[i], max(floor[i], lipgloss.Width(word)))
+				}
+			}
+		}
+	}
+	shrink := func() {
+		for excess > 0 {
+			slack := 0
+			for i := range cols {
+				slack += limit[i] - floor[i]
+			}
+			if slack == 0 {
+				return
+			}
+			for i := range cols {
+				cut := min(limit[i]-floor[i], (excess*(limit[i]-floor[i])+slack-1)/slack)
+				limit[i] -= cut
+				excess -= cut
+			}
+		}
+	}
+	shrink()
+	if excess > 0 { // still too wide: let wrapping columns split long words
+		for i, c := range cols {
+			if c.wrap {
+				floor[i] = max(min(widths[i], 8), lipgloss.Width(c.title))
+			}
+		}
+		shrink()
 	}
 	out := make([][]string, len(rows))
 	for r, row := range rows {
@@ -553,4 +593,100 @@ func dropFirst(rows [][]string) [][]string {
 		out[i] = r[1:]
 	}
 	return out
+}
+
+// projectTables is the Projects view: every project with build artifacts,
+// how long it has been idle, its git state and its biggest folders.
+func (m tuiModel) projectTables() string {
+	t, w := m.t, m.w-2
+	pr := m.data.projects
+	if len(pr.Projects) == 0 {
+		return "\n  " + t.muted.Render("No projects with build artifacts were found in the latest scan.")
+	}
+	var b strings.Builder
+	b.WriteString("\n")
+	var rows [][]string
+	var total int64
+	for _, p := range pr.Projects {
+		total += p.ArtifactBytes
+		name := tildePath(m.deps.home, p.Root)
+		if p.Protected {
+			name += " (protected)"
+		}
+		idle := "unknown"
+		if p.IdleDays >= 0 {
+			idle = fmt.Sprintf("%d d · %s", p.IdleDays, p.ActivitySource)
+		}
+		parts := make([]string, 0, 3)
+		for _, a := range p.Artifacts[:min(3, len(p.Artifacts))] {
+			parts = append(parts, strings.ReplaceAll(a.Rel+" "+engine.DecimalBytes(a.Bytes), " ", "\u00a0")) // wrap between folders, not inside one
+		}
+		if extra := len(p.Artifacts) - 3; extra > 0 {
+			parts = append(parts, fmt.Sprintf("+%d more", extra))
+		}
+		rows = append(rows, []string{name, idle, engine.DecimalBytes(p.ArtifactBytes), gitLabel(p.Git), strings.Join(parts, " · ")})
+	}
+	git := func(r int) *lipgloss.Style {
+		switch pr.Projects[r].Git {
+		case projects.GitClean:
+			return ptr(t.ok)
+		case projects.GitDirty:
+			return ptr(t.warn)
+		}
+		return ptr(t.muted)
+	}
+	b.WriteString(t.block("Projects", fmt.Sprintf("· %s of build folders in %d", engine.DecimalBytes(total), len(pr.Projects)), t.grid(
+		[]column{{title: "Project", wrap: true}, {title: "Idle"}, {title: "Size", right: true}, {title: "Git"}, {title: "Biggest folders", wrap: true}}, rows, w,
+		func(r, c int) *lipgloss.Style {
+			switch c {
+			case 0:
+				if pr.Projects[r].Protected {
+					return ptr(t.muted)
+				}
+				return ptr(t.title)
+			case 1:
+				if pr.Projects[r].IdleDays >= 90 {
+					return ptr(t.ok)
+				}
+				return ptr(t.text)
+			case 2:
+				return ptr(t.size)
+			case 3:
+				return git(r)
+			}
+			return ptr(t.muted)
+		})))
+	b.WriteString("  " + t.wrap(t.muted.Render("Idle is the newest of the last commit, a file change or a build. Projects in protected folders (Desktop, Documents, …) are listed only."), 2) + "\n")
+
+	var gone [][]string
+	for _, d := range pr.DerivedData {
+		if d.Missing {
+			gone = append(gone, []string{tildePath(m.deps.home, d.Workspace), engine.DecimalBytes(d.Bytes)})
+		}
+	}
+	if len(gone) > 0 {
+		b.WriteString("\n")
+		b.WriteString(t.block("DerivedData of deleted projects", "", t.grid(
+			[]column{{title: "Workspace", flex: true}, {title: "Size", right: true}}, gone, w,
+			func(_, c int) *lipgloss.Style {
+				if c == 1 {
+					return ptr(t.size)
+				}
+				return ptr(t.muted)
+			})))
+	}
+	return b.String()
+}
+
+// gitLabel is a project's git state as a word.
+func gitLabel(g projects.GitState) string {
+	switch g {
+	case projects.GitClean:
+		return "clean"
+	case projects.GitDirty:
+		return "uncommitted"
+	case projects.GitNone:
+		return "not in git"
+	}
+	return "not checked"
 }

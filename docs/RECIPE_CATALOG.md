@@ -28,7 +28,7 @@ Legend for method: **N** = native command, **Q** = quarantine, **A** = advise-on
 
 | ID | Target | Risk | Method | Preconditions | Restore |
 |---|---|---|---|---|---|
-| `xcode.derived_data` | `~/Library/Developer/Xcode/DerivedData/<project>-*` per project, stale > 30d | SAFE (CAUTION if < 7d) | Q | Xcode not running | Rebuild (minutes) |
+| `xcode.derived_data` | `~/Library/Developer/Xcode/DerivedData/<project>-*` per project, stale > 30d. Mapped to its project via `info.plist` `WorkspacePath` (note says which project, or that it no longer exists) | SAFE (CAUTION if < 7d) | Q | Xcode not running | Rebuild (minutes) |
 | `xcode.device_support` | `~/Library/Developer/Xcode/{iOS,watchOS,tvOS} DeviceSupport/<ver>` for OS versions older than the newest per major | SAFE | Q | Xcode not running | Re-copied on next device connect |
 | `xcode.simulators_unavailable` | Simulators for runtimes no longer installed | SAFE | N `xcrun simctl delete unavailable` | none | n/a (already unusable) |
 | `xcode.sim_runtimes_old` | Old simulator runtimes from `xcrun simctl runtime list -j` | CAUTION | N `xcrun simctl runtime delete <id>` | Simulator not running | Re-download (5–8 GB each) |
@@ -54,13 +54,14 @@ Legend for method: **N** = native command, **Q** = quarantine, **A** = advise-on
 
 | ID | Target | Risk | Method | Preconditions | Restore |
 |---|---|---|---|---|---|
-| `node.node_modules_stale` | `node_modules` in projects idle > 90d | CAUTION (SAFE if git clean and lockfile present) | Q | No node process with cwd in project | `npm i` / `pnpm i` / `yarn` |
+| `node.node_modules_stale` | `node_modules` in projects idle > 90d. Idle includes the project's last commit, source change and build (Phase 4) | CAUTION (context only raises risk, so it isn't lowered for clean projects) | Q | No node process with cwd in project | `npm i` / `pnpm i` / `yarn` |
 | `npm.cache` | `~/.npm/_cacache` | SAFE | N `npm cache clean --force` | none | Re-download |
 | `pnpm.store` | pnpm content store (`pnpm store path`) | SAFE | N `pnpm store prune` | none | Re-download unreferenced packages |
 | `yarn.cache` | `yarn cache dir` (classic), per-project `.yarn/cache` for berry is excluded | SAFE | N `yarn cache clean` | none | Re-download |
 | `rn.metro_cache` | `$TMPDIR/metro-*`, `$TMPDIR/haste-map-*` | SAFE | Q | Metro not running | Rebuilt |
-| `rn.ios_pods_stale` | `<project>/ios/Pods` in idle projects | CAUTION | Q | git clean | `pod install` |
-| `rn.native_build_stale` | `<project>/ios/build`, `<project>/android/{build,app/build,.gradle}` idle | SAFE | Q | none | Rebuild |
+| `rn.ios_pods_stale` | `<project>/ios/Pods`, or `Pods` next to a `Podfile`, in projects idle 90d+ (≥ 10 MB) | CAUTION; RISKY with uncommitted changes or unconfirmed git state | Q | git clean, Xcode not running | `pod install` |
+| `rn.native_build_stale` | `<project>/ios/build` (next to a Podfile or Xcode project), `<project>/android/{build,app/build,.gradle}` (Gradle files present), idle 90d+ (≥ 10 MB) | SAFE; CAUTION with uncommitted changes or unconfirmed git state | Q | Gradle daemons stopped, Xcode not running | Rebuild |
+| `node.next_cache_stale` | `<project>/.next` next to a `package.json`, idle 90d+ (≥ 10 MB) | SAFE; CAUTION with uncommitted changes or unconfirmed git state | Q | none | `next build` / `next dev` |
 | `nvm.old_versions` | `~/.nvm/versions/node/<ver>` not default, not in any `.nvmrc` | CAUTION | Q | none | `nvm install <ver>` |
 
 ### Homebrew
@@ -91,7 +92,7 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `uv.cache` | `uv cache dir` | SAFE | N `uv cache prune` | none | Re-download |
 | `poetry.cache` | `~/Library/Caches/pypoetry` | SAFE | Q | none | Re-download |
 | `conda.pkgs` | conda package cache | SAFE | N `conda clean --all -y` (dry-run `--dry-run`) | none | Re-download |
-| `python.venv_stale` | `.venv` (with `pyvenv.cfg`) beside a project marker, idle 90d+, not in hidden/Library/protected folders | RISKY | Q | git clean, no python process in project | Recreate from requirements |
+| `python.venv_stale` | `.venv` (with `pyvenv.cfg`) beside a project marker, idle 90d+ (including the project's last activity), not in hidden/Library/protected folders | RISKY | Q | git clean, no python process in project | Recreate from requirements |
 
 ### Local AI models
 

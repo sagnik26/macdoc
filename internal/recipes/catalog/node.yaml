@@ -1,7 +1,8 @@
 # Node package managers and project dependencies (docs/RECIPE_CATALOG.md §2).
 # rn.metro_cache is not here: it lives in $TMPDIR (/private/var/folders),
-# which is protected and outside home. rn.ios_pods_stale and
-# rn.native_build_stale need project discovery (Phase 4).
+# which is protected and outside home. The project recipes (project_artifact
+# detector) use internal/projects: a project's idle time is its last git
+# commit, source change or build, and git state raises the risk.
 
 - id: node.node_modules_stale
   title: Stale node_modules folder
@@ -107,3 +108,71 @@
   confidence_notes: >-
     .nvmrc files in projects aren't checked yet; that comes with the project
     scan.
+
+- id: rn.ios_pods_stale
+  title: CocoaPods folder in an idle project
+  category: build-artifacts
+  toolchain: cocoapods
+  risk: CAUTION
+  method: quarantine
+  detector: project_artifact
+  # Pods can hold local edits, so uncommitted changes make it RISKY.
+  params: {artifacts: "ios/Pods,Pods", min_bytes: "10000000", dirty_risk: RISKY}
+  allow: ["~/*/**/ios/Pods", "~/*/**/Pods"]
+  stale_days: 90
+  preconditions: ["git_clean", "app_not_running:Xcode"]
+  restore:
+    kind: redownload
+    note: Run pod install in the project's ios folder (or next to the Podfile).
+  explain: >-
+    The Pods folder holds the CocoaPods libraries an iOS project uses,
+    installed from its Podfile and Podfile.lock. This project hasn't been
+    worked on in a while. Moving the folder leaves the project itself intact;
+    pod install brings the same versions back from Podfile.lock.
+  confidence_notes: >-
+    Only Pods folders next to a Podfile are reported. If your team commits
+    Pods to git, moving it shows up as deleted files until you restore it.
+
+- id: rn.native_build_stale
+  title: Native build folder in an idle project
+  category: build-artifacts
+  toolchain: react-native
+  risk: SAFE
+  method: quarantine
+  detector: project_artifact
+  params:
+    artifacts: "ios/build,android/build,android/app/build,android/.gradle"
+    min_bytes: "10000000"
+    dirty_risk: CAUTION
+  allow: ["~/*/**/ios/build", "~/*/**/android/build", "~/*/**/android/app/build", "~/*/**/android/.gradle"]
+  stale_days: 90
+  preconditions: ["gradle_daemons_stopped", "app_not_running:Xcode"]
+  restore:
+    kind: rebuild
+    note: The next iOS or Android build recreates it, which takes longer than usual once.
+  explain: >-
+    These folders hold compiled output from iOS and Android builds of a React
+    Native or native project: object files, intermediate builds and Gradle's
+    per-project state. They are recreated on the next build.
+  confidence_notes: >-
+    Only ios/build next to a Podfile or Xcode project, and android/ folders
+    with Gradle build files, are reported.
+
+- id: node.next_cache_stale
+  title: Next.js build folder in an idle project
+  category: build-artifacts
+  toolchain: node
+  risk: SAFE
+  method: quarantine
+  detector: project_artifact
+  params: {artifacts: ".next", min_bytes: "10000000", dirty_risk: CAUTION}
+  allow: ["~/*/**/.next"]
+  stale_days: 90
+  restore:
+    kind: rebuild
+    note: next build or next dev recreates it.
+  explain: >-
+    .next holds Next.js build output and its build cache. Nothing in it is
+    source code; the next build or dev server run recreates it.
+  confidence_notes: >-
+    Only .next folders next to a package.json are reported.

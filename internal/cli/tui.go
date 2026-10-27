@@ -33,11 +33,12 @@ const (
 	tabOverview tab = iota
 	tabSuggestions
 	tabToolchains
+	tabProjects
 	tabSpace
 	tabHealth
 )
 
-var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Space", "Health"}
+var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space", "Health"}
 
 // slashCommand is one entry of the / palette.
 type slashCommand struct {
@@ -48,6 +49,7 @@ var slashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"wins", "", "every suggestion, ranked by safety"},
 	{"dev", "", "suggestions per developer toolchain"},
+	{"projects", "", "projects: idle days, build folders, git state"},
 	{"space", "", `space by category, "System Data" decoded`},
 	{"health", "", "disk, memory, swap and top memory users"},
 	{"scan", "", "rescan the disk (Esc stops it)"},
@@ -65,9 +67,13 @@ var stepLabels = map[engine.OverviewStep]string{
 	engine.StepLoad:   "Reading the latest scan",
 	engine.StepRank:   "Ranking cleanup suggestions",
 	stepSpace:         `Decoding "System Data"`,
+	stepProjects:      "Looking at your projects",
 }
 
-const stepSpace engine.OverviewStep = "space"
+const (
+	stepSpace    engine.OverviewStep = "space"
+	stepProjects engine.OverviewStep = "projects"
+)
 
 type (
 	stepMsg     engine.OverviewStep
@@ -80,9 +86,10 @@ type (
 
 // tuiData is everything the dashboard shows.
 type tuiData struct {
-	res   engine.OverviewResult
-	space engine.StorageResult
-	dev   DevResult
+	res      engine.OverviewResult
+	space    engine.StorageResult
+	dev      DevResult
+	projects engine.ProjectsResult
 }
 
 // tuiDeps are shared by every copy of the model.
@@ -253,7 +260,12 @@ func engineLoad(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &tuiData{res: res, space: space, dev: devResult(res.Opportunities, "")}, nil
+	d.post(stepMsg(stepProjects))
+	projs, err := engine.Projects(ctx, engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat})
+	if err != nil {
+		return nil, err
+	}
+	return &tuiData{res: res, space: space, dev: devResult(res.Opportunities, ""), projects: filterProjects(projs, 0)}, nil
 }
 
 func (m tuiModel) Init() tea.Cmd { return m.initCmd }
@@ -396,7 +408,7 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setTab((m.tab + 1) % tab(len(tabTitles)))
 	case "shift+tab", "left", "h":
 		m.setTab((m.tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
-	case "1", "2", "3", "4", "5":
+	case "1", "2", "3", "4", "5", "6":
 		m.setTab(tab(k[0] - '1'))
 	case "r":
 		return m, m.startLoad(true)
@@ -524,7 +536,7 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 	arg = strings.TrimSpace(arg)
 	views := map[string]tab{
 		"overview": tabOverview, "wins": tabSuggestions, "suggestions": tabSuggestions,
-		"dev": tabToolchains, "toolchains": tabToolchains, "space": tabSpace, "storage": tabSpace, "health": tabHealth,
+		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": tabSpace, "storage": tabSpace, "health": tabHealth,
 	}
 	if v, ok := views[name]; ok {
 		m.setTab(v)
@@ -602,6 +614,8 @@ func (m tuiModel) currentJSON() string {
 		}
 	case tabToolchains:
 		v = m.data.dev
+	case tabProjects:
+		v = m.data.projects
 	case tabSpace:
 		v = m.data.space
 	case tabHealth:
@@ -827,6 +841,8 @@ func (m tuiModel) textView() string {
 	switch m.tab {
 	case tabToolchains:
 		return m.toolchainTables()
+	case tabProjects:
+		return m.projectTables()
 	case tabSpace:
 		return m.spaceTables()
 	case tabHealth:
@@ -910,7 +926,7 @@ func (m tuiModel) helpView() string {
 	var b strings.Builder
 	b.WriteString("\n " + t.heading("Keys") + "\n")
 	keys := [][2]string{
-		{"tab / shift+tab, 1–5", "switch view"},
+		{"tab / shift+tab, 1–6", "switch view"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "explain the selected suggestion"},
 		{"/", "command palette"},

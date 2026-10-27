@@ -2,7 +2,7 @@
 
 ## 1. Commands
 
-> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
+> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | projects [--idle N] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
 
 | Command | Mode | Purpose |
 |---|---|---|
@@ -11,7 +11,7 @@
 | `macdoc wins [--all] [--tier safe\|caution\|risky]` | read | Top space wins, tiered |
 | `macdoc storage [--large]` | read | Category breakdown with "System Data" decoded. `--large` lists unknown big items |
 | `macdoc dev [xcode\|android\|node\|docker\|python\|ai\|brew]` | read | Per-toolchain breakdown |
-| `macdoc projects [--idle 90]` | read | Projects with idle days and artifact weight |
+| `macdoc projects [--idle 90]` | read | Projects with idle days and artifact weight (built as `macdoc doctor projects`, §1b) |
 | `macdoc slow` | read | Memory pressure, swap and heavy processes, with an explanation |
 | `macdoc explain <O-id>` | read | What it is, why it's there, restore cost, exact action |
 | `macdoc trend [--days 30]` | read | Growth per category across scans |
@@ -39,13 +39,13 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - `/view` commands start the dashboard on that view. `/json` and `/explain` ask the user to check first.
 - **Layout:**
   - Header: brand, machine, free space, scan age, and a `read-only` marker.
-  - Tab row: Overview, Suggestions, Toolchains, Space, Health.
+  - Tab row: Overview, Suggestions, Toolchains, Projects, Space, Health (`1`–`6`).
   - Body.
   - A context-sensitive help footer, generated from the key bindings.
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `enter` swaps the list for it.
-- **`/` palette:** `/overview /wins /dev /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
+- **`/` palette:** `/overview /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tui_tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
@@ -69,6 +69,31 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color.
   - Non-terminal output uses a plain theme that renders the exact pre-color text, with no boxes, dots or escapes, so pipes, files and golden tests stay stable.
   - Native commands are highlighted: tool green, flags yellow, arguments plain.
+
+### 1b. `macdoc doctor projects` (implemented 2026-10-28, Phase 4)
+
+```
+macdoc doctor projects · scan S-TEST · 2h ago
+
+ Projects ────────────────────────────────────────────────── 802 MB in 2
+  ~/code/app · react-native, ios, android
+    idle 120 days (git commit) · 800 MB · uncommitted changes
+    node_modules 500 MB · ios/Pods 300 MB
+  ~/Desktop/site · node
+    idle time unknown · 2.0 MB · git clean
+    .next 2.0 MB
+    In a protected folder: listed only, macdoc never moves anything here.
+
+ DerivedData of deleted projects ──────────────────────────────── 900 MB
+     900 MB  ~/old/Gone.xcodeproj
+
+ macdoc doctor wins · nothing has been changed
+```
+- One entry per project with at least 1 MB of build folders, biggest first. `--idle N` keeps projects known to be idle N+ days; an unknown idle time never counts as idle.
+- **Idle** is the newest of: the last commit touching the project, the newest source file or folder (build folders, `.git` and caches excluded) and the newest build folder (a build or install is use). Access times are never used. The activity source is shown in brackets.
+- **Git:** `git clean`, `uncommitted changes` (untracked Finder `.DS_Store` files don't count), `not in git`, or `git not checked` (projects with under 50 MB of build folders, or git failed).
+- The dashboard's **Projects** tab shows the same as a table (Project, Idle, Size, Git, Biggest folders), with protected projects marked `(protected)`.
+- `--json` returns `engine.ProjectsResult`: `projects[]` (root, name, kinds, artifacts, artifact_bytes, last_active, activity_source, idle_days, git, git_note, protected) and `derived_data[]` (path, bytes, workspace, project, missing).
 
 ## 2. Report mockups
 
