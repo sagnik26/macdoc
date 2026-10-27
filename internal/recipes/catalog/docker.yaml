@@ -1,0 +1,120 @@
+# Docker (docs/RECIPE_CATALOG.md §2). docker_df parses
+# `docker system df --format {{json .}}` and picks the row named by
+# params.type. Recipe lint forbids --volumes and system prune.
+
+- id: docker.build_cache
+  title: Docker build cache
+  category: containers
+  toolchain: docker
+  risk: SAFE
+  method: native
+  detector: docker_df
+  params: {type: "Build Cache"}
+  preconditions: [docker_reachable]
+  native:
+    argv: [docker, builder, prune, -f]
+  restore:
+    kind: rebuild
+    note: The next build recreates the layers it needs.
+  explain: >-
+    BuildKit caches intermediate build layers so repeat builds are faster.
+    Pruning removes cache entries that no running build uses. The next build
+    of each image takes longer while it recreates them.
+
+- id: docker.dangling_images
+  title: Untagged Docker images
+  category: containers
+  toolchain: docker
+  risk: SAFE
+  method: native
+  detector: docker_dangling
+  preconditions: [docker_reachable]
+  native:
+    argv: [docker, image, prune, -f]
+  restore:
+    kind: none
+    note: These images have no tag, so nothing refers to them by name.
+  explain: >-
+    Dangling images are left behind when a tag moves to a newer build. They
+    have no name and no container uses them. Removing them doesn't affect
+    tagged images.
+  confidence_notes: >-
+    The size is the sum of each image's size; layers shared between images
+    may be counted more than once.
+
+- id: docker.unused_images
+  title: Docker images not used by any container
+  category: containers
+  toolchain: docker
+  risk: CAUTION
+  method: native
+  detector: docker_df
+  params: {type: "Images"}
+  preconditions: [docker_reachable]
+  native:
+    argv: [docker, image, prune, -a, -f]
+  restore:
+    kind: redownload
+    note: docker pull or a rebuild brings an image back.
+  explain: >-
+    These images aren't used by any container, running or stopped. Removing
+    them frees their layers. You'll pull or rebuild an image the next time
+    you need it.
+  confidence_notes: Includes the untagged images counted under docker.dangling_images.
+
+- id: docker.stopped_containers
+  title: Stopped Docker containers
+  category: containers
+  toolchain: docker
+  risk: CAUTION
+  method: native
+  detector: docker_df
+  params: {type: "Containers"}
+  preconditions: [docker_reachable]
+  native:
+    argv: [docker, container, prune, -f]
+  restore:
+    kind: rebuild
+    note: Recreate the container from its image; changes made inside it are lost.
+  explain: >-
+    Stopped containers keep their writable layer, including any files
+    changed inside them. Pruning removes all stopped containers. Data in
+    volumes is kept.
+
+- id: docker.volumes
+  title: Docker volumes
+  category: containers
+  toolchain: docker
+  risk: ADVISE
+  method: advise
+  detector: docker_df
+  params: {type: "Local Volumes"}
+  restore:
+    kind: irreplaceable
+    note: Volumes often hold databases and other data that exists nowhere else.
+  explain: >-
+    Volumes hold data that containers store outside their images, such as
+    databases. macdoc doesn't remove volumes. Review them with docker volume
+    ls and docker system df -v, and remove any you no longer need with
+    docker volume rm.
+
+- id: docker.raw_disk
+  title: Docker Desktop disk image
+  category: containers
+  toolchain: docker
+  risk: ADVISE
+  method: advise
+  detector: path
+  params: {path: "~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"}
+  restore:
+    kind: irreplaceable
+    note: The disk image holds all Docker images, containers and volumes.
+  explain: >-
+    Docker Desktop stores everything in this single disk image, which grows
+    up to the disk limit set in Docker Desktop's Resources settings. Pruning
+    images and caches frees space inside the image, and Docker Desktop gives
+    it back to macOS over time. Lowering the disk limit shrinks it but can
+    delete existing Docker data.
+  confidence_notes: >-
+    The size is the space allocated on disk, which can be much smaller than
+    the size Finder shows.

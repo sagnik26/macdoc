@@ -1,0 +1,6 @@
+NAME                         ID              SIZE      MODIFIED
+llama3.2:latest              a80c4f17acd5    2.0 GB    3 weeks ago
+qwen2.5-coder:7b             2b0496514337    4.7 GB    2026-05-02 14:03:11
+nomic-embed-text:latest      0a109f422b47    274 MB    2026-09-30
+someuser/custom:latest       9f8e7d6c5b4a    3.8 GB    5 months ago
+hf.co/org/model-GGUF:Q4_K_M  1234567890ab    4.9 GB    2 days ago

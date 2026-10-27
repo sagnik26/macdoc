@@ -1,0 +1,96 @@
+# Python tooling (docs/RECIPE_CATALOG.md §2). pyenv.old_versions is not in
+# this phase.
+
+- id: pip.cache
+  title: pip cache
+  category: package-caches
+  toolchain: python
+  risk: SAFE
+  method: native
+  detector: path
+  params: {path: "~/Library/Caches/pip"}
+  native:
+    argv: [pip3, cache, purge]
+  restore:
+    kind: redownload
+    note: pip downloads packages again on the next install.
+  explain: >-
+    pip keeps downloaded packages and built wheels so later installs are
+    faster. Purging it doesn't affect installed packages or virtual
+    environments.
+
+- id: uv.cache
+  title: uv cache
+  category: package-caches
+  toolchain: python
+  risk: SAFE
+  method: native
+  detector: path
+  params: {path: "~/.cache/uv"}
+  native:
+    argv: [uv, cache, prune]
+  restore:
+    kind: redownload
+    note: uv downloads packages again when needed.
+  explain: >-
+    uv caches downloaded packages and built wheels. uv cache prune removes
+    entries that are no longer used. Existing environments keep working.
+  confidence_notes: >-
+    The size is the whole cache; pruning frees only the unused part.
+
+- id: poetry.cache
+  title: Poetry cache
+  category: package-caches
+  toolchain: python
+  risk: SAFE
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/pypoetry"}
+  allow: ["~/Library/Caches/pypoetry"]
+  restore:
+    kind: redownload
+    note: Poetry downloads packages again on the next install.
+  explain: >-
+    Poetry caches downloaded packages and package metadata. Moving it aside
+    doesn't affect existing virtual environments. The next poetry install
+    downloads what it needs.
+
+- id: conda.pkgs
+  title: conda package cache
+  category: package-caches
+  toolchain: python
+  risk: SAFE
+  method: native
+  detector: conda_pkgs
+  native:
+    argv: [conda, clean, --all, -y]
+    dry_run_argv: [conda, clean, --all, --dry-run]
+  restore:
+    kind: redownload
+    note: conda downloads packages again when an environment needs them.
+  explain: >-
+    conda keeps downloaded package archives, unused extracted packages and
+    index caches. conda clean removes them; existing environments keep
+    working.
+
+- id: python.venv_stale
+  title: Stale Python virtual environment
+  category: build-artifacts
+  toolchain: python
+  risk: CAUTION
+  method: quarantine
+  detector: venv_stale
+  allow: ["~/*/**/.venv"]
+  keep_names: [.venv]
+  stale_days: 90
+  restore:
+    kind: redownload
+    note: Recreate it with python3 -m venv .venv and reinstall the project's requirements.
+  explain: >-
+    A .venv folder holds a project's own Python and installed packages. This
+    one hasn't changed in a while. Moving it leaves the project's code
+    intact; recreate it and reinstall the requirements when you need it
+    again.
+  confidence_notes: >-
+    Only folders named .venv that contain pyvenv.cfg are reported. Idle time
+    comes from the newest file modification time inside it.
