@@ -1,0 +1,109 @@
+# General system locations (docs/RECIPE_CATALOG.md §2). swap.explain and
+# crawl.unknown_large are not in this phase.
+
+- id: user.app_caches
+  title: App cache
+  category: app-caches
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: app_caches
+  # exclude: children of ~/Library/Caches owned by other recipes.
+  params:
+    dir: "~/Library/Caches"
+    min_bytes: "524288000"
+    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew"
+  allow: ["~/Library/Caches/*"]
+  keep_children_of: ["~/Library/Caches"]
+  restore:
+    kind: rebuild
+    note: The app recreates its cache as you use it.
+  explain: >-
+    Apps keep caches to load faster, and they recreate them when they're
+    missing. Quit the app before cleaning its cache; it may be slower the
+    first time you open it again. Apple's own caches aren't included.
+
+- id: user.logs
+  title: Old app logs
+  category: logs
+  toolchain: system
+  risk: SAFE
+  method: quarantine
+  detector: children
+  params: {dir: "~/Library/Logs"}
+  allow: ["~/Library/Logs/*"]
+  keep_children_of: ["~/Library/Logs"]
+  stale_days: 30
+  restore:
+    kind: none
+    note: Old logs aren't needed for apps to work.
+  explain: >-
+    Apps write diagnostic logs here. Logs that haven't changed in a month are
+    rarely needed. Apps start new logs as they need them.
+
+- id: user.trash
+  title: Trash
+  category: system
+  toolchain: system
+  risk: ADVISE
+  method: advise
+  detector: path
+  params: {path: "~/.Trash"}
+  restore:
+    kind: irreplaceable
+    note: Files are gone once the Trash is emptied.
+  explain: >-
+    Files you move to the Trash still use disk space until it's emptied.
+    Review it and choose Empty Trash in Finder.
+
+- id: user.downloads_large_old
+  title: Large old download
+  category: downloads
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: downloads_large_old
+  params: {dir: "~/Downloads", min_bytes: "524288000"}
+  allow: ["~/Downloads/*"]
+  stale_days: 90
+  restore:
+    kind: redownload
+    note: Download it again from where it came from, if it's still available.
+  explain: >-
+    Large files in Downloads, such as installers, disk images, archives and
+    videos, often stay after they've been used. This one hasn't changed in
+    months. Check that you don't need it, or can download it again, before
+    cleaning.
+
+- id: ios.device_backups
+  title: iPhone or iPad backup
+  category: backups
+  toolchain: system
+  risk: ADVISE
+  method: advise
+  detector: children
+  params: {dir: "~/Library/Application Support/MobileSync/Backup"}
+  keep_children_of: ["~/Library/Application Support/MobileSync/Backup"]
+  restore:
+    kind: irreplaceable
+    note: A backup may be the only copy of a device's data.
+  explain: >-
+    Finder stores local backups of your iPhone and iPad here. macdoc doesn't
+    remove backups. Review them in Finder: select the device, then Manage
+    Backups.
+
+- id: tm.local_snapshots
+  title: Time Machine local snapshots
+  category: backups
+  toolchain: system
+  risk: ADVISE
+  method: advise
+  detector: local_snapshots
+  restore:
+    kind: irreplaceable
+    note: Local snapshots are backups.
+  explain: >-
+    Time Machine keeps local snapshots on this disk between backups. They are
+    backups, and macOS thins them automatically when space runs low.
+    tmutil listlocalsnapshots / lists them.
+  confidence_notes: macOS doesn't report how much space each snapshot uses.

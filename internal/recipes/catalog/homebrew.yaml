@@ -1,0 +1,39 @@
+# Homebrew (docs/RECIPE_CATALOG.md §2). Both detectors run brew's own
+# dry-run (the dry_run_argv below) and parse its output.
+
+- id: brew.cleanup
+  title: Homebrew old versions and downloads
+  category: package-caches
+  toolchain: homebrew
+  risk: SAFE
+  method: native
+  detector: brew_cleanup
+  native:
+    argv: [brew, cleanup, --prune=all]
+    dry_run_argv: [brew, cleanup, -n, --prune=all]
+  restore:
+    kind: redownload
+    note: Homebrew downloads a version again if you reinstall it.
+  explain: >-
+    Homebrew keeps older versions of upgraded formulae and the files it
+    downloaded to install them. brew cleanup removes those; the versions you
+    currently use stay installed.
+
+- id: brew.autoremove
+  title: Homebrew dependencies no longer needed
+  category: package-caches
+  toolchain: homebrew
+  risk: CAUTION
+  method: native
+  detector: brew_autoremove
+  native:
+    argv: [brew, autoremove]
+    dry_run_argv: [brew, autoremove, -n]
+  restore:
+    kind: redownload
+    note: Run brew install <formula> if you used one directly.
+  explain: >-
+    These formulae were installed as dependencies of something you have
+    since uninstalled, and nothing installed needs them now. If you use one
+    of them directly, install it again with brew install.
+  confidence_notes: brew autoremove doesn't report sizes.
