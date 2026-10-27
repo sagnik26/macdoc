@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"sort"
 	"strings"
 	"time"
@@ -22,8 +24,21 @@ const overviewTopLevel = 5
 // overviewPerTier is how many recipe groups each reclaimable tier names.
 const overviewPerTier = 3
 
-// runOverview is `macdoc` / `macdoc doctor`.
-func runOverview(cmd *cobra.Command, g *globalFlags) error {
+// scanRoot overrides the scan root; tests point it at a fixture tree so
+// `doctor scan` never crawls the real disk. Empty means the Data volume.
+var scanRoot = ""
+
+// overviewMode selects the short overview or the full report.
+type overviewMode struct {
+	full       bool // every section (macdoc doctor scan)
+	rescan     bool // scan first
+	foreground bool // scan at normal priority
+	workers    int
+}
+
+// runOverview runs `macdoc` / `macdoc doctor` (short) and `macdoc doctor scan`
+// (rescan + full report).
+func runOverview(cmd *cobra.Command, g *globalFlags, m overviewMode) error {
 	home, err := userHome()
 	if err != nil {
 		return err
@@ -32,6 +47,16 @@ func runOverview(cmd *cobra.Command, g *globalFlags) error {
 	if err != nil {
 		return err
 	}
+	// A scan may run (always with rescan, or when none exists): keep the Mac
+	// responsive unless the user asked for foreground speed.
+	if !m.foreground {
+		if err := scanner.SetBackgroundPriority(); err != nil {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "macdoc: could not lower priority:", err)
+		}
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	errOut := cmd.ErrOrStderr()
 	tty := !g.json && !g.quiet && isTerminal(errOut)
 	status := func(s string) {
@@ -39,33 +64,30 @@ func runOverview(cmd *cobra.Command, g *globalFlags) error {
 			_, _ = fmt.Fprintf(errOut, "\r\033[K%s", s)
 		}
 	}
-
-	opts := engine.OverviewOptions{Home: home, Runner: runner, Version: version, Rescan: g.rescan, Catalog: cat}
+	opts := engine.OverviewOptions{Home: home, Runner: runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: scanRoot}
 	if tty {
 		opts.Progress = func(p scanner.Progress) {
 			status(fmt.Sprintf("Scanning… %s · %d files · %s · %s",
 				engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), truncate(p.CurrentDir, 50)))
 		}
-		if !g.rescan {
+		if !m.rescan {
 			status("Checking your Mac…")
-		} else if err := scanner.SetBackgroundPriority(); err != nil {
-			status("")
 		}
 	}
-	res, err := engine.Overview(context.Background(), opts)
+	res, err := engine.Overview(ctx, opts)
 	status("")
 	if err != nil {
 		return err
 	}
-	if !g.full {
+	if !m.full {
 		if g.json {
 			return writeJSONWarn(cmd.OutOrStdout(), "doctor", res, res.Warnings)
 		}
 		return renderOverview(cmd.OutOrStdout(), res, cat)
 	}
 
-	// --full: every section, reusing the opportunities computed above.
-	space, err := engine.Storage(context.Background(), engine.StorageOptions{
+	// Full report: every section, reusing the opportunities computed above.
+	space, err := engine.Storage(ctx, engine.StorageOptions{
 		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat},
 		Large:              true,
 		Precomputed:        &res.Opportunities,
@@ -75,12 +97,12 @@ func runOverview(cmd *cobra.Command, g *globalFlags) error {
 	}
 	dev := devResult(res.Opportunities, "")
 	if g.json {
-		return writeJSONWarn(cmd.OutOrStdout(), "doctor", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
+		return writeJSONWarn(cmd.OutOrStdout(), "doctor scan", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
 	}
 	return renderFull(cmd.OutOrStdout(), res, space, dev, cat)
 }
 
-// FullResult is the --full --json document.
+// FullResult is the `macdoc doctor scan --json` document.
 type FullResult struct {
 	Overview engine.OverviewResult `json:"overview"`
 	Space    engine.StorageResult  `json:"space"`
@@ -94,6 +116,13 @@ func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 		render func(io.Writer) error
 	}{
 		{"OVERVIEW", func(w io.Writer) error { return renderOverview(w, res, cat) }},
+		{"SCAN", func(w io.Writer) error {
+			if res.ScanSummary == nil {
+				_, err := fmt.Fprintf(w, "Using scan %s from %s.\n", res.Scan.ID, res.ScanAge)
+				return err
+			}
+			return renderScan(w, *res.ScanSummary)
+		}},
 		{"HEALTH", func(w io.Writer) error { return renderDoctor(w, res.Health) }},
 		{"SPACE", func(w io.Writer) error { return renderStorage(w, space, true) }},
 		{"ALL SUGGESTIONS", func(w io.Writer) error { return renderWins(w, res.Opportunities, cat, true, "") }},

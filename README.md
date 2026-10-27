@@ -41,13 +41,12 @@ Nothing has been changed.
 |---|---|
 | `macdoc doctor` / `macdoc` | Everything above (~7 s; ~55 s the first time, when it scans) |
 | `macdoc doctor --scan` | Refresh the scan first, then show everything |
-| `macdoc doctor --full` | **Everything in full, in one report:** the overview, then health (all findings and top apps), space and "System Data" (plus big items no recipe covers), every suggestion with its ID, and per-toolchain totals (~8 s). Combine with `--scan` and/or `--json` |
 | `macdoc doctor health` | Disk, memory, swap, snapshots, all findings, top memory users grouped by app/dev tool |
 | `macdoc doctor space [--large]` | Reclaimable space by category, plus **"System Data" decoded** (swap, purgeable, snapshots, temp files, simulators, the part the scan can't see). `--large` adds big items no recipe covers |
 | `macdoc doctor wins [--all] [--tier …]` | Every suggestion with its ID, size, restore cost and exact command |
 | `macdoc doctor explain <id>` | One suggestion in detail: what, why, risk, idle time, how to restore |
 | `macdoc doctor dev [toolchain]` | Suggestions per toolchain: xcode, android, node, homebrew, docker, python, ai, system |
-| `macdoc doctor scan` | Just refresh the scan (full crawl at background priority, ~45 s, ~25 MB RAM) |
+| `macdoc doctor scan` | **Rescan, then the full report:** the overview, scan details (where the space actually is, what couldn't be read), health in full (all findings, top apps), space and "System Data" decoded (plus big items no recipe covers), every suggestion with its ID, and per-toolchain totals. Full crawl at background priority, ~55 s, ~25 MB RAM. `--foreground` is faster, `--json` gives one document |
 
 Every view supports `--json`, which outputs a versioned envelope with top-level warnings.
 
@@ -62,8 +61,8 @@ git clone <this repo> macdoc && cd macdoc
 make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
 macdoc                     # everything: health, space, reclaimable (scans the first time)
-macdoc doctor --scan       # refresh the scan first
-macdoc doctor --full       # every section in full, in one report
+macdoc doctor --scan       # refresh the scan first (short summary)
+macdoc doctor scan         # rescan + the full report, every section
 macdoc doctor wins         # every suggestion with its ID
 macdoc doctor explain <id> # details for one suggestion
 ```

@@ -9,6 +9,7 @@ import (
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
 	"macdoc/internal/probe"
+	"macdoc/internal/testutil/fstree"
 )
 
 func TestOverviewCommand(t *testing.T) {
@@ -87,19 +88,28 @@ func TestDoctorSectionsExist(t *testing.T) {
 	}
 }
 
-func TestOverviewFull(t *testing.T) {
+func TestDoctorScanFullReport(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "--full")
+	root := t.TempDir()
+	fstree.Build(t, root, fstree.File("Users/a/big.bin", 2<<20))
+	old := scanRoot
+	scanRoot = root
+	t.Cleanup(func() { scanRoot = old })
+
+	out, err := run(t, "doctor", "scan")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "Reclaimable", "══════ HEALTH", "Could not measure", "══════ SPACE", `"System Data", decoded`,
-		"Large items with no recipe", "══════ ALL SUGGESTIONS", "O-", "══════ BY TOOLCHAIN")
+	mustContain(t, out, "scanned just now", "Reclaimable", "══════ SCAN", "Scan S-", "══════ HEALTH", "Could not measure",
+		"══════ SPACE", `"System Data", decoded`, "Large items with no recipe", "══════ ALL SUGGESTIONS", "O-", "══════ BY TOOLCHAIN")
 	if strings.Count(out, "Stale node_modules folder ·") < 5 {
-		t.Errorf("--full should list every item ungrouped:\n%s", out)
+		t.Errorf("full report should list every item ungrouped:\n%s", out)
+	}
+	if strings.Contains(out, "--full") {
+		t.Error("--full no longer exists")
 	}
 
-	out, err = run(t, "--full", "--json")
+	out, err = run(t, "doctor", "scan", "--json", "--foreground", "--workers", "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +120,21 @@ func TestOverviewFull(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor" || len(env.Data.Overview.Opportunities.Opportunities) == 0 ||
-		len(env.Data.Space.Categories) == 0 || len(env.Data.Dev.Toolchains) == 0 {
+	if env.Command != "doctor scan" || !env.Data.Overview.Scanned || env.Data.Overview.ScanSummary == nil ||
+		len(env.Data.Overview.Opportunities.Opportunities) == 0 || len(env.Data.Space.Categories) == 0 || len(env.Data.Dev.Toolchains) == 0 {
 		t.Errorf("full JSON = %+v", env.Data)
 	}
+	if _, err := run(t, "doctor", "--full"); err == nil {
+		t.Error("--full should be rejected")
+	}
+}
+
+func TestRenderFullWithoutFreshScan(t *testing.T) {
+	var buf bytes.Buffer
+	res := engine.OverviewResult{Health: engine.DoctorResult{Report: probe.Report{Memory: probe.Memory{FreePercent: -1}}},
+		Scan: model.ScanInfo{ID: "S-OLD"}, ScanAge: "2h ago"}
+	if err := renderFull(&buf, res, engine.StorageResult{}, DevResult{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, buf.String(), "Using scan S-OLD from 2h ago.")
 }

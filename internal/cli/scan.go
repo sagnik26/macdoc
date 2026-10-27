@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
 	"time"
 
@@ -13,7 +11,6 @@ import (
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
-	"macdoc/internal/scanner"
 )
 
 func newScanCmd(g *globalFlags) *cobra.Command {
@@ -21,43 +18,13 @@ func newScanCmd(g *globalFlags) *cobra.Command {
 	var workers int
 	cmd := &cobra.Command{
 		Use:   "scan",
-		Short: "Measure where disk space is going (full crawl, background priority, read-only)",
+		Short: "Rescan the disk, then show the full report: every section (read-only)",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-			if !foreground {
-				if err := scanner.SetBackgroundPriority(); err != nil {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "macdoc: could not lower priority:", err)
-				}
-			}
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-			defer stop()
-
-			errOut := cmd.ErrOrStderr()
-			showProgress := !g.json && !g.quiet && isTerminal(errOut)
-			opts := engine.ScanOptions{Home: home, Version: version, Workers: workers, Runner: runner}
-			if showProgress {
-				opts.Progress = func(p scanner.Progress) {
-					_, _ = fmt.Fprintf(errOut, "\r\033[KScanning… %s · %d files · %s · %s",
-						engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), truncate(p.CurrentDir, 50))
-				}
-			}
-			sum, err := engine.Scan(ctx, opts)
-			if showProgress {
-				_, _ = fmt.Fprint(errOut, "\r\033[K")
-			}
-			if err != nil {
-				return err
-			}
-			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "scan", sum)
-			}
-			return renderScan(cmd.OutOrStdout(), sum)
+			return runOverview(cmd, g, overviewMode{full: true, rescan: true, foreground: foreground, workers: workers})
 		},
 	}
-	cmd.Flags().BoolVar(&foreground, "foreground", false, "run at normal priority (faster, but competes with your apps)")
+	cmd.Flags().BoolVar(&foreground, "foreground", false, "scan at normal priority (faster, but competes with your apps)")
 	cmd.Flags().IntVar(&workers, "workers", 4, "concurrent directory readers (1-16)")
 	return cmd
 }
@@ -109,7 +76,7 @@ func renderScan(w io.Writer, s engine.ScanSummary) error {
 	if s.HardlinkLimitHit {
 		b.WriteString("\nNote: very many hard links; some may be counted more than once.\n")
 	}
-	b.WriteString("\nNothing has been changed. Run `macdoc doctor` to see what you can reclaim.\n")
+	b.WriteString("\nNothing has been changed.\n")
 	_, err := io.WriteString(w, b.String())
 	return err
 }

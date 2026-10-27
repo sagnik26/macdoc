@@ -27,6 +27,7 @@ type OverviewOptions struct {
 	Catalog  *recipes.Catalog       // default recipes.Load()
 	// ScanRoot overrides the scan root (tests); empty means the Data volume.
 	ScanRoot string
+	Workers  int // scanner concurrency (0 = default)
 }
 
 // OverviewResult is everything `macdoc doctor` shows on one screen.
@@ -34,8 +35,9 @@ type OverviewResult struct {
 	Health        DoctorResult      `json:"health"`
 	Scan          model.ScanInfo    `json:"scan"`
 	ScanAge       string            `json:"scan_age"`
-	Scanned       bool              `json:"scanned"`    // a scan ran as part of this overview
-	ScanStale     bool              `json:"scan_stale"` // older than 24h
+	Scanned       bool              `json:"scanned"`                // a scan ran as part of this overview
+	ScanSummary   *ScanSummary      `json:"scan_summary,omitempty"` // set when Scanned
+	ScanStale     bool              `json:"scan_stale"`             // older than 24h
 	TopLevel      []model.Node      `json:"top_level"`
 	DataVolume    model.Bytes       `json:"data_volume_used"`
 	Opportunities OpportunityResult `json:"opportunities"`
@@ -55,11 +57,12 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	info, err := latestComplete(sp)
 	switch {
 	case o.Rescan || errors.Is(err, store.ErrNoScan):
-		sum, err := Scan(ctx, ScanOptions{Home: o.Home, Version: o.Version, Progress: o.Progress, Runner: o.Runner, Root: o.ScanRoot})
+		sum, err := Scan(ctx, ScanOptions{Home: o.Home, Version: o.Version, Progress: o.Progress, Runner: o.Runner, Root: o.ScanRoot, Workers: o.Workers})
 		if err != nil {
 			return res, err
 		}
 		res.Scanned = true
+		res.ScanSummary = &sum
 		res.TopLevel, res.DataVolume = sum.TopLevel, sum.DataVolumeUsed
 		info = sum.Info
 	case err != nil:

@@ -23,7 +23,6 @@ type globalFlags struct {
 	quiet   bool
 	verbose bool
 	rescan  bool // doctor --scan
-	full    bool // doctor --full
 }
 
 // NewRootCmd builds the command tree.
@@ -44,7 +43,6 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newVersionCmd(g), doctor)
 	// Bare `macdoc` is `macdoc doctor`.
 	root.Flags().BoolVar(&g.rescan, "scan", false, "run a fresh scan first (~45 s, background priority)")
-	root.Flags().BoolVar(&g.full, "full", false, "show every section in full: health, space, all suggestions, toolchains")
 	root.RunE = doctor.RunE
 	return root
 }
