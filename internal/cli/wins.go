@@ -1,0 +1,247 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"macdoc/internal/engine"
+	"macdoc/internal/model"
+	"macdoc/internal/recipes"
+)
+
+// userHome and loadCatalog are variables so tests can use a fixture home and
+// test-only recipes.
+var (
+	userHome    = os.UserHomeDir
+	loadCatalog = recipes.Load
+)
+
+// groupThreshold is how many opportunities of one recipe wins lists before
+// folding them into one line (without --all).
+const groupThreshold = 3
+
+// tierNames are the wins section headings.
+var tierNames = map[model.Risk]string{
+	model.RiskSafe:    "Free & safe",
+	model.RiskCaution: "Worth considering",
+	model.RiskRisky:   "Needs care",
+	model.RiskAdvise:  "Your call (advice only)",
+}
+
+// loadOpportunities runs the engine with the real home, catalog and runner.
+func loadOpportunities(ctx context.Context) (engine.OpportunityResult, *recipes.Catalog, error) {
+	home, err := userHome()
+	if err != nil {
+		return engine.OpportunityResult{}, nil, err
+	}
+	cat, err := loadCatalog()
+	if err != nil {
+		return engine.OpportunityResult{}, nil, err
+	}
+	res, err := engine.Opportunities(ctx, engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat})
+	return res, cat, err
+}
+
+func newWinsCmd(g *globalFlags) *cobra.Command {
+	var all bool
+	var tier string
+	cmd := &cobra.Command{
+		Use:   "wins",
+		Short: "Top space wins from the latest scan, by risk tier (read-only)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			risk, err := parseTier(tier)
+			if err != nil {
+				return err
+			}
+			res, cat, err := loadOpportunities(context.Background())
+			if err != nil {
+				return err
+			}
+			if risk != "" {
+				res = filterTier(res, risk)
+			}
+			if g.json {
+				return writeJSON(cmd.OutOrStdout(), "wins", res)
+			}
+			return renderWins(cmd.OutOrStdout(), res, cat, all, risk)
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "list every item instead of grouping repeated ones")
+	cmd.Flags().StringVar(&tier, "tier", "", "only one tier: safe, caution, risky or advise")
+	return cmd
+}
+
+func parseTier(s string) (model.Risk, error) {
+	if s == "" {
+		return "", nil
+	}
+	r := model.Risk(strings.ToUpper(s))
+	if _, ok := tierNames[r]; !ok {
+		return "", fmt.Errorf("unknown tier %q (use safe, caution, risky or advise)", s)
+	}
+	return r, nil
+}
+
+// filterTier keeps only one tier's opportunities and total.
+func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityResult {
+	ops := []model.Opportunity{}
+	for _, op := range res.Opportunities {
+		if op.Risk == r {
+			ops = append(ops, op)
+		}
+	}
+	res.Opportunities = ops
+	res.Totals = map[model.Risk]int64{r: res.Totals[r]}
+	return res
+}
+
+func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "macdoc wins · scan %s · %s\n\n", res.Scan.ID, res.ScanAge)
+	if len(res.Opportunities) == 0 {
+		if only != "" {
+			fmt.Fprintf(&b, " Nothing in %q in the latest scan.\n", tierNames[only])
+		} else {
+			b.WriteString(" Nothing to reclaim was found in the latest scan.\n")
+		}
+	}
+	for _, risk := range engine.TierOrder {
+		var ops []model.Opportunity
+		for _, op := range res.Opportunities {
+			if op.Risk == risk {
+				ops = append(ops, op)
+			}
+		}
+		if len(ops) == 0 {
+			continue
+		}
+		b.WriteString(sectionHeader(tierNames[risk], tierTotal(res.Totals[risk], ops)))
+		writeOpportunities(&b, ops, cat, all)
+		b.WriteString("\n")
+	}
+	writeNotes(&b, res.Warnings)
+	b.WriteString(" macdoc explain <id> · nothing has been changed\n")
+	_, err := io.WriteString(w, b.String())
+	return err
+}
+
+// sectionHeader renders " Name ─────── total" to a fixed width.
+func sectionHeader(name, total string) string {
+	const width = 72
+	dashes := max(3, width-len([]rune(name))-len([]rune(total))-3)
+	return fmt.Sprintf(" %s %s %s\n", name, strings.Repeat("─", dashes), total)
+}
+
+// tierTotal is the known total, flagged when some sizes are unknown. A total
+// made only of unknown sizes is "unknown", never "0 B".
+func tierTotal(known int64, ops []model.Opportunity) string {
+	unknown, allUnknown := false, true
+	for _, op := range ops {
+		if op.Bytes.Source == model.SourceUnknown {
+			unknown = true
+		} else {
+			allUnknown = false
+		}
+	}
+	switch {
+	case allUnknown && len(ops) > 0:
+		return "size unknown"
+	case unknown:
+		return engine.DecimalBytes(known) + " + unknown"
+	}
+	return engine.DecimalBytes(known)
+}
+
+// writeOpportunities lists ops, folding recipes with many items into one
+// line unless all is set.
+func writeOpportunities(b *strings.Builder, ops []model.Opportunity, cat *recipes.Catalog, all bool) {
+	count := map[string]int{}
+	sum := map[string]int64{}
+	for _, op := range ops {
+		count[op.RecipeID]++
+		if op.Bytes.Source != model.SourceUnknown {
+			sum[op.RecipeID] += op.Bytes.Value
+		}
+	}
+	grouped := map[string]bool{}
+	for _, op := range ops {
+		if !all && count[op.RecipeID] > groupThreshold {
+			if grouped[op.RecipeID] {
+				continue
+			}
+			grouped[op.RecipeID] = true
+			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], recipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
+			fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", "", "", title, "(macdoc wins --all)")
+			continue
+		}
+		writeOpportunity(b, op)
+	}
+}
+
+// writeOpportunity renders one line, plus the native command below it.
+func writeOpportunity(b *strings.Builder, op model.Opportunity) {
+	fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", op.ID, sizeCell(op.Bytes), truncate(op.Title, 44), restoreNote(op))
+	if op.Method == model.MethodNative && len(op.Command) > 0 {
+		fmt.Fprintf(b, "  %-8s  %8s  → %s\n", "", "", strings.Join(op.Command, " "))
+	}
+}
+
+func recipeTitle(cat *recipes.Catalog, id string) string {
+	if cat != nil {
+		if r, ok := cat.Get(id); ok {
+			return r.Title
+		}
+	}
+	return id
+}
+
+// sizeCell is a short size: "~" marks estimates, "—" unknown.
+func sizeCell(v model.Bytes) string {
+	switch v.Source {
+	case model.SourceUnknown:
+		return "—"
+	case model.SourceEstimated:
+		return "~" + engine.DecimalBytes(v.Value)
+	}
+	return engine.DecimalBytes(v.Value)
+}
+
+// restoreNote is the short restore cost shown on every line.
+func restoreNote(op model.Opportunity) string {
+	r := op.Restore
+	if op.Method != model.MethodAdvise {
+		switch r.Kind {
+		case model.RestoreRebuild:
+			return "rebuilds on next build"
+		case model.RestoreRedownload:
+			if r.RedownloadBytes > 0 {
+				return "re-download ~" + engine.DecimalBytes(r.RedownloadBytes)
+			}
+			return "re-downloads on demand"
+		}
+	}
+	if r.Note != "" {
+		return truncate(r.Note, 40)
+	}
+	if r.Kind == model.RestoreIrreplaceable {
+		return "can't be restored"
+	}
+	return ""
+}
+
+func writeNotes(b *strings.Builder, warnings []string) {
+	if len(warnings) == 0 {
+		return
+	}
+	b.WriteString(" Notes\n")
+	for _, w := range warnings {
+		fmt.Fprintf(b, "  · %s\n", w)
+	}
+	b.WriteString("\n")
+}
