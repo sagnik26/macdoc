@@ -1,0 +1,64 @@
+# Local AI models (docs/RECIPE_CATALOG.md §2). hf.cache_detached_revisions
+# and ai.duplicate_models are not in this phase.
+
+- id: ollama.model
+  title: Ollama model
+  category: ai-models
+  toolchain: ai
+  risk: CAUTION
+  method: native
+  detector: ollama_models
+  native:
+    argv: [ollama, rm, "{id}"]
+  stale_days: 30
+  preconditions: [ollama_model_not_loaded]
+  restore:
+    kind: redownload
+    note: Run ollama pull <name> to download it again.
+  explain: >-
+    Ollama stores each pulled model's weights locally. Removing a model with
+    ollama rm <name> frees its space unless another model shares the same
+    layers. ollama pull downloads it again.
+  confidence_notes: >-
+    Sizes come from ollama list. Layers shared between models are freed only
+    when the last model using them is removed.
+
+- id: hf.cache_repo
+  title: Hugging Face cached model or dataset
+  category: ai-models
+  toolchain: ai
+  risk: CAUTION
+  method: quarantine
+  detector: children
+  params: {dir: "~/.cache/huggingface/hub"}
+  allow: ["~/.cache/huggingface/hub/*"]
+  keep_children_of: ["~/.cache/huggingface/hub"]
+  stale_days: 60
+  restore:
+    kind: redownload
+    note: Hugging Face libraries download it again on next use.
+  explain: >-
+    Hugging Face libraries cache downloaded models and datasets here, one
+    folder per repository. Moving one aside means the next load downloads it
+    again, which can take a while for large models.
+
+- id: lmstudio.model
+  title: LM Studio model
+  category: ai-models
+  toolchain: ai
+  risk: CAUTION
+  method: quarantine
+  detector: lmstudio_models
+  params: {dirs: "~/.lmstudio/models,~/.cache/lm-studio/models"}
+  allow: ["~/.lmstudio/models/*/*", "~/.cache/lm-studio/models/*/*"]
+  keep_children_of: ["~/.lmstudio/models", "~/.cache/lm-studio/models"]
+  stale_days: 60
+  restore:
+    kind: redownload
+    note: Download it again from LM Studio's model search.
+  explain: >-
+    LM Studio stores each downloaded model in its own folder, grouped by
+    publisher. Moving one aside removes it from LM Studio's model list until
+    you download it again. Quit LM Studio before cleaning.
+  confidence_notes: >-
+    Model folders smaller than the scan's keep threshold aren't seen.

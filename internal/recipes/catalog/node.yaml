@@ -1,0 +1,109 @@
+# Node package managers and project dependencies (docs/RECIPE_CATALOG.md §2).
+# rn.metro_cache is not here: it lives in $TMPDIR (/private/var/folders),
+# which is protected and outside home. rn.ios_pods_stale and
+# rn.native_build_stale need project discovery (Phase 4).
+
+- id: node.node_modules_stale
+  title: Stale node_modules folder
+  category: build-artifacts
+  toolchain: node
+  risk: CAUTION
+  method: quarantine
+  detector: node_modules_stale
+  params: {min_bytes: "50000000"}
+  allow: ["~/*/**/node_modules"]
+  keep_names: [node_modules]
+  stale_days: 90
+  restore:
+    kind: redownload
+    note: Run npm i, pnpm i or yarn in the project.
+  explain: >-
+    node_modules holds a project's installed JavaScript dependencies. This
+    project's dependencies haven't changed in a while. Moving the folder
+    keeps the project itself intact; reinstalling with npm i, pnpm i or yarn
+    brings it back.
+  confidence_notes: >-
+    Only folders next to a package.json and a lockfile are reported; global
+    and tool installs aren't. Idle time is the newest modification time of the
+    folder, package.json and the lockfile. A later project scan will refine
+    this with git history.
+
+- id: npm.cache
+  title: npm cache
+  category: package-caches
+  toolchain: node
+  risk: SAFE
+  method: native
+  detector: path
+  params: {path: "~/.npm/_cacache"}
+  native:
+    argv: [npm, cache, clean, --force]
+  restore:
+    kind: redownload
+    note: npm downloads packages again on the next install.
+  explain: >-
+    npm keeps a copy of every package it has downloaded so later installs are
+    faster. Clearing it doesn't affect installed projects. If npm is a
+    Corepack shim, running the command may download the package manager
+    first.
+
+- id: pnpm.store
+  title: pnpm content store
+  category: package-caches
+  toolchain: node
+  risk: SAFE
+  method: native
+  detector: path
+  params: {path: "~/Library/pnpm/store"}
+  native:
+    argv: [pnpm, store, prune]
+  restore:
+    kind: redownload
+    note: pnpm downloads removed packages again when a project needs them.
+  explain: >-
+    pnpm stores every package once and links it into projects. Pruning
+    removes only packages that no project references any more. If pnpm is a
+    Corepack shim, running the command may download the package manager
+    first.
+  confidence_notes: >-
+    The size shown is the whole store; pruning frees only the unreferenced
+    part.
+
+- id: yarn.cache
+  title: Yarn cache
+  category: package-caches
+  toolchain: node
+  risk: SAFE
+  method: native
+  detector: path
+  params: {path: "~/Library/Caches/Yarn"}
+  native:
+    argv: [yarn, cache, clean]
+  restore:
+    kind: redownload
+    note: Yarn downloads packages again on the next install.
+  explain: >-
+    Yarn classic keeps downloaded packages here to speed up installs.
+    Clearing it doesn't affect installed projects. If yarn is a Corepack
+    shim, running the command may download the package manager first.
+
+- id: nvm.old_versions
+  title: Older Node.js version installed by nvm
+  category: package-caches
+  toolchain: node
+  risk: CAUTION
+  method: quarantine
+  detector: nvm_old_versions
+  params: {dir: "~/.nvm/versions/node", alias: "~/.nvm/alias"}
+  allow: ["~/.nvm/versions/node/*"]
+  keep_children_of: ["~/.nvm/versions/node"]
+  restore:
+    kind: redownload
+    note: Run nvm install <version> to get it back.
+  explain: >-
+    nvm keeps every Node.js version you have installed. This one is neither
+    your default nor the newest. Projects pinned to it with .nvmrc will need
+    it installed again with nvm install.
+  confidence_notes: >-
+    .nvmrc files in projects aren't checked yet; that comes with the project
+    scan.

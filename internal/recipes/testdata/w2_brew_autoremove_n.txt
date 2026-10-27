@@ -1,0 +1,4 @@
+==> Would autoremove 3 unneeded formulae:
+libfoo
+libbar
+python@3.11

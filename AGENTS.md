@@ -47,6 +47,7 @@ Never weaken these, even if a task seems to require it. Ask the user instead.
 - **External commands** go through the `platform.Runner` interface with timeouts and golden-file fakes in tests.
 - **Low-RAM budget:** keep scanner peak RSS ≤ 64 MB and never hold the full file tree in memory. Benchmark scanner changes.
 - **Output:** every command has a typed result struct and `--json` (versioned schema). Follow the tone rules in `docs/CLI_UX.md` §3: neutral words, show restore cost, no scare language.
+- **File names:** never end a Go file name in a GOOS or GOARCH suffix such as `_android.go`, `_ios.go`, `_linux.go`, `_windows.go` or `_arm64.go`. Go treats these as build constraints and silently excludes the file on macOS. This happened in P3-W1.
 - **Recipes:** follow the checklist in `docs/RECIPE_CATALOG.md` §3. Each recipe needs a positive test, a look-alike negative test and a precondition-failure test.
 
 ## Commands
