@@ -199,12 +199,12 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 	}
 
 	if res.ScanStale {
-		fmt.Fprintf(&b, "\nNote: the scan is %s old. Run `macdoc doctor --scan` to refresh.\n", strings.TrimSuffix(res.ScanAge, " ago"))
+		fmt.Fprintf(&b, "\nNote: the scan is %s old. Run `macdoc doctor scan` to refresh.\n", strings.TrimSuffix(res.ScanAge, " ago"))
 	}
 	if n := len(res.Warnings); n > 0 {
 		fmt.Fprintf(&b, "\n%d note(s) about skipped items: macdoc doctor wins\n", n)
 	}
-	b.WriteString("\nMore: macdoc doctor wins (every item + ID) · explain <id> · space · health · --scan\n")
+	b.WriteString("\nMore: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health\n")
 	b.WriteString("Nothing has been changed.\n")
 	_, err := io.WriteString(w, b.String())
 	return err

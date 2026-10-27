@@ -8,8 +8,14 @@
 
 ## What works today
 
-**One command:** `macdoc doctor` (or just `macdoc`) shows everything on one screen: disk and memory health, where your space is, and what you can reclaim, ranked by safety. It scans automatically the first time. After that it reuses the latest scan and tells you when it's over a day old.
+macdoc has **two everyday commands**:
 
+| Command | When to use it | What you get | Time |
+|---|---|---|---|
+| **`macdoc`** (same as `macdoc doctor`) | Any time: "how is my Mac doing?" | **Short summary** from the latest scan: health, where your space is, reclaimable space per tier. Scans automatically only if there's no scan yet, and tells you when the scan is over a day old | ~7 s |
+| **`macdoc doctor scan`** | After installing or cleaning things, or when the summary says the scan is old | **Fresh scan + the full report:** everything in the summary, plus scan details, every health finding and the top apps, space by category with "System Data" decoded, big items no recipe covers, every suggestion with its ID, and per-toolchain totals | ~45 s–2 min (background priority) |
+
+### `macdoc`: the short summary
 ```
 $ macdoc
 macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 29m ago
@@ -31,26 +37,37 @@ Reclaimable                              1.4 GB actionable · 48.9 GB advice
   Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB
   Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
 
-More: macdoc doctor wins (every item + ID) · explain <id> · space · health · --scan
+More: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health
 Nothing has been changed.
 ```
 
-**Sections, for more detail:**
+### `macdoc doctor scan`: the full report
+It rescans the Data volume at background priority, so your Mac stays responsive, with a live progress line. Ctrl-C keeps a partial scan. Then it prints every section in order:
+
+```
+OVERVIEW         the short summary above
+SCAN             files and bytes measured, how much of the volume was visible, where the space actually is, what couldn't be read
+HEALTH           every finding with its explanation, top memory users grouped by app/dev tool
+SPACE            reclaimable space by category, "System Data" decoded, big items no recipe covers
+ALL SUGGESTIONS  every item with its ID, size, restore cost and exact command
+BY TOOLCHAIN     totals for xcode, android, node, homebrew, docker, python, ai, system
+```
+Options: `--foreground` (faster, competes with your apps) and `--workers N`.
+
+### Single sections, when you only want one part
+These read the latest scan and don't rescan.
 
 | Command | Shows |
 |---|---|
-| `macdoc doctor` / `macdoc` | Everything above (~7 s; ~55 s the first time, when it scans) |
-| `macdoc doctor --scan` | Refresh the scan first, then show everything |
-| `macdoc doctor health` | Disk, memory, swap, snapshots, all findings, top memory users grouped by app/dev tool |
-| `macdoc doctor space [--large]` | Reclaimable space by category, plus **"System Data" decoded** (swap, purgeable, snapshots, temp files, simulators, the part the scan can't see). `--large` adds big items no recipe covers |
-| `macdoc doctor wins [--all] [--tier …]` | Every suggestion with its ID, size, restore cost and exact command |
-| `macdoc doctor explain <id>` | One suggestion in detail: what, why, risk, idle time, how to restore |
-| `macdoc doctor dev [toolchain]` | Suggestions per toolchain: xcode, android, node, homebrew, docker, python, ai, system |
-| `macdoc doctor scan` | **Rescan, then the full report:** the overview, scan details (where the space actually is, what couldn't be read), health in full (all findings, top apps), space and "System Data" decoded (plus big items no recipe covers), every suggestion with its ID, and per-toolchain totals. Full crawl at background priority, ~55 s, ~25 MB RAM. `--foreground` is faster, `--json` gives one document |
+| `macdoc doctor health` | Disk, memory, swap, snapshots, every finding, top memory users |
+| `macdoc doctor space [--large]` | Reclaimable space by category and "System Data" decoded. `--large` adds big items no recipe covers |
+| `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
+| `macdoc doctor explain <id>` | One suggestion in detail: what it is, why it's there, risk, idle time, how to restore, the exact action |
+| `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 
-Every view supports `--json`, which outputs a versioned envelope with top-level warnings.
+Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. `--quiet` hides the progress line. Other top-level commands: `macdoc version`.
 
-**Not yet:** `plan` (Phase 5), `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8).
+**Not yet:** `plan` (Phase 5), `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8). Until then, macdoc can't change anything on your Mac.
 
 ## Quick start
 
@@ -60,12 +77,11 @@ Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew insta
 git clone <this repo> macdoc && cd macdoc
 make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
-macdoc                     # everything: health, space, reclaimable (scans the first time)
-macdoc doctor --scan       # refresh the scan first (short summary)
-macdoc doctor scan         # rescan + the full report, every section
-macdoc doctor wins         # every suggestion with its ID
+macdoc                     # short summary (scans automatically the first time)
+macdoc doctor scan         # fresh scan + the full report
 macdoc doctor explain <id> # details for one suggestion
 ```
+After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 
@@ -131,7 +147,7 @@ Developer tooling quietly eats tens of gigabytes:
 | 0 | Foundations: path-safety layer, sandbox mode, import and forbidden-call guards, lint, CI | ✅ done (red-teamed, 9 findings fixed) |
 | 1 | System probe → `doctor` | ✅ done |
 | 2 | Full-crawl scanner + SQLite store → `scan` | ✅ done |
-| 3 | 46 recipes + classifier; one `macdoc doctor` overview with sections (`health`, `space`, `wins`, `explain`, `dev`, `scan`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
+| 3 | 46 recipes + classifier; `macdoc` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed) · **awaiting user review** |
 | 4 | Project awareness: stale `node_modules` by git activity, Pods, RN/Android build folders | next |
 | 5 | Planner: sealed, expiring dry-run plans → `plan` | |
 | 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | |
@@ -169,7 +185,7 @@ Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
 ```
 macdoc (one Go binary)
   cmd/macdoc            entry point
-  internal/cli          `macdoc doctor` overview + sections (health, space, wins, explain, dev, scan), version
+  internal/cli          `macdoc doctor` (summary), `doctor scan` (rescan + full report), sections, version
   internal/engine       UI-agnostic core: Overview, Doctor, Scan, Opportunities (classifier/ranking), Storage
   internal/probe        hardware, memory, swap, processes, APFS, snapshots (read-only, via Runner)
   internal/scanner      parallel full crawl: allocated bytes, hard links once, bounded memory, background QoS

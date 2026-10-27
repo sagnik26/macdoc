@@ -2,7 +2,7 @@
 
 ## 1. Commands
 
-> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | scan`, plus `--scan` to refresh the short summary first. `doctor scan` rescans and prints the full report (every section). The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
+> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
 
 | Command | Mode | Purpose |
 |---|---|---|
@@ -23,7 +23,7 @@
 | `macdoc mcp` | read + plans (Phase C) | MCP stdio server |
 | `macdoc schedule enable\|disable` | Phase 10 | Daily read-only scan via launchd |
 
-Global flags: `--json`, `--no-color`, `--quiet`, `--verbose`.
+Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as unused; they'll come back if colors or extra output are added.)
 
 ## 2. Report mockups
 

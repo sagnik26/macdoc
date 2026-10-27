@@ -18,11 +18,8 @@ import (
 var version = "dev"
 
 type globalFlags struct {
-	json    bool
-	noColor bool
-	quiet   bool
-	verbose bool
-	rescan  bool // doctor --scan
+	json  bool
+	quiet bool
 }
 
 // NewRootCmd builds the command tree.
@@ -35,14 +32,11 @@ func NewRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "output JSON")
-	root.PersistentFlags().BoolVar(&g.noColor, "no-color", os.Getenv("NO_COLOR") != "", "disable colors")
 	root.PersistentFlags().BoolVarP(&g.quiet, "quiet", "q", false, "minimal output")
-	root.PersistentFlags().BoolVarP(&g.verbose, "verbose", "v", false, "verbose output")
 
 	doctor := newDoctorCmd(g)
 	root.AddCommand(newVersionCmd(g), doctor)
 	// Bare `macdoc` is `macdoc doctor`.
-	root.Flags().BoolVar(&g.rescan, "scan", false, "run a fresh scan first (~45 s, background priority)")
 	root.RunE = doctor.RunE
 	return root
 }

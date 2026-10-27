@@ -23,7 +23,7 @@ func newDoctorCmd(g *globalFlags) *cobra.Command {
 		Short: "Everything at once: health, where your space is, and what you can reclaim (read-only)",
 		Long: `macdoc doctor shows one overview: disk and memory health, where your space
 is, and what you could reclaim, ranked by safety. It scans only if there is
-no scan yet (or with --scan). Use a section for more detail:
+no scan yet. Use a section for more detail:
 
   macdoc doctor health          disk, memory, swap, top apps
   macdoc doctor space           space by category, "System Data" decoded
@@ -33,10 +33,9 @@ no scan yet (or with --scan). Use a section for more detail:
   macdoc doctor scan            rescan, then show the full report (every section)`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runOverview(cmd, g, overviewMode{rescan: g.rescan})
+			return runOverview(cmd, g, overviewMode{})
 		},
 	}
-	cmd.Flags().BoolVar(&g.rescan, "scan", false, "run a fresh scan first (~45 s, background priority)")
 
 	health := &cobra.Command{
 		Use:   "health",

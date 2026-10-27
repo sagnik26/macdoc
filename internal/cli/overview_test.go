@@ -21,7 +21,7 @@ func TestOverviewCommand(t *testing.T) {
 		}
 		mustContain(t, out, "scan 2h ago", "What matters most", "Where your space is (Data volume, 100 GB measured)",
 			"Reclaimable", "Free & safe", "npm cache 3.0 GB", "Worth considering", "5 × Stale node_modules folder 15.0 GB",
-			"Your call", "size unknown", "macdoc doctor wins", "Nothing has been changed.")
+			"Your call", "size unknown", "macdoc doctor scan (rescan + full report)", "Nothing has been changed.")
 		if strings.Contains(out, "is old. Run") {
 			t.Errorf("%v: 2h-old scan flagged stale", args)
 		}
@@ -124,8 +124,10 @@ func TestDoctorScanFullReport(t *testing.T) {
 		len(env.Data.Overview.Opportunities.Opportunities) == 0 || len(env.Data.Space.Categories) == 0 || len(env.Data.Dev.Toolchains) == 0 {
 		t.Errorf("full JSON = %+v", env.Data)
 	}
-	if _, err := run(t, "doctor", "--full"); err == nil {
-		t.Error("--full should be rejected")
+	for _, gone := range [][]string{{"doctor", "--full"}, {"doctor", "--scan"}, {"--scan"}, {"--no-color"}, {"--verbose"}} {
+		if _, err := run(t, gone...); err == nil {
+			t.Errorf("%v should be rejected (flag removed)", gone)
+		}
 	}
 }
 
