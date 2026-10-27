@@ -41,6 +41,7 @@ Nothing has been changed.
 |---|---|
 | `macdoc doctor` / `macdoc` | Everything above (~7 s; ~55 s the first time, when it scans) |
 | `macdoc doctor --scan` | Refresh the scan first, then show everything |
+| `macdoc doctor --full` | **Everything in full, in one report:** the overview, then health (all findings and top apps), space and "System Data" (plus big items no recipe covers), every suggestion with its ID, and per-toolchain totals (~8 s). Combine with `--scan` and/or `--json` |
 | `macdoc doctor health` | Disk, memory, swap, snapshots, all findings, top memory users grouped by app/dev tool |
 | `macdoc doctor space [--large]` | Reclaimable space by category, plus **"System Data" decoded** (swap, purgeable, snapshots, temp files, simulators, the part the scan can't see). `--large` adds big items no recipe covers |
 | `macdoc doctor wins [--all] [--tier …]` | Every suggestion with its ID, size, restore cost and exact command |
@@ -62,6 +63,7 @@ make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
 macdoc                     # everything: health, space, reclaimable (scans the first time)
 macdoc doctor --scan       # refresh the scan first
+macdoc doctor --full       # every section in full, in one report
 macdoc doctor wins         # every suggestion with its ID
 macdoc doctor explain <id> # details for one suggestion
 ```

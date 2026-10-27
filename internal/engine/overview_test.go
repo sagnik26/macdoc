@@ -80,3 +80,24 @@ func TestOverviewErrors(t *testing.T) {
 		t.Error("expected an error when the scan root is missing")
 	}
 }
+
+func TestStoragePrecomputed(t *testing.T) {
+	home, root := overviewHome(t)
+	o := OverviewOptions{Home: home, Runner: &platform.FakeRunner{}, ScanRoot: root, Catalog: &recipes.Catalog{}}
+	ov, err := Overview(context.Background(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pre := ov.Opportunities
+	pre.Opportunities = []model.Opportunity{{ID: "O-test01", Category: "logs", Risk: model.RiskSafe, Bytes: model.Bytes{Value: 5, Source: model.SourceMeasured}}}
+	res, err := Storage(context.Background(), StorageOptions{
+		OpportunityOptions: OpportunityOptions{Home: home, Runner: &platform.FakeRunner{}, Catalog: &recipes.Catalog{}},
+		Precomputed:        &pre,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Categories) != 1 || res.Categories[0].Category != "logs" {
+		t.Errorf("precomputed opportunities not used: %+v", res.Categories)
+	}
+}

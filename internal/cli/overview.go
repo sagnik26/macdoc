@@ -57,10 +57,59 @@ func runOverview(cmd *cobra.Command, g *globalFlags) error {
 	if err != nil {
 		return err
 	}
-	if g.json {
-		return writeJSONWarn(cmd.OutOrStdout(), "doctor", res, res.Warnings)
+	if !g.full {
+		if g.json {
+			return writeJSONWarn(cmd.OutOrStdout(), "doctor", res, res.Warnings)
+		}
+		return renderOverview(cmd.OutOrStdout(), res, cat)
 	}
-	return renderOverview(cmd.OutOrStdout(), res, cat)
+
+	// --full: every section, reusing the opportunities computed above.
+	space, err := engine.Storage(context.Background(), engine.StorageOptions{
+		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat},
+		Large:              true,
+		Precomputed:        &res.Opportunities,
+	})
+	if err != nil {
+		return err
+	}
+	dev := devResult(res.Opportunities, "")
+	if g.json {
+		return writeJSONWarn(cmd.OutOrStdout(), "doctor", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
+	}
+	return renderFull(cmd.OutOrStdout(), res, space, dev, cat)
+}
+
+// FullResult is the --full --json document.
+type FullResult struct {
+	Overview engine.OverviewResult `json:"overview"`
+	Space    engine.StorageResult  `json:"space"`
+	Dev      DevResult             `json:"dev"`
+}
+
+// renderFull prints the overview followed by every section in full.
+func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResult, dev DevResult, cat *recipes.Catalog) error {
+	sections := []struct {
+		title  string
+		render func(io.Writer) error
+	}{
+		{"OVERVIEW", func(w io.Writer) error { return renderOverview(w, res, cat) }},
+		{"HEALTH", func(w io.Writer) error { return renderDoctor(w, res.Health) }},
+		{"SPACE", func(w io.Writer) error { return renderStorage(w, space, true) }},
+		{"ALL SUGGESTIONS", func(w io.Writer) error { return renderWins(w, res.Opportunities, cat, true, "") }},
+		{"BY TOOLCHAIN", func(w io.Writer) error { return renderDev(w, dev, cat) }},
+	}
+	for i, s := range sections {
+		if i > 0 {
+			if _, err := fmt.Fprintf(w, "\n══════ %s %s\n\n", s.title, strings.Repeat("═", max(0, 70-len(s.title)))); err != nil {
+				return err
+			}
+		}
+		if err := s.render(w); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {

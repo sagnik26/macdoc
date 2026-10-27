@@ -17,6 +17,9 @@ import (
 type StorageOptions struct {
 	OpportunityOptions
 	Large bool // also list big items no recipe covers
+	// Precomputed, if set, is used instead of running the detectors again
+	// (the full overview already has the opportunities).
+	Precomputed *OpportunityResult
 }
 
 // CategoryTotal sums the opportunities of one category.
@@ -56,9 +59,14 @@ const (
 // Storage builds the category breakdown, decodes "System Data" and, with
 // Large, lists big items that no recipe covers. It is read-only.
 func Storage(ctx context.Context, o StorageOptions) (StorageResult, error) {
-	opp, err := Opportunities(ctx, o.OpportunityOptions)
-	if err != nil {
-		return StorageResult{}, err
+	var opp OpportunityResult
+	if o.Precomputed != nil {
+		opp = *o.Precomputed
+	} else {
+		var err error
+		if opp, err = Opportunities(ctx, o.OpportunityOptions); err != nil {
+			return StorageResult{}, err
+		}
 	}
 	res := StorageResult{Scan: opp.Scan, ScanAge: opp.ScanAge, Warnings: opp.Warnings,
 		Categories: Categories(opp.Opportunities)}

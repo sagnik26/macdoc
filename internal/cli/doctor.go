@@ -30,11 +30,14 @@ no scan yet (or with --scan). Use a section for more detail:
   macdoc doctor wins            every suggestion with its ID
   macdoc doctor dev [toolchain] suggestions per developer toolchain
   macdoc doctor explain <id>    one suggestion in detail
-  macdoc doctor scan            refresh the scan only`,
+  macdoc doctor scan            refresh the scan only
+
+Or show all of it at once with --full.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return runOverview(cmd, g) },
 	}
 	cmd.Flags().BoolVar(&g.rescan, "scan", false, "run a fresh scan first (~45 s, background priority)")
+	cmd.Flags().BoolVar(&g.full, "full", false, "show every section in full: health, space, all suggestions, toolchains")
 
 	health := &cobra.Command{
 		Use:   "health",

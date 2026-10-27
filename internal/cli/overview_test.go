@@ -86,3 +86,32 @@ func TestDoctorSectionsExist(t *testing.T) {
 		}
 	}
 }
+
+func TestOverviewFull(t *testing.T) {
+	cliFixture(t)
+	out, err := run(t, "doctor", "--full")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "Reclaimable", "══════ HEALTH", "Could not measure", "══════ SPACE", `"System Data", decoded`,
+		"Large items with no recipe", "══════ ALL SUGGESTIONS", "O-", "══════ BY TOOLCHAIN")
+	if strings.Count(out, "Stale node_modules folder ·") < 5 {
+		t.Errorf("--full should list every item ungrouped:\n%s", out)
+	}
+
+	out, err = run(t, "--full", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env struct {
+		Command string     `json:"command"`
+		Data    FullResult `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("bad JSON: %v\n%s", err, out)
+	}
+	if env.Command != "doctor" || len(env.Data.Overview.Opportunities.Opportunities) == 0 ||
+		len(env.Data.Space.Categories) == 0 || len(env.Data.Dev.Toolchains) == 0 {
+		t.Errorf("full JSON = %+v", env.Data)
+	}
+}
