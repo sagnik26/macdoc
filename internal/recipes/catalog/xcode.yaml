@@ -1,0 +1,168 @@
+# Xcode, iOS simulators and CocoaPods. Schema: internal/recipes/recipe.go.
+# Detectors: internal/recipes/detect_xcode.go and the generic children/path.
+
+- id: xcode.derived_data
+  title: Xcode DerivedData
+  category: build-artifacts
+  toolchain: xcode
+  risk: SAFE
+  method: quarantine
+  detector: children
+  params: {dir: "~/Library/Developer/Xcode/DerivedData"}
+  allow: ["~/Library/Developer/Xcode/DerivedData/*"]
+  keep_children_of: ["~/Library/Developer/Xcode/DerivedData"]
+  stale_days: 30
+  preconditions: ["app_not_running:Xcode"]
+  restore: {kind: rebuild, note: "Xcode rebuilds it on the next build of the project, which can take a few minutes."}
+  explain: >-
+    DerivedData holds Xcode's build products, indexes and logs, one folder per project.
+    Xcode recreates it whenever it builds. Removing a project's folder means its next
+    build and indexing start from scratch.
+
+- id: xcode.device_support
+  title: Xcode device support files
+  category: simulators-emulators
+  toolchain: xcode
+  risk: SAFE
+  method: quarantine
+  detector: xcode_device_support
+  allow:
+    - "~/Library/Developer/Xcode/iOS DeviceSupport/*"
+    - "~/Library/Developer/Xcode/watchOS DeviceSupport/*"
+    - "~/Library/Developer/Xcode/tvOS DeviceSupport/*"
+  keep_children_of:
+    - "~/Library/Developer/Xcode/iOS DeviceSupport"
+    - "~/Library/Developer/Xcode/watchOS DeviceSupport"
+    - "~/Library/Developer/Xcode/tvOS DeviceSupport"
+  preconditions: ["app_not_running:Xcode"]
+  restore: {kind: redownload, note: "Xcode copies them again from the device the next time a device on that OS version is connected."}
+  explain: >-
+    Xcode copies debug symbols from each physical device OS version you connect, so it
+    can debug apps on it. Folders for OS versions older than the newest one per platform
+    are rarely needed again. If you connect a device on an older version later, Xcode
+    copies the files again, which takes a few minutes.
+
+- id: xcode.previews_cache
+  title: Xcode SwiftUI Previews cache
+  category: build-artifacts
+  toolchain: xcode
+  risk: SAFE
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Developer/Xcode/UserData/Previews"}
+  allow: ["~/Library/Developer/Xcode/UserData/Previews"]
+  preconditions: ["app_not_running:Xcode"]
+  restore: {kind: rebuild, note: "Xcode regenerates previews when you open them again."}
+  explain: >-
+    This folder holds the simulator devices and build products Xcode uses to render
+    SwiftUI previews. Xcode creates it on demand. Removing it means the next preview
+    takes longer to appear.
+
+- id: xcode.caches
+  title: Xcode caches
+  category: app-caches
+  toolchain: xcode
+  risk: SAFE
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/com.apple.dt.Xcode"}
+  allow: ["~/Library/Caches/com.apple.dt.Xcode"]
+  preconditions: ["app_not_running:Xcode"]
+  restore: {kind: rebuild, note: "Xcode recreates its caches as it runs."}
+  explain: >-
+    Xcode keeps downloaded documentation, package metadata and other caches here.
+    They are rebuilt automatically. Removing them may make the first launch and some
+    lookups slower for a while.
+
+- id: xcode.archives
+  title: Xcode archives
+  category: backups
+  toolchain: xcode
+  risk: ADVISE
+  method: advise
+  detector: children
+  params: {dir: "~/Library/Developer/Xcode/Archives"}
+  keep_children_of: ["~/Library/Developer/Xcode/Archives"]
+  restore: {kind: irreplaceable, note: "An archive's dSYMs can't be rebuilt; without them, crash reports from that build can't be symbolicated."}
+  explain: >-
+    Archives are the builds you made for distribution, including the dSYM files needed
+    to read crash reports from those builds. They can't be recreated. To free space,
+    open Xcode › Window › Organizer › Archives, export any archive you still ship
+    (right-click › Show in Finder, then copy it elsewhere), and delete the rest there.
+
+- id: xcode.simulators_unavailable
+  title: Unavailable simulators
+  category: simulators-emulators
+  toolchain: xcode
+  risk: SAFE
+  method: native
+  detector: simctl_unavailable_devices
+  native: {argv: [xcrun, simctl, delete, unavailable]}
+  keep_children_of: ["~/Library/Developer/CoreSimulator/Devices"]
+  restore: {kind: none, note: "These simulators can't run anymore because their runtime is gone."}
+  explain: >-
+    These simulator devices belong to runtimes that are no longer installed, so they
+    can't be booted. Xcode doesn't remove them on its own. Deleting them removes their
+    data, which was already unusable.
+
+- id: xcode.sim_runtimes
+  title: Simulator runtimes
+  category: simulators-emulators
+  toolchain: xcode
+  risk: CAUTION
+  method: native
+  detector: simctl_runtimes
+  native: {argv: [xcrun, simctl, runtime, delete, "{id}"]}
+  preconditions: ["simulator_not_running"]
+  restore: {kind: redownload, note: "Download it again in Xcode › Settings › Components (usually 5–8 GB)."}
+  explain: >-
+    A simulator runtime is a full copy of iOS, watchOS, tvOS or visionOS that the
+    simulators run on. Each one takes several gigabytes. Deleting a runtime also makes
+    the simulators that use it unavailable until you download it again.
+
+- id: xcode.sim_runtimes_orphaned
+  title: Leftover simulator runtime data
+  category: simulators-emulators
+  toolchain: xcode
+  risk: ADVISE
+  method: advise
+  detector: orphaned_sim_runtimes
+  restore: {kind: redownload, note: "Runtimes can be downloaded again from Xcode › Settings › Components."}
+  explain: >-
+    These are simulator runtimes and their caches left over from an Xcode that was
+    removed or isn't selected (only the Command Line Tools are active). macOS doesn't
+    clean them up on its own. To remove them, install or select Xcode
+    (sudo xcode-select -s /Applications/Xcode.app), then delete the runtimes in
+    Xcode › Settings › Components or with xcrun simctl runtime delete all.
+
+- id: xcode.sim_devices_idle
+  title: Idle simulators
+  category: simulators-emulators
+  toolchain: xcode
+  risk: CAUTION
+  method: native
+  detector: simctl_idle_devices
+  native: {argv: [xcrun, simctl, delete, "{id}"]}
+  keep_children_of: ["~/Library/Developer/CoreSimulator/Devices"]
+  stale_days: 90
+  preconditions: ["simulator_not_running"]
+  restore: {kind: rebuild, note: "Create the simulator again in Xcode › Window › Devices and Simulators; apps and data installed on it are lost."}
+  explain: >-
+    Each simulator device keeps its own apps, data and settings. These ones haven't
+    been used for 90 days or more. Deleting one removes everything installed on it;
+    you can create a fresh one at any time.
+
+- id: cocoapods.cache
+  title: CocoaPods cache
+  category: package-caches
+  toolchain: cocoapods
+  risk: SAFE
+  method: native
+  detector: cocoapods_cache
+  params: {path: "~/Library/Caches/CocoaPods"}
+  native: {argv: [pod, cache, clean, --all]}
+  restore: {kind: redownload, note: "pod install downloads the pods it needs again."}
+  explain: >-
+    CocoaPods keeps a copy of every pod version it has downloaded, so installs are
+    faster. Clearing it is safe. The next pod install downloads what the project needs
+    again.
