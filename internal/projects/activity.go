@@ -208,3 +208,11 @@ func workspaceRoot(ws string) string {
 	}
 	return dir
 }
+
+// GitStatus reports whether dir has uncommitted changes, with the same
+// read-only git invocation discovery uses. It's for apply's git_clean
+// precondition; outside a repo it returns GitNone.
+func GitStatus(ctx context.Context, env Env, dir string) (GitState, string) {
+	st, _, note := gitState(ctx, env, dir)
+	return st, note
+}

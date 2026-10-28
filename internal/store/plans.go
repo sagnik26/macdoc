@@ -110,3 +110,28 @@ func (s *Store) Plans(limit int) ([]PlanRecord, error) {
 	}
 	return out, rows.Err()
 }
+
+// ErrPlanNotPending is returned by MarkApplied when the plan was already
+// applied (or is missing).
+var ErrPlanNotPending = errors.New("store: plan is not pending")
+
+// MarkApplied moves plan id from pending to applied. Apply calls it before
+// acting on anything, so it is also the lock that stops a plan from being
+// applied twice, even by two processes at once.
+func (s *Store) MarkApplied(id string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	res, err := s.db.Exec(`UPDATE plans SET status = ? WHERE id = ? AND status = ?`,
+		string(PlanApplied), id, string(PlanPending))
+	if err != nil {
+		return fmt.Errorf("store: mark applied: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: mark applied: %w", err)
+	}
+	if n != 1 {
+		return ErrPlanNotPending
+	}
+	return nil
+}

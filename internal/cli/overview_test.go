@@ -140,3 +140,16 @@ func TestRenderFullWithoutFreshScan(t *testing.T) {
 	}
 	mustContain(t, buf.String(), "Using scan S-OLD from 2h ago.")
 }
+
+func TestOverviewReportsQuarantine(t *testing.T) {
+	var buf bytes.Buffer
+	res := engine.OverviewResult{Health: engine.DoctorResult{Report: probe.Report{Memory: probe.Memory{FreePercent: -1}}},
+		Scan: model.ScanInfo{ID: "S-1"}, ScanAge: "1h ago",
+		Quarantine: &engine.QuarantineNote{Entries: 2, HeldBytes: 12_300_000_000, ExpiredCount: 1, ExpiredBytes: 800_000_000}}
+	if err := renderOverview(&buf, res, nil); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, buf.String(), "Quarantine 2 entries · 12.3 GB held, restorable (macdoc quarantine)")
+	mustContain(t, buf.String(), "800 MB ready to purge: macdoc quarantine purge --expired")
+	mustContain(t, buf.String(), "Nothing has been changed.")
+}

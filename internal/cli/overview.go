@@ -205,6 +205,13 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 			t.size.Render(fmt.Sprintf("%9s", tierTotal(res.Opportunities.Totals[tier], tierOps))), t.muted.Render(tierSummary(tierOps, cat)))
 	}
 
+	if q := res.Quarantine; q != nil {
+		line := fmt.Sprintf("%d entr%s · %s held, restorable", q.Entries, plural(q.Entries, "y", "ies"), engine.DecimalBytes(q.HeldBytes))
+		fmt.Fprintf(&b, "\n%s %s\n", t.heading("Quarantine"), t.muted.Render(line+" (macdoc quarantine)"))
+		if q.ExpiredCount > 0 {
+			fmt.Fprintf(&b, "  %s %s\n", t.warn.Render(engine.DecimalBytes(q.ExpiredBytes)+" ready to purge:"), t.command([]string{"macdoc", "quarantine", "purge", "--expired"}))
+		}
+	}
 	if res.ScanStale {
 		fmt.Fprintf(&b, "\n%s the scan is %s old. Run `macdoc doctor scan` to refresh.\n", t.warn.Render("Note:"), strings.TrimSuffix(res.ScanAge, " ago"))
 	}

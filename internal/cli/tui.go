@@ -1013,7 +1013,7 @@ func (m tuiModel) helpView() string {
 	b.WriteString("\n " + t.heading("Safety") + "\n")
 	b.WriteString(t.muted.Render("   Nothing is deleted or moved from here. A plan is a sealed dry run:\n"))
 	b.WriteString(t.muted.Render("   making one changes nothing, and it expires after 30 minutes.\n"))
-	b.WriteString(t.muted.Render("   Applying one (Phase 6) happens only in Terminal, after you confirm.\n"))
+	b.WriteString(t.muted.Render("   Apply one with macdoc apply <P-id> in Terminal, after you confirm.\n"))
 	return b.String()
 }
 

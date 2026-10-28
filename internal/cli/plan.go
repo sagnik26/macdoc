@@ -229,7 +229,7 @@ func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 	writeNotes(&b, t, res.Warnings)
 	b.WriteString(" " + t.done("Nothing has been changed.") + "\n")
 	if res.Status == planner.StatusPending {
-		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it (Phase 6, not built yet):"), t.command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
+		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it:"), t.command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
 	}
 	_, err := io.WriteString(w, b.String())
 	return err

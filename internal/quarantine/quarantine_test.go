@@ -1,0 +1,124 @@
+package quarantine
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"macdoc/internal/store"
+)
+
+func writeEntry(t *testing.T, root string, m Manifest, payload bool) {
+	t.Helper()
+	dir := filepath.Join(root, m.ID, PayloadDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if payload {
+		if err := os.MkdirAll(filepath.Join(dir, m.Name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := json.Marshal(m)
+	if err := os.WriteFile(ManifestPath(root, m.ID), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+
+func manifest() Manifest {
+	return Manifest{SchemaVersion: SchemaVersion, ID: "Q-ABCD", Plan: "P-ABCD", Item: "O-x", Recipe: "user.logs",
+		Original: "/Users/me/Library/Logs/A", Name: "A", CreatedAt: now, ExpiresAt: now.Add(DefaultTTL), Status: StatusDone}
+}
+
+func TestLoadManifestValidation(t *testing.T) {
+	bad := map[string]func(m *Manifest){
+		"other id":        func(m *Manifest) { m.ID = "Q-WXYZ" },
+		"path name":       func(m *Manifest) { m.Name = "../A" },
+		"dot name":        func(m *Manifest) { m.Name = ".." },
+		"relative origin": func(m *Manifest) { m.Original = "Library/Logs/A" },
+		"name mismatch":   func(m *Manifest) { m.Original = "/Users/me/Documents" },
+		"unknown status":  func(m *Manifest) { m.Status = "purged" },
+		"schema":          func(m *Manifest) { m.SchemaVersion = "9" },
+	}
+	for name, edit := range bad {
+		root := t.TempDir()
+		m := manifest()
+		edit(&m)
+		dir := filepath.Join(root, "Q-ABCD")
+		_ = os.MkdirAll(dir, 0o700)
+		b, _ := json.Marshal(m)
+		_ = os.WriteFile(filepath.Join(dir, ManifestName), b, 0o600)
+		if _, err := LoadManifest(root, "Q-ABCD"); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	root := t.TempDir()
+	writeEntry(t, root, manifest(), true)
+	if _, err := LoadManifest(root, "Q-ABCD"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadManifest(root, "../x"); err == nil || !strings.Contains(err.Error(), "isn't a quarantine ID") {
+		t.Errorf("path id = %v", err)
+	}
+	if err := os.WriteFile(ManifestPath(root, "Q-ABCD"), []byte(`{"schema_version":"1"} {}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadManifest(root, "Q-ABCD"); err == nil {
+		t.Error("trailing data accepted")
+	}
+}
+
+func TestInspectStates(t *testing.T) {
+	rec := func(st store.QuarantineStatus) store.QuarantineRecord {
+		m := manifest()
+		return store.QuarantineRecord{ID: m.ID, PlanID: m.Plan, Original: m.Original, ExpiresAt: m.ExpiresAt, Status: st}
+	}
+	cases := []struct {
+		name    string
+		setup   func(root string)
+		status  store.QuarantineStatus
+		want    State
+		expired bool
+	}{
+		{"held", func(r string) { writeEntry(t, r, manifest(), true) }, store.QuarantineDone, StateHeld, false},
+		{"interrupted", func(r string) {
+			m := manifest()
+			m.Status = StatusPending
+			writeEntry(t, r, m, true)
+		}, store.QuarantinePending, StateInterrupted, false},
+		{"not moved", func(r string) {
+			m := manifest()
+			m.Status = StatusPending
+			writeEntry(t, r, m, false)
+		}, store.QuarantinePending, StateNotMoved, false},
+		{"gone", func(string) {}, store.QuarantineDone, StateMissing, false},
+		{"payload gone", func(r string) { writeEntry(t, r, manifest(), false) }, store.QuarantineDone, StateMissing, false},
+		{"record mismatch", func(r string) {
+			m := manifest()
+			m.Plan = "P-ZZZZ"
+			writeEntry(t, r, m, true)
+		}, store.QuarantineDone, StateDamaged, false},
+		{"payload symlink", func(r string) {
+			writeEntry(t, r, manifest(), false)
+			_ = os.Symlink("/", filepath.Join(r, "Q-ABCD", PayloadDir, "A"))
+		}, store.QuarantineDone, StateDamaged, false},
+	}
+	for _, c := range cases {
+		root := t.TempDir()
+		c.setup(root)
+		e := Inspect(root, rec(c.status), now)
+		if e.State != c.want || e.Expired != c.expired {
+			t.Errorf("%s: state %s (%s), want %s", c.name, e.State, e.Problem, c.want)
+		}
+	}
+	root := t.TempDir()
+	writeEntry(t, root, manifest(), true)
+	if e := Inspect(root, rec(store.QuarantineDone), now.Add(8*24*time.Hour)); !e.Expired || !e.Restorable() {
+		t.Errorf("expired entry = %+v", e)
+	}
+}

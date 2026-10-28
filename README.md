@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–5 of 11 are complete.** Diagnosis works end to end, and you can make sealed dry-run cleanup plans. `macdoc` still can't delete anything: applying a plan is Phase 6. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and `macdoc apply` carries one out after you confirm it in Terminal. Folders go to a 7-day restorable quarantine, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -66,7 +66,7 @@ macdoc has **two everyday commands**:
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
-- **Never changes your Mac:** the dashboard scans, shows and makes plans. Applying a plan will only ever happen in Terminal (Phase 6). `q` quits.
+- **Never changes your Mac:** the dashboard scans, shows and makes plans. Applying a plan only ever happens in Terminal, with `macdoc apply`. `q` quits.
 
 **Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
 
@@ -143,7 +143,7 @@ Plan P-ZDHP · 4 item(s) · 825 MB · expires in 30 min · made by you (macdoc p
  Moved to quarantine: 19.6 MB (freed when the quarantine is purged after 7 days)
 
  Nothing has been changed.
- To apply it (Phase 6, not built yet): macdoc apply P-ZDHP · expires 15:41
+ To apply it: macdoc apply P-ZDHP · expires 15:41
 ```
 | Command | Does |
 |---|---|
@@ -154,7 +154,31 @@ Plan P-ZDHP · 4 item(s) · 825 MB · expires in 30 min · made by you (macdoc p
 
 A plan re-checks every target as it is now. It must still exist, not be a symlink, and pass the allowlist and protected-path rules; anything else is left out with a reason. It records each folder's fingerprint (device, inode, modification time, size) and the exact command or move, then seals it with SHA-256. The hash is stored in the plan file and in macdoc's database. Plans expire after 30 minutes. Editing a plan file by hand makes it invalid.
 
-**Not yet:** `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8). Until then, macdoc can't change anything on your Mac.
+### `macdoc apply`: carry out a plan, after you confirm
+```
+$ macdoc apply P-ZDHP
+… the dry run again …
+ Type "ZDHP" to apply 4 item(s), 825 MB (SAFE: 4): ZDHP
+
+ [1/4] O-5wx6bf Homebrew old versions and downloads … done
+ [2/4] O-uz4vkv Old app logs · Claude … moved to quarantine Q-91XZ
+ …
+ Plan P-ZDHP applied: 4 done · 0 skipped · 0 failed
+ Free space change (measured): +806 MB
+ Moved to quarantine: 19.6 MB (still on disk; restorable for 7 days …)
+ Every step is in the audit log: macdoc log
+```
+| Command | Does |
+|---|---|
+| `macdoc apply <P-id>` | Shows the dry run again and asks you to type the plan's code. RISKY items, and every item of a plan Claude proposed, are also confirmed one by one (default No). Needs a real Terminal: piped input is refused, and there's no `--yes` |
+| `macdoc quarantine` / `quarantine list` | What apply moved aside, how long each entry stays restorable, and what has expired |
+| `macdoc quarantine restore <Q-id>` | Moves a folder back where it was. It never overwrites: if something now exists there, it stops |
+| `macdoc quarantine purge --expired` · `purge <Q-id…>` | Permanently deletes entries, after you type `purge` in Terminal. Nothing is ever purged automatically |
+| `macdoc log` | Everything macdoc changed: plans, applies (each item done, skipped or failed, with the reason), restores and purges |
+
+Right before touching each item, apply checks it again: it's still the same folder (same device and inode), its path still resolves the same way, the allowlist and protected-path rules still pass (with a freshly built policy), the preconditions hold (Xcode closed, emulator stopped, Docker running, …), and it holds no git repository or `.env` file. Anything that changed is skipped with a reason, and the rest continue. Folders are moved with `renameatx_np` relative to the opened parent folder, so a symlink swapped in at the last moment can't redirect the move. Native commands run with a fixed argv and no shell, and a tool identifier (a simulator, AVD or model) must still be in the tool's own listing.
+
+**Not yet:** `slow` / `trend` (Phase 7) and the Claude MCP server (Phase 8).
 
 ## Quick start
 
@@ -239,8 +263,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 3.5 | Terminal UI: the `macdoc` dashboard (Bubble Tea) and colored output (Lip Gloss), with truecolor → 256 → 16 fallback | ✅ done |
 | 4 | Project awareness: `doctor projects` and the Projects tab; idle time from git commits, file changes and builds; uncommitted changes raise the risk; Pods, RN/Android build folders, `.next`; DerivedData mapped to its project | ✅ done |
 | 5 | Planner: sealed, expiring dry-run plans → `macdoc plan`, plus marking and planning in the dashboard | ✅ done |
-| 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | next · **user review first** |
-| 7 | `slow`, `trend`, JSON schemas, polish → **v0.1 (MVP B)** | |
+| 6 | Executor + quarantine + audit log → `apply`, `quarantine`, `log` (the first phase that can change files) | ✅ done |
+| 7 | `slow`, `trend`, JSON schemas, polish → **v0.1 (MVP B)** | next |
 | 8–9 | MCP server for Claude (read + propose plans), handoff, hardening | |
 | 10 | Optional daily read-only scans, TUI picker, slowness tips | |
 | 11 | Open-source readiness | later |
@@ -263,6 +287,12 @@ Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/
   - Raises risk for anything changed in the last 7 days.
   - Merges overlapping and duplicate findings.
 - **Detectors are read-only.** File reads go through a regular-file, non-blocking, size-capped reader. External commands go only through `platform.Runner`. Detectors never run package managers to discover things. (Querying pnpm/yarn once triggered Corepack downloads, so that's now forbidden.)
+- **Executor** (`internal/executor`, the only package that moves, deletes or runs mutating commands):
+  - Acts only on a plan that passes `planner.Verify`, after you type its code at a real terminal. Marking the plan applied is the lock, so a plan runs at most once, even after a crash.
+  - Re-checks every item right before acting; any change means the item is skipped and audited, never "fixed up".
+  - Folders go to `~/Library/Application Support/macdoc/quarantine/Q-XXXX/` (private, excluded from Spotlight and Time Machine), with a manifest written before the move. A crash at any step leaves a restorable entry and a readable audit log (tested by killing a child process mid-move).
+  - The only recursive delete is purging a quarantine entry that has macdoc's own record and manifest; a test pins every delete, rename and exec call site in the package.
+  - Every executor test runs under `MACDOC_SANDBOX`, and real native commands are refused in sandbox mode.
 - **CI guards:** `importcheck` (MCP and the engine can't import the executor) and `forbidcheck` (no delete, rename, exec or shell calls outside the executor, aliased imports included). Both are verified against planted violations.
 
 Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
@@ -284,7 +314,7 @@ macdoc (one Go binary)
   internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
   internal/platform     read-only command Runner (+ fake), darwin cgo shim for purgeable space
   internal/model        shared types: Opportunity, Plan, Node, Envelope …
-  internal/executor     (Phase 6) the ONLY package allowed to delete or move
+  internal/executor     the ONLY package allowed to delete, move or run mutating commands
   internal/mcp          (Phase 8) MCP server; may never import executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor

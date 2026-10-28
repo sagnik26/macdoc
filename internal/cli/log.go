@@ -1,0 +1,96 @@
+package cli
+
+import (
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"macdoc/internal/audit"
+	"macdoc/internal/engine"
+)
+
+func newLogCmd(g *globalFlags) *cobra.Command {
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "log",
+		Short: "What macdoc has changed: plans, applies, restores and purges (changes nothing)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			home, err := userHome()
+			if err != nil {
+				return err
+			}
+			res, err := engine.AuditLog(engine.OpportunityOptions{Home: home}, limit)
+			if err != nil {
+				return err
+			}
+			if g.json {
+				return writeJSON(cmd.OutOrStdout(), "log", res)
+			}
+			return renderLog(cmd.OutOrStdout(), res, home)
+		},
+	}
+	cmd.Flags().IntVarP(&limit, "limit", "n", 50, "show the last N records (0: all)")
+	return cmd
+}
+
+func renderLog(w io.Writer, res engine.AuditResult, home string) error {
+	var b strings.Builder
+	t := themeFor(w)
+	if len(res.Records) == 0 {
+		b.WriteString(" Nothing recorded yet. Plans, applies, restores and purges appear here.\n")
+	}
+	for _, r := range res.Records {
+		fmt.Fprintf(&b, " %s  %s\n", t.muted.Render(r.TS.Local().Format("Jan 02 15:04:05")), logLine(t, r, home))
+	}
+	if res.BadLines > 0 {
+		fmt.Fprintf(&b, "\n %s\n", t.muted.Render(fmt.Sprintf("%d unreadable line(s) skipped (an interrupted write).", res.BadLines)))
+	}
+	_, err := io.WriteString(w, b.String())
+	return err
+}
+
+func logLine(t *theme, r audit.Record, home string) string {
+	what := r.Target
+	if what != "" {
+		what = tildePath(home, what)
+	} else if len(r.Argv) > 0 {
+		what = strings.Join(r.Argv, " ")
+	}
+	reason := ""
+	if r.Reason != "" {
+		reason = " · " + r.Reason
+	}
+	switch r.Event {
+	case audit.PlanCreated:
+		return fmt.Sprintf("%s %s · %d item(s) · %s%s", t.text.Render("plan"), t.id.Render(r.Plan), r.Items, engine.DecimalBytes(r.ExpectedBytes), t.muted.Render(" ("+r.Origin+")"))
+	case audit.ApplyStarted:
+		return fmt.Sprintf("%s %s · %d item(s)", t.text.Render("apply started"), t.id.Render(r.Plan), r.Items)
+	case audit.ItemDone:
+		q := ""
+		if r.QuarantineID != "" {
+			q = " → " + r.QuarantineID
+		}
+		return fmt.Sprintf("  %s %s %s%s", t.ok.Render("done"), t.id.Render(r.Item), what, q)
+	case audit.ItemSkipped:
+		return fmt.Sprintf("  %s %s %s%s", t.warn.Render("skipped"), t.id.Render(r.Item), what, t.muted.Render(reason))
+	case audit.ItemFailed:
+		return fmt.Sprintf("  %s %s %s%s", t.bad.Render("failed"), t.id.Render(r.Item), what, t.muted.Render(reason))
+	case audit.ApplyFinished:
+		s := fmt.Sprintf("%s %s · %s", t.text.Render("apply finished"), t.id.Render(r.Plan), r.Result)
+		if r.ActualBytes != nil {
+			s += " · free space " + signedBytes(*r.ActualBytes)
+		}
+		return s
+	case audit.QuarantineRestored:
+		return fmt.Sprintf("%s %s to %s", t.text.Render("restored"), t.id.Render(r.QuarantineID), what)
+	case audit.QuarantinePurged:
+		if r.Result == "ok" {
+			return fmt.Sprintf("%s %s %s", t.text.Render("purged"), t.id.Render(r.QuarantineID), what)
+		}
+		return fmt.Sprintf("%s %s%s", t.warn.Render("purge refused"), t.id.Render(r.QuarantineID), t.muted.Render(reason))
+	}
+	return r.Event
+}

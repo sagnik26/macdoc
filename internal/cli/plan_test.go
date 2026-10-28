@@ -79,7 +79,7 @@ func TestRenderPlan(t *testing.T) {
  Nothing has been changed.
 `
 	got := buf.String()
-	if i := strings.Index(got, " To apply it"); i < 0 || !strings.HasPrefix(got[i:], " To apply it (Phase 6, not built yet): macdoc apply P-7F3K · expires ") {
+	if i := strings.Index(got, " To apply it"); i < 0 || !strings.HasPrefix(got[i:], " To apply it: macdoc apply P-7F3K · expires ") {
 		t.Errorf("missing the apply line:\n%s", got)
 	} else {
 		got = got[:i]

@@ -58,6 +58,21 @@ var migrations = []string{
 		status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'applied'))
 	);
 	CREATE INDEX plans_created_at ON plans (created_at);`,
+	// v3: quarantine entries (Phase 6). The entry folder holds the manifest
+	// and the moved payload; this row is macdoc's own record of it, so
+	// restore and purge act only on folders macdoc created.
+	`CREATE TABLE quarantine (
+		id          TEXT PRIMARY KEY,
+		plan_id     TEXT NOT NULL,
+		item_id     TEXT NOT NULL,
+		recipe_id   TEXT NOT NULL,
+		original    TEXT NOT NULL,
+		bytes       INTEGER NOT NULL,
+		created_at  INTEGER NOT NULL,
+		expires_at  INTEGER NOT NULL,
+		status      TEXT NOT NULL CHECK (status IN ('pending', 'done', 'canceled', 'restored', 'purged'))
+	);
+	CREATE INDEX quarantine_created_at ON quarantine (created_at);`,
 }
 
 // migrate brings the schema up to len(migrations). Each migration runs in its

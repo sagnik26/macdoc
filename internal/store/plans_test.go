@@ -48,3 +48,54 @@ func TestPlans(t *testing.T) {
 		t.Error("an unknown origin must be rejected by the schema")
 	}
 }
+
+func TestMarkApplied(t *testing.T) {
+	s := openTemp(t)
+	now := time.Now()
+	if err := s.AddPlan(PlanRecord{ID: "P-AAAA", SHA256: "x", ScanID: "s", Origin: "cli", CreatedAt: now, ExpiresAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkApplied("P-AAAA"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkApplied("P-AAAA"); !errors.Is(err, ErrPlanNotPending) {
+		t.Errorf("second mark = %v", err)
+	}
+	if err := s.MarkApplied("P-NONE"); !errors.Is(err, ErrPlanNotPending) {
+		t.Errorf("missing plan = %v", err)
+	}
+}
+
+func TestQuarantineRecords(t *testing.T) {
+	s := openTemp(t)
+	now := time.Now()
+	r := QuarantineRecord{ID: "Q-AAAA", PlanID: "P-AAAA", ItemID: "O-x", RecipeID: "user.logs", Original: "/h/x", Bytes: 5, CreatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := s.AddQuarantine(r); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddQuarantine(r); err == nil {
+		t.Error("duplicate ID accepted")
+	}
+	if err := s.SetQuarantineStatus("Q-AAAA", QuarantineDone, QuarantinePurged); err == nil {
+		t.Error("wrong from-status accepted")
+	}
+	if err := s.SetQuarantineStatus("Q-AAAA", QuarantinePending, QuarantineDone); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Quarantine("Q-AAAA")
+	if err != nil || got.Status != QuarantineDone || got.Original != "/h/x" || !got.ExpiresAt.Equal(r.ExpiresAt.Round(0)) {
+		t.Errorf("Quarantine = %+v, %v", got, err)
+	}
+	if l, _ := s.QuarantineEntries(QuarantinePending); len(l) != 0 {
+		t.Errorf("pending = %v", l)
+	}
+	if l, _ := s.QuarantineEntries(); len(l) != 1 {
+		t.Errorf("all = %v", l)
+	}
+	if _, err := s.Quarantine("Q-NONE"); !errors.Is(err, ErrNoQuarantine) {
+		t.Errorf("missing = %v", err)
+	}
+	if _, err := s.db.Exec(`UPDATE quarantine SET status = 'bogus'`); err == nil {
+		t.Error("schema accepted an unknown status")
+	}
+}

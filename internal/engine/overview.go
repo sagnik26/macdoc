@@ -54,7 +54,17 @@ type OverviewResult struct {
 	TopLevel      []model.Node      `json:"top_level"`
 	DataVolume    model.Bytes       `json:"data_volume_used"`
 	Opportunities OpportunityResult `json:"opportunities"`
+	Quarantine    *QuarantineNote   `json:"quarantine,omitempty"` // nil when it's empty
 	Warnings      []string          `json:"warnings,omitempty"`
+}
+
+// QuarantineNote summarizes what apply moved aside. Expired entries are only
+// reported, never purged.
+type QuarantineNote struct {
+	Entries      int   `json:"entries"`
+	HeldBytes    int64 `json:"held_bytes"`
+	ExpiredCount int   `json:"expired_count"`
+	ExpiredBytes int64 `json:"expired_bytes"`
 }
 
 // Overview runs the health check, makes sure there is a scan (scanning only
@@ -106,6 +116,9 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	}
 	res.Opportunities = opps
 	res.Warnings = append(res.Warnings, opps.Warnings...)
+	if q, err := Quarantine(OpportunityOptions{Home: o.Home, Now: o.Now}); err == nil && len(q.Entries) > 0 {
+		res.Quarantine = &QuarantineNote{Entries: len(q.Entries), HeldBytes: q.HeldBytes, ExpiredCount: q.ExpiredCount, ExpiredBytes: q.ExpiredBytes}
+	}
 	return res, nil
 }
 

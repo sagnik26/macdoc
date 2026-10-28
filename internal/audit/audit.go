@@ -1,0 +1,176 @@
+// Package audit is macdoc's append-only history of changes
+// (docs/SAFETY_MODEL.md §4.7): one JSON record per line in audit.jsonl,
+// synced to disk before Append returns. It never rewrites or truncates the
+// file, and a torn last line (a crash mid-write) is skipped when reading.
+package audit
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
+	"golang.org/x/sys/unix"
+)
+
+// Event names.
+const (
+	PlanCreated        = "plan_created"
+	ApplyStarted       = "apply_started"
+	ItemSkipped        = "item_skipped"
+	ItemDone           = "item_done"
+	ItemFailed         = "item_failed"
+	ApplyFinished      = "apply_finished"
+	QuarantineRestored = "quarantine_restored"
+	QuarantinePurged   = "quarantine_purged"
+)
+
+// Record is one audit line. Fields that don't apply to an event are omitted.
+type Record struct {
+	TS            time.Time `json:"ts"`
+	Event         string    `json:"event"`
+	Plan          string    `json:"plan,omitempty"`
+	Origin        string    `json:"origin,omitempty"`
+	Item          string    `json:"item,omitempty"`
+	Recipe        string    `json:"recipe,omitempty"`
+	Target        string    `json:"target,omitempty"`
+	Method        string    `json:"method,omitempty"`
+	Argv          []string  `json:"argv,omitempty"`
+	QuarantineID  string    `json:"quarantine_id,omitempty"`
+	Items         int       `json:"items,omitempty"`
+	ExpectedBytes int64     `json:"expected_bytes,omitempty"`
+	// ActualBytes is the measured change in free space (apply_finished), or
+	// the bytes moved or purged. Nil means it wasn't measured.
+	ActualBytes *int64 `json:"actual_bytes,omitempty"`
+	Result      string `json:"result,omitempty"` // ok | skipped | failed | partial
+	Reason      string `json:"reason,omitempty"`
+	ExitCode    *int   `json:"exit_code,omitempty"`
+	Output      string `json:"output,omitempty"` // a native command's stdout and stderr, tail-truncated
+}
+
+// FileName is the audit log's name inside the state directory.
+const FileName = "audit.jsonl"
+
+// Path is the audit log next to the store.
+func Path(storePath string) string {
+	return filepath.Join(filepath.Dir(storePath), FileName)
+}
+
+// MaxOutput bounds the command output kept per record.
+const MaxOutput = 16 << 10
+
+// Tail keeps the last MaxOutput bytes of b, marking a cut.
+func Tail(b []byte) string {
+	if len(b) <= MaxOutput {
+		return string(b)
+	}
+	return "…" + string(b[len(b)-MaxOutput:])
+}
+
+// Append writes rec as one line to the log at path and syncs it. The file is
+// created 0600 if missing and opened append-only, under an exclusive lock so
+// concurrent writers can't interleave lines.
+func Append(path string, rec Record) error {
+	if rec.TS.IsZero() {
+		rec.TS = time.Now()
+	}
+	rec.TS = rec.TS.UTC().Round(time.Millisecond)
+	line, err := json.Marshal(rec)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: macdoc's own audit log.
+	if err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("audit: lock: %w", err)
+	}
+	// A previous crash may have left a torn line; start ours on a new one.
+	prefix, err := needsNewline(f)
+	if err != nil {
+		_ = f.Close()
+		return fmt.Errorf("audit: %w", err)
+	}
+	buf := make([]byte, 0, len(line)+2)
+	if prefix {
+		buf = append(buf, '\n')
+	}
+	buf = append(append(buf, line...), '\n')
+	if _, err := f.Write(buf); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("audit: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("audit: %w", err)
+	}
+	return f.Close()
+}
+
+// needsNewline reports whether the file is non-empty and doesn't end in a
+// newline.
+func needsNewline(f *os.File) (bool, error) {
+	fi, err := f.Stat()
+	if err != nil || fi.Size() == 0 {
+		return false, err
+	}
+	b := make([]byte, 1)
+	if _, err := f.ReadAt(b, fi.Size()-1); err != nil {
+		return false, err
+	}
+	return b[0] != '\n', nil
+}
+
+// maxLine bounds one record when reading.
+const maxLine = 1 << 20
+
+// Read returns the log's records, oldest first, keeping only the last limit
+// (all if limit <= 0). Lines that don't parse (a torn write) are counted in
+// bad, not returned. A missing log is empty.
+func Read(path string, limit int) (recs []Record, bad int, err error) {
+	f, err := os.Open(path) //nolint:gosec // G304: macdoc's own audit log.
+	if errors.Is(err, os.ErrNotExist) {
+		return []Record{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("audit: %w", err)
+	}
+	defer func() { _ = f.Close() }() // read-only
+	return parse(f, limit)
+}
+
+func parse(r io.Reader, limit int) ([]Record, int, error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64<<10), maxLine)
+	out := []Record{}
+	bad := 0
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var rec Record
+		if err := json.Unmarshal(line, &rec); err != nil || rec.Event == "" {
+			bad++
+			continue
+		}
+		out = append(out, rec)
+		if limit > 0 && len(out) > limit {
+			out = out[1:]
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return out, bad, fmt.Errorf("audit: %w", err)
+	}
+	return out, bad, nil
+}

@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phases 0–5 are complete. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory, and changes nothing else. Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–6 are complete. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, through `internal/executor` (quarantine moves and native commands, all audited); `macdoc quarantine` restores or purges, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 

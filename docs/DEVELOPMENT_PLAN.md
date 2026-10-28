@@ -245,6 +245,8 @@ Estimates assume part-time work (~15–20 h/week).
 - Killing the process mid-apply leaves a consistent audit log and a recoverable quarantine.
 - No code path removes anything that isn't (a) the output of a native command or (b) a quarantine purge of an entry whose manifest macdoc wrote.
 
+> **As built (2026-10-28, see `docs/checkpoints/PHASE-6.md`):** `internal/executor` (Apply, Restore, Purge), with read-only helpers in new packages: `internal/audit` (append-only JSONL), `internal/quarantine` (manifests, listing, entry states) and `internal/precond` (precondition checks). Store migration v3 adds the `quarantine` table, and `MarkApplied` is the apply lock. CLI: `macdoc apply`, `macdoc quarantine [list|restore|purge]`, `macdoc log`; the overview reports what's held and expired. The `plan_created` event from Phase 5 is now written. Done-when: every executor test runs under `MACDOC_SANDBOX` (TestMain); symlink swaps before apply and during the move are skipped (`TestSwapsBetweenPlanAndApply`, `TestSwapDuringMove`); a child process killed at each step of a move leaves a clean audit log and a restorable or untouched entry (`TestCrashMidApply`); and `TestMutatingCallSites` pins every delete, rename and exec call. There is no `--yes`, even for SAFE-only plans.
+
 ### Phase 7: `slow`, `trend`, polish → **v0.1 (MVP B)** (~1 wk)
 **Tasks**
 - `slow`: memory pressure, swap size and trend, top memory groups, and explanations such as "Docker VM 3.1 GB plus emulator 2.4 GB on 8 GB of RAM". It also links low disk to swap risk ("under 10 GB free and 6 GB swap: hangs likely"). It only explains and never acts.
