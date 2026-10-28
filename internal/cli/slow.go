@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ database, so the swap history fills in as you use macdoc.`,
 			}
 			res := engine.Slow(context.Background(), engine.SlowOptions{Home: home, Runner: runner, Days: days})
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "doctor slow", res, append(res.Health.Report.Warnings, res.Warnings...))
+				return writeJSONWarn(cmd.OutOrStdout(), "doctor slow", res, slices.Concat(res.Health.Report.Warnings, res.Warnings))
 			}
 			return renderSlow(cmd.OutOrStdout(), res, time.Now())
 		},
@@ -92,7 +93,7 @@ func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 		}
 	}
 
-	warnings := append(rep.Warnings, res.Warnings...)
+	warnings := slices.Concat(rep.Warnings, res.Warnings)
 	if len(warnings) > 0 {
 		fmt.Fprintln(&b, "\n"+t.heading("Could not measure"))
 		for _, wn := range warnings {
