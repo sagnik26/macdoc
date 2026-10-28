@@ -66,7 +66,7 @@ macdoc has **two everyday commands**:
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
-- **Never changes your Mac:** the dashboard scans, shows and makes plans. Applying a plan only ever happens in Terminal, with `macdoc apply`. `q` quits.
+- **Never changes your Mac:** the dashboard scans, shows and makes plans. The dashboard itself never changes anything: after `p`, press `a` (or type `/apply`) and it pauses and runs `macdoc apply` right there in the terminal, with the same dry run, questions and typed code, then brings you back. `q` quits.
 
 **Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
 

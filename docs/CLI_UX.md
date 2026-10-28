@@ -112,6 +112,7 @@ macdoc doctor projects · scan S-TEST · 2h ago
 - `macdoc quarantine [list]`: each entry with its state (held, expired, interrupted, not-moved, missing, damaged), size, original path, plan, recipe and expiry. Expired entries total "ready to purge" with the purge command, and folders without macdoc's record are listed as "Not macdoc's (never touched)". `--json`: `engine.QuarantineResult`.
 - `macdoc quarantine restore <Q-id>` never overwrites. `macdoc quarantine purge --expired | <Q-id…>` lists what will go and asks for the word `purge` at a real terminal.
 - `macdoc log [-n N]`: one line per audit record (plan, apply started, done / skipped / failed with reason, apply finished with the measured change, restored, purged). `--json` returns the raw records.
+- **Dashboard:** after `p` seals a plan, the overlay offers `a apply`, and `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. The dashboard itself never moves or deletes anything, and no subprocess is started.
 - The `macdoc doctor` overview adds a Quarantine line when anything is held, with "ready to purge" for expired entries. It only reports.
 
 ## 2. Report mockups

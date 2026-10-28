@@ -102,7 +102,7 @@ func (m tuiModel) planned(msg planMsg) (tea.Model, tea.Cmd) {
 	case msg.err == nil:
 		m.plan = &msg.res
 		m.overlay, m.scroll = overlayPlan, 0
-		m.flash = "Plan " + msg.res.Plan.ID + " sealed. Nothing has been changed. See it again with macdoc plan show " + msg.res.Plan.ID
+		m.flash = "Plan " + msg.res.Plan.ID + " sealed. Nothing has been changed. Press a to apply it (you confirm in the terminal), esc to close."
 		clear(m.marked)
 	case errors.Is(msg.err, planner.ErrNothing):
 		reason := "none of them can be acted on"

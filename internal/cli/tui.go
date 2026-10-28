@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
@@ -50,6 +51,7 @@ var slashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
 	{"plan", "[safe|caution|risky]", "seal a dry-run plan: marked suggestions, or a whole tier"},
+	{"apply", "[P-id]", "apply a plan in this terminal, after you confirm (default: the last one)"},
 	{"wins", "", "every suggestion, ranked by safety"},
 	{"dev", "", "suggestions per developer toolchain"},
 	{"projects", "", "projects: idle days, build folders, git state"},
@@ -106,6 +108,8 @@ type tuiDeps struct {
 	// load and makePlan replace the engine in tests.
 	load     func(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error)
 	makePlan func(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
+	// apply replaces runApply in tests.
+	apply func(cmd *cobra.Command, d applyDeps, id string) error
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -133,7 +137,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Plan                        key.Binding
+	Run, Complete, Cancel, Mark, Plan, Apply                 key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -152,6 +156,7 @@ func newKeyMap() keyMap {
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
 		Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
+		Apply:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "apply (you confirm in Terminal)")),
 	}
 }
 
@@ -344,6 +349,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case planMsg:
 		return m.planned(msg)
 
+	case appliedMsg:
+		return m.applied(msg)
+
 	case spinner.TickMsg:
 		if !m.loading {
 			return m, nil
@@ -412,6 +420,9 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.overlay != overlayNone {
+		if k == "a" && m.overlay == overlayPlan && m.plan != nil && m.plan.Status == planner.StatusPending {
+			return m.startApply(m.plan.Plan.ID)
+		}
 		switch k {
 		case "esc", "q", "?", "enter":
 			m.overlay, m.scroll = overlayNone, 0
@@ -611,6 +622,8 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 			return m.startPlan(&planner.Selector{Tier: r})
 		}
 		m.flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
+	case "apply":
+		return m.startApply(arg)
 	case "mcp":
 		m.flash = "MCP arrives in Phase 8: Claude will read diagnoses and propose plans. Only you apply them."
 	case "help":
@@ -814,6 +827,8 @@ func (m tuiModel) footerView() string {
 		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel}
 	case m.loading:
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
+	case m.overlay == overlayPlan && m.plan != nil && m.plan.Status == planner.StatusPending:
+		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
 	case m.overlay != overlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.tab == tabSuggestions && m.detail:
@@ -998,6 +1013,7 @@ func (m tuiModel) helpView() string {
 		{"enter", "explain the selected suggestion"},
 		{"space", "mark a suggestion for a plan"},
 		{"p", "seal a dry-run plan (marked, or the selected one)"},
+		{"a  (on a plan)", "apply it here in the terminal, after you confirm"},
 		{"/", "command palette"},
 		{"r", "rescan the disk"},
 		{"esc", "stop a scan · close"},
@@ -1011,9 +1027,10 @@ func (m tuiModel) helpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
-	b.WriteString(t.muted.Render("   Nothing is deleted or moved from here. A plan is a sealed dry run:\n"))
-	b.WriteString(t.muted.Render("   making one changes nothing, and it expires after 30 minutes.\n"))
-	b.WriteString(t.muted.Render("   Apply one with macdoc apply <P-id> in Terminal, after you confirm.\n"))
+	b.WriteString(t.muted.Render("   The dashboard itself never deletes or moves anything. A plan is a sealed\n"))
+	b.WriteString(t.muted.Render("   dry run: making one changes nothing, and it expires after 30 minutes.\n"))
+	b.WriteString(t.muted.Render("   a or /apply pauses the dashboard and runs macdoc apply in this terminal:\n"))
+	b.WriteString(t.muted.Render("   the same dry run, y/N questions and typed code as running it yourself.\n"))
 	return b.String()
 }
 
