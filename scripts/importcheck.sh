@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # importcheck: fail if any package other than internal/executor (and its
 # subpackages), internal/cli and cmd/macdoc depends on internal/executor,
-# including through tests. internal/mcp and internal/engine are asserted
-# explicitly (AGENTS.md invariant 3).
+# including through tests. internal/mcp, internal/engine and internal/planner
+# are asserted explicitly (AGENTS.md invariant 3; the planner builds what the
+# executor runs, so it must not reach the executor either).
 #
 # Usage:
 #   scripts/importcheck.sh              check the module containing this script
@@ -87,7 +88,8 @@ check() {
 	# Explicit assertion, independent of the loop above: the packages that
 	# matter most must exist and must not reach the executor.
 	local p d
-	for p in "$module/internal/mcp" "$module/internal/engine"; do
+	for p in "$module/internal/mcp" "$module/internal/engine" "$module/internal/planner"; do
+		[ "$p" = "$module/internal/planner" ] && [ ! -d internal/planner ] && continue # self-test modules have none
 		# go list only warns (exit 0) when a pattern matches nothing.
 		if ! d=$("$GO" list -deps -test "$p/..." 2>/dev/null) || [ -z "$d" ]; then
 			echo "importcheck: cannot list $p/... (missing package?)"

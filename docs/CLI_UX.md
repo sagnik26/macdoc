@@ -45,7 +45,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `enter` swaps the list for it.
-- **`/` palette:** `/overview /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
+- **`/` palette:** `/overview /scan /plan [safe|caution|risky] /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tui_tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
@@ -94,6 +94,13 @@ macdoc doctor projects · scan S-TEST · 2h ago
 - **Git:** `git clean`, `uncommitted changes` (untracked Finder `.DS_Store` files don't count), `not in git`, or `git not checked` (projects with under 50 MB of build folders, or git failed).
 - The dashboard's **Projects** tab shows the same as a table (Project, Idle, Size, Git, Biggest folders), with protected projects marked `(protected)`.
 - `--json` returns `engine.ProjectsResult`: `projects[]` (root, name, kinds, artifacts, artifact_bytes, last_active, activity_source, idle_days, git, git_note, protected) and `derived_data[]` (path, bytes, workspace, project, missing).
+
+### 1c. `macdoc plan` (implemented 2026-10-28, Phase 5)
+
+- A top-level command, as designed: `macdoc plan <O-id…> | --safe | --tier safe|caution|risky | --recipe <id>`, plus `plan show <P-id>` and `plan list`. Exactly one selector. Arguments that look like paths are refused ("plans take suggestion IDs (O-…), never paths"), as are advice-only tiers and unknown recipes.
+- Output: a header card (ID, item count, known size, minutes to expiry, origin and the request), then items grouped by tier. Each item shows ID, title, size, exactly one `→` line (`→ runs <argv>` or `→ moves to quarantine <path>`), what restoring costs, any raised-risk reason and the preconditions ("Checks first: Xcode isn't running · …"). Then totals split into "Freed right away" (tool commands) and "Moved to quarantine" (freed at purge), unknown sizes counted separately, a snapshot caveat when local snapshots exist, "Not included" with reasons, and the apply command (Phase 6) with the expiry time. Expired, applied and invalid plans say so and don't offer the apply command.
+- **Dashboard:** on Suggestions, `space` marks (✓, with the cursor moving down; advice items refuse), the list header shows "✓ N marked · size · p plan", and `p` seals a plan from the marked items, or from the selected one. `/plan safe|caution|risky` plans a tier. The dry run opens as an overlay (`esc` closes) and the marks clear. It reuses the dashboard's opportunities when they're from the latest scan, so sealing takes a second or two.
+- `--json`: `engine.PlanResult` (`plan`, `status`, `refused`, `snapshots`). `plan list --json`: store records.
 
 ## 2. Report mockups
 

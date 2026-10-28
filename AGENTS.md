@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phases 0–4 are complete. Bare `macdoc` opens a read-only Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only. Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–5 are complete. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory, and changes nothing else. Nothing can delete yet. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
@@ -30,7 +30,7 @@ Never weaken these, even if a task seems to require it. Ask the user instead.
 
 1. **Read-only by default.** Only `apply` and `quarantine restore|purge` may change anything outside macdoc's own state directory.
 2. **Only `internal/executor` may delete, move or run mutating commands.** Calls to `os.Remove*`, `os.RemoveAll`, `os.Rename` (outside macdoc's state, plans and store), or mutating `exec.Command` calls anywhere else are bugs.
-3. **`internal/mcp` and `internal/engine` must never import `internal/executor`.** A CI import guard enforces this. Never bypass or loosen it.
+3. **`internal/mcp`, `internal/engine` and `internal/planner` must never import `internal/executor`.** A CI import guard enforces this. Never bypass or loosen it. The executor acts only on plans that pass `planner.Verify`.
 4. **Plans contain opportunity IDs, never user-supplied paths.** No command, flag or MCP tool may accept a path as a cleanup target.
 5. **Every action comes from a recipe** in `internal/recipes/catalog/*.yaml`. Unknown large items are advise-only.
 6. **Apply requires a real TTY and typed confirmation.** Don't add `--yes` for CAUTION or RISKY items, and don't add non-interactive bypasses.

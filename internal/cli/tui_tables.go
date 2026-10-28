@@ -545,8 +545,13 @@ func (m tuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
 		mark := " "
-		if i == sel {
+		switch {
+		case i == sel && m.marked[op.ID]:
+			mark = "▶✓"
+		case i == sel:
 			mark = "▶"
+		case m.marked[op.ID]:
+			mark = "✓"
 		}
 		rows[i] = []string{mark, op.ID, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, truncate(restoreNote(op), 30)}
 	}

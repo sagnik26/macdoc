@@ -190,7 +190,7 @@ func TestMigrationFailure(t *testing.T) {
 	saved := migrations
 	t.Cleanup(func() { migrations = saved })
 	migrations = append(append([]string{}, saved...), `THIS IS NOT SQL`)
-	if _, err := Open(p); err == nil || !strings.Contains(err.Error(), "migration 2") {
+	if _, err := Open(p); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("migration %d", len(saved)+1)) {
 		t.Fatalf("bad migration: err = %v", err)
 	}
 	migrations = saved

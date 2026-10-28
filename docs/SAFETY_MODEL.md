@@ -60,6 +60,13 @@ The home directory itself, any top-level home folder, and any path with fewer th
 - Sealed with SHA-256 over canonical JSON. The hash is stored in both the plan file and SQLite.
 - Expires after 30 minutes (configurable). Bound to `scan_id`.
 - Includes an `origin` field: `cli` or `claude`.
+- **As built (Phase 5, `internal/planner`):**
+  - Files live in `~/Library/Application Support/macdoc/plans/P-XXXX.json`. They're created with `O_CREAT|O_EXCL` (never overwritten, never renamed), mode 0600, in a 0700 folder. The `plans` table (store migration v2) holds the second copy of the hash, with the scan, origin, expiry and status.
+  - "Canonical JSON" means `encoding/json` of `model.Plan` (fields in declaration order) with `sha256` empty. `Load` rejects unknown fields and trailing data.
+  - Plan IDs use four characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no look-alikes, because the code is typed to confirm). `Load` accepts only `^P-[A-HJ-NP-Z2-9]{4}$`, so an ID can't name a path.
+  - `planner.Verify` is the gate the executor must call. It fails on any of: hash ≠ seal, seal ≠ store row, a different scan or expiry, already applied, expired. It then re-checks every item against the catalog: a known recipe, the same method, a risk not below the recipe's, the native argv exactly the recipe's (`{id}` passing `CheckNativeArg`), and the quarantine target passing `CheckTarget`. So even a plan whose file *and* store row were forged can't carry a command or path the planner wouldn't produce.
+  - The fingerprint's `alloc_bytes` is the target entry's own allocated blocks, not its tree size (that's `expected_bytes`, from the scan). Phase 6 re-sizes when `mtime` changed.
+  - Plans are built only from a complete scan at most 6 hours old.
 
 ### 4.2 Confirm
 - `stdin` and `stdout` must be TTYs. Piped input is refused.

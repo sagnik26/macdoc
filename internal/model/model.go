@@ -108,13 +108,17 @@ type Fingerprint struct {
 type PlanItem struct {
 	OpportunityID string      `json:"opportunity_id"`
 	RecipeID      string      `json:"recipe_id"`
-	Target        string      `json:"target"`
+	Title         string      `json:"title"`
+	Target        string      `json:"target"` // quarantine: the folder to move; native: informational ("" if none)
 	ExpectedBytes int64       `json:"expected_bytes"`
+	BytesSource   Source      `json:"bytes_source"` // unknown: ExpectedBytes is 0 and must not be shown as 0
 	Risk          Risk        `json:"risk"`
+	RiskReason    string      `json:"risk_reason,omitempty"`
 	Method        Method      `json:"method"`
 	Argv          []string    `json:"argv,omitempty"` // native method only
 	Preconditions []string    `json:"preconditions,omitempty"`
-	Fingerprint   Fingerprint `json:"fingerprint"`
+	Restore       Restore     `json:"restore"`
+	Fingerprint   Fingerprint `json:"fingerprint"` // quarantine only; zero for native
 }
 
 // Plan is an immutable, hash-sealed dry-run plan.
@@ -125,8 +129,9 @@ type Plan struct {
 	ExpiresAt     time.Time  `json:"expires_at"`
 	Origin        Origin     `json:"origin"`
 	ScanID        string     `json:"scan_id"`
+	Request       string     `json:"request"` // how it was asked for, e.g. "--safe" or "O-ab12cd O-k3m9pq"
 	Items         []PlanItem `json:"items"`
-	TotalBytes    int64      `json:"total_bytes"`
+	TotalBytes    int64      `json:"total_bytes"`      // known expected bytes only
 	SHA256        string     `json:"sha256,omitempty"` // excluded from the hashed content
 }
 

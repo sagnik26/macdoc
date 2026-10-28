@@ -212,6 +212,8 @@ Estimates assume part-time work (~15–20 h/week).
 
 **Done when:** a plan file edited by hand is rejected, an expired plan is rejected, and the dry-run output matches exactly what the executor would do (verified by a parity test against a recording executor).
 
+> **As built (2026-10-28, see `docs/checkpoints/PHASE-5.md`):** `internal/planner` (Build, Save, Load, Verify, Actions, Perform), the engine façade (`CreatePlan`, `ShowPlan`, `ListPlans`), `macdoc plan` and the dashboard's mark-and-plan (`space`, `p`, `/plan`). `max_age` is 6 hours. The "item → action" translation (`planner.Actions`) is shared by the dry-run view and the `Performer` interface the Phase 6 executor implements, and `TestDryRunParity` checks them against each other. The `plan_created` audit event waits for the audit log in Phase 6.
+
 ### Phase 6: Executor + quarantine + audit → `apply`, `quarantine`, `log` (~1.5 wk)
 **Tasks**
 - **TTY gate:** `apply` requires `isatty(stdin)` and `isatty(stdout)`, has no `--yes` flag for RISKY items, and asks for a typed confirmation (the plan ID suffix). RISKY items also need per-item y/N.

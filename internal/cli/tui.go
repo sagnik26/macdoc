@@ -20,6 +20,7 @@ import (
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
+	"macdoc/internal/planner"
 	"macdoc/internal/recipes"
 	"macdoc/internal/scanner"
 )
@@ -48,6 +49,7 @@ type slashCommand struct {
 var slashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
+	{"plan", "[safe|caution|risky]", "seal a dry-run plan: marked suggestions, or a whole tier"},
 	{"wins", "", "every suggestion, ranked by safety"},
 	{"dev", "", "suggestions per developer toolchain"},
 	{"projects", "", "projects: idle days, build folders, git state"},
@@ -82,6 +84,10 @@ type (
 		data *tuiData
 		err  error
 	}
+	planMsg struct {
+		res engine.PlanResult
+		err error
+	}
 )
 
 // tuiData is everything the dashboard shows.
@@ -97,8 +103,19 @@ type tuiDeps struct {
 	home string
 	cat  *recipes.Catalog
 	send func(tea.Msg) // set once the program exists; nil in tests
-	// load replaces the engine in tests.
-	load func(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error)
+	// load and makePlan replace the engine in tests.
+	load     func(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error)
+	makePlan func(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
+}
+
+// enginePlan seals a plan with the real engine, reusing the dashboard's
+// opportunities when they are from the latest scan.
+func enginePlan(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
+	return engine.CreatePlan(context.Background(), engine.PlanOptions{
+		OpportunityOptions: engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat},
+		Selector:           sel,
+		Precomputed:        pre,
+	})
 }
 
 func (d *tuiDeps) post(msg tea.Msg) {
@@ -116,7 +133,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel                                    key.Binding
+	Run, Complete, Cancel, Mark, Plan                        key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -133,6 +150,8 @@ func newKeyMap() keyMap {
 		Run:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
 		Complete: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")),
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
+		Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
 	}
 }
 
@@ -142,6 +161,7 @@ const (
 	overlayNone overlay = iota
 	overlayHelp
 	overlayJSON
+	overlayPlan
 )
 
 type tuiModel struct {
@@ -170,6 +190,12 @@ type tuiModel struct {
 	// suggestions
 	cursor int
 	detail bool // narrow screens: the detail replaces the list
+
+	// plans: marked suggestion IDs (shared by copies of the model, cleared
+	// on every new load), the plan being sealed, and the last one made
+	marked   map[string]bool
+	planning bool
+	plan     *engine.PlanResult
 
 	scroll  int
 	overlay overlay
@@ -205,7 +231,7 @@ func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
 	h.Styles.ShortDesc = t.muted
 	h.Styles.ShortSeparator = t.faint
 	h.ShortSeparator = " • "
-	return tuiModel{deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, bar: bar, input: in, w: 100, h: 30}
+	return tuiModel{deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, bar: bar, input: in, w: 100, h: 30, marked: map[string]bool{}}
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -218,7 +244,7 @@ func runTUI(home string, cat *recipes.Catalog) error {
 		// NO_COLOR or a monochrome terminal: keep the layout, drop colors.
 		t = plainLayoutTheme()
 	}
-	deps := &tuiDeps{home: home, cat: cat, load: engineLoad}
+	deps := &tuiDeps{home: home, cat: cat, load: engineLoad, makePlan: enginePlan}
 	m := newTUIModel(deps, t)
 	// Open on the welcome screen; nothing runs until the user picks.
 	m.intro, m.introStatus = true, loadIntroStatus(home)
@@ -315,6 +341,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loadedMsg:
 		return m.loaded(msg)
 
+	case planMsg:
+		return m.planned(msg)
+
 	case spinner.TickMsg:
 		if !m.loading {
 			return m, nil
@@ -342,6 +371,7 @@ func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err == nil && !m.stopping:
 		m.data, m.note = msg.data, ""
+		clear(m.marked) // IDs belong to a scan
 		m.cursor = min(m.cursor, max(0, len(m.items())-1))
 	case m.stopping || errors.Is(msg.err, context.Canceled):
 		if m.data != nil {
@@ -416,6 +446,15 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.tab == tabSuggestions && len(m.items()) > 0 {
 			m.detail = !m.detail
 		}
+	case " ":
+		if m.tab == tabSuggestions {
+			m.toggleMark()
+		}
+	case "p":
+		if m.tab == tabSuggestions {
+			return m.startPlan(m.markedSelector())
+		}
+		m.flash = "Plans are made on the Suggestions tab (2): mark items with space, then press p."
 	default:
 		if m.tab == tabSuggestions && !m.detail {
 			m.moveCursor(k)
@@ -560,6 +599,18 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 		}
 		m.jsonDoc = m.currentJSON()
 		m.overlay, m.scroll = overlayJSON, 0
+	case "plan":
+		if m.intro {
+			m.flash = "Choose “Check my Mac” first: /plan needs results."
+			return m, nil
+		}
+		switch r := model.Risk(strings.ToUpper(arg)); r {
+		case "":
+			return m.startPlan(m.markedSelector())
+		case model.RiskSafe, model.RiskCaution, model.RiskRisky:
+			return m.startPlan(&planner.Selector{Tier: r})
+		}
+		m.flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
 	case "mcp":
 		m.flash = "MCP arrives in Phase 8: Claude will read diagnoses and propose plans. Only you apply them."
 	case "help":
@@ -669,6 +720,8 @@ func (m tuiModel) View() string {
 		body = m.scrolled(m.helpView())
 	case m.overlay == overlayJSON:
 		body = m.scrolled(highlightJSON(t, m.jsonDoc))
+	case m.overlay == overlayPlan:
+		body = m.scrolled(m.planView())
 	case m.data == nil:
 		body = "\n  " + t.muted.Render(m.note)
 	case m.tab == tabSuggestions:
@@ -766,7 +819,7 @@ func (m tuiModel) footerView() string {
 	case m.tab == tabSuggestions && m.detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.tab == tabSuggestions:
-		keys = []key.Binding{m.keys.Move, m.keys.Explain, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Move, m.keys.Mark, m.keys.Plan, m.keys.Explain, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	}
@@ -916,6 +969,9 @@ func (m tuiModel) listView(ops []model.Opportunity, w, h int) string {
 	end := min(len(ops), start+rowsFit)
 	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
+	if note := m.markedNote(); note != "" {
+		head += "   " + note
+	}
 	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.cursor-start, w-2, w < m.w), " ")
 }
 
@@ -940,6 +996,8 @@ func (m tuiModel) helpView() string {
 		{"tab / shift+tab, 1–6", "switch view"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "explain the selected suggestion"},
+		{"space", "mark a suggestion for a plan"},
+		{"p", "seal a dry-run plan (marked, or the selected one)"},
 		{"/", "command palette"},
 		{"r", "rescan the disk"},
 		{"esc", "stop a scan · close"},
@@ -953,8 +1011,9 @@ func (m tuiModel) helpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
-	b.WriteString(t.muted.Render("   This dashboard only reads. Nothing is deleted or moved from here.\n"))
-	b.WriteString(t.muted.Render("   Cleanup arrives later as dry-run plans you confirm in Terminal.\n"))
+	b.WriteString(t.muted.Render("   Nothing is deleted or moved from here. A plan is a sealed dry run:\n"))
+	b.WriteString(t.muted.Render("   making one changes nothing, and it expires after 30 minutes.\n"))
+	b.WriteString(t.muted.Render("   Applying one (Phase 6) happens only in Terminal, after you confirm.\n"))
 	return b.String()
 }
 

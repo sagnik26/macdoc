@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–3 of 11 are complete.** Diagnosis works end to end and is **read-only**: `macdoc` can't delete anything yet. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–5 of 11 are complete.** Diagnosis works end to end, and you can make sealed dry-run cleanup plans. `macdoc` still can't delete anything: applying a plan is Phase 6. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -62,10 +62,11 @@ macdoc has **two everyday commands**:
   - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
   - **Health:** findings with explanations, and the top memory users.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `enter` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/wins` `/dev` `/projects` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
-- **Read-only:** the dashboard can scan and show, never change. `q` quits.
+- **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
+- **Never changes your Mac:** the dashboard scans, shows and makes plans. Applying a plan will only ever happen in Terminal (Phase 6). `q` quits.
 
 **Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
 
@@ -125,7 +126,35 @@ These read the latest scan and don't rescan.
 
 Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. `--quiet` hides the progress line. Other top-level commands: `macdoc version`.
 
-**Not yet:** `plan` (Phase 5), `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8). Until then, macdoc can't change anything on your Mac.
+### `macdoc plan`: a sealed dry run
+```
+$ macdoc plan --safe
+Plan P-ZDHP · 4 item(s) · 825 MB · expires in 30 min · made by you (macdoc plan --safe)
+
+ SAFE ─────────────────────────────────────────────────────────── 825 MB
+  O-5wx6bf  Homebrew old versions and downloads             412 MB
+            → runs brew cleanup --prune=all
+            Not undoable by macdoc: re-downloads on demand. Homebrew downloads a version again if you reinstall it.
+  O-uz4vkv  Old app logs · Claude                          10.7 MB
+            → moves to quarantine ~/Library/Logs/Claude
+            Restorable for 7 days. After that: nothing to restore. Old logs aren't needed for apps to work.
+  …
+ Freed right away: 805 MB (by the tools' own commands)
+ Moved to quarantine: 19.6 MB (freed when the quarantine is purged after 7 days)
+
+ Nothing has been changed.
+ To apply it (Phase 6, not built yet): macdoc apply P-ZDHP · expires 15:41
+```
+| Command | Does |
+|---|---|
+| `macdoc plan O-ab23cd O-k3m9pq` | Plans these suggestions (IDs from `macdoc doctor wins`; paths are refused) |
+| `macdoc plan --safe` · `--tier caution` · `--recipe <id>` | Plans a whole tier or recipe (advice-only items are never planned) |
+| `macdoc plan show <P-id>` | Shows a plan again with its status: pending, expired, applied or invalid |
+| `macdoc plan list` | Recent plans |
+
+A plan re-checks every target as it is now. It must still exist, not be a symlink, and pass the allowlist and protected-path rules; anything else is left out with a reason. It records each folder's fingerprint (device, inode, modification time, size) and the exact command or move, then seals it with SHA-256. The hash is stored in the plan file and in macdoc's database. Plans expire after 30 minutes. Editing a plan file by hand makes it invalid.
+
+**Not yet:** `apply` / quarantine (Phase 6), `slow` / `trend` (Phase 7), and the Claude MCP server (Phase 8). Until then, macdoc can't change anything on your Mac.
 
 ## Quick start
 
@@ -209,8 +238,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 3 | 46 recipes + classifier; `macdoc doctor` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed, reviewed) |
 | 3.5 | Terminal UI: the `macdoc` dashboard (Bubble Tea) and colored output (Lip Gloss), with truecolor → 256 → 16 fallback | ✅ done |
 | 4 | Project awareness: `doctor projects` and the Projects tab; idle time from git commits, file changes and builds; uncommitted changes raise the risk; Pods, RN/Android build folders, `.next`; DerivedData mapped to its project | ✅ done |
-| 5 | Planner: sealed, expiring dry-run plans → `plan` | next |
-| 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | |
+| 5 | Planner: sealed, expiring dry-run plans → `macdoc plan`, plus marking and planning in the dashboard | ✅ done |
+| 6 | Executor + quarantine + audit log → `apply` (the first phase that can delete) | next · **user review first** |
 | 7 | `slow`, `trend`, JSON schemas, polish → **v0.1 (MVP B)** | |
 | 8–9 | MCP server for Claude (read + propose plans), handoff, hardening | |
 | 10 | Optional daily read-only scans, TUI picker, slowness tips | |

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"golang.org/x/text/unicode/norm"
 
@@ -412,51 +411,12 @@ func instanceName(r recipes.Recipe, target string) string {
 	return base
 }
 
-// substitute replaces the {id} placeholder in argv with arg after checking
-// that arg is a plain identifier.
-func substitute(argv []string, arg string) ([]string, error) {
-	if len(argv) == 0 {
-		return nil, nil
-	}
-	out := make([]string, len(argv))
-	for i, a := range argv {
-		if a != recipes.Placeholder {
-			out[i] = a
-			continue
-		}
-		if err := checkNativeArg(arg); err != nil {
-			return nil, err
-		}
-		out[i] = arg
-	}
-	return out, nil
-}
-
-// nativeArgForbidden are characters a native identifier may never contain.
-const nativeArgForbidden = ";|&$`<>(){}*?[]'\"\\/"
-
-// reservedNativeArgs are words tools accept in place of an identifier to
-// select many items or change behavior (e.g. `xcrun simctl delete
-// unavailable`, `… all`). Compared case-insensitively.
-var reservedNativeArgs = []string{"all", "unavailable", "booted", "help", "version"}
-
-func checkNativeArg(arg string) error {
-	if arg == "" {
-		return errors.New("tool identifier is empty")
-	}
-	if strings.HasPrefix(arg, "-") {
-		return fmt.Errorf("tool identifier %q starts with -", arg)
-	}
-	if slices.Contains(reservedNativeArgs, strings.ToLower(arg)) {
-		return fmt.Errorf("tool identifier %q is a reserved word the tool may treat as a selector", arg)
-	}
-	for _, c := range arg {
-		if unicode.IsSpace(c) || unicode.IsControl(c) || strings.ContainsRune(nativeArgForbidden, c) {
-			return fmt.Errorf("tool identifier %q contains %q", arg, c)
-		}
-	}
-	return nil
-}
+// substitute and checkNativeArg live in recipes so the planner can re-check
+// sealed argv against the same rules.
+var (
+	substitute     = recipes.Substitute
+	checkNativeArg = recipes.CheckNativeArg
+)
 
 func sourceConfidence(s model.Source) float64 {
 	switch s {

@@ -97,7 +97,7 @@ func renderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, d.Warnings)
-	b.WriteString(t.footer("macdoc doctor explain <id>"))
+	b.WriteString(t.footer("macdoc doctor explain <id> · macdoc plan <id…> (a dry run)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

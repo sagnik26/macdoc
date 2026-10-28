@@ -158,7 +158,7 @@ func TestWinsCommand(t *testing.T) {
 		" Worth considering ─", "15.0 GB",
 		"5 × Stale node_modules folder · 15.0 GB", "(macdoc doctor wins --all)",
 		" Your call (advice only) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
-		" macdoc doctor explain <id> · nothing has been changed")
+		" macdoc doctor explain <id> · macdoc plan <id…> (a dry run) · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
 		strings.Index(out, "Worth considering") > strings.Index(out, "Your call") {
@@ -170,8 +170,8 @@ func TestWinsCommand(t *testing.T) {
 	if strings.Contains(out, "_cacache") || strings.Contains(out, "0 B") {
 		t.Error("single item got an instance suffix, or unknown shown as 0")
 	}
-	if strings.Contains(out, "plan") {
-		t.Error("wins must not mention plan before Phase 5")
+	if !strings.Contains(out, "macdoc plan <id…> (a dry run)") || strings.Contains(out, "macdoc apply") {
+		t.Error("wins should point to plan (Phase 5), never to apply")
 	}
 
 	out, err = run(t, "wins", "--all")
@@ -333,7 +333,7 @@ func TestRenderWins(t *testing.T) {
 		" Needs care ─", "8.4 GB + unknown", "re-download ~1.2 GB", "—  ",
 		"can't be restored",
 		" Notes\n  · results are from a scan 9 hours old",
-		" macdoc doctor explain <id> · nothing has been changed")
+		" macdoc doctor explain <id> · macdoc plan <id…> (a dry run) · nothing has been changed")
 
 	buf.Reset()
 	empty := engine.OpportunityResult{Scan: model.ScanInfo{ID: "S-X"}, ScanAge: "just now"}

@@ -128,7 +128,7 @@ func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc doctor explain <id>"))
+	b.WriteString(t.footer("macdoc doctor explain <id> · macdoc plan <id…> (a dry run)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

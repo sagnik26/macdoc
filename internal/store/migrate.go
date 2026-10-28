@@ -43,6 +43,21 @@ var migrations = []string{
 		reason  TEXT NOT NULL
 	);
 	CREATE INDEX unmeasured_scan ON unmeasured (scan_id, path);`,
+	// v2: sealed cleanup plans (Phase 5). The plan file holds the content;
+	// this row is the second copy of its hash, so editing the file alone
+	// can't produce a plan that verifies. Plans outlive scan pruning.
+	`CREATE TABLE plans (
+		id          TEXT PRIMARY KEY,
+		sha256      TEXT NOT NULL,
+		scan_id     TEXT NOT NULL,
+		origin      TEXT NOT NULL CHECK (origin IN ('cli', 'claude')),
+		created_at  INTEGER NOT NULL,
+		expires_at  INTEGER NOT NULL,
+		items       INTEGER NOT NULL,
+		total_bytes INTEGER NOT NULL,
+		status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'applied'))
+	);
+	CREATE INDEX plans_created_at ON plans (created_at);`,
 }
 
 // migrate brings the schema up to len(migrations). Each migration runs in its
