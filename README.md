@@ -12,7 +12,7 @@ macdoc has **two everyday commands**:
 
 | Command | When to use it | What you get | Time |
 |---|---|---|---|
-| **`macdoc`** | Any time: "how is my Mac doing?" | **A welcome screen, then the interactive dashboard** (in a terminal): overview, a browsable table of suggestions with details, toolchains, space and health. Nothing runs until you choose. Scans automatically only if there's no scan yet | instant, then ~7–15 s to load |
+| **`macdoc`** | Any time: "how is my Mac doing?" | **A welcome screen, then the interactive dashboard** (in a terminal): overview, a browsable table of suggestions with details, toolchains, projects, space (with what grew since an earlier scan) and health (with whether memory is slowing your Mac down). Nothing runs until you choose. Scans automatically only if there's no scan yet | instant, then ~7–15 s to load |
 | **`macdoc doctor scan`** | After installing or cleaning things, or when the summary says the scan is old | **Fresh scan + the full report:** everything in the summary, plus scan details, every health finding and the top apps, space by category with "System Data" decoded, big items no recipe covers, every suggestion with its ID, and per-toolchain totals | ~45 s–2 min (background priority) |
 
 `macdoc doctor` prints the **short summary** instead of opening the dashboard. Bare `macdoc` does the same when its output is piped, with `--json` or `--quiet`, or on `TERM=dumb`.
@@ -34,8 +34,8 @@ macdoc has **two everyday commands**:
 
 ### `macdoc`: the dashboard
 ```
- ◆ macdoc  MacBookAir10,1 · M1                                         51.2 GB free · scan 6m ago · read-only
-  1 Overview   2 Suggestions   3 Toolchains   4 Space   5 Health
+ ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago · asks before removing
+  1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space   6 Health
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
  SAFE 825 MB  ·  CAUTION 553 MB  ·  ADVICE 48.9 GB   item 1 of 12
  ╭───┬──────────┬─────────┬─────────┬────────────────────────────────┬──────────────────────────────╮
@@ -59,8 +59,8 @@ macdoc has **two everyday commands**:
   - **Suggestions:** every item.
   - **Toolchains:** a summary plus one table per toolchain.
   - **Projects:** every project with build folders: how long it's been idle (last commit, file change or build), their size, git state (clean or uncommitted changes) and the biggest folders. Projects in protected folders such as ~/Desktop are listed but never suggested.
-  - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
-  - **Health:** findings with explanations, and the top memory users.
+  - **Space:** by category with per-risk columns, **what grew** since a scan about 30 days old (areas and folders), "System Data" decoded, large items with no recipe.
+  - **Health:** **"Is memory slowing it down?"** (a verdict, the biggest users against your RAM, swap now and over the last days), findings with explanations, and the top memory users with what each one is.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
 - **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/slow` `/trend` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
@@ -180,7 +180,7 @@ $ macdoc apply P-ZDHP
 
 Right before touching each item, apply checks it again: it's still the same folder (same device and inode), its path still resolves the same way, the allowlist and protected-path rules still pass (with a freshly built policy), the preconditions hold (Xcode closed, emulator stopped, Docker running, …), and it holds no git repository or `.env` file. Anything that changed is skipped with a reason, and the rest continue. Folders are moved with `renameatx_np` relative to the opened parent folder, so a symlink swapped in at the last moment can't redirect the move. Native commands run with a fixed argv and no shell, and a tool identifier (a simulator, AVD or model) must still be in the tool's own listing.
 
-**Not yet:** `slow` / `trend` (Phase 7) and the Claude MCP server (Phase 8).
+**Not yet:** the Claude MCP server (Phase 8).
 
 ## Quick start
 
@@ -288,6 +288,7 @@ Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/
   - Protected paths: system roots, `~/Documents`/`Desktop`/…, iCloud, Mail, Keychains, `.ssh`, `.git`, `.env*`, SQLite files and their sidecars, Containers/`com.apple.*`, parents of any protected folder, and other users' homes.
   - **No cleanup target can be outside `$HOME`.**
   - 99.5% coverage, fuzz-tested.
+- **Your protected folders** (`macdoc config protect <folder>`, `internal/config`): added on top of the built-in list, never replacing it. Suggestions, planning and the executor's last check all honor them, and an unreadable settings file stops those with an error instead of silently dropping a folder.
 - **Recipe lint** (`internal/recipes/load.go`), applied to every recipe at load time:
   - Native and dry-run commands must **exactly match an allow-list** of 18 and 3 commands.
   - Allow patterns must be `~`-relative and at least 2 deep, with no `..`, and can't reach protected folders.
@@ -314,13 +315,22 @@ Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
 ```
 macdoc (one Go binary)
   cmd/macdoc            entry point
-  internal/cli          `macdoc doctor` (summary), `doctor scan` (rescan + full report), sections, version
-  internal/engine       UI-agnostic core: Overview, Doctor, Scan, Opportunities (classifier/ranking), Storage
+  internal/cli          commands and rendering: the dashboard, `doctor` and its sections, plan, apply,
+                        quarantine, log, config, version
+  internal/engine       UI-agnostic core: Overview, Doctor, Slow, Trend, Scan, Opportunities (classifier/
+                        ranking), Storage, Projects, plans, audit and quarantine views
   internal/probe        hardware, memory, swap, processes, APFS, snapshots (read-only, via Runner)
   internal/scanner      parallel full crawl: allocated bytes, hard links once, bounded memory, background QoS
-  internal/store        SQLite state (scans, nodes, unmeasured paths, history), pure Go
+  internal/store        SQLite state (scans, nodes, unmeasured paths, plans, quarantine, vitals), pure Go
   internal/recipes      recipe schema, loader + safety lint, detectors, catalog/*.yaml (46 recipes)
+  internal/projects     project discovery, idle time, git state (read-only git)
+  internal/planner      sealed, expiring dry-run plans (IDs only, never paths) and Verify
+  internal/precond      preconditions: app not running, emulator stopped, Docker reachable, …
+  internal/audit        append-only JSONL audit log
+  internal/quarantine   quarantine manifests and entry states (read-only)
+  internal/config       settings file: timings and extra protected folders (add-only)
   internal/safety       canonicalization + protected-path policy
+  internal/fsread       capped, non-blocking regular-file reader for detectors
   internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
   internal/platform     read-only command Runner (+ fake), darwin cgo shim for purgeable space
   internal/model        shared types: Opportunity, Plan, Node, Envelope …
@@ -328,6 +338,7 @@ macdoc (one Go binary)
   internal/mcp          (Phase 8) MCP server; may never import executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
+  schema/*.json         frozen JSON Schema for every --json command (contract-tested)
 ```
 
 The CLI and (later) the MCP server are two front doors over the same engine. See [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md).

@@ -38,7 +38,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - Under 104 columns, the menu drops its descriptions and shows only the selected one's.
   - `/view` commands start the dashboard on that view. `/json` and `/explain` ask the user to check first.
 - **Layout:**
-  - Header: brand, machine, free space, scan age, and a `read-only` marker.
+  - Header: brand, machine, free space, scan age, and an `asks before removing` marker.
   - Tab row: Overview, Suggestions, Toolchains, Projects, Space, Health (`1`–`6`).
   - Body.
   - A context-sensitive help footer, generated from the key bindings.
@@ -193,6 +193,6 @@ Undo the quarantine part:  macdoc quarantine restore Q-91XZ      Log: macdoc log
 - Keep `doctor` to 80 columns and 20 lines at most.
 
 ## 4. JSON contract
-- Every command supports `--json` and outputs `{"schema_version": "1", "command": "...", "generated_at": "...", "scan": {...}, "data": {...}, "warnings": [...]}`.
+- Every command supports `--json` (except `apply`, which needs a person at a terminal) and outputs `{"schema_version": "1", "command": "...", "generated_at": "...", "data": {...}, "warnings": [...]}`. Scan details, where relevant, are inside `data`.
 - Byte values are integers. Every measurement has a `source`: `measured | tool | estimated | unknown`.
-- JSON schemas live in `schema/` and are contract-tested. The MCP tools return the same shapes.
+- JSON schemas live in `schema/` (one per command, generated from the Go types) and are contract-tested: `TestSchemasFrozen` fails on any change to an output type, and `TestJSONOutputMatchesSchema` validates real output. Additive changes regenerate them with `go test ./internal/cli -run TestSchemasFrozen -update`; renaming, removing or retyping a field bumps `schema_version`. The MCP tools return the same shapes.

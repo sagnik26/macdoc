@@ -67,12 +67,12 @@
 
 ```
 ~/Library/Application Support/macdoc/
-  state.db              SQLite (scans, nodes, opportunities, plans index)
+  state.db              SQLite (scans, nodes, unmeasured, plans index, quarantine records, vitals)
   plans/P-XXXX.json     immutable plan files (hash-sealed)
   audit.jsonl           append-only audit log
   quarantine/           same-volume quarantine (instant rename, excluded from TM + Spotlight)
     Q-XXXX/manifest.json + payload/
-  config.toml           thresholds, extra protected paths, staleness days
+  config.json           plan_minutes, native_timeout_minutes, extra protected folders (Phase 7)
 ~/Library/Logs/macdoc/  debug logs (rotated)
 ```
 
@@ -97,12 +97,14 @@ macdoc/
     quarantine.go                rename-into-quarantine, manifests, restore, purge
     validate.go                  pre-execution re-validation (TOCTOU)
   internal/safety/               protected-path deny list, path canonicalization
+  internal/config/               settings file (read/write; add-only protected folders)
   internal/audit/                JSONL writer + reader
   internal/store/                SQLite schema + migrations
   internal/platform/darwin/      cgo shim (optional) + command fallbacks
   internal/mcp/                  Phase C: MCP tools (must NOT import executor)
   testdata/fixtures/             fake home trees for tests
   scripts/importcheck.sh         CI guard on import graph
+  schema/*.json                  frozen JSON Schemas of every --json output (Phase 7)
 ```
 
 ---
@@ -256,6 +258,8 @@ Estimates assume part-time work (~15–20 h/week).
 - Dogfood for a week on the real Mac and tune thresholds and recipes.
 
 **Done when (MVP B DoD):** see §6.
+
+> **As built (2026-10-28):** `slow` and `trend` are doctor sections (`macdoc doctor slow|trend`) and dashboard blocks. Swap history comes from a `vitals` table (store v4), sampled by `slow` and the overview. `trend` compares node sizes between two stored scans (detectors can't be re-run on old scans) per well-known area plus the fastest-growing folders; folders below the 100 MiB keep threshold are shown as bounds. Scan retention became the 10 newest plus one per week for 13 weeks. The `nodes(path_fold)` index wasn't added: `trend` reads by `scan_id`. `config` is JSON, not TOML, with no `edit` subcommand. Install stays `make install` → `~/.local/bin`. Details: `docs/checkpoints/PHASE-7.md`.
 
 ### Phase 8: MCP server (read + plan) (~1 wk)
 - `macdoc mcp` runs a stdio server built on the engine, with the tools listed in MCP_DESIGN.md.
