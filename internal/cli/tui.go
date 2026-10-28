@@ -25,6 +25,7 @@ import (
 	"macdoc/internal/planner"
 	"macdoc/internal/recipes"
 	"macdoc/internal/scanner"
+	"macdoc/internal/store"
 )
 
 // The interactive dashboard behind bare `macdoc` in a terminal. It is
@@ -58,6 +59,8 @@ var slashCommands = []slashCommand{
 	{"projects", "", "projects: idle days, build folders, git state"},
 	{"space", "", `space by category, "System Data" decoded`},
 	{"health", "", "disk, memory, swap and top memory users"},
+	{"slow", "", "why it feels slow: memory, swap and what uses it"},
+	{"trend", "", "what grew since an earlier scan"},
 	{"explain", "<id>", "one suggestion in detail"},
 	{"json", "", "this view as JSON"},
 	{"mcp", "", "Claude integration status"},
@@ -99,6 +102,9 @@ type tuiData struct {
 	space    engine.StorageResult
 	dev      DevResult
 	projects engine.ProjectsResult
+	slow     engine.SlowResult
+	trend    *engine.TrendResult // nil when there's nothing to compare yet
+	trendMsg string              // why trend is nil
 }
 
 // tuiDeps are shared by every copy of the model.
@@ -302,7 +308,23 @@ func engineLoad(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &tuiData{res: res, space: space, dev: devResult(res.Opportunities, ""), projects: filterProjects(projs, 0)}, nil
+	data := &tuiData{res: res, space: space, dev: devResult(res.Opportunities, ""), projects: filterProjects(projs, 0),
+		slow: engine.SlowFrom(res.Health, engine.SlowOptions{Home: d.home})}
+	data.trend, data.trendMsg = loadTrend(d.home)
+	return data, nil
+}
+
+// loadTrend compares the latest scan with one about 30 days old. Not having
+// two scans yet isn't an error: the view says so.
+func loadTrend(home string) (*engine.TrendResult, string) {
+	tr, err := engine.Trend(engine.TrendOptions{Home: home, Days: 30})
+	switch {
+	case errors.Is(err, engine.ErrNoHistory), errors.Is(err, store.ErrNoScan):
+		return nil, "Trends need two scans. Rescan (r) in a few days to see what grew."
+	case err != nil:
+		return nil, "Couldn't compare scans: " + err.Error()
+	}
+	return &tr, ""
 }
 
 func (m tuiModel) Init() tea.Cmd { return m.initCmd }
@@ -615,7 +637,7 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 	arg = strings.TrimSpace(arg)
 	views := map[string]tab{
 		"overview": tabOverview, "wins": tabSuggestions, "suggestions": tabSuggestions,
-		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": tabSpace, "storage": tabSpace, "health": tabHealth,
+		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": tabSpace, "storage": tabSpace, "health": tabHealth, "slow": tabHealth, "trend": tabSpace,
 	}
 	if v, ok := views[name]; ok {
 		m.setTab(v)
@@ -712,7 +734,7 @@ func (m tuiModel) currentJSON() string {
 	case tabSpace:
 		v = m.data.space
 	case tabHealth:
-		v = m.data.res.Health
+		v = m.data.slow
 	}
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {

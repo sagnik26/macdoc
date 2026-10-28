@@ -292,6 +292,20 @@ func (s *Store) LatestScan(status model.ScanStatus) (model.ScanInfo, error) {
 		ORDER BY started_at DESC, rowid DESC LIMIT 1`, string(status), string(status)))
 }
 
+// ScanAtOrBefore returns the newest complete scan started at or before at,
+// or ErrNoScan.
+func (s *Store) ScanAtOrBefore(at time.Time) (model.ScanInfo, error) {
+	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans
+		WHERE status = ? AND started_at <= ?
+		ORDER BY started_at DESC, rowid DESC LIMIT 1`, string(model.ScanComplete), toDB(at)))
+}
+
+// OldestScan returns the oldest complete scan, or ErrNoScan.
+func (s *Store) OldestScan() (model.ScanInfo, error) {
+	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans
+		WHERE status = ? ORDER BY started_at, rowid LIMIT 1`, string(model.ScanComplete)))
+}
+
 // NodeQuery filters Nodes.
 type NodeQuery struct {
 	Prefix   string // only nodes equal to or below this path ("" = all)

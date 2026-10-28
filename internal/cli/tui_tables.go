@@ -378,22 +378,27 @@ func (m tuiModel) healthTables() string {
 	b.WriteString("\n")
 	b.WriteString(t.block("Your Mac", "", m.vitalsTable(w)))
 	b.WriteString("\n")
+	b.WriteString(m.slowBlock())
+	b.WriteString("\n")
 	if len(h.Findings) == 0 {
 		b.WriteString(t.block("Findings", "", " "+t.ok.Render("Nothing urgent.")+" Disk, memory and swap look healthy.\n"))
 	} else {
 		b.WriteString(t.block("Findings", "", m.findingsTable(h.Findings, w, true)))
 	}
-	if len(rep.TopProcesses) > 0 {
+	if groups := m.data.slow.Groups; len(groups) > 0 {
 		var rows [][]string
-		for _, p := range rep.TopProcesses {
-			rows = append(rows, []string{p.Name, engine.BinaryBytes(p.RSSBytes), fmt.Sprint(max(1, p.Count))})
+		for _, g := range groups {
+			rows = append(rows, []string{g.Name, engine.BinaryBytes(g.RSSBytes), fmt.Sprint(max(1, g.Count)), g.Explain})
 		}
 		b.WriteString("\n")
-		b.WriteString(t.block("Top memory users", "", t.grid(
-			[]column{{title: "App or tool", flex: true}, {title: "Memory", right: true}, {title: "Processes", right: true}}, rows, w,
+		b.WriteString(t.block("Top memory users", "resident memory; shared memory can count twice", t.grid(
+			[]column{{title: "App or tool"}, {title: "Memory", right: true}, {title: "Processes", right: true}, {title: "What it is", wrap: true}}, rows, w,
 			func(_, c int) *lipgloss.Style {
-				if c == 1 {
+				switch c {
+				case 1:
 					return ptr(t.size)
+				case 3:
+					return ptr(t.muted)
 				}
 				return nil
 			})))
@@ -408,6 +413,62 @@ func (m tuiModel) healthTables() string {
 			func(_, _ int) *lipgloss.Style { return ptr(t.muted) })))
 	}
 	return b.String()
+}
+
+// slowBlock answers "is memory slowing it down?" with the swap history.
+func (m tuiModel) slowBlock() string {
+	t := m.t
+	s := m.data.slow
+	var b strings.Builder
+	fmt.Fprintf(&b, " %s %s\n", t.sev(s.Level), t.text.Render(s.Verdict))
+	if s.Summary != "" {
+		fmt.Fprintf(&b, "   %s\n", t.muted.Render("Biggest users: "+s.Summary))
+	}
+	fmt.Fprintf(&b, "   %s %s\n", t.muted.Render("Swap:"), swapLine(t, s, nowFunc()))
+	for _, n := range s.Notes {
+		fmt.Fprintf(&b, " %s %s\n", t.sev(engine.SeverityWarn), t.text.Render(n))
+	}
+	return t.block("Is memory slowing it down?", "", b.String())
+}
+
+// trendBlock is what grew between the latest scan and one about 30 days old.
+func (m tuiModel) trendBlock(w int) string {
+	t := m.t
+	tr := m.data.trend
+	if tr == nil {
+		return t.block("What grew", "", " "+t.muted.Render(m.data.trendMsg)+"\n")
+	}
+	floor := engine.DecimalBytes(tr.KeptFloor)
+	span := engine.SpanText(tr.To.StartedAt.Sub(tr.From.StartedAt))
+	var rows [][]string
+	for _, a := range tr.Areas {
+		if c := changeText(a.Change, floor); c != "no change" && !strings.HasPrefix(c, "under ") {
+			rows = append(rows, []string{a.Name, sizeText(a.Before, floor), sizeText(a.After, floor), c})
+		}
+	}
+	for _, f := range tr.Growing {
+		rows = append(rows, []string{tildePath(m.deps.home, f.Path), sizeText(f.Before, floor), engine.DecimalBytes(f.After), changeText(f.Change, floor)})
+	}
+	note := "in the last " + span + ", from macdoc's stored scans"
+	if len(rows) == 0 {
+		return t.block("What grew", note, " Nothing changed by more than "+floor+".\n")
+	}
+	return t.block("What grew", note, t.grid(
+		[]column{{title: "Area or folder", flex: true}, {title: "Before", right: true}, {title: "Now", right: true}, {title: "Change", right: true}}, rows, w,
+		func(r, c int) *lipgloss.Style {
+			switch c {
+			case 1:
+				return ptr(t.muted)
+			case 2:
+				return ptr(t.size)
+			case 3:
+				if strings.HasPrefix(rows[r][3], "+") {
+					return ptr(t.warn)
+				}
+				return ptr(t.ok)
+			}
+			return nil
+		}))
 }
 
 func (m tuiModel) spaceTables() string {
@@ -451,6 +512,9 @@ func (m tuiModel) spaceTables() string {
 			return nil
 		})))
 	}
+
+	b.WriteString("\n")
+	b.WriteString(m.trendBlock(w))
 
 	if len(sp.SystemData) > 0 {
 		var rows [][]string

@@ -872,3 +872,30 @@ func TestVitals(t *testing.T) {
 		t.Errorf("got %+v", got)
 	}
 }
+
+func TestScanAtOrBeforeAndOldest(t *testing.T) {
+	s := openTemp(t)
+	if _, err := s.OldestScan(); !errors.Is(err, ErrNoScan) {
+		t.Errorf("empty: %v", err)
+	}
+	var ids []string
+	for i := range 3 {
+		at := t0.Add(time.Duration(i) * 24 * time.Hour)
+		id := mustBegin(t, s, at)
+		mustFinish(t, s, id, model.ScanComplete, at)
+		ids = append(ids, id)
+	}
+	_ = mustBegin(t, s, t0.Add(-time.Hour)) // running: never returned
+	if got, err := s.OldestScan(); err != nil || got.ID != ids[0] {
+		t.Errorf("oldest = %v, %v", got.ID, err)
+	}
+	if got, err := s.ScanAtOrBefore(t0.Add(36 * time.Hour)); err != nil || got.ID != ids[1] {
+		t.Errorf("at or before = %v, %v", got.ID, err)
+	}
+	if got, err := s.ScanAtOrBefore(t0.Add(24 * time.Hour)); err != nil || got.ID != ids[1] {
+		t.Errorf("exact = %v, %v", got.ID, err)
+	}
+	if _, err := s.ScanAtOrBefore(t0.Add(-time.Minute)); !errors.Is(err, ErrNoScan) {
+		t.Errorf("before all: %v", err)
+	}
+}

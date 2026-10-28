@@ -100,13 +100,19 @@ const RSSNote = "Sizes are resident memory. Memory shared between processes can 
 // records a sample in macdoc's own store for the swap history; it changes
 // nothing else.
 func Slow(ctx context.Context, o SlowOptions) SlowResult {
+	return SlowFrom(doctor(ctx, o.Runner, slowGroups), o)
+}
+
+// SlowFrom is Slow from a health check already made (the dashboard has
+// one), so nothing is probed twice.
+func SlowFrom(h DoctorResult, o SlowOptions) SlowResult {
 	if o.Now.IsZero() {
 		o.Now = time.Now()
 	}
 	if o.Days <= 0 {
 		o.Days = 7
 	}
-	res := SlowResult{Health: doctor(ctx, o.Runner, slowGroups)}
+	res := SlowResult{Health: h}
 	rep := res.Health.Report
 	ram := ramOf(rep)
 	for i, g := range rep.TopProcesses {

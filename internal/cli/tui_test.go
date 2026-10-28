@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -22,7 +23,16 @@ func tuiFixture() *tuiData {
 		opps.Opportunities[i].Toolchain = toolchains[i]
 	}
 	res := engine.OverviewResult{Health: sampleResult(), Scan: opps.Scan, ScanAge: "2h ago", Opportunities: opps}
-	return &tuiData{res: res, dev: devResult(opps, ""), projects: engine.ProjectsResult{
+	slow := engine.SlowResult{Health: res.Health, Level: engine.SeverityWarn, Verdict: "Memory is tight.", Summary: "Cursor 1.0 GB on 8.0 GB of RAM (12% together).",
+		Swap: engine.SwapHistory{Days: 7, Samples: 1}}
+	for _, g := range res.Health.Report.TopProcesses {
+		slow.Groups = append(slow.Groups, engine.SlowGroup{ProcessGroup: g, Explain: "Explained " + g.Name + "."})
+	}
+	gradle := engine.Range{Low: 6 * gb, High: 6 * gb}
+	trend := &engine.TrendResult{KeptFloor: 100 << 20, To: model.ScanInfo{StartedAt: time.Unix(0, 0).Add(30 * 24 * time.Hour)}, From: model.ScanInfo{StartedAt: time.Unix(0, 0)},
+		Areas: []engine.TrendArea{{Name: "Gradle", Before: engine.Range{Low: 4 * gb, High: 4 * gb}, After: engine.Range{Low: 10 * gb, High: 10 * gb}, Change: gradle},
+			{Name: "Downloads", Before: engine.Range{Low: gb, High: gb}, After: engine.Range{Low: gb, High: gb}}}}
+	return &tuiData{res: res, dev: devResult(opps, ""), slow: slow, trend: trend, projects: engine.ProjectsResult{
 		Projects: []projects.Project{
 			{Root: "/Users/me/code/app", IdleDays: 120, ActivitySource: projects.ActivityCommit, Git: projects.GitDirty, ArtifactBytes: 800_000_000,
 				Artifacts: []projects.Artifact{{Rel: "node_modules", Bytes: 500_000_000}, {Rel: "ios/Pods", Bytes: 300_000_000}}},
@@ -53,7 +63,7 @@ func step(t *testing.T, m tuiModel, msgs ...tea.Msg) tuiModel {
 // keys turns "tab", "enter", "esc", "down" or literal text into key messages.
 func keys(ks ...string) []tea.Msg {
 	named := map[string]tea.KeyType{"tab": tea.KeyTab, "enter": tea.KeyEnter, "esc": tea.KeyEsc,
-		"down": tea.KeyDown, "up": tea.KeyUp, "shift+tab": tea.KeyShiftTab}
+		"down": tea.KeyDown, "up": tea.KeyUp, "shift+tab": tea.KeyShiftTab, "pgdown": tea.KeyPgDown}
 	var out []tea.Msg
 	for _, k := range ks {
 		if kt, ok := named[k]; ok {
@@ -119,9 +129,15 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 		t.Error("esc should close the detail")
 	}
 	m = step(t, m, keys("6")...)
-	mustContain(t, m.View(), "Top memory users", "│ App or tool", "│ Why it matters")
+	mustContain(t, m.View(), "Is memory slowing it down?", "Memory is tight.", "Biggest users: Cursor 1.0 GB",
+		"History builds up", "│ Why it matters")
+	m = step(t, m, keys("pgdown", "pgdown")...)
+	mustContain(t, m.View(), "Top memory users", "│ App or tool", "│ What it is", "Explained Cursor.")
 	m = step(t, m, keys("5")...)
-	mustContain(t, m.View(), "Reclaimable, by category")
+	mustContain(t, m.View(), "Reclaimable, by category", "What grew", "in the last 30 days", "│ Gradle", "+6.0 GB")
+	if strings.Contains(m.View(), "│ Downloads") {
+		t.Error("an unchanged area is listed under What grew")
+	}
 	m = step(t, m, keys("4")...)
 	mustContain(t, m.View(), "│ Project", "~/code/app", "120 d · git commit", "uncommitted", "~/Desktop/site", "(protected)",
 		"ios/Pods\u00a0300\u00a0MB", "DerivedData of deleted projects", "~/old/Gone.xcodeproj")

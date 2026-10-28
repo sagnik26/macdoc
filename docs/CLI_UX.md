@@ -2,7 +2,7 @@
 
 ## 1. Commands
 
-> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | projects [--idle N] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`/`apply`/`quarantine`/`log`/`trend`/`slow` will be added as top-level commands (`plan`/`apply`) or doctor sections (`slow`, `trend`) when built.
+> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | projects [--idle N] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`, `apply`, `quarantine` and `log` are top-level commands. `slow` and `trend` are doctor sections (`macdoc doctor slow`, `macdoc doctor trend`, Phase 7); in the dashboard they are the "Is memory slowing it down?" block on Health and "What grew" on Space (`/slow`, `/trend`).
 
 | Command | Mode | Purpose |
 |---|---|---|
@@ -12,9 +12,9 @@
 | `macdoc storage [--large]` | read | Category breakdown with "System Data" decoded. `--large` lists unknown big items |
 | `macdoc dev [xcode\|android\|node\|docker\|python\|ai\|brew]` | read | Per-toolchain breakdown |
 | `macdoc projects [--idle 90]` | read | Projects with idle days and artifact weight (built as `macdoc doctor projects`, §1b) |
-| `macdoc slow` | read | Memory pressure, swap and heavy processes, with an explanation |
+| `macdoc doctor slow [--days 7]` | read (stores a vitals sample) | Verdict, biggest users against RAM, what each known group is, swap now and over the window |
 | `macdoc explain <O-id>` | read | What it is, why it's there, restore cost, exact action |
-| `macdoc trend [--days 30]` | read | Growth per category across scans |
+| `macdoc doctor trend [--days 30]` | read | Growth per area (Xcode, Gradle, Docker, …) and the folders that grew most, between the latest scan and one about N days old. Sizes of folders a scan didn't store are bounds ("<105 MB", "or more") |
 | `macdoc plan <O-id…> \| --safe \| --recipe <id>` | writes plan file | Dry-run plan, sealed |
 | `macdoc apply <P-id>` | **mutating, TTY** | Confirm, re-validate, execute, verify |
 | `macdoc quarantine list\|restore <Q-id>\|purge [--expired]` | restore/purge mutating, TTY | Manage quarantine |
@@ -131,7 +131,7 @@ What matters most
   2. 31.4 GB is safely reclaimable (caches and build artifacts).
   3. Docker Desktop VM is using 3.1 GB of RAM while idle.
 
-Next:  macdoc wins     macdoc slow     macdoc plan --safe
+Next:  macdoc doctor wins     macdoc doctor slow     macdoc plan --safe
 Nothing has been changed. macdoc is read-only unless you run `apply`.
 ```
 
