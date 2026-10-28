@@ -177,7 +177,8 @@ func (m tuiModel) introView() string {
 func (m tuiModel) introHeight() int {
 	h := m.h - 1
 	if m.inputMode != 0 {
-		h -= 2 + min(6, len(m.completions()))
+		start, end := m.paletteWindow()
+		h -= 2 + end - start
 	} else if m.flash != "" {
 		h--
 	}

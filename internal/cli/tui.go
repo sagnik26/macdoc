@@ -47,12 +47,12 @@ type slashCommand struct {
 
 var slashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
+	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
 	{"wins", "", "every suggestion, ranked by safety"},
 	{"dev", "", "suggestions per developer toolchain"},
 	{"projects", "", "projects: idle days, build folders, git state"},
 	{"space", "", `space by category, "System Data" decoded`},
 	{"health", "", "disk, memory, swap and top memory users"},
-	{"scan", "", "rescan the disk (Esc stops it)"},
 	{"explain", "<id>", "one suggestion in detail"},
 	{"json", "", "this view as JSON"},
 	{"mcp", "", "Claude integration status"},
@@ -633,7 +633,8 @@ func (m tuiModel) currentJSON() string {
 func (m tuiModel) bodyHeight() int {
 	h := m.h - 4 // header, tabs, rule, footer
 	if m.inputMode != 0 {
-		h -= 2 + min(6, len(m.completions()))
+		start, end := m.paletteWindow()
+		h -= 2 + end - start
 	} else if m.flash != "" {
 		h--
 	}
@@ -773,14 +774,24 @@ func (m tuiModel) footerView() string {
 	return " " + m.help.ShortHelpView(keys)
 }
 
+// paletteWindow is the range of completions the / menu shows: all of them
+// when the window has room (up to half its height, and always leaving the
+// header, input line, footer and 3 body lines), otherwise a window that
+// keeps the picked one in view.
+func (m tuiModel) paletteWindow() (start, end int) {
+	n := len(m.completions())
+	rows := min(n, max(4, m.h/2), max(1, m.h-9))
+	start = max(0, min(m.pick-rows+1, n-rows))
+	return start, start + rows
+}
+
 func (m tuiModel) inputView() string {
 	t := m.t
 	var b strings.Builder
 	comps := m.completions()
-	for i, c := range comps {
-		if i == 6 {
-			break
-		}
+	start, end := m.paletteWindow()
+	for i := start; i < end; i++ {
+		c := comps[i]
 		prefix := string(m.inputMode)
 		name := t.accent.Render(fmt.Sprintf("%-18s", prefix+c.value))
 		line := "   " + name + " " + t.muted.Render(c.desc)

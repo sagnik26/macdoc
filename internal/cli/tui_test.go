@@ -385,3 +385,39 @@ func TestFitColumnsKeepsWordsWhole(t *testing.T) {
 		}
 	}
 }
+
+// Every / command is reachable in the menu: all shown when there's room,
+// scrolled into view on short windows.
+func TestTUIPaletteShowsEveryCommand(t *testing.T) {
+	m := step(t, loaded(t, 100, 40), keys("/")...)
+	out := m.View()
+	for _, c := range slashCommands {
+		mustContain(t, out, "/"+c.name)
+	}
+	if !strings.Contains(out, "/scan") || strings.Index(out, "/scan") > strings.Index(out, "/wins") {
+		t.Error("/scan should be listed near the top")
+	}
+
+	m = step(t, loaded(t, 100, 12), keys("/")...)
+	if strings.Contains(m.View(), "/quit") {
+		t.Error("a short window can't show every command at once")
+	}
+	for range slashCommands {
+		m = step(t, m, keys("down")...)
+	}
+	mustContain(t, m.View(), "▸ /quit")
+	if n := strings.Count(m.View(), "\n"); n != 11 { // 12 rows
+		t.Errorf("view is %d lines; want the window height", n+1)
+	}
+}
+
+func TestWelcomePaletteFitsWindow(t *testing.T) {
+	for _, h := range []int{14, 24, 40} {
+		m, _ := newIntroTUI(t, 100, h, introStatus{})
+		m = step(t, m, keys("/")...)
+		if n := strings.Count(m.View(), "\n"); n != h-1 {
+			t.Errorf("h=%d: view is %d lines", h, n+1)
+		}
+		mustContain(t, m.View(), "/scan")
+	}
+}
