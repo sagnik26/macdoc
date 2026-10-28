@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"macdoc/internal/config"
 	"macdoc/internal/model"
 	"macdoc/internal/platform"
 	"macdoc/internal/projects"
@@ -90,7 +91,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 		o.Catalog = cat
 	}
-	policy, err := safety.NewPolicy(o.Home, nil)
+	policy, _, err := config.Policy(o.Home)
 	if err != nil {
 		return OpportunityResult{}, err
 	}

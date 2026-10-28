@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "executor.EntryResult": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "original": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "id",
+        "original",
+        "outcome"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/quarantine-restore.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "quarantine restore"
+    },
+    "data": {
+      "$ref": "#/$defs/executor.EntryResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc quarantine restore --json",
+  "type": "object"
+}

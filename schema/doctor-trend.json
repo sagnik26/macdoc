@@ -1,0 +1,208 @@
+{
+  "$defs": {
+    "engine.Range": {
+      "properties": {
+        "high": {
+          "type": "integer"
+        },
+        "low": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "high",
+        "low"
+      ],
+      "type": "object"
+    },
+    "engine.TrendArea": {
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/engine.Range"
+        },
+        "before": {
+          "$ref": "#/$defs/engine.Range"
+        },
+        "change": {
+          "$ref": "#/$defs/engine.Range"
+        },
+        "name": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "after",
+        "before",
+        "change",
+        "name",
+        "paths"
+      ],
+      "type": "object"
+    },
+    "engine.TrendFolder": {
+      "properties": {
+        "after": {
+          "type": "integer"
+        },
+        "before": {
+          "$ref": "#/$defs/engine.Range"
+        },
+        "change": {
+          "$ref": "#/$defs/engine.Range"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "after",
+        "before",
+        "change",
+        "path"
+      ],
+      "type": "object"
+    },
+    "engine.TrendResult": {
+      "properties": {
+        "areas": {
+          "items": {
+            "$ref": "#/$defs/engine.TrendArea"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "days": {
+          "type": "integer"
+        },
+        "from": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "growing": {
+          "items": {
+            "$ref": "#/$defs/engine.TrendFolder"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kept_floor": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        },
+        "span_days": {
+          "type": "integer"
+        },
+        "to": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "total_change": {
+          "$ref": "#/$defs/engine.Range"
+        }
+      },
+      "required": [
+        "areas",
+        "days",
+        "from",
+        "growing",
+        "kept_floor",
+        "span_days",
+        "to",
+        "total_change"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/doctor-trend.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "doctor trend"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.TrendResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc doctor trend --json",
+  "type": "object"
+}

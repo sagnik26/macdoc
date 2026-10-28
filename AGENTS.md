@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phases 0–6 are complete. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, and Enter on a dashboard suggestion removes it after one more Enter (typed code for RISKY), both through `internal/executor`: native commands, or a checked move into quarantine that is deleted right away so the space is freed, all audited. `macdoc quarantine` handles anything left there, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–6 are complete; Phase 7 (`slow`, `trend`, frozen JSON schemas in `schema/`, `config`, completions) is built and in its dogfood week. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `slow`, `trend`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only (`slow` and the overview store a small memory sample in macdoc's own state). `macdoc config` edits macdoc's settings file: timings and extra protected folders, which can only add protection. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, and Enter on a dashboard suggestion removes it after one more Enter (typed code for RISKY), both through `internal/executor`: native commands, or a checked move into quarantine that is deleted right away so the space is freed, all audited. `macdoc quarantine` handles anything left there, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
@@ -68,7 +68,7 @@ make fuzz         # fuzz safety/canonicalization
 - [ ] No new deletion, rename or exec calls outside `internal/executor`
 - [ ] Docs are updated if behavior or design changed
 - [ ] New recipes have all three tests
-- [ ] JSON schema is updated and contract tests pass if output changed
+- [ ] JSON schema is updated and contract tests pass if output changed (`go test ./internal/cli -run TestSchemasFrozen -update` for additive changes only; anything else bumps `schema_version`)
 
 ## Git
 

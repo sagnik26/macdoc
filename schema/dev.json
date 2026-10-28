@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "cli.DevResult": {
+      "properties": {
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "toolchain": {
+          "type": "string"
+        },
+        "toolchains": {
+          "items": {
+            "$ref": "#/$defs/engine.ToolchainTotal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "scan",
+        "scan_age",
+        "toolchains"
+      ],
+      "type": "object"
+    },
+    "engine.ToolchainTotal": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "opportunities": {
+          "items": {
+            "$ref": "#/$defs/model.Opportunity"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "opportunities",
+        "toolchain"
+      ],
+      "type": "object"
+    },
+    "model.Bytes": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "value"
+      ],
+      "type": "object"
+    },
+    "model.Opportunity": {
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/model.Bytes"
+        },
+        "category": {
+          "type": "string"
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "dry_run": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explain": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "idle_days": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "recipe_id": {
+          "type": "string"
+        },
+        "restore": {
+          "$ref": "#/$defs/model.Restore"
+        },
+        "risk": {
+          "type": "string"
+        },
+        "risk_reason": {
+          "type": "string"
+        },
+        "scan_id": {
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "category",
+        "confidence",
+        "explain",
+        "id",
+        "idle_days",
+        "method",
+        "recipe_id",
+        "restore",
+        "risk",
+        "scan_id",
+        "target",
+        "title",
+        "toolchain"
+      ],
+      "type": "object"
+    },
+    "model.Restore": {
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "redownload_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/dev.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "dev"
+    },
+    "data": {
+      "$ref": "#/$defs/cli.DevResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc dev --json",
+  "type": "object"
+}

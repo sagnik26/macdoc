@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "store.PlanRecord": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "type": "integer"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "scan_id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "created_at",
+        "expires_at",
+        "id",
+        "items",
+        "origin",
+        "scan_id",
+        "sha256",
+        "status",
+        "total_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/plan-list.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "plan list"
+    },
+    "data": {
+      "items": {
+        "$ref": "#/$defs/store.PlanRecord"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc plan list --json",
+  "type": "object"
+}

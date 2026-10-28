@@ -1,0 +1,236 @@
+{
+  "$defs": {
+    "engine.CategoryTotal": {
+      "properties": {
+        "by_risk": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "category": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "unknown_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "by_risk",
+        "bytes",
+        "category",
+        "count"
+      ],
+      "type": "object"
+    },
+    "engine.StorageResult": {
+      "properties": {
+        "categories": {
+          "items": {
+            "$ref": "#/$defs/engine.CategoryTotal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "large": {
+          "items": {
+            "$ref": "#/$defs/model.Node"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "system_data": {
+          "items": {
+            "$ref": "#/$defs/engine.SystemDataPart"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "categories",
+        "scan",
+        "scan_age",
+        "system_data"
+      ],
+      "type": "object"
+    },
+    "engine.SystemDataPart": {
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/model.Bytes"
+        },
+        "explain": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "explain",
+        "name"
+      ],
+      "type": "object"
+    },
+    "model.Bytes": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "value"
+      ],
+      "type": "object"
+    },
+    "model.Node": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mtime_max": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "depth",
+        "files",
+        "kind",
+        "mtime_max",
+        "path"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/storage.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "storage"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.StorageResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc storage --json",
+  "type": "object"
+}

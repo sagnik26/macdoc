@@ -42,7 +42,7 @@ Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.
 - Docker **volumes** (advise-only listing)
 - `~/Library/Application Support/MobileSync/Backup` (advise-only: Finder › device › Manage Backups)
 - macdoc's own state directory, except quarantine purge by manifest
-- User-configured `protected_paths` in `config.toml`
+- Folders you add with `macdoc config protect <folder>` (stored as `protect` in `~/Library/Application Support/macdoc/config.json`, Phase 7). They only add protection: the built-in list above can't be changed or removed. Opportunities, planning and the executor's re-check all read them, so a folder protected after a plan was made is still refused at apply. An unreadable or invalid settings file stops opportunities, planning and apply with an error rather than dropping a protected folder. Paths with a `..` component are rejected. The future MCP server must never expose `config` (unprotecting loosens safety).
 
 The home directory itself, any top-level home folder, and any path with fewer than 2 components below `$HOME` (e.g. `~/.gradle` itself) can never be a target, even if a recipe glob matched it.
 
@@ -58,7 +58,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 - Built from opportunity IDs, a tier selector or a recipe selector. Never from paths.
 - Each item records a canonical target, a fingerprint `{dev, ino, mtime_ns, alloc_bytes}`, the method (`native` + argv | `quarantine`), preconditions and expected bytes.
 - Sealed with SHA-256 over canonical JSON. The hash is stored in both the plan file and SQLite.
-- Expires after 30 minutes (configurable). Bound to `scan_id`.
+- Expires after 30 minutes (`macdoc config set plan_minutes N`, 5–120). Bound to `scan_id`.
 - Includes an `origin` field: `cli` or `claude`.
 - **As built (Phase 5, `internal/planner`):**
   - Files live in `~/Library/Application Support/macdoc/plans/P-XXXX.json`. They're created with `O_CREAT|O_EXCL` (never overwritten, never renamed), mode 0600, in a 0700 folder. The `plans` table (store migration v2) holds the second copy of the hash, with the scan, origin, expiry and status.

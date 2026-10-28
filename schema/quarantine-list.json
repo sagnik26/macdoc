@@ -1,0 +1,246 @@
+{
+  "$defs": {
+    "engine.QuarantineResult": {
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/quarantine.Entry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "expired_bytes": {
+          "type": "integer"
+        },
+        "expired_count": {
+          "type": "integer"
+        },
+        "held_bytes": {
+          "type": "integer"
+        },
+        "root": {
+          "type": "string"
+        },
+        "unknown": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entries",
+        "expired_bytes",
+        "expired_count",
+        "held_bytes",
+        "root",
+        "unknown"
+      ],
+      "type": "object"
+    },
+    "model.Fingerprint": {
+      "properties": {
+        "alloc_bytes": {
+          "type": "integer"
+        },
+        "dev": {
+          "type": "integer"
+        },
+        "ino": {
+          "type": "integer"
+        },
+        "mtime_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "alloc_bytes",
+        "dev",
+        "ino",
+        "mtime_ns"
+      ],
+      "type": "object"
+    },
+    "quarantine.Entry": {
+      "properties": {
+        "expired": {
+          "type": "boolean"
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/quarantine.Manifest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "problem": {
+          "type": "string"
+        },
+        "record": {
+          "$ref": "#/$defs/store.QuarantineRecord"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expired",
+        "record",
+        "state"
+      ],
+      "type": "object"
+    },
+    "quarantine.Manifest": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "bytes_source": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/model.Fingerprint"
+        },
+        "id": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "original": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "recipe": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "bytes_source",
+        "created_at",
+        "expires_at",
+        "fingerprint",
+        "id",
+        "item",
+        "name",
+        "original",
+        "plan",
+        "recipe",
+        "schema_version",
+        "status",
+        "title"
+      ],
+      "type": "object"
+    },
+    "store.QuarantineRecord": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "original": {
+          "type": "string"
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "recipe_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "created_at",
+        "expires_at",
+        "id",
+        "item_id",
+        "original",
+        "plan_id",
+        "recipe_id",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/quarantine-list.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "quarantine list"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.QuarantineResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc quarantine list --json",
+  "type": "object"
+}

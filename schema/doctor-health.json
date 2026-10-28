@@ -1,0 +1,335 @@
+{
+  "$defs": {
+    "engine.DoctorResult": {
+      "properties": {
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/engine.Finding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "report": {
+          "$ref": "#/$defs/probe.Report"
+        }
+      },
+      "required": [
+        "findings",
+        "report"
+      ],
+      "type": "object"
+    },
+    "engine.Finding": {
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "title"
+      ],
+      "type": "object"
+    },
+    "model.Bytes": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "value"
+      ],
+      "type": "object"
+    },
+    "probe.Disk": {
+      "properties": {
+        "container_free_bytes": {
+          "type": "integer"
+        },
+        "container_ref": {
+          "type": "string"
+        },
+        "container_total_bytes": {
+          "type": "integer"
+        },
+        "purgeable_bytes": {
+          "$ref": "#/$defs/model.Bytes"
+        },
+        "volumes": {
+          "items": {
+            "$ref": "#/$defs/probe.Volume"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "container_free_bytes",
+        "container_ref",
+        "container_total_bytes",
+        "purgeable_bytes",
+        "volumes"
+      ],
+      "type": "object"
+    },
+    "probe.Hardware": {
+      "properties": {
+        "chip": {
+          "type": "string"
+        },
+        "cpu_count": {
+          "type": "integer"
+        },
+        "memory_bytes": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "os_build": {
+          "type": "string"
+        },
+        "os_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chip",
+        "cpu_count",
+        "memory_bytes",
+        "model",
+        "os_build",
+        "os_version"
+      ],
+      "type": "object"
+    },
+    "probe.Memory": {
+      "properties": {
+        "active_bytes": {
+          "type": "integer"
+        },
+        "compressed_bytes": {
+          "type": "integer"
+        },
+        "free_bytes": {
+          "type": "integer"
+        },
+        "free_percent": {
+          "type": "integer"
+        },
+        "inactive_bytes": {
+          "type": "integer"
+        },
+        "pressure": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "wired_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active_bytes",
+        "compressed_bytes",
+        "free_bytes",
+        "free_percent",
+        "inactive_bytes",
+        "pressure",
+        "total_bytes",
+        "wired_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.ProcessGroup": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rss_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count",
+        "name",
+        "rss_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.Report": {
+      "properties": {
+        "disk": {
+          "$ref": "#/$defs/probe.Disk"
+        },
+        "hardware": {
+          "$ref": "#/$defs/probe.Hardware"
+        },
+        "memory": {
+          "$ref": "#/$defs/probe.Memory"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/probe.Snapshots"
+        },
+        "swap": {
+          "$ref": "#/$defs/probe.Swap"
+        },
+        "top_processes": {
+          "items": {
+            "$ref": "#/$defs/probe.ProcessGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "disk",
+        "hardware",
+        "memory",
+        "snapshots",
+        "swap",
+        "top_processes"
+      ],
+      "type": "object"
+    },
+    "probe.Snapshots": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "names": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "count",
+        "names"
+      ],
+      "type": "object"
+    },
+    "probe.Swap": {
+      "properties": {
+        "encrypted": {
+          "type": "boolean"
+        },
+        "free_bytes": {
+          "type": "integer"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "used_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "encrypted",
+        "free_bytes",
+        "total_bytes",
+        "used_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.Volume": {
+      "properties": {
+        "mount_point": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "used_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "roles",
+        "used_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/doctor-health.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "doctor health"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.DoctorResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc doctor health --json",
+  "type": "object"
+}

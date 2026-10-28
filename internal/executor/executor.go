@@ -20,13 +20,13 @@ import (
 	"time"
 
 	"macdoc/internal/audit"
+	"macdoc/internal/config"
 	"macdoc/internal/model"
 	"macdoc/internal/planner"
 	"macdoc/internal/platform"
 	"macdoc/internal/precond"
 	"macdoc/internal/quarantine"
 	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
 	"macdoc/internal/sandbox"
 	"macdoc/internal/store"
 )
@@ -174,7 +174,7 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved map[string
 	}
 	// A fresh policy, so protected folders that became symlinks since the
 	// plan are covered at their real location (P0-W3 Q2).
-	pol, err := safety.NewPolicy(cfg.Home, nil)
+	pol, _, err := config.Policy(cfg.Home)
 	if err != nil {
 		return rep, err
 	}
@@ -264,6 +264,9 @@ func (c *Config) defaults() error {
 	}
 	if c.NativeTimeout <= 0 {
 		c.NativeTimeout = DefaultNativeTimeout
+		if s, err := config.Load(c.Home); err == nil {
+			c.NativeTimeout = s.NativeTimeout()
+		}
 	}
 	if c.Exec == nil {
 		c.Exec, c.realExec = realExec, true

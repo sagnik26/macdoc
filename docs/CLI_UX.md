@@ -19,7 +19,7 @@
 | `macdoc apply <P-id>` | **mutating, TTY** | Confirm, re-validate, execute, verify |
 | `macdoc quarantine list\|restore <Q-id>\|purge [--expired]` | restore/purge mutating, TTY | Manage quarantine |
 | `macdoc log [--json]` | read | Audit history |
-| `macdoc config [get\|set\|edit]` | config | Thresholds, protected paths, expiry |
+| `macdoc config [set\|protect\|unprotect\|path]` | writes macdoc's settings file | `plan_minutes`, `native_timeout_minutes`, and extra protected folders (add-only on top of the built-in list). No `edit`: opening an editor would run a program outside the executor; `config path` prints the file |
 | `macdoc mcp` | read + plans (Phase C) | MCP stdio server |
 | `macdoc schedule enable\|disable` | Phase 10 | Daily read-only scan via launchd |
 

@@ -1,0 +1,241 @@
+{
+  "$defs": {
+    "engine.ProjectsResult": {
+      "properties": {
+        "derived_data": {
+          "items": {
+            "$ref": "#/$defs/projects.DerivedData"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/projects.Project"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "derived_data",
+        "projects",
+        "scan",
+        "scan_age"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    },
+    "projects.Artifact": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "mtime_max": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "rel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "mtime_max",
+        "path",
+        "rel"
+      ],
+      "type": "object"
+    },
+    "projects.DerivedData": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "missing": {
+          "type": "boolean"
+        },
+        "mtime_max": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "missing",
+        "mtime_max",
+        "path"
+      ],
+      "type": "object"
+    },
+    "projects.Project": {
+      "properties": {
+        "activity_source": {
+          "type": "string"
+        },
+        "artifact_bytes": {
+          "type": "integer"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/projects.Artifact"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "git": {
+          "type": "string"
+        },
+        "git_note": {
+          "type": "string"
+        },
+        "idle_days": {
+          "type": "integer"
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "last_active": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "protected": {
+          "type": "boolean"
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_bytes",
+        "artifacts",
+        "git",
+        "idle_days",
+        "kinds",
+        "last_active",
+        "name",
+        "protected",
+        "root"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/projects.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "projects"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.ProjectsResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc projects --json",
+  "type": "object"
+}

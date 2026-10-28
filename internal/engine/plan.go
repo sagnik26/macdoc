@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"macdoc/internal/audit"
+	"macdoc/internal/config"
 	"macdoc/internal/model"
 	"macdoc/internal/planner"
 	"macdoc/internal/platform"
 	"macdoc/internal/probe"
 	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
 	"macdoc/internal/store"
 )
 
@@ -63,9 +63,12 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 		}
 		o.Catalog = cat
 	}
-	pol, err := safety.NewPolicy(o.Home, nil)
+	pol, cfg, err := config.Policy(o.Home)
 	if err != nil {
 		return PlanResult{}, err
+	}
+	if o.TTL <= 0 {
+		o.TTL = cfg.PlanTTL()
 	}
 	st, err := store.Open(o.StorePath)
 	if err != nil {
@@ -126,7 +129,7 @@ func ShowPlan(ctx context.Context, o OpportunityOptions, id string) (PlanResult,
 		}
 		o.Catalog = cat
 	}
-	pol, err := safety.NewPolicy(o.Home, nil)
+	pol, _, err := config.Policy(o.Home)
 	if err != nil {
 		return PlanResult{}, err
 	}

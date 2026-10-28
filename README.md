@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -62,7 +62,7 @@ macdoc has **two everyday commands**:
   - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
   - **Health:** findings with explanations, and the top memory users.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/slow` `/trend` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
@@ -119,13 +119,15 @@ These read the latest scan and don't rescan.
 | Command | Shows |
 |---|---|
 | `macdoc doctor health` | Disk, memory, swap, snapshots, every finding, top memory users |
+| `macdoc doctor slow [--days 7]` | Is memory what's slowing your Mac down? A verdict, the biggest users against your RAM with what each one is, and swap now and over the last days (each check stores a small sample). It never quits an app |
+| `macdoc doctor trend [--days 30]` | What grew between the latest scan and one about 30 days old: per area (Xcode, Gradle, Docker, …) and the folders that grew most |
 | `macdoc doctor space [--large]` | Reclaimable space by category and "System Data" decoded. `--large` adds big items no recipe covers |
 | `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
 | `macdoc doctor explain <id>` | One suggestion in detail: what it is, why it's there, risk, idle time, how to restore, the exact action |
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 
-Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. `--quiet` hides the progress line. Other top-level commands: `macdoc version`.
+Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 1). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
 
 ### `macdoc plan`: a sealed dry run
 ```
@@ -195,9 +197,17 @@ macdoc doctor explain <id> # details for one suggestion
 ```
 After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
+Tab completion for zsh (bash and fish work the same way with `macdoc completion bash|fish`):
+```bash
+mkdir -p ~/.zfunc && macdoc completion zsh > ~/.zfunc/_macdoc
+# then in ~/.zshrc, before compinit: fpath=(~/.zfunc $fpath)
+```
+
+Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` makes macdoc never suggest or remove anything in that folder; `macdoc config set plan_minutes 60` keeps plans valid longer. Settings can only make macdoc stricter or change timings.
+
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 
-Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The last 10 scans are kept.
+Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The 10 newest scans are kept, plus one per week for 13 weeks (for `trend`).
 
 ---
 
@@ -264,7 +274,7 @@ Developer tooling quietly eats tens of gigabytes:
 | 4 | Project awareness: `doctor projects` and the Projects tab; idle time from git commits, file changes and builds; uncommitted changes raise the risk; Pods, RN/Android build folders, `.next`; DerivedData mapped to its project | ✅ done |
 | 5 | Planner: sealed, expiring dry-run plans → `macdoc plan`, plus marking and planning in the dashboard | ✅ done |
 | 6 | Executor + quarantine + audit log → `apply`, `quarantine`, `log` (the first phase that can change files) | ✅ done |
-| 7 | `slow`, `trend`, JSON schemas, polish → **v0.1 (MVP B)** | next |
+| 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week in progress |
 | 8–9 | MCP server for Claude (read + propose plans), handoff, hardening | |
 | 10 | Optional daily read-only scans, TUI picker, slowness tips | |
 | 11 | Open-source readiness | later |

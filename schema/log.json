@@ -1,0 +1,144 @@
+{
+  "$defs": {
+    "audit.Record": {
+      "properties": {
+        "actual_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "event": {
+          "type": "string"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_bytes": {
+          "type": "integer"
+        },
+        "item": {
+          "type": "string"
+        },
+        "items": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "quarantine_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recipe": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "ts": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "ts"
+      ],
+      "type": "object"
+    },
+    "engine.AuditResult": {
+      "properties": {
+        "bad_lines": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/audit.Record"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "bad_lines",
+        "path",
+        "records"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/log.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "log"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.AuditResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc log --json",
+  "type": "object"
+}

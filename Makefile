@@ -1,6 +1,8 @@
 GO      ?= go
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X macdoc/internal/cli.version=$(VERSION)
+# -s -w drop the symbol and debug tables (about 16 MB → 10 MB); panics still
+# print a stack trace.
+LDFLAGS := -s -w -X macdoc/internal/cli.version=$(VERSION)
 
 .PHONY: build install uninstall test lint importcheck forbidcheck fuzz check clean
 
