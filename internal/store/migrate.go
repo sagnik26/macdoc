@@ -73,6 +73,17 @@ var migrations = []string{
 		status      TEXT NOT NULL CHECK (status IN ('pending', 'done', 'canceled', 'restored', 'purged'))
 	);
 	CREATE INDEX quarantine_created_at ON quarantine (created_at);`,
+	// v4: memory and disk samples (Phase 7), one per check, so `slow` can
+	// show how swap has changed. Sizes are bytes; -1 means unknown.
+	`CREATE TABLE vitals (
+		at            INTEGER NOT NULL,
+		mem_total     INTEGER NOT NULL,
+		swap_used     INTEGER NOT NULL,
+		free_percent  INTEGER NOT NULL,
+		pressure      TEXT NOT NULL,
+		disk_free     INTEGER NOT NULL
+	);
+	CREATE INDEX vitals_at ON vitals (at);`,
 }
 
 // migrate brings the schema up to len(migrations). Each migration runs in its

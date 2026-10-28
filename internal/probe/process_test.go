@@ -193,3 +193,15 @@ func TestCollectProcessesError(t *testing.T) {
 	}
 	w1AssertCalls(t, f, cmdPS)
 }
+
+func TestVirtualizationGroup(t *testing.T) {
+	out := []byte("3000000 /System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine\n" +
+		"1000 /Applications/OrbStack.app/Contents/MacOS/OrbStack\n")
+	got, err := ParsePS(out, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Name != "Virtual machine" || got[0].RSSBytes != 3000000*1024 || got[1].Name != "OrbStack" {
+		t.Errorf("got %+v", got)
+	}
+}

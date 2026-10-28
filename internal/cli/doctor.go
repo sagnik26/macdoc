@@ -26,6 +26,7 @@ is, and what you could reclaim, ranked by safety. It scans only if there is
 no scan yet. Use a section for more detail:
 
   macdoc doctor health          disk, memory, swap, top apps
+  macdoc doctor slow            why it feels slow: memory, swap and what uses it
   macdoc doctor space           space by category, "System Data" decoded
   macdoc doctor wins            every suggestion with its ID
   macdoc doctor dev [toolchain] suggestions per developer toolchain
@@ -52,7 +53,7 @@ no scan yet. Use a section for more detail:
 	}
 	space := newStorageCmd(g)
 	space.Use, space.Aliases = "space", []string{"storage"}
-	cmd.AddCommand(health, space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newExplainCmd(g), newScanCmd(g))
+	cmd.AddCommand(health, newSlowCmd(g), space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newExplainCmd(g), newScanCmd(g))
 	return cmd
 }
 

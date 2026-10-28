@@ -33,8 +33,12 @@ type ScanOptions struct {
 	MapPrefix string
 }
 
-// keepScans is how many complete scans are retained for trends.
-const keepScans = 10
+// keepScans is how many of the newest complete scans are retained, and
+// keepWeeks how many weeks back one scan per week is also kept, for trends.
+const (
+	keepScans = 10
+	keepWeeks = 13
+)
 
 // nodeBatch is the AddNodes batch size.
 const nodeBatch = 1000
@@ -121,7 +125,7 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 		return ScanSummary{}, scanErr
 	}
 	if status == model.ScanComplete {
-		if err := st.PruneScans(keepScans); err != nil {
+		if err := st.PruneScansWeekly(keepScans, keepWeeks, time.Now()); err != nil {
 			return ScanSummary{}, err
 		}
 	}

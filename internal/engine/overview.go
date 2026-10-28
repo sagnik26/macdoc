@@ -82,6 +82,9 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 	step(StepHealth)
 	res := OverviewResult{Health: Doctor(ctx, o.Runner)}
 	sp := store.DefaultPath(o.Home)
+	// A sample for `slow`'s swap history. It is best effort: the history is
+	// a nicety, so a failure here never stops the overview.
+	_, _ = recordVitals(sp, res.Health.Report, o.Now, o.Now)
 
 	info, err := latestComplete(sp)
 	switch {

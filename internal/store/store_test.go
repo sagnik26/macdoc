@@ -817,3 +817,58 @@ func BenchmarkAddNodes(b *testing.B) {
 		}
 	}
 }
+
+func TestPruneScansWeekly(t *testing.T) {
+	s := openTemp(t)
+	if err := s.PruneScansWeekly(1, -1, t0); err == nil {
+		t.Error("negative weeks accepted")
+	}
+	day := 24 * time.Hour
+	base := time.Unix(0, 0).UTC().Add(3000 * week) // a week boundary
+	var ids []string
+	// Two scans in each of four weeks, then three in the current week.
+	for w := 0; w < 4; w++ {
+		for _, d := range []time.Duration{1, 5} {
+			at := base.Add(time.Duration(w)*week + d*day)
+			id := mustBegin(t, s, at)
+			mustFinish(t, s, id, model.ScanComplete, at)
+			ids = append(ids, id)
+		}
+	}
+	now := base.Add(4*week + 3*day)
+	for _, h := range []time.Duration{1, 2, 3} {
+		at := base.Add(4*week + h*time.Hour)
+		id := mustBegin(t, s, at)
+		mustFinish(t, s, id, model.ScanComplete, at)
+		ids = append(ids, id)
+	}
+	// Keep the 2 newest, plus one per week for the last 3 weeks: weeks 1–3
+	// keep their later scan; week 0 is outside the window.
+	if err := s.PruneScansWeekly(2, 3, now); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{ids[3]: true, ids[5]: true, ids[7]: true, ids[9]: true, ids[10]: true}
+	for _, id := range ids {
+		_, err := s.Scan(id)
+		if kept := err == nil; kept != want[id] {
+			t.Errorf("%s kept = %v, want %v", id, kept, want[id])
+		}
+	}
+}
+
+func TestVitals(t *testing.T) {
+	s := openTemp(t)
+	for i := range 3 {
+		v := Vitals{At: t0.Add(time.Duration(i) * time.Hour), MemTotal: 8 << 30, SwapUsed: int64(i) << 30, FreePercent: 40, Pressure: "normal", DiskFree: -1}
+		if err := s.AddVitals(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.VitalsSince(t0.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].SwapUsed != 1<<30 || got[1].SwapUsed != 2<<30 || !got[1].At.Equal(t0.Add(2*time.Hour)) || got[0].DiskFree != -1 {
+		t.Errorf("got %+v", got)
+	}
+}

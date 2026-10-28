@@ -45,6 +45,11 @@ const (
 // Doctor collects the system report. Individual probe failures become
 // warnings; Doctor itself never fails.
 func Doctor(ctx context.Context, r platform.Runner) DoctorResult {
+	return doctor(ctx, r, topProcessGroups)
+}
+
+// doctor is Doctor listing the top groups process groups.
+func doctor(ctx context.Context, r platform.Runner, groups int) DoctorResult {
 	var rep probe.Report
 	warn := func(section string, err error) {
 		if err != nil {
@@ -58,7 +63,7 @@ func Doctor(ctx context.Context, r platform.Runner) DoctorResult {
 	warn("memory", err)
 	rep.Swap, err = probe.CollectSwap(ctx, r)
 	warn("swap", err)
-	rep.TopProcesses, err = probe.CollectProcesses(ctx, r, topProcessGroups)
+	rep.TopProcesses, err = probe.CollectProcesses(ctx, r, groups)
 	warn("processes", err)
 	rep.Disk, err = probe.CollectDisk(ctx, r) // may return partial data with an error
 	warn("disk", err)

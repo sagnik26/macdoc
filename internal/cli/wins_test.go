@@ -126,7 +126,7 @@ func run(t *testing.T, args ...string) (string, error) {
 	// The detail views are sections of `macdoc doctor`.
 	if len(args) > 0 {
 		switch args[0] {
-		case "wins", "dev", "explain", "storage", "space", "scan", "health":
+		case "wins", "dev", "explain", "storage", "space", "scan", "health", "slow", "trend":
 			args = append([]string{"doctor"}, args...)
 		}
 	}

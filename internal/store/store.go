@@ -11,6 +11,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path"
@@ -433,12 +434,22 @@ type HistoryPoint struct {
 // non-running incomplete scan older than the newest complete one), with their
 // nodes and unmeasured rows.
 func (s *Store) PruneScans(keep int) error {
-	if keep < 0 {
-		return fmt.Errorf("store: prune: negative keep %d", keep)
+	return s.PruneScansWeekly(keep, 0, time.Time{})
+}
+
+// week is the bucket PruneScansWeekly keeps one scan per.
+const week = 7 * 24 * time.Hour
+
+// PruneScansWeekly is PruneScans that also keeps the newest complete scan of
+// each calendar week (weeks since the Unix epoch, so the buckets don't move)
+// for the last weeks weeks before now, so `trend` has history to compare.
+func (s *Store) PruneScansWeekly(keep, weeks int, now time.Time) error {
+	if keep < 0 || weeks < 0 {
+		return fmt.Errorf("store: prune: negative keep %d or weeks %d", keep, weeks)
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if err := s.prune(keep); err != nil {
+	if err := s.prune(keep, weeks, now); err != nil {
 		return fmt.Errorf("store: prune: %w", err)
 	}
 	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
@@ -447,7 +458,7 @@ func (s *Store) PruneScans(keep int) error {
 	return nil
 }
 
-func (s *Store) prune(keep int) error {
+func (s *Store) prune(keep, weeks int, now time.Time) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -461,9 +472,16 @@ func (s *Store) prune(keep int) error {
 		complete).Scan(&newest); err != nil {
 		return err
 	}
+	since := int64(math.MaxInt64) // no weekly scans unless weeks > 0
+	if weeks > 0 {
+		since = toDB(now.Add(-time.Duration(weeks) * week))
+	}
 	if _, err := tx.Exec(`DELETE FROM scans WHERE status = ? AND id NOT IN
-		(SELECT id FROM scans WHERE status = ? ORDER BY started_at DESC, rowid DESC LIMIT ?)`,
-		complete, complete, keep); err != nil {
+		(SELECT id FROM scans WHERE status = ? ORDER BY started_at DESC, rowid DESC LIMIT ?)
+		AND id NOT IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER
+			(PARTITION BY started_at / ? ORDER BY started_at DESC, rowid DESC) AS n
+			FROM scans WHERE status = ? AND started_at >= ?) WHERE n = 1)`,
+		complete, complete, keep, int64(week), complete, since); err != nil {
 		return err
 	}
 	if newest.Valid {

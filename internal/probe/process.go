@@ -27,6 +27,9 @@ const (
 	groupAndroidStudio   = "Android Studio"
 	groupIOSSimulator    = "iOS Simulator"
 	groupQEMU            = "Virtual machine (QEMU)"
+	// Docker Desktop, OrbStack, Colima (vz) and UTM all run their VM as
+	// Apple's Virtualization service, so the owner can't be told apart.
+	groupVirtualization = "Virtual machine"
 )
 
 // helperMarkers end an app name in a helper process name. A marker counts
@@ -123,6 +126,8 @@ func devGroup(comm, base string) (string, bool) {
 			return groupAndroidEmulator, true
 		}
 		return groupQEMU, true
+	case strings.HasPrefix(base, "com.apple.Virtualization.VirtualMachine"):
+		return groupVirtualization, true
 	case base == "node":
 		return groupNode, true
 	case base == "ollama", base == "ollama_llama_server":
