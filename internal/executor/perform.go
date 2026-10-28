@@ -91,6 +91,15 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 	if aerr := p.cfg.audit(rec); aerr != nil {
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: couldn't write the audit record: %v", item.OpportunityID, aerr))
 	}
+	if p.cfg.DeleteNow && res.Outcome == OutcomeDone && res.QuarantineID != "" {
+		pr := purgeAudited(p.cfg, p.cfg.quarantineRoot(), res.QuarantineID)
+		if pr.Outcome == OutcomeDone {
+			res.Deleted = true
+		} else {
+			p.warnings = append(p.warnings, fmt.Sprintf("%s wasn't deleted (%s); it is kept in quarantine as %s",
+				item.Title, pr.Reason, res.QuarantineID))
+		}
+	}
 	p.results = append(p.results, res)
 	if p.cfg.OnItem != nil {
 		r := res

@@ -120,20 +120,25 @@ func Purge(_ context.Context, cfg Config, ids []string) ([]EntryResult, error) {
 	root := cfg.quarantineRoot()
 	out := make([]EntryResult, 0, len(ids))
 	for _, id := range ids {
-		r := purgeOne(cfg, root, id)
-		rec := audit.Record{Event: audit.QuarantinePurged, QuarantineID: id, Target: r.Original, Reason: r.Reason}
-		if r.Outcome == OutcomeDone {
-			n := r.Bytes
-			rec.ActualBytes, rec.Result = &n, "ok"
-		} else {
-			rec.Result = string(r.Outcome)
-		}
-		if err := cfg.audit(rec); err != nil && r.Reason == "" {
-			r.Reason = "the audit record couldn't be written: " + err.Error()
-		}
-		out = append(out, r)
+		out = append(out, purgeAudited(cfg, root, id))
 	}
 	return out, nil
+}
+
+// purgeAudited purges one entry and records the outcome in the audit log.
+func purgeAudited(cfg Config, root, id string) EntryResult {
+	r := purgeOne(cfg, root, id)
+	rec := audit.Record{Event: audit.QuarantinePurged, QuarantineID: id, Target: r.Original, Reason: r.Reason}
+	if r.Outcome == OutcomeDone {
+		n := r.Bytes
+		rec.ActualBytes, rec.Result = &n, "ok"
+	} else {
+		rec.Result = string(r.Outcome)
+	}
+	if err := cfg.audit(rec); err != nil && r.Reason == "" {
+		r.Reason = "the audit record couldn't be written: " + err.Error()
+	}
+	return r
 }
 
 func purgeOne(cfg Config, root, id string) EntryResult {

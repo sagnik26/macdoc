@@ -57,6 +57,10 @@ type Config struct {
 	FreeSpace func(ctx context.Context) (int64, error)
 	// OnItem, if set, is told when an item starts and when it ends.
 	OnItem func(ev ItemEvent)
+	// DeleteNow purges each item's quarantine entry right after the move,
+	// through the same checks as Purge, so the space is freed at once. If
+	// that purge is refused, the item stays restorable in quarantine.
+	DeleteNow bool
 
 	realExec bool // Exec is the real one
 }
@@ -77,6 +81,7 @@ type ItemResult struct {
 	Reason       string         `json:"reason,omitempty"`
 	QuarantineID string         `json:"quarantine_id,omitempty"`
 	MovedBytes   int64          `json:"moved_bytes,omitempty"` // into quarantine
+	Deleted      bool           `json:"deleted,omitempty"`     // its quarantine entry was purged (DeleteNow)
 	ExitCode     *int           `json:"exit_code,omitempty"`
 }
 
@@ -107,10 +112,22 @@ func (r Report) Count(o Outcome) (n int) {
 	return n
 }
 
-// MovedBytes is what went into quarantine (still on disk until purged).
+// MovedBytes is what is held in quarantine (still on disk until purged).
 func (r Report) MovedBytes() (n int64) {
 	for _, it := range r.Items {
-		n += it.MovedBytes
+		if !it.Deleted {
+			n += it.MovedBytes
+		}
+	}
+	return n
+}
+
+// DeletedBytes is what was moved and then deleted at once (DeleteNow).
+func (r Report) DeletedBytes() (n int64) {
+	for _, it := range r.Items {
+		if it.Deleted {
+			n += it.MovedBytes
+		}
 	}
 	return n
 }
@@ -205,7 +222,7 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved map[string
 		}
 	}
 	fin := audit.Record{Event: audit.ApplyFinished, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(rep.Items), ExpectedBytes: rep.NativeExpected() + rep.MovedBytes(), Result: finishResult(rep)}
+		Items: len(rep.Items), ExpectedBytes: rep.NativeExpected() + rep.MovedBytes() + rep.DeletedBytes(), Result: finishResult(rep)}
 	if n, ok := rep.Freed(); ok {
 		fin.ActualBytes = &n
 	}

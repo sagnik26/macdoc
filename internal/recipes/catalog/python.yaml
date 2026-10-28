@@ -28,15 +28,14 @@
   detector: path
   params: {path: "~/.cache/uv"}
   native:
-    argv: [uv, cache, prune]
+    argv: [uv, cache, clean]
   restore:
     kind: redownload
     note: uv downloads packages again when needed.
   explain: >-
-    uv caches downloaded packages and built wheels. uv cache prune removes
-    entries that are no longer used. Existing environments keep working.
-  confidence_notes: >-
-    The size is the whole cache; pruning frees only the unused part.
+    uv caches downloaded packages and built wheels. uv cache clean empties
+    the whole cache. Existing environments keep working; the next uv sync
+    or install downloads what it needs again.
 
 - id: poetry.cache
   title: Poetry cache

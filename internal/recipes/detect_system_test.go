@@ -132,7 +132,12 @@ func TestNoPackageManagerQueries(t *testing.T) {
 	}
 	for _, id := range []string{"npm.cache", "pnpm.store", "yarn.cache"} {
 		fs, err := w2Run(t, id, Env{Nodes: nodes, Runner: runner})
-		if err != nil || len(fs) != 1 || fs[0].Bytes.Source != model.SourceMeasured {
+		// pnpm store prune frees an unknown part, so its size isn't claimed.
+		want := model.SourceMeasured
+		if id == "pnpm.store" {
+			want = model.SourceUnknown
+		}
+		if err != nil || len(fs) != 1 || fs[0].Bytes.Source != want {
 			t.Errorf("%s = %+v, %v", id, fs, err)
 		}
 	}

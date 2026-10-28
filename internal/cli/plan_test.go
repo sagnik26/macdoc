@@ -55,21 +55,20 @@ func TestRenderPlan(t *testing.T) {
             → runs brew cleanup --prune=all
             Not undoable by macdoc: re-downloads on demand
   O-logsaa  Old app logs · Zoom                             6.0 MB
-            → moves to quarantine ~/Library/Logs/Zoom
-            Restorable for 7 days. After that: nothing to restore
+            → deletes ~/Library/Logs/Zoom
+            Not undoable by macdoc: nothing to restore
 
  CAUTION ──────────────────────────────────────────────────────── 160 MB
   O-nodeaa  Node.js v18.0.0                                 160 MB
-            → moves to quarantine ~/.nvm/versions/node/v18.0.0
-            Restorable for 7 days. After that: re-downloads on demand. Run nvm install 18.
+            → deletes ~/.nvm/versions/node/v18.0.0
+            Not undoable by macdoc: re-downloads on demand. Run nvm install 18.
             Risk raised: the project has uncommitted changes
             Checks first: Xcode isn't running · the project has no uncommitted changes
   O-modelb  llama3:8b                                            —
             → runs ollama rm llama3:8b
             Not undoable by macdoc: re-downloads on demand
 
- Freed right away: 400 MB (by the tools' own commands)
- Moved to quarantine: 166 MB (freed when the quarantine is purged after 7 days)
+ Freed right away: 566 MB
  Plus 1 item(s) of unknown size.
  2 local Time Machine snapshot(s) exist: macOS may keep some of the freed space until they expire.
 
@@ -131,7 +130,7 @@ func (r *recordingPerformer) RunNative(_ model.PlanItem, argv []string) error {
 }
 
 func (r *recordingPerformer) Quarantine(_ model.PlanItem, target string) error {
-	r.calls = append(r.calls, "→ moves to quarantine "+tildePath(r.home, target))
+	r.calls = append(r.calls, "→ deletes "+tildePath(r.home, target))
 	return nil
 }
 
@@ -215,7 +214,7 @@ func TestTUIMarkAndPlan(t *testing.T) {
 	if len(m.marked) != 2 || !m.marked[ops[0].ID] || !m.marked[ops[2].ID] || m.cursor != 3 {
 		t.Fatalf("marked %v cursor %d", m.marked, m.cursor)
 	}
-	mustContain(t, m.View(), "✓ 2 marked", "p plan", "│ ✓ │ "+ops[0].ID, "space mark")
+	mustContain(t, m.View(), "✓ 2 marked", "enter remove", "│ ✓ │ "+ops[0].ID, "space mark")
 
 	m = step(t, m, keys("up", " ")...) // unmark item 3
 	if len(m.marked) != 1 {

@@ -187,7 +187,7 @@ func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 	b.WriteString(planHeader(t, res, now))
 
 	acts := planner.Actions(p)
-	var nativeBytes, quarantineBytes int64
+	var freedBytes int64
 	unknown := 0
 	for i := 0; i < len(acts); {
 		r := acts[i].Item.Risk
@@ -199,24 +199,18 @@ func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 		b.WriteString(t.section(t.riskStyle(r), string(r), engine.DecimalBytes(sum)))
 		for _, a := range acts[i:j] {
 			writeAction(&b, t, a, home)
-			switch {
-			case a.Item.BytesSource == model.SourceUnknown:
+			if a.Item.BytesSource == model.SourceUnknown {
 				unknown++
-			case a.Kind == planner.ActionNative:
-				nativeBytes += a.Item.ExpectedBytes
-			default:
-				quarantineBytes += a.Item.ExpectedBytes
+			} else {
+				freedBytes += a.Item.ExpectedBytes
 			}
 		}
 		b.WriteString("\n")
 		i = j
 	}
 
-	if nativeBytes > 0 {
-		fmt.Fprintf(&b, " %s %s\n", t.muted.Render("Freed right away:"), t.size.Render(engine.DecimalBytes(nativeBytes))+t.muted.Render(" (by the tools' own commands)"))
-	}
-	if quarantineBytes > 0 {
-		fmt.Fprintf(&b, " %s %s\n", t.muted.Render("Moved to quarantine:"), t.size.Render(engine.DecimalBytes(quarantineBytes))+t.muted.Render(" (freed when the quarantine is purged after 7 days)"))
+	if freedBytes > 0 {
+		fmt.Fprintf(&b, " %s %s\n", t.muted.Render("Freed right away:"), t.size.Render(engine.DecimalBytes(freedBytes)))
 	}
 	if unknown > 0 {
 		fmt.Fprintf(&b, " %s\n", t.muted.Render(fmt.Sprintf("Plus %d item(s) of unknown size.", unknown)))
@@ -276,8 +270,8 @@ func writeAction(b *strings.Builder, t *theme, a planner.Action, home string) {
 		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ runs"), t.command(a.Argv))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
 	case planner.ActionQuarantine:
-		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ moves to quarantine"), t.text.Render(tildePath(home, a.Target)))
-		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Restorable for 7 days. After that: "+restoreDetail(it.Restore)))
+		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(tildePath(home, a.Target)))
+		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
 	}
 	if it.RiskReason != "" {
 		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Risk raised: "+it.RiskReason))

@@ -68,7 +68,7 @@ func TestTUIApplyCommand(t *testing.T) {
 	if _, cmd := run("/apply p-7f3k"); cmd == nil {
 		t.Error("/apply P-id should hand off")
 	}
-	mustContain(t, m.helpView(), "/apply [P-id]", "never deletes or moves anything", "typed code")
+	mustContain(t, m.helpView(), "/apply [P-id]", "Nothing is removed until you confirm", "code typed")
 }
 
 // The handoff runs the real apply command on the terminal it's given, then

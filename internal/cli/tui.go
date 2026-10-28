@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"macdoc/internal/engine"
+	"macdoc/internal/executor"
 	"macdoc/internal/model"
 	"macdoc/internal/planner"
 	"macdoc/internal/recipes"
@@ -110,6 +111,8 @@ type tuiDeps struct {
 	makePlan func(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
 	// apply replaces runApply in tests.
 	apply func(cmd *cobra.Command, d applyDeps, id string) error
+	// remove replaces executorRemove in tests.
+	remove func(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error)
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -137,14 +140,15 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Plan, Apply                 key.Binding
+	Run, Complete, Cancel, Mark, Plan, Apply, Remove         key.Binding
 }
 
 func newKeyMap() keyMap {
 	return keyMap{
 		Tabs:     key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "switch view")),
 		Move:     key.NewBinding(key.WithKeys("up", "down", "j", "k"), key.WithHelp("↑↓", "move")),
-		Explain:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explain")),
+		Explain:  key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "explain")),
+		Remove:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "remove")),
 		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Scan:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rescan")),
 		Slash:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "commands")),
@@ -167,6 +171,7 @@ const (
 	overlayHelp
 	overlayJSON
 	overlayPlan
+	overlayRemove
 )
 
 type tuiModel struct {
@@ -201,6 +206,7 @@ type tuiModel struct {
 	marked   map[string]bool
 	planning bool
 	plan     *engine.PlanResult
+	removing *removeState // the remove confirmation box, while open
 
 	scroll  int
 	overlay overlay
@@ -352,6 +358,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case appliedMsg:
 		return m.applied(msg)
 
+	case removeReadyMsg:
+		return m.removeReady(msg)
+
+	case removeProgressMsg:
+		return m.removeProgress(msg)
+
+	case removedMsg:
+		return m.removed(msg)
+
 	case spinner.TickMsg:
 		if !m.loading {
 			return m, nil
@@ -400,6 +415,12 @@ func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
 
 func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+	if m.overlay == overlayRemove && m.removing != nil {
+		if k == "ctrl+c" && !m.removing.running {
+			return m, tea.Quit
+		}
+		return m.removeKey(msg)
+	}
 	if k == "ctrl+c" || (k == "q" && m.overlay == overlayNone) {
 		if m.loading && m.cancel != nil {
 			if m.quitting { // second press: leave now
@@ -454,6 +475,14 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return m, m.startLoad(true)
 	case "enter":
+		if m.tab == tabSuggestions && len(m.items()) > 0 {
+			if m.detail {
+				m.detail = false
+				break
+			}
+			return m.startRemove()
+		}
+	case "e":
 		if m.tab == tabSuggestions && len(m.items()) > 0 {
 			m.detail = !m.detail
 		}
@@ -735,6 +764,8 @@ func (m tuiModel) View() string {
 		body = m.scrolled(highlightJSON(t, m.jsonDoc))
 	case m.overlay == overlayPlan:
 		body = m.scrolled(m.planView())
+	case m.overlay == overlayRemove:
+		body = m.scrolled(m.removeView())
 	case m.data == nil:
 		body = "\n  " + t.muted.Render(m.note)
 	case m.tab == tabSuggestions:
@@ -799,7 +830,7 @@ func (m tuiModel) headerView() string {
 		}
 		right = append(right, st.Render(age))
 	}
-	right = append(right, t.ok.Render("read-only"))
+	right = append(right, t.ok.Render("asks before removing"))
 	r := strings.Join(right, t.faint.Render(" · ")) + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
 	return left + strings.Repeat(" ", gap) + r
@@ -827,6 +858,8 @@ func (m tuiModel) footerView() string {
 		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel}
 	case m.loading:
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
+	case m.overlay == overlayRemove:
+		keys = nil
 	case m.overlay == overlayPlan && m.plan != nil && m.plan.Status == planner.StatusPending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
 	case m.overlay != overlayNone:
@@ -834,7 +867,7 @@ func (m tuiModel) footerView() string {
 	case m.tab == tabSuggestions && m.detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.tab == tabSuggestions:
-		keys = []key.Binding{m.keys.Move, m.keys.Mark, m.keys.Plan, m.keys.Explain, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	}
@@ -1010,9 +1043,10 @@ func (m tuiModel) helpView() string {
 	keys := [][2]string{
 		{"tab / shift+tab, 1–6", "switch view"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
-		{"enter", "explain the selected suggestion"},
-		{"space", "mark a suggestion for a plan"},
-		{"p", "seal a dry-run plan (marked, or the selected one)"},
+		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
+		{"space", "mark several suggestions to remove together"},
+		{"e", "explain the selected suggestion"},
+		{"p", "seal a dry-run plan instead (marked, or the selected one)"},
 		{"a  (on a plan)", "apply it here in the terminal, after you confirm"},
 		{"/", "command palette"},
 		{"r", "rescan the disk"},
@@ -1027,10 +1061,11 @@ func (m tuiModel) helpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
-	b.WriteString(t.muted.Render("   The dashboard itself never deletes or moves anything. A plan is a sealed\n"))
-	b.WriteString(t.muted.Render("   dry run: making one changes nothing, and it expires after 30 minutes.\n"))
-	b.WriteString(t.muted.Render("   a or /apply pauses the dashboard and runs macdoc apply in this terminal:\n"))
-	b.WriteString(t.muted.Render("   the same dry run, y/N questions and typed code as running it yourself.\n"))
+	b.WriteString(t.muted.Render("   Nothing is removed until you confirm. Enter shows what will go and how\n"))
+	b.WriteString(t.muted.Render("   much space comes back; Enter again removes it (SAFE and CAUTION items).\n"))
+	b.WriteString(t.muted.Render("   A RISKY item also needs its code typed. Each item is checked again just\n"))
+	b.WriteString(t.muted.Render("   before it's removed, and skipped if it changed. Removed items are deleted\n"))
+	b.WriteString(t.muted.Render("   for good, so the space is freed at once. Everything is in macdoc log.\n"))
 	return b.String()
 }
 

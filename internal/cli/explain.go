@@ -84,7 +84,7 @@ func renderExplain(w io.Writer, ex ExplainResult) error {
 			row("", t.muted.Render("preview with: ")+t.command(op.DryRun))
 		}
 	case model.MethodQuarantine:
-		row("Method", "moved to macdoc quarantine; restorable for 7 days")
+		row("Method", "deleted by macdoc after you confirm (checked again first)")
 	default:
 		row("Method", "advice only; macdoc takes no action")
 	}

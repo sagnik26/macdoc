@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and `macdoc apply` carries one out after you confirm it in Terminal. Folders go to a 7-day restorable quarantine, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -46,7 +46,7 @@ macdoc has **two everyday commands**:
  │   │ O-gg6lrb │  197 MB │ CAUTION │ Android build-tools 34.0.0     │ re-downloads on demand       │
  │   │ O-dkuv2w │ 33.7 GB │ ADVICE  │ Leftover iOS simulator runtim… │ Runtimes can be downloaded … │
  ╰───┴──────────┴─────────┴─────────┴────────────────────────────────┴──────────────────────────────╯
- ↑↓ move • enter explain • tab switch view • / commands • r rescan • ? help • q quit
+ enter remove • space mark • e explain • ↑↓ move • tab switch view • / commands • r rescan • ? help • q quit
 ```
 - **Every list is a table:**
   - Each table has a header row and a rounded border.
@@ -61,12 +61,13 @@ macdoc has **two everyday commands**:
   - **Projects:** every project with build folders: how long it's been idle (last commit, file change or build), their size, git state (clean or uncommitted changes) and the biggest folders. Projects in protected folders such as ~/Desktop are listed but never suggested.
   - **Space:** by category with per-risk columns, "System Data" decoded, large items with no recipe.
   - **Health:** findings with explanations, and the top memory users.
-- **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `enter` opens them and `esc` goes back.
+- **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
 - **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
-- **Never changes your Mac:** the dashboard scans, shows and makes plans. The dashboard itself never changes anything: after `p`, press `a` (or type `/apply`) and it pauses and runs `macdoc apply` right there in the terminal, with the same dry run, questions and typed code, then brings you back. `q` quits.
+- **Removing:** on Suggestions, press `enter` on an item (or mark several with `space` first). A box shows what will go and how much space comes back. Press `enter` again to remove it, or `esc` to cancel. RISKY items also ask you to type a short code. Each item is checked again just before it's removed and skipped if it changed. Removed items are deleted for good, so the space is freed at once; the result shows the measured free-space change. Advice-only items can't be removed (macdoc takes no action on them), so `enter` explains them.
+- **Plans the long way:** `p` seals a dry-run plan instead, and `a` (or `/apply`) runs `macdoc apply` on it in the terminal with the typed code. `q` quits.
 
 **Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
 
@@ -136,11 +137,10 @@ Plan P-ZDHP · 4 item(s) · 825 MB · expires in 30 min · made by you (macdoc p
             → runs brew cleanup --prune=all
             Not undoable by macdoc: re-downloads on demand. Homebrew downloads a version again if you reinstall it.
   O-uz4vkv  Old app logs · Claude                          10.7 MB
-            → moves to quarantine ~/Library/Logs/Claude
-            Restorable for 7 days. After that: nothing to restore. Old logs aren't needed for apps to work.
+            → deletes ~/Library/Logs/Claude
+            Not undoable by macdoc: nothing to restore. Old logs aren't needed for apps to work.
   …
- Freed right away: 805 MB (by the tools' own commands)
- Moved to quarantine: 19.6 MB (freed when the quarantine is purged after 7 days)
+ Freed right away: 825 MB
 
  Nothing has been changed.
  To apply it: macdoc apply P-ZDHP · expires 15:41
@@ -161,17 +161,17 @@ $ macdoc apply P-ZDHP
  Type "ZDHP" to apply 4 item(s), 825 MB (SAFE: 4): ZDHP
 
  [1/4] O-5wx6bf Homebrew old versions and downloads … done
- [2/4] O-uz4vkv Old app logs · Claude … moved to quarantine Q-91XZ
+ [2/4] O-uz4vkv Old app logs · Claude … done
  …
  Plan P-ZDHP applied: 4 done · 0 skipped · 0 failed
  Free space change (measured): +806 MB
- Moved to quarantine: 19.6 MB (still on disk; restorable for 7 days …)
+ Expected: 825 MB
  Every step is in the audit log: macdoc log
 ```
 | Command | Does |
 |---|---|
 | `macdoc apply <P-id>` | Shows the dry run again and asks you to type the plan's code. RISKY items, and every item of a plan Claude proposed, are also confirmed one by one (default No). Needs a real Terminal: piped input is refused, and there's no `--yes` |
-| `macdoc quarantine` / `quarantine list` | What apply moved aside, how long each entry stays restorable, and what has expired |
+| `macdoc quarantine` / `quarantine list` | Anything apply moved aside but couldn't delete (normally empty), how long each entry stays restorable, and what has expired |
 | `macdoc quarantine restore <Q-id>` | Moves a folder back where it was. It never overwrites: if something now exists there, it stops |
 | `macdoc quarantine purge --expired` · `purge <Q-id…>` | Permanently deletes entries, after you type `purge` in Terminal. Nothing is ever purged automatically |
 | `macdoc log` | Everything macdoc changed: plans, applies (each item done, skipped or failed, with the reason), restores and purges |

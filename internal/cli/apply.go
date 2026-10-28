@@ -35,6 +35,7 @@ type applyDeps struct {
 	home string
 	now  func() time.Time
 	exec executor.NativeExec // nil: the real one
+	keep bool                // tests: leave moved items in quarantine instead of deleting them
 }
 
 func newApplyCmd(g *globalFlags) *cobra.Command {
@@ -46,9 +47,9 @@ run again and asks you to type the plan's code. RISKY items, and every item
 of a plan Claude proposed, are also confirmed one by one.
 
 Each item is checked again right before it's touched; anything that changed
-since the plan is skipped. Folders are moved into macdoc's quarantine, where
-they stay restorable for 7 days (macdoc quarantine). Native commands are the
-tools' own cleanups. Everything is recorded in the audit log (macdoc log).
+since the plan is skipped. Folders and files are deleted, so the space is
+freed at once; native commands are the tools' own cleanups. Everything is
+recorded in the audit log (macdoc log).
 
 It needs a real Terminal: piped input is refused, and there is no --yes.`,
 		Args: cobra.ExactArgs(1),
@@ -120,6 +121,7 @@ func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
 	_, _ = fmt.Fprintln(out)
 	rep, err := executor.Apply(ctx, executor.Config{
 		Store: st, StorePath: store.DefaultPath(d.home), Home: d.home, Catalog: cat, Runner: runner, Exec: d.exec, Now: d.now,
+		DeleteNow: !d.keep,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, runner) },
 		OnItem:    func(ev executor.ItemEvent) { writeProgress(out, t, ev) },
 	}, res.Plan, approved)
@@ -208,8 +210,8 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 	r := ev.Result
 	switch r.Outcome {
 	case executor.OutcomeDone:
-		if r.QuarantineID != "" {
-			_, _ = fmt.Fprintf(w, "%s %s\n", t.ok.Render("moved to quarantine"), t.id.Render(r.QuarantineID))
+		if r.QuarantineID != "" && !r.Deleted {
+			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.id.Render(r.QuarantineID))
 		} else {
 			_, _ = fmt.Fprintln(w, t.ok.Render("done"))
 		}
@@ -220,8 +222,8 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 	}
 }
 
-// renderApplyReport summarizes an apply: counts, measured space, what's in
-// quarantine and why the numbers may differ.
+// renderApplyReport summarizes an apply: counts, measured space, anything
+// left in quarantine and why the numbers may differ.
 func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n %s\n", t.heading(fmt.Sprintf("Plan %s applied: %d done · %d skipped · %d failed",
@@ -231,14 +233,15 @@ func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int
 	} else {
 		fmt.Fprintf(&b, " %s\n", t.muted.Render("Free space couldn't be measured before and after."))
 	}
-	if n := rep.NativeExpected(); n > 0 {
-		fmt.Fprintf(&b, " %s %s\n", t.muted.Render("Expected from the tools' own commands:"), t.size.Render(engine.DecimalBytes(n)))
+	expected := rep.NativeExpected() + rep.DeletedBytes()
+	if expected > 0 {
+		fmt.Fprintf(&b, " %s %s\n", t.muted.Render("Expected:"), t.size.Render(engine.DecimalBytes(expected)))
 	}
 	if n := rep.MovedBytes(); n > 0 {
 		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("Moved to quarantine:"), t.size.Render(engine.DecimalBytes(n)),
-			t.muted.Render("(still on disk; restorable for 7 days with macdoc quarantine restore <Q-id>, freed by macdoc quarantine purge)"))
+			t.muted.Render("(couldn't be deleted, so it's still on disk; macdoc quarantine restore <Q-id> or macdoc quarantine purge)"))
 	}
-	if freed, ok := rep.Freed(); ok && freed < rep.NativeExpected() {
+	if freed, ok := rep.Freed(); ok && freed < expected {
 		var why []string
 		if snapshots > 0 {
 			why = append(why, fmt.Sprintf("%d local Time Machine snapshot(s) still reference some of it", snapshots))

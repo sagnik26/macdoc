@@ -764,3 +764,43 @@ func TestDamagedEntriesUntouched(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteNow(t *testing.T) {
+	e := newEnv(t)
+	e.cfg.DeleteNow = true
+	a := e.folder(t, "Library/Logs/A", "a.log", "sub/b.log")
+	b := e.folder(t, "Library/Logs/B", "b.log")
+	p := e.plan(t,
+		e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, a),
+		e.item(t, "O-bbbbbb", "user.logs", model.RiskSafe, b))
+	// The second one fails its re-check, so nothing of it is touched.
+	if err := os.WriteFile(filepath.Join(b, ".env"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rep := mustApply(t, e, p)
+
+	it := rep.Items[0]
+	if it.Outcome != OutcomeDone || !it.Deleted || it.QuarantineID == "" {
+		t.Fatalf("item = %+v", it)
+	}
+	root := quarantine.Root(e.storePath)
+	if exists(a) || exists(filepath.Join(root, it.QuarantineID)) {
+		t.Fatal("not deleted")
+	}
+	if rec, _ := e.st.Quarantine(it.QuarantineID); rec.Status != store.QuarantinePurged {
+		t.Errorf("entry status %s", rec.Status)
+	}
+	if rep.Items[1].Outcome != OutcomeSkipped || rep.Items[1].Deleted || !exists(filepath.Join(b, "b.log")) {
+		t.Fatalf("skipped item = %+v", rep.Items[1])
+	}
+	if rep.DeletedBytes() != it.MovedBytes || rep.MovedBytes() != 0 {
+		t.Errorf("deleted %d, held %d", rep.DeletedBytes(), rep.MovedBytes())
+	}
+	want := []string{audit.ApplyStarted, audit.ItemDone, audit.QuarantinePurged, audit.ItemSkipped, audit.ApplyFinished}
+	if got := eventNames(e.events(t)); !slices.Equal(got, want) {
+		t.Errorf("audit events = %v", got)
+	}
+	if _, err := Restore(context.Background(), e.cfg, it.QuarantineID); err == nil {
+		t.Error("restored a deleted item")
+	}
+}

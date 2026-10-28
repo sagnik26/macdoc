@@ -116,7 +116,9 @@ func paramSet(r Recipe, key string) map[string]bool {
 	return set
 }
 
-// detectPath emits one finding for params["path"] if the scan kept it.
+// detectPath emits one finding for params["path"] if the scan kept it. With
+// params["size"] "unknown" the size isn't claimed: the cleanup frees only an
+// unknown part of the folder.
 func detectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	p := r.Params["path"]
 	if p == "" {
@@ -132,7 +134,11 @@ func detectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	}
 	for _, n := range nodes {
 		if strings.EqualFold(n.Path, p) && n.Bytes > 0 {
-			return []Finding{nodeFinding(n)}, nil
+			f := nodeFinding(n)
+			if r.Params["size"] == "unknown" {
+				f.Bytes = model.Bytes{Source: model.SourceUnknown}
+			}
+			return []Finding{f}, nil
 		}
 	}
 	return nil, nil

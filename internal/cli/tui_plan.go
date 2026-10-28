@@ -135,5 +135,5 @@ func (m tuiModel) markedNote() string {
 	if n == 0 {
 		return ""
 	}
-	return m.t.accent.Render(fmt.Sprintf("✓ %d marked · %s", n, engine.DecimalBytes(sum))) + m.t.muted.Render(" · p plan")
+	return m.t.accent.Render(fmt.Sprintf("✓ %d marked · %s", n, engine.DecimalBytes(sum))) + m.t.muted.Render(" · enter remove")
 }

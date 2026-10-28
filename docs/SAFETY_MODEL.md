@@ -15,8 +15,8 @@
 
 | Class | Meaning | Confirmation | Default in `plan --safe` |
 |---|---|---|---|
-| **SAFE** | Regenerable cache or artifact, managed by the owning tool, no user-authored data | One typed plan confirmation | Included |
-| **CAUTION** | Regenerable but expensive (re-download/rebuild), or possibly in use | Typed plan confirmation, shown in its own section | Excluded |
+| **SAFE** | Regenerable cache or artifact, managed by the owning tool, no user-authored data | One typed plan confirmation (`apply`), or a second Enter (dashboard) | Included |
+| **CAUTION** | Regenerable but expensive (re-download/rebuild), or possibly in use | Typed plan confirmation (`apply`), or a second Enter (dashboard) | Excluded |
 | **RISKY** | May contain unique data (dSYMs, container volumes, venvs with local edits) | Per-item y/N plus typed confirmation. No batch | Excluded |
 | **ADVISE-ONLY** | macdoc explains how to do it yourself and never acts | n/a | n/a |
 | **BLOCKED** | Never actionable under any input | n/a | n/a |
@@ -76,6 +76,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 - There is no `--yes` flag for CAUTION or RISKY items. `--yes` exists only for SAFE-only plans and still requires a TTY.
 
 - **As built (Phase 6):** apply checks stdin and stdout with `isatty` (ioctl), so pipes and `/dev/null` are refused. There is no `--yes` at all, not even for SAFE-only plans. The confirmation code is the plan ID's four characters. A Claude-origin plan asks `[y/N]` for every item, every time.
+- **Dashboard remove (2026-10-28, the user's decision):** Enter on a suggestion (or on marked ones) seals a plan and opens a box listing each item, its size and the total. A second Enter removes SAFE and CAUTION items; if any item is RISKY, the plan's code must be typed first. Esc cancels. The dashboard only runs in a real terminal, and the removal checks stdin and stdout with `isatty` again. Dashboard plans are always user-origin.
 
 ### 4.3 Re-validate (per item, immediately before acting)
 1. The plan hash matches the store and the plan hasn't expired.
@@ -107,6 +108,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 - **As built (Phase 6):** free space is the container's free bytes from `diskutil`, measured before and after. The report shows the measured change, the native commands' expected total, what moved to quarantine (still on disk), and possible reasons for a gap. `apply_finished` records the measured change.
 
 ### 4.6 Quarantine
+- **Delete at once (2026-10-28):** `apply` and the dashboard now delete each moved item right after its move (`executor.Config.DeleteNow`), through the same checks as `purge`, so the space is freed immediately and the dry run says "→ deletes". The quarantine is a staging step that keeps a crash recoverable. If the purge is refused, the item stays in quarantine and the report says so.
 - Location: `~/Library/Application Support/macdoc/quarantine/`, excluded from Time Machine and Spotlight.
 - `quarantine list | restore <Q-id> | purge [--expired]`.
 - Default expiry is 7 days. Read-only commands **report** expired entries ("12.3 GB ready to purge") but never purge them.

@@ -97,11 +97,23 @@ func (e *applyEnv) plan(t *testing.T, origin model.Origin, items ...model.PlanIt
 // apply runs `macdoc apply id` with input typed at the prompts.
 func (e *applyEnv) apply(t *testing.T, id, input string) (string, error) {
 	t.Helper()
+	return e.run(t, id, input, false)
+}
+
+// applyKeep applies but leaves moved items in quarantine, for the
+// quarantine command tests.
+func (e *applyEnv) applyKeep(t *testing.T, id, input string) (string, error) {
+	t.Helper()
+	return e.run(t, id, input, true)
+}
+
+func (e *applyEnv) run(t *testing.T, id, input string, keep bool) (string, error) {
+	t.Helper()
 	cmd := &cobra.Command{}
 	var out bytes.Buffer
 	cmd.SetIn(strings.NewReader(input))
 	cmd.SetOut(&out)
-	err := runApply(cmd, applyDeps{home: e.home, now: func() time.Time { return applyNow.Add(time.Minute) }}, id)
+	err := runApply(cmd, applyDeps{home: e.home, now: func() time.Time { return applyNow.Add(time.Minute) }, keep: keep}, id)
 	return out.String(), err
 }
 
@@ -171,11 +183,11 @@ func TestApplyConfirmed(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"→ moves to quarantine ~/Library/Logs/A",
+		"→ deletes ~/Library/Logs/A",
 		`Type "` + strings.TrimPrefix(p.ID, "P-") + `" to apply 1 item(s), 4.1 KB (SAFE: 1): `,
-		"[1/1] O-aaaaaa Old app logs … moved to quarantine Q-",
+		"[1/1] O-aaaaaa Old app logs … done",
 		"Plan " + p.ID + " applied: 1 done · 0 skipped · 0 failed",
-		"Moved to quarantine: 4.1 KB",
+		"Expected: 4.1 KB",
 		"macdoc log",
 	} {
 		if !strings.Contains(out, want) {
@@ -266,7 +278,7 @@ func TestQuarantineCommands(t *testing.T) {
 	e := newApplyEnv(t)
 	target := e.folder(t, "Library/Logs/A")
 	p := e.plan(t, model.OriginCLI, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
-	if _, err := e.apply(t, p.ID, strings.TrimPrefix(p.ID, "P-")+"\n"); err != nil {
+	if _, err := e.applyKeep(t, p.ID, strings.TrimPrefix(p.ID, "P-")+"\n"); err != nil {
 		t.Fatal(err)
 	}
 	recs, _ := e.st.QuarantineEntries()
@@ -337,7 +349,7 @@ func TestPurgeConfirmed(t *testing.T) {
 	e := newApplyEnv(t)
 	target := e.folder(t, "Library/Logs/A")
 	p := e.plan(t, model.OriginCLI, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
-	if _, err := e.apply(t, p.ID, strings.TrimPrefix(p.ID, "P-")+"\n"); err != nil {
+	if _, err := e.applyKeep(t, p.ID, strings.TrimPrefix(p.ID, "P-")+"\n"); err != nil {
 		t.Fatal(err)
 	}
 	uh := userHome

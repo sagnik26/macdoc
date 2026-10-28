@@ -100,7 +100,7 @@ var nativeArgvAllowed = [][]string{
 	{"pnpm", "store", "prune"},
 	{"yarn", "cache", "clean"},
 	{"pip3", "cache", "purge"},
-	{"uv", "cache", "prune"},
+	{"uv", "cache", "clean"},
 	{"conda", "clean", "--all", "-y"},
 	{"ollama", "rm", Placeholder},
 	{"pod", "cache", "clean", "--all"},

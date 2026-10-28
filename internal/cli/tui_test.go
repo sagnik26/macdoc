@@ -86,7 +86,7 @@ func TestTUILoadingSteps(t *testing.T) {
 func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	out := m.View()
-	mustContain(t, out, "◆ macdoc", "1 Overview", "6 Health", "read-only", "scan 2h ago", "What matters most", "Reclaimable",
+	mustContain(t, out, "◆ macdoc", "1 Overview", "6 Health", "asks before removing", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
 		"│ Metric", "│ Risk", "│ Tier", "Size │ Items", "SAFE", "RISKY", "ADVICE", "Critical", "╭", "╰")
@@ -104,15 +104,15 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.tab != tabSuggestions {
 		t.Fatalf("tab = %d", m.tab)
 	}
-	mustContain(t, m.View(), "│ ▶ │ O-ab12cd", "│ ID", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter explain")
+	mustContain(t, m.View(), "│ ▶ │ O-ab12cd", "│ ID", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
 	m = step(t, m, keys("down", "down")...)
 	if m.cursor != 2 {
 		t.Fatalf("cursor = %d", m.cursor)
 	}
 	mustContain(t, m.View(), "│ ▶ │ O-z4n1ty", "item 3 of 5")
 
-	// Narrow: enter swaps the list for the detail; esc goes back.
-	m = step(t, m, keys("enter")...)
+	// Narrow: e swaps the list for the detail; esc goes back.
+	m = step(t, m, keys("e")...)
 	mustContain(t, m.View(), "O-z4n1ty · Android system image API 29", "sdkmanager --uninstall", "esc back")
 	m = step(t, m, keys("esc")...)
 	if m.detail {

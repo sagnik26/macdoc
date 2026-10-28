@@ -55,7 +55,7 @@
   risk: SAFE
   method: native
   detector: path
-  params: {path: "~/Library/pnpm/store"}
+  params: {path: "~/Library/pnpm/store", size: unknown}
   native:
     argv: [pnpm, store, prune]
   restore:
@@ -67,8 +67,9 @@
     Corepack shim, running the command may download the package manager
     first.
   confidence_notes: >-
-    The size shown is the whole store; pruning frees only the unreferenced
-    part.
+    How much pruning frees isn't known in advance: only packages no project
+    references are removed, so the size is shown as unknown rather than the
+    whole store.
 
 - id: yarn.cache
   title: Yarn cache

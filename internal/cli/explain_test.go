@@ -65,7 +65,7 @@ func TestRenderExplain(t *testing.T) {
 				"re-download ~1.0 GB. npm downloads again.", "package-caches · node", "90%", "What it is\n  npm keeps packages.", "Note\n  Corepack shim"}},
 		{ExplainResult{Opportunity: model.Opportunity{ID: "O-bbbbbb", Title: "DerivedData", Risk: model.RiskSafe, Method: model.MethodQuarantine, IdleDays: -1,
 			Bytes: model.Bytes{Source: model.SourceUnknown, Reason: "no permission"}, Restore: model.Restore{Kind: model.RestoreRebuild}}},
-			[]string{"—  unknown (no permission)", "Idle        unknown", "moved to macdoc quarantine; restorable for 7 days", "rebuilds on next build"}},
+			[]string{"—  unknown (no permission)", "Idle        unknown", "deleted by macdoc after you confirm (checked again first)", "rebuilds on next build"}},
 		{ExplainResult{Opportunity: model.Opportunity{ID: "O-cccccc", Title: "Backup", Risk: model.RiskAdvise, Method: model.MethodAdvise,
 			Bytes: model.Bytes{Source: model.SourceUnknown}, Restore: model.Restore{Kind: model.RestoreIrreplaceable}}},
 			[]string{"—  unknown\n", "advice only; macdoc takes no action", "can't be restored"}},
