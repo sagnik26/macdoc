@@ -95,12 +95,36 @@ func renderExplain(w io.Writer, ex ExplainResult) error {
 	if op.Explain != "" {
 		fmt.Fprintf(&b, "\n%s\n  %s\n", t.heading("What it is"), t.wrap(t.text.Render(op.Explain), 2))
 	}
+	if len(op.Steps) > 0 {
+		heading := "How to free it yourself"
+		if op.Method != model.MethodAdvise {
+			heading = "To do it by hand instead"
+		}
+		b.WriteString("\n" + t.heading(heading) + "\n")
+		for i, s := range op.Steps {
+			fmt.Fprintf(&b, "  %s %s\n", t.accent.Render(fmt.Sprintf("%d.", i+1)), t.wrap(stepText(t, s), 5))
+		}
+	}
 	if op.Note != "" {
 		fmt.Fprintf(&b, "\n%s\n  %s\n", t.heading("Note"), t.wrap(t.warn.Render(op.Note), 2))
 	}
 	b.WriteString("\n" + t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// stepText renders a step with each `command` styled as one to copy. The
+// backticks are dropped, so the plain theme prints just the text.
+func stepText(t *theme, s string) string {
+	parts := strings.Split(s, "`")
+	for i, p := range parts {
+		if i%2 == 1 {
+			parts[i] = t.accent.Render(p)
+		} else {
+			parts[i] = t.text.Render(p)
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 // sizeWithSource shows a size and where it came from; unknown is never 0.

@@ -19,6 +19,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `restore` | How it comes back plus cost: `rebuild` / `redownload:<GB>` / `irreplaceable` |
 | `explain` | What it is, why it's there, and what removing it means, in plain language |
 | `confidence_notes` | e.g. "may include APFS clones" |
+| `steps` | Optional numbered steps the user can follow by hand, shown in `explain` under "How to free it yourself". Every ADVISE recipe has them. Text in `` `backticks` `` is a command to copy; macdoc never runs it |
 
 ## 2. Catalog
 

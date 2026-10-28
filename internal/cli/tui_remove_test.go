@@ -118,7 +118,7 @@ func TestTUIRemoveAdviceExplains(t *testing.T) {
 		if op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
 			m.cursor = i
 			m = press(t, m, "enter")
-			if len(*calls) != 0 || m.overlay == overlayRemove || !strings.Contains(m.flash, "advice only") {
+			if len(*calls) != 0 || m.overlay == overlayRemove || !m.detail || !strings.Contains(m.flash, "can't remove this one") {
 				t.Fatalf("advice item: overlay %d flash %q", m.overlay, m.flash)
 			}
 			return

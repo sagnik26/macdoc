@@ -64,18 +64,19 @@ type Restore struct {
 
 // Opportunity is one reclaimable item found by a scan and matched to a recipe.
 type Opportunity struct {
-	ID         string  `json:"id"` // "O-xxxxxx", opaque and stable per scan
-	ScanID     string  `json:"scan_id"`
-	RecipeID   string  `json:"recipe_id"`
-	Title      string  `json:"title"`
-	Target     string  `json:"target"` // canonical path; display only outside the engine
-	Bytes      Bytes   `json:"bytes"`
-	Risk       Risk    `json:"risk"`
-	Method     Method  `json:"method"`
-	IdleDays   int     `json:"idle_days"` // -1 if unknown
-	Restore    Restore `json:"restore"`
-	Confidence float64 `json:"confidence"` // 0..1
-	Explain    string  `json:"explain"`
+	ID         string   `json:"id"` // "O-xxxxxx", opaque and stable per scan
+	ScanID     string   `json:"scan_id"`
+	RecipeID   string   `json:"recipe_id"`
+	Title      string   `json:"title"`
+	Target     string   `json:"target"` // canonical path; display only outside the engine
+	Bytes      Bytes    `json:"bytes"`
+	Risk       Risk     `json:"risk"`
+	Method     Method   `json:"method"`
+	IdleDays   int      `json:"idle_days"` // -1 if unknown
+	Restore    Restore  `json:"restore"`
+	Confidence float64  `json:"confidence"` // 0..1
+	Explain    string   `json:"explain"`
+	Steps      []string `json:"steps,omitempty"` // what the user can do by hand
 
 	Category  string   `json:"category"`
 	Toolchain string   `json:"toolchain"`

@@ -89,6 +89,10 @@
     to read crash reports from those builds. They can't be recreated. To free space,
     open Xcode › Window › Organizer › Archives, export any archive you still ship
     (right-click › Show in Finder, then copy it elsewhere), and delete the rest there.
+  steps:
+    - "Open Xcode › Window › Organizer › Archives."
+    - "Copy any archive you still ship somewhere safe (right-click › Show in Finder)."
+    - "Delete the rest there, then press r in macdoc to rescan."
 
 - id: xcode.simulators_unavailable
   title: Unavailable simulators
@@ -131,9 +135,13 @@
   explain: >-
     These are simulator runtimes and their caches left over from an Xcode that was
     removed or isn't selected (only the Command Line Tools are active). macOS doesn't
-    clean them up on its own. To remove them, install or select Xcode
-    (sudo xcode-select -s /Applications/Xcode.app), then delete the runtimes in
-    Xcode › Settings › Components or with xcrun simctl runtime delete all.
+    clean them up on its own, and macdoc can't either: they are owned by the system,
+    and removing them needs Xcode and your admin password.
+  steps:
+    - "Install Xcode from the App Store, if it isn't installed."
+    - "Select it: `sudo xcode-select -s /Applications/Xcode.app`"
+    - "Delete the runtimes in Xcode › Settings › Components, or run `xcrun simctl runtime delete all`"
+    - "Press r in macdoc to rescan. You can uninstall Xcode again afterwards if you don't need it."
 
 - id: xcode.sim_devices_idle
   title: Idle simulators

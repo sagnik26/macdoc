@@ -93,7 +93,7 @@ func (m tuiModel) startRemove() (tea.Model, tea.Cmd) {
 		}
 		if op := ops[m.cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
 			m.detail = !m.detail
-			m.flash = "This one is advice only: macdoc can't remove it for you."
+			m.flash = "macdoc can't remove this one. The steps to do it yourself are below."
 			return m, nil
 		}
 	}

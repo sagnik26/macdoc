@@ -134,6 +134,11 @@ func Validate(r Recipe) error {
 	if r.Title == "" || r.Explain == "" {
 		bad("title and explain are required")
 	}
+	for _, s := range r.Steps {
+		if strings.TrimSpace(s) == "" || strings.Count(s, "`")%2 != 0 {
+			bad("steps must be non-empty with paired backticks")
+		}
+	}
 	if !slices.Contains(Categories, r.Category) {
 		bad("unknown category %q", r.Category)
 	}

@@ -49,6 +49,10 @@ type Recipe struct {
 	Restore       model.Restore `yaml:"restore"`
 	Explain       string        `yaml:"explain"`          // what it is, why it exists, what removing it means
 	Confidence    string        `yaml:"confidence_notes"` // e.g. "may include APFS clones"
+	// Steps are what the user can do by hand, shown in the explanation.
+	// Advice-only recipes use them for the cleanup macdoc won't do itself;
+	// text in `backticks` is a command to copy.
+	Steps []string `yaml:"steps"`
 }
 
 // Native describes the owning tool's command. Argv elements are fixed

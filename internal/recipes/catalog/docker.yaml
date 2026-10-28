@@ -97,6 +97,10 @@
     databases. macdoc doesn't remove volumes. Review them with docker volume
     ls and docker system df -v, and remove any you no longer need with
     docker volume rm.
+  steps:
+    - "List them with sizes: `docker system df -v`"
+    - "Remove one you no longer need: `docker volume rm` followed by its name."
+    - "Press r in macdoc to rescan."
 
 - id: docker.raw_disk
   title: Docker Desktop disk image
@@ -118,3 +122,7 @@
   confidence_notes: >-
     The size is the space allocated on disk, which can be much smaller than
     the size Finder shows.
+  steps:
+    - "Remove unused images and caches first (macdoc suggests these when it finds them)."
+    - "Docker Desktop gives the freed space back to macOS over time."
+    - "To cap its size, lower the disk limit in Docker Desktop › Settings › Resources (this can delete Docker data)."
