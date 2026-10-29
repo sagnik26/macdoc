@@ -171,7 +171,7 @@ func TestTUISlashCommands(t *testing.T) {
 	m = step(t, m, keys("esc", "/", "json", "enter")...)
 	mustContain(t, m.View(), `"id": "O-ab12cd"`)
 	m = step(t, m, keys("esc", "/", "mcp", "enter")...)
-	mustContain(t, m.View(), "Phase 8", "Only you apply them")
+	mustContain(t, m.View(), "claude mcp add macdoc -- macdoc mcp", "only you apply them")
 	m = step(t, m, keys("/", "bogus", "enter")...)
 	mustContain(t, m.View(), "Unknown command /bogus")
 

@@ -35,7 +35,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVarP(&g.quiet, "quiet", "q", false, "minimal output")
 
 	doctor := newDoctorCmd(g)
-	root.AddCommand(newVersionCmd(g), doctor, newPlanCmd(g), newApplyCmd(g), newQuarantineCmd(g), newLogCmd(g), newConfigCmd(g))
+	root.AddCommand(newVersionCmd(g), doctor, newPlanCmd(g), newApplyCmd(g), newQuarantineCmd(g), newLogCmd(g), newConfigCmd(g), newMCPCmd())
 	// Bare `macdoc` opens the dashboard in an interactive terminal and is
 	// `macdoc doctor` everywhere else (pipes, --json, --quiet, TERM=dumb).
 	root.Args = cobra.NoArgs

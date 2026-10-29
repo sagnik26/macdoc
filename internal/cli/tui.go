@@ -676,7 +676,7 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 	case "apply":
 		return m.startApply(arg)
 	case "mcp":
-		m.flash = "MCP arrives in Phase 8: Claude will read diagnoses and propose plans. Only you apply them."
+		m.flash = "Connect Claude once: claude mcp add macdoc -- macdoc mcp · Claude proposes, only you apply them."
 	case "help":
 		m.overlay, m.scroll = overlayHelp, 0
 	case "quit", "exit", "q":
