@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week; Phase 8 (Claude via MCP) is built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -180,7 +180,14 @@ $ macdoc apply P-ZDHP
 
 Right before touching each item, apply checks it again: it's still the same folder (same device and inode), its path still resolves the same way, the allowlist and protected-path rules still pass (with a freshly built policy), the preconditions hold (Xcode closed, emulator stopped, Docker running, …), and it holds no git repository or `.env` file. Anything that changed is skipped with a reason, and the rest continue. Folders are moved with `renameatx_np` relative to the opened parent folder, so a symlink swapped in at the last moment can't redirect the move. Native commands run with a fixed argv and no shell, and a tool identifier (a simulator, AVD or model) must still be in the tool's own listing.
 
-**Not yet:** the Claude MCP server (Phase 8).
+### Use it from Claude (`macdoc mcp`)
+Connect once:
+```bash
+claude mcp add macdoc -- macdoc mcp       # Claude Code
+```
+For Claude Desktop, add to `claude_desktop_config.json` under `"mcpServers"`: `"macdoc": {"command": "/Users/you/.local/bin/macdoc", "args": ["mcp"]}`.
+
+Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude can read the overview, suggestions, explanations, projects, the memory diagnosis and growth history, start a read-only rescan, and **propose** a plan. It gets back a plan ID and the command for you, e.g. `macdoc apply P-7F3K`; you run it in Terminal and confirm each item. Claude can't apply, delete, move or restore anything, pass a path, run a command or change settings. A scan started from Claude has the Claude app's file permissions, so it may see less than one from Terminal.
 
 ## Quick start
 
@@ -220,7 +227,7 @@ macdoc is a **storage doctor for developer Macs, with a built-in explanation of 
 - **Finds reclaimable space.** Every item has an honest size (measured, tool-reported, estimated or unknown), a risk level (SAFE / CAUTION / RISKY / ADVISE), its idle time, and what it costs to get back.
 - **Plans cleanups as dry-runs first** *(Phase 5)*. Nothing is removed until you review a sealed plan and confirm it in your terminal.
 - **Cleans safely** *(Phase 6)*. It uses each tool's own cleanup command, or moves items to a restorable quarantine, and keeps an audit log.
-- **Connects to Claude** *(Phase 8)* through a local MCP server. Claude can diagnose and *propose* plans, and only you can apply them.
+- **Connects to Claude** through a local MCP server (`macdoc mcp`). Claude can diagnose and *propose* plans, and only you can apply them.
 
 It is **not** a "Mac cleaner" in the usual sense. There's no background daemon, no automatic deletion, no "RAM boosting", no killing processes, and no fake health score.
 
@@ -275,7 +282,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 5 | Planner: sealed, expiring dry-run plans → `macdoc plan`, plus marking and planning in the dashboard | ✅ done |
 | 6 | Executor + quarantine + audit log → `apply`, `quarantine`, `log` (the first phase that can change files) | ✅ done |
 | 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week in progress |
-| 8–9 | MCP server for Claude (read + propose plans), handoff, hardening | |
+| 8 | MCP server for Claude: 11 read and propose-only tools, `macdoc mcp` | ✅ built |
+| 9 | Claude handoff polish and hardening (plan caps, rate limits, TCC notes) | next |
 | 10 | Optional daily read-only scans, TUI picker, slowness tips | |
 | 11 | Open-source readiness | later |
 
@@ -335,13 +343,13 @@ macdoc (one Go binary)
   internal/platform     read-only command Runner (+ fake), darwin cgo shim for purgeable space
   internal/model        shared types: Opportunity, Plan, Node, Envelope …
   internal/executor     the ONLY package allowed to delete, move or run mutating commands
-  internal/mcp          (Phase 8) MCP server; may never import executor
+  internal/mcp          MCP server (`macdoc mcp`): read + propose plans; may never import the executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
   schema/*.json         frozen JSON Schema for every --json command (contract-tested)
 ```
 
-The CLI and (later) the MCP server are two front doors over the same engine. See [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md).
+The CLI and the MCP server are two front doors over the same engine. See [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md).
 
 ## Development
 
@@ -386,4 +394,4 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 | Scanning | Full crawl of the Data volume, background priority, streaming aggregation, bounded memory |
 | Language | Go. Single binary, with an optional cgo shim for purgeable space |
 | Audience | Personal first, open-source later. Recipes are data-driven |
-| Claude boundary | Claude can diagnose and propose plans. Only a human at a real terminal can apply them. The MCP process contains no deletion code |
+| Claude boundary | Claude can diagnose and propose plans. Only a human at a real terminal can apply them. The MCP code can't reach the deletion code (CI import guard), and no MCP tool acts on the Mac |

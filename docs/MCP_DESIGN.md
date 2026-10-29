@@ -2,7 +2,7 @@
 
 ## 1. Shape
 - `macdoc mcp` runs a **stdio** MCP server inside the same binary and calls the same engine as the CLI.
-- **No executor code is reachable.** `internal/mcp` must not import `internal/executor`, and CI enforces this with an import guard.
+- **No executor code is reachable.** `internal/mcp` must not import `internal/executor` (or `internal/cli`, which does), and CI enforces this with an import guard. The binary contains the executor for `apply`, but nothing the MCP server can call leads to it.
 - It can read cached scans and trigger a read-only rescan. The only thing it writes is plan files (`origin: "claude"`).
 
 Registration (documented, not automated):
@@ -10,6 +10,14 @@ Registration (documented, not automated):
 claude mcp add macdoc -- macdoc mcp           # Claude Code
 # Claude Desktop: add to claude_desktop_config.json → "command": "macdoc", "args": ["mcp"]
 ```
+
+> **As built (Phase 8, 2026-10-30):** `internal/mcp` on `github.com/modelcontextprotocol/go-sdk` v1.8.0, started by `macdoc mcp`. All 11 tools below exist, with these differences:
+> - Every result is `{"data": <the same shape as the CLI's --json>, "note": "<untrusted data>", "warnings": [...]}`. Strings are sanitized already (ANSI, control and bidi characters stripped, 1,000-character cap): that part of the Phase 9 hardening is done.
+> - `create_cleanup_plan` takes only `opportunity_ids` (1–50). The optional `note` was left out: free text from Claude stored in a plan would later be shown to the user at `apply`, a channel for persuasion. Advice-only, unknown, stale or path-like IDs are refused.
+> - `refresh_scan` starts the crawl in the background and reports `running`, then `done` (with the unmeasured count) on later calls.
+> - `list_opportunities` also returns `matched` (before `limit`).
+> - Not yet (Phase 9): the open-plan cap and the call rate limit.
+> - A test pins the tool list; no tool name or input field may suggest applying, deleting, a path or a command.
 
 ## 2. Tools
 

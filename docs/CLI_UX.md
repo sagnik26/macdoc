@@ -20,7 +20,7 @@
 | `macdoc quarantine list\|restore <Q-id>\|purge [--expired]` | restore/purge mutating, TTY | Manage quarantine |
 | `macdoc log [--json]` | read | Audit history |
 | `macdoc config [set\|protect\|unprotect\|path]` | writes macdoc's settings file | `plan_minutes`, `native_timeout_minutes`, and extra protected folders (add-only on top of the built-in list). No `edit`: opening an editor would run a program outside the executor; `config path` prints the file |
-| `macdoc mcp` | read + plans (Phase C) | MCP stdio server |
+| `macdoc mcp` | read + Claude-origin plans | MCP stdio server for Claude Code / Claude Desktop (Phase 8). Prints a hint to stderr if started by hand |
 | `macdoc schedule enable\|disable` | Phase 10 | Daily read-only scan via launchd |
 
 Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as unused. Color follows the `NO_COLOR` convention instead.)
@@ -45,7 +45,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `e` swaps the list for it.
-- **`/` palette:** `/overview /scan /plan [safe|caution|risky] /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` explains that Phase 8 isn't built yet.
+- **`/` palette:** `/overview /scan /plan [safe|caution|risky] /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` shows how to connect Claude (`claude mcp add macdoc -- macdoc mcp`).
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tui_tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
