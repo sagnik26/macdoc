@@ -119,8 +119,20 @@ func (s *Server) register(srv *sdk.Server) {
 		s.audit)
 }
 
+// fullDiskAccessWarning tells the user why a scan is incomplete when macOS
+// denied the app running macdoc access to some places. The scanner's only
+// unreadable-path reason is a permission denial, so an unmeasured place means
+// the host app is likely missing Full Disk Access.
+func fullDiskAccessWarning(unmeasured int) string {
+	return fmt.Sprintf("Full Disk Access is missing: macOS blocked %d places from this scan, so their sizes are unknown, not zero. "+
+		"The app running macdoc's tools (for example Claude) probably doesn't have Full Disk Access. "+
+		"To fix it: open System Settings › Privacy & Security › Full Disk Access, turn that app on, restart it, then call refresh_scan. "+
+		"Or ask the user to run macdoc doctor scan in Terminal, if Terminal has Full Disk Access.", unmeasured)
+}
+
 func (s *Server) overview(ctx context.Context, _ *sdk.CallToolRequest, _ noInput) (*sdk.CallToolResult, any, error) {
 	out := map[string]any{"health": engine.Doctor(ctx, s.o.Runner)}
+	var warnings []string
 	info, age, err := engine.LastScan(s.o.Home, s.o.Now())
 	switch {
 	case err == nil:
@@ -128,6 +140,7 @@ func (s *Server) overview(ctx context.Context, _ *sdk.CallToolRequest, _ noInput
 		if info.UnmeasuredCount > 0 {
 			out["scan_visibility"] = fmt.Sprintf("%d places couldn't be read in this scan: their sizes are unknown, not zero. "+
 				"A scan the user runs in Terminal (macdoc doctor scan, with Full Disk Access) usually sees more than one started from Claude.", info.UnmeasuredCount)
+			warnings = append(warnings, fullDiskAccessWarning(info.UnmeasuredCount))
 		}
 	case errors.Is(err, store.ErrNoScan):
 		out["scan"] = nil
@@ -135,7 +148,7 @@ func (s *Server) overview(ctx context.Context, _ *sdk.CallToolRequest, _ noInput
 	default:
 		return toolError(err)
 	}
-	return result(out, nil)
+	return result(out, warnings)
 }
 
 func (s *Server) storage(ctx context.Context, _ *sdk.CallToolRequest, in storageIn) (*sdk.CallToolResult, any, error) {
@@ -265,6 +278,9 @@ func (s *Server) refreshScan(_ context.Context, _ *sdk.CallToolRequest, _ noInpu
 			out["data_volume_used"] = j.summary.DataVolumeUsed
 		}
 		var warnings []string
+		if j.summary != nil && len(j.summary.Unmeasured) > 0 {
+			warnings = append(warnings, fullDiskAccessWarning(len(j.summary.Unmeasured)))
+		}
 		if j.sawLess != "" {
 			out["saw_less_than_previous"] = true
 			warnings = append(warnings, j.sawLess)

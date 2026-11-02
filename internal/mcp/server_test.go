@@ -496,6 +496,17 @@ func TestPlanScanGuidance(t *testing.T) {
 	}
 }
 
+// The warning must name the count, say the sizes are unknown rather than zero,
+// and tell the user how to grant Full Disk Access to the host app.
+func TestFullDiskAccessWarning(t *testing.T) {
+	w := fullDiskAccessWarning(167)
+	for _, want := range []string{"Full Disk Access is missing", "167 places", "unknown, not zero", "Privacy & Security › Full Disk Access", "refresh_scan"} {
+		if !strings.Contains(w, want) {
+			t.Errorf("warning missing %q: %s", want, w)
+		}
+	}
+}
+
 func TestSawLess(t *testing.T) {
 	prev := model.ScanInfo{TotalBytes: 100 * gb, UnmeasuredCount: 3}
 	for name, tc := range map[string]struct {
