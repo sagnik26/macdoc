@@ -21,6 +21,7 @@ coverage.*
 
 # Agent worktrees
 /.worktrees/
+/.claude/worktrees/
 
 # Agent task scratch + local Claude settings
 .task/
