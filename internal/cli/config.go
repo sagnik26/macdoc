@@ -138,6 +138,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
 }
 
 func renderConfig(w io.Writer, c config.Config, v configView) error {
+	c, v = display(c), display(v) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	fmt.Fprintf(&b, "%s\n", t.heading("Settings"))

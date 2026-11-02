@@ -142,6 +142,7 @@ func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.T
 // confirmItems asks y/N for RISKY items, and for every item of a plan
 // Claude proposed. Others are approved here and confirmed by the code.
 func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (map[string]bool, error) {
+	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	approved := map[string]bool{}
 	claude := p.Origin == model.OriginClaude
 	if claude {
@@ -168,6 +169,7 @@ func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (map[st
 
 // confirmCode asks for the plan's code: the part after "P-".
 func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved map[string]bool) bool {
+	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	code := strings.TrimPrefix(p.ID, "P-")
 	var bytes int64
 	tiers := map[model.Risk]int{}
@@ -202,6 +204,7 @@ func readLine(rd *bufio.Reader) (string, error) {
 }
 
 func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
+	ev = display(ev) // disk-sourced text, cleaned for the terminal (display)
 	it := ev.Item
 	if ev.Result == nil {
 		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.id.Render(it.OpportunityID), it.Title)
@@ -225,6 +228,7 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 // renderApplyReport summarizes an apply: counts, measured space, anything
 // left in quarantine and why the numbers may differ.
 func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int) error {
+	rep = display(rep) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n %s\n", t.heading(fmt.Sprintf("Plan %s applied: %d done · %d skipped · %d failed",
 		rep.PlanID, rep.Count(executor.OutcomeDone), rep.Count(executor.OutcomeSkipped), rep.Count(executor.OutcomeFailed))))

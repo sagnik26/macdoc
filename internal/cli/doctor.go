@@ -137,6 +137,7 @@ func writeFindings(b *strings.Builder, t *theme, fs []engine.Finding, max int, d
 
 // renderDoctor renders `macdoc doctor health`.
 func renderDoctor(w io.Writer, res engine.DoctorResult) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	rep := res.Report

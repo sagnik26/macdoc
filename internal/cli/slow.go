@@ -45,6 +45,7 @@ database, so the swap history fills in as you use macdoc.`,
 }
 
 func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	rep := res.Health.Report

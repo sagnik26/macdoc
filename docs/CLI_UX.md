@@ -193,6 +193,7 @@ Every step is in the audit log: macdoc log
 - Use color sparingly: green for SAFE, amber for CAUTION, plain for advice. Never use flashing or red alarm banners.
 - Never show a fake "health score". Show real numbers with their source.
 - Unknowns are explicit: `—  unmeasured (no permission)`.
+- Names from the disk are shown cleaned: terminal escapes and invisible characters are dropped and newlines become spaces (`display` in `theme.go`, built on `internal/textsafe`). Renderers start from that copy and never plan from it. `--json` shows the data as found.
 - Keep `doctor` to 80 columns and 20 lines at most.
 
 ## 4. JSON contract

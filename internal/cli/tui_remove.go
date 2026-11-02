@@ -40,8 +40,9 @@ type removedMsg struct {
 
 // removeState is the confirmation box and, once confirmed, its progress.
 type removeState struct {
-	res     engine.PlanResult
-	code    string // typed so far, when a RISKY item needs it
+	res     engine.PlanResult // what the executor acts on
+	view    engine.PlanResult // the same, cleaned for the terminal (display)
+	code    string            // typed so far, when a RISKY item needs it
 	running bool
 	lines   []string // finished items
 	current string   // the item being removed
@@ -107,7 +108,7 @@ func (m tuiModel) startRemove() (tea.Model, tea.Cmd) {
 	}
 	m.planning = true
 	m.flash = "Checking…"
-	deps, pre, s := m.deps, &m.data.res.Opportunities, *sel
+	deps, pre, s := m.deps, m.data.planOps, *sel
 	return m, func() tea.Msg {
 		res, err := deps.makePlan(deps, s, pre)
 		return removeReadyMsg{res: res, err: err}
@@ -118,7 +119,7 @@ func (m tuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	m.planning = false
 	switch {
 	case msg.err == nil:
-		m.removing = &removeState{res: msg.res}
+		m.removing = &removeState{res: msg.res, view: display(msg.res)}
 		m.overlay, m.scroll = overlayRemove, 0
 		clear(m.marked)
 	case errors.Is(msg.err, planner.ErrNothing):
@@ -178,7 +179,8 @@ func (m tuiModel) runRemove() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m tuiModel) removeProgress(ev removeProgressMsg) (tea.Model, tea.Cmd) {
+func (m tuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
+	ev := display(executor.ItemEvent(msg))
 	r := m.removing
 	if r == nil {
 		return m, nil
@@ -210,6 +212,7 @@ func (m tuiModel) resultLine(res executor.ItemResult) string {
 // how much space came back.
 func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 	m.overlay, m.removing, m.scroll = overlayNone, nil, 0
+	msg.rep = display(msg.rep) // only shown from here on; IDs are unchanged
 	if msg.err != nil {
 		m.flash = "Nothing was removed: " + msg.err.Error()
 		return m, nil
@@ -230,6 +233,16 @@ func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.data.res.Opportunities.Opportunities = kept
+		if p := m.data.planOps; p != nil {
+			raw := *p
+			raw.Opportunities = nil
+			for _, op := range p.Opportunities {
+				if !done[op.ID] {
+					raw.Opportunities = append(raw.Opportunities, op)
+				}
+			}
+			m.data.planOps = &raw
+		}
 		m.cursor = max(0, min(m.cursor, len(kept)-1))
 	}
 	var parts []string
@@ -257,7 +270,7 @@ func (m tuiModel) removeView() string {
 		return ""
 	}
 	var b strings.Builder
-	items := r.res.Plan.Items
+	items := r.view.Plan.Items
 	b.WriteString("\n " + t.heading(fmt.Sprintf("Remove %d item%s and free the space?", len(items), plural(len(items), "", "s"))) + "\n\n")
 	var total int64
 	known := true
@@ -275,7 +288,7 @@ func (m tuiModel) removeView() string {
 		fmt.Fprintf(&b, "   %s %s  %s  %s\n", t.riskStyle(it.Risk).Render(fmt.Sprintf("%-7s", it.Risk)),
 			t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(it.Title), t.muted.Render(tildePath(m.deps.home, where)))
 	}
-	for _, rf := range r.res.Refused {
+	for _, rf := range r.view.Refused {
 		fmt.Fprintf(&b, "   %s %s\n", t.warn.Render("not included:"), t.muted.Render(rf.ID+" "+rf.Reason))
 	}
 	sum := engine.DecimalBytes(total)

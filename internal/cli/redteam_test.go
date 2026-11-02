@@ -29,12 +29,12 @@ func hostilePlan() model.Plan {
 			Risk: model.RiskRisky, Method: model.MethodQuarantine}}}
 }
 
-// BROKEN (finding F7, medium). apply's per-item question for a Claude plan
+// FIXED 2026-11-02 (finding F7, medium). apply's per-item question for a Claude plan
 // (confirmItems) prints the item's title raw. Disk-sourced titles can carry
 // terminal escapes that erase the RISKY 40 GB line and draw a SAFE 12 MB one
 // in its place, at the moment the user is asked to confirm. The MCP side
 // strips these for Claude; the terminal side doesn't for the user.
-func TestRedteamBrokenApplyPromptEscapes(t *testing.T) {
+func TestRedteamFixedApplyPromptEscapes(t *testing.T) {
 	var out bytes.Buffer
 	if _, err := confirmItems(bufio.NewReader(strings.NewReader("n\n")), &out, plainTheme(), hostilePlan()); err != nil {
 		t.Fatal(err)
@@ -44,9 +44,9 @@ func TestRedteamBrokenApplyPromptEscapes(t *testing.T) {
 	}
 }
 
-// BROKEN (finding F7). The dry run apply shows first (renderPlan) has the
+// FIXED 2026-11-02 (finding F7). The dry run apply shows first (renderPlan) has the
 // same hole for titles and targets.
-func TestRedteamBrokenPlanRenderEscapes(t *testing.T) {
+func TestRedteamFixedPlanRenderEscapes(t *testing.T) {
 	var out bytes.Buffer
 	res := engine.PlanResult{Plan: hostilePlan(), Status: planner.StatusPending, Refused: []planner.Refusal{}}
 	if err := renderPlan(&out, res, "/Users/me", time.Now()); err != nil {

@@ -135,3 +135,35 @@ func TestOpenPlansAndCount(t *testing.T) {
 		t.Errorf("count = %d, %v; want 2", n, err)
 	}
 }
+
+// LockPlans excludes a second holder, even in the same process (flock locks
+// belong to the open file), until the first releases it.
+func TestLockPlans(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state", "state.db")
+	unlock, err := LockPlans(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan struct{})
+	go func() {
+		u2, err := LockPlans(path)
+		if err != nil {
+			t.Error(err)
+			close(got)
+			return
+		}
+		close(got)
+		u2()
+	}()
+	select {
+	case <-got:
+		t.Fatal("second lock taken while the first was held")
+	case <-time.After(100 * time.Millisecond):
+	}
+	unlock()
+	select {
+	case <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second lock never taken after release")
+	}
+}

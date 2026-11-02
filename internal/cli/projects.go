@@ -59,6 +59,7 @@ func filterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
 }
 
 func renderProjects(w io.Writer, res engine.ProjectsResult, home string, idle int) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	b.WriteString(t.commandHeader("projects", res.Scan.ID, res.ScanAge))

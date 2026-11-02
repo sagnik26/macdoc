@@ -103,6 +103,7 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 }
 
 func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	b.WriteString(t.commandHeader("wins", res.Scan.ID, res.ScanAge))

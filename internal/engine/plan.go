@@ -221,3 +221,13 @@ func OriginPlanLoad(o OpportunityOptions, origin model.Origin, since time.Time) 
 	}
 	return PlanLoad{Open: open, Recent: n}, nil
 }
+
+// LockPlans serializes plan creation with every other process using the same
+// store (see store.LockPlans). The MCP server holds it from its limit checks
+// until the plan is saved, so the open-plan cap holds across servers.
+func LockPlans(o OpportunityOptions) (func(), error) {
+	if o.StorePath == "" {
+		o.StorePath = store.DefaultPath(o.Home)
+	}
+	return store.LockPlans(o.StorePath)
+}

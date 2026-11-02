@@ -88,7 +88,7 @@ func (m tuiModel) startPlan(sel *planner.Selector) (tea.Model, tea.Cmd) {
 	}
 	m.planning = true
 	m.flash = "Sealing a dry-run plan…"
-	deps, pre, s := m.deps, &m.data.res.Opportunities, *sel
+	deps, pre, s := m.deps, m.data.planOps, *sel
 	return m, func() tea.Msg {
 		res, err := deps.makePlan(deps, s, pre)
 		return planMsg{res: res, err: err}

@@ -45,6 +45,7 @@ func newStorageCmd(g *globalFlags) *cobra.Command {
 }
 
 func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	b.WriteString(t.commandHeader("space", res.Scan.ID, res.ScanAge))

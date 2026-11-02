@@ -12,6 +12,7 @@ import (
 
 	"macdoc/internal/engine"
 	"macdoc/internal/model"
+	"macdoc/internal/textsafe"
 )
 
 // theme styles human output. A plain theme (pipes, files, tests, NO_COLOR,
@@ -357,3 +358,10 @@ func (t *theme) wrap(s string, indent int) string {
 	lines := strings.Split(wrapANSI(s, t.width-indent), "\n")
 	return strings.Join(lines, "\n"+strings.Repeat(" ", indent))
 }
+
+// display returns a copy of v that is safe to print: every string in it,
+// names from the disk included, with terminal escapes and invisible
+// characters removed and newlines turned into spaces (textsafe.ForTerminal).
+// Every human renderer starts from it. It is for showing only: never plan or
+// act on the copy.
+func display[T any](v T) T { return textsafe.Copy(v, textsafe.ForTerminal) }

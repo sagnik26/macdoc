@@ -30,6 +30,7 @@ func newScanCmd(g *globalFlags) *cobra.Command {
 }
 
 func renderScan(w io.Writer, s engine.ScanSummary) error {
+	s = display(s) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	in := s.Info
