@@ -1,4 +1,4 @@
-# Checkpoint: Phase 9 (Claude handoff + hardening) ✅ · USER REVIEW
+# Checkpoint: Phase 9 (Claude handoff + hardening) ✅ · signed off by the user (2026-11-02)
 
 **Date:** 2026-11-02 · **main:** see `git log` · **Status:** built, red-teamed (P9-R1: no path to the executor, 7 smaller findings, all fixed) and tested. No plan was created and nothing was applied on the development Mac.
 
