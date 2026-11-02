@@ -1,6 +1,6 @@
 # Checkpoint: Phase 9 (Claude handoff + hardening) ✅ · USER REVIEW
 
-**Date:** 2026-11-02 · **main:** see `git log` · **Status:** built and tested. Built by the tech-lead session; the separate P9-R1 red-team session hasn't run (see "Open"). No plan was created and nothing was applied on the development Mac.
+**Date:** 2026-11-02 · **main:** see `git log` · **Status:** built, red-teamed (P9-R1: no path to the executor, 7 smaller findings, all fixed) and tested. No plan was created and nothing was applied on the development Mac.
 
 ## Built
 - **When Claude proposed it.** `apply` on a Claude-origin plan says "Claude proposed this plan at 14:02 on 2 Nov. Confirm each item yourself." (local time), and the plan header (`plan show`, the dry run) says "proposed by Claude at 14:02 on 2 Nov". Each item is still asked `[y/N]`, every time (since Phase 6).
@@ -36,12 +36,21 @@ Also checked:
 - `tools/list`: all 11 descriptions carry the untrusted-names sentence.
 - `get_system_overview`: scan 39 h old, and "167 places couldn't be read in this scan: their sizes are unknown, not zero …". A plan from Claude right now would get the max_age message.
 
+## Red-team (P9-R1, 2026-11-02)
+A fresh reviewer session in its own worktree attacked the boundary: report in `docs/tasks/reports/P9-R1.md`, tests in `internal/mcp/redteam_test.go` and `internal/cli/redteam_test.go`. **Nothing reached the executor, a path or a command input.** It found 7 smaller defects, all fixed:
+- **F7 (medium):** `apply` and the dry run printed disk names with terminal escapes, so a folder name could erase the "RISKY 40 GB" line and draw "SAFE 12 MB" while the user confirms. Now every human renderer and the dashboard print a cleaned display copy (`internal/textsafe`), while planning and the executor keep the data as found.
+- **F3, F4:** tag characters (hidden text a model reads) and zero-width characters survived the MCP cleaner. It now drops every invisible character class.
+- **F1, F2:** duplicate or un-normalized IDs from Claude made an unappliable plan or a misleading refusal. IDs are now normalized and de-duplicated (`planner.NormalizeID`). This also fixed MCP refusing 8-character IDs.
+- **F6:** several servers at once could pass the open-plan cap. The check and the write now share a file lock.
+- **F5:** large integers lost precision in MCP output; now exact.
+
 ## Deviations
 - Per-item confirmation for Claude plans isn't configurable (DEVELOPMENT_PLAN said "configurable"): a setting could only make it looser, and settings may only make macdoc stricter.
 - "Proposed by Claude at …" uses the plan's `created_at`, which the planner sets when Claude calls `create_cleanup_plan`.
 - If the store limit is what refuses (plans from another server), the wait shown is the full 10 minutes, an upper bound.
 
 ## Open
-- **P9-R1 red-team:** ORCHESTRATION plans a separate reviewer session to try prompt injection and to try to reach the executor. Only an inline review was done. Also, no report of the P6-R1 executor red-team exists.
+- No report of the P6-R1 executor red-team exists; the executor was out of scope for P9-R1.
+- Later: an item limit on `list_projects`, the storage breakdown and growth history, and a time limit on `refresh_scan` (P9-R1 notes).
 - Phase 7 is still in its dogfood week (until 2026-11-04). 0.88 GB has been reclaimed through macdoc so far; the MVP B goal is 10 GB.
 - Registering with Claude (`claude mcp add macdoc -- macdoc mcp`) and a first real Claude plan are for the user to do.

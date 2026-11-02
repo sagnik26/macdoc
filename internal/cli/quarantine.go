@@ -83,6 +83,7 @@ func runQuarantineList(cmd *cobra.Command, g *globalFlags, now time.Time) error 
 }
 
 func renderQuarantine(w io.Writer, res engine.QuarantineResult, home string, now time.Time) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	if len(res.Entries) == 0 {

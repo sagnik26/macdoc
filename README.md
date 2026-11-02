@@ -312,6 +312,7 @@ Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/
   - Folders go to `~/Library/Application Support/macdoc/quarantine/Q-XXXX/` (private, excluded from Spotlight and Time Machine), with a manifest written before the move, and are then purged right away through the same checks as `quarantine purge` (since 2026-10-28). A crash at any step leaves a restorable entry and a readable audit log (tested by killing a child process mid-move). If the purge is refused, the entry stays in quarantine and `macdoc quarantine` lists it.
   - The only recursive delete is purging a quarantine entry that has macdoc's own record and manifest; a test pins every delete, rename and exec call site in the package.
   - Every executor test runs under `MACDOC_SANDBOX`, and real native commands are refused in sandbox mode.
+- **Names from the disk are shown cleaned.** A folder name can hold terminal escapes or invisible characters. Human output and the dashboard drop them before printing, so a name can't redraw what you confirm, and MCP output drops them before Claude reads them. Planning and the executor always use the names as found.
 - **CI guards:** `importcheck` (MCP and the engine can't import the executor) and `forbidcheck` (no delete, rename, exec or shell calls outside the executor, aliased imports included). Both are verified against planted violations.
 
 Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
@@ -339,6 +340,7 @@ macdoc (one Go binary)
   internal/config       settings file: timings and extra protected folders (add-only)
   internal/safety       canonicalization + protected-path policy
   internal/fsread       capped, non-blocking regular-file reader for detectors
+  internal/textsafe     cleans names from the disk before you or Claude see them (escapes, invisible characters)
   internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
   internal/platform     read-only command Runner (+ fake), darwin cgo shim for purgeable space
   internal/model        shared types: Opportunity, Plan, Node, Envelope …

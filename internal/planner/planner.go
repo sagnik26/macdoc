@@ -51,8 +51,26 @@ func (s Selector) Request() string {
 // idRe is an opportunity ID as users type it.
 var idRe = regexp.MustCompile(`(?i)^(o-)?[a-z2-7]{6,26}$`)
 
-// ParseIDs normalizes opportunity IDs and rejects anything else, paths in
-// particular: plans take IDs, never paths (AGENTS.md invariant 4).
+// NormalizeID turns an opportunity ID as typed (any case, "O-" optional,
+// surrounding whitespace) into its canonical form "O-abcdef". It reports false
+// for anything else, including non-ASCII look-alikes that case folding would
+// let through (U+017F "ſ", the Kelvin sign).
+func NormalizeID(a string) (string, bool) {
+	a = strings.TrimSpace(a)
+	for i := 0; i < len(a); i++ {
+		if a[i] >= 0x80 {
+			return "", false
+		}
+	}
+	if !idRe.MatchString(a) {
+		return "", false
+	}
+	return "O-" + strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(a, "O-"), "o-")), true
+}
+
+// ParseIDs normalizes opportunity IDs, drops duplicates and rejects anything
+// else, paths in particular: plans take IDs, never paths (AGENTS.md
+// invariant 4).
 func ParseIDs(args []string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
@@ -61,10 +79,10 @@ func ParseIDs(args []string) ([]string, error) {
 		if strings.ContainsAny(a, `/\~.`) {
 			return nil, fmt.Errorf("%q looks like a path: plans take suggestion IDs (O-…), never paths", a)
 		}
-		if !idRe.MatchString(a) {
+		id, ok := NormalizeID(a)
+		if !ok {
 			return nil, fmt.Errorf("%q isn't a suggestion ID (they look like O-ab12cd; see macdoc doctor wins)", a)
 		}
-		id := "O-" + strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(a, "O-"), "o-"))
 		if !seen[id] {
 			seen[id] = true
 			out = append(out, id)

@@ -37,6 +37,7 @@ func newLogCmd(g *globalFlags) *cobra.Command {
 }
 
 func renderLog(w io.Writer, res engine.AuditResult, home string) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	if len(res.Records) == 0 {

@@ -51,6 +51,7 @@ only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
 }
 
 func renderTrend(w io.Writer, res engine.TrendResult, home string) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	span := fmt.Sprintf("%s → %s", res.From.StartedAt.Local().Format("2 Jan 15:04"), res.To.StartedAt.Local().Format("2 Jan 15:04"))

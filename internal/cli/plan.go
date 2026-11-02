@@ -181,6 +181,7 @@ func finishPlan(w io.Writer, g *globalFlags, res engine.PlanResult, home string,
 }
 
 func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	p := res.Plan
@@ -309,6 +310,7 @@ func writeRefused(b *strings.Builder, t *theme, refused []planner.Refusal) {
 }
 
 func renderPlanList(w io.Writer, recs []store.PlanRecord, now time.Time) error {
+	recs = display(recs) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	if len(recs) == 0 {

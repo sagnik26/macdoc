@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -28,9 +27,8 @@ var ToolNames = []string{
 }
 
 var (
-	falseP        = new(bool)
-	readOnly      = &sdk.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: falseP}
-	opportunityRe = regexp.MustCompile(`^(?i)(O-)?[a-z2-7]{6}$`)
+	falseP   = new(bool)
+	readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: falseP}
 )
 
 const (
@@ -188,10 +186,10 @@ func (s *Server) opportunities(ctx context.Context, _ *sdk.CallToolRequest, in o
 }
 
 func (s *Server) explain(ctx context.Context, _ *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
-	if !opportunityRe.MatchString(strings.TrimSpace(in.ID)) {
+	id, ok := planner.NormalizeID(in.ID)
+	if !ok {
 		return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd)", in.ID))
 	}
-	id := "O-" + strings.ToLower(strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(in.ID)), "O-"))
 	res, err := engine.Opportunities(ctx, s.opp())
 	if err != nil {
 		return toolError(err)
@@ -312,19 +310,35 @@ func sawLess(prev, cur model.ScanInfo) string {
 func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in planIn) (*sdk.CallToolResult, any, error) {
 	s.planMu.Lock()
 	defer s.planMu.Unlock()
+	// Other servers on this Mac share the store: hold the plan lock from the
+	// limit checks until the plan is saved, so the cap can't be raced.
+	unlock, err := engine.LockPlans(s.opp())
+	if err != nil {
+		return toolError(err)
+	}
+	defer unlock()
 	if err := s.planLimits(); err != nil {
 		return toolError(err)
 	}
 	if len(in.OpportunityIDs) == 0 || len(in.OpportunityIDs) > maxPlanIDs {
 		return toolError(fmt.Errorf("give between 1 and %d opportunity IDs", maxPlanIDs))
 	}
-	for _, id := range in.OpportunityIDs {
-		if !opportunityRe.MatchString(strings.TrimSpace(id)) {
-			return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd); plans take IDs only, never paths", id))
+	// Normalized and de-duplicated, as the CLI does: the raw strings never
+	// reach the plan or the audit log, and one ID asked for twice is one item.
+	var ids []string
+	seen := map[string]bool{}
+	for _, raw := range in.OpportunityIDs {
+		id, ok := planner.NormalizeID(raw)
+		if !ok {
+			return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd); plans take IDs only, never paths", raw))
+		}
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
 		}
 	}
 	res, err := engine.CreatePlan(ctx, engine.PlanOptions{OpportunityOptions: s.opp(),
-		Selector: planner.Selector{IDs: in.OpportunityIDs}, Origin: model.OriginClaude})
+		Selector: planner.Selector{IDs: ids}, Origin: model.OriginClaude})
 	switch {
 	case errors.Is(err, planner.ErrNothing):
 		var why []string

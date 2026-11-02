@@ -242,7 +242,9 @@ func runPlan(t *testing.T, m tuiModel) tuiModel {
 	if sel == nil {
 		t.Fatal("no selector")
 	}
-	res, err := m.deps.makePlan(m.deps, *sel, &m.data.res.Opportunities)
+	// What startPlan's command does: plan from the engine's data (planOps),
+	// never the cleaned display copy.
+	res, err := m.deps.makePlan(m.deps, *sel, m.data.planOps)
 	return step(t, m, planMsg{res: res, err: err})
 }
 
@@ -293,7 +295,7 @@ func TestTUIPlanEdgeCases(t *testing.T) {
 // cmdMsg runs the dashboard's plan function the way the command would.
 func cmdMsg(t *testing.T, m tuiModel, id string) tea.Msg {
 	t.Helper()
-	res, err := m.deps.makePlan(m.deps, planner.Selector{IDs: []string{id}}, &m.data.res.Opportunities)
+	res, err := m.deps.makePlan(m.deps, planner.Selector{IDs: []string{id}}, m.data.planOps)
 	if err == nil {
 		err = errors.New("expected a refusal")
 	}

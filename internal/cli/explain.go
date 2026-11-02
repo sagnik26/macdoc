@@ -46,6 +46,7 @@ func newExplainCmd(g *globalFlags) *cobra.Command {
 }
 
 func renderExplain(w io.Writer, ex ExplainResult) error {
+	ex = display(ex) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	op := ex.Opportunity

@@ -105,6 +105,10 @@ type tuiData struct {
 	slow     engine.SlowResult
 	trend    *engine.TrendResult // nil when there's nothing to compare yet
 	trendMsg string              // why trend is nil
+	// planOps are the opportunities as the engine returned them, passed to
+	// CreatePlan as Precomputed. Everything above is a display copy, cleaned
+	// for the terminal (display), and must never be planned from.
+	planOps *engine.OpportunityResult
 }
 
 // tuiDeps are shared by every copy of the model.
@@ -415,7 +419,7 @@ func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
 	// A stopped scan can still return (partial) results; they are never shown.
 	switch {
 	case msg.err == nil && !m.stopping:
-		m.data, m.note = msg.data, ""
+		m.data, m.note = cleanData(msg.data), ""
 		clear(m.marked) // IDs belong to a scan
 		m.cursor = min(m.cursor, max(0, len(m.items())-1))
 	case m.stopping || errors.Is(msg.err, context.Canceled):
@@ -764,7 +768,7 @@ func (m tuiModel) View() string {
 		if m.inputMode != 0 {
 			b.WriteString(m.inputView())
 		} else if m.flash != "" {
-			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(m.flash), m.w-4) + "\n")
+			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.flash)), m.w-4) + "\n")
 		}
 		if m.inputMode != 0 {
 			b.WriteString(m.footerView())
@@ -789,7 +793,7 @@ func (m tuiModel) View() string {
 	case m.overlay == overlayRemove:
 		body = m.scrolled(m.removeView())
 	case m.data == nil:
-		body = "\n  " + t.muted.Render(m.note)
+		body = "\n  " + t.muted.Render(display(m.note))
 	case m.tab == tabSuggestions:
 		body = m.suggestionsView()
 	default:
@@ -800,7 +804,7 @@ func (m tuiModel) View() string {
 	if m.inputMode != 0 {
 		b.WriteString(m.inputView())
 	} else if m.flash != "" {
-		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(m.flash), m.w-4) + "\n")
+		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.flash)), m.w-4) + "\n")
 	}
 	b.WriteString(m.footerView())
 	return b.String()
@@ -1172,3 +1176,17 @@ func highlightJSON(t *theme, src string) string {
 }
 
 var _ io.Writer = (*themedWriter)(nil)
+
+// cleanData returns the display copy of freshly loaded data, keeping the
+// engine's opportunities aside (planOps) for planning.
+func cleanData(d *tuiData) *tuiData {
+	if d == nil {
+		return nil
+	}
+	raw := d.res.Opportunities
+	// tuiData's fields are unexported, which display (textsafe.Copy) leaves
+	// as they are, so each is cleaned on its own.
+	c := tuiData{res: display(d.res), space: display(d.space), dev: display(d.dev), projects: display(d.projects),
+		slow: display(d.slow), trend: display(d.trend), trendMsg: display(d.trendMsg), planOps: &raw}
+	return &c
+}

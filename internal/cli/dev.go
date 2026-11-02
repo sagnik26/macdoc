@@ -81,6 +81,7 @@ func devResult(res engine.OpportunityResult, tc string) DevResult {
 }
 
 func renderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
+	d = display(d) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	b.WriteString(t.commandHeader("dev", d.Scan.ID, d.ScanAge))

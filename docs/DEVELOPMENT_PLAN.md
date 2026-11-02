@@ -103,6 +103,7 @@ macdoc/
   internal/config/               settings file (read/write; add-only protected folders)
   internal/store/                SQLite schema + migrations
   internal/fsread/               capped, non-blocking regular-file reader for detectors
+  internal/textsafe/             cleans disk-sourced text for the terminal and for Claude (display copies only)
   internal/sandbox/              MACDOC_SANDBOX for executor tests (fails closed)
   internal/platform/             read-only Runner (+ fake); darwin/ cgo shim + command fallbacks
   internal/model/                shared types

@@ -111,6 +111,7 @@ type FullResult struct {
 
 // renderFull prints the overview followed by every section in full.
 func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResult, dev DevResult, cat *recipes.Catalog) error {
+	res, space, dev = display(res), display(space), display(dev) // disk-sourced text, cleaned for the terminal (display)
 	sections := []struct {
 		title  string
 		render func(io.Writer) error
@@ -147,6 +148,7 @@ func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 }
 
 func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
+	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 
