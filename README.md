@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week; Phases 8–9 (Claude via MCP, with its limits and hardening) are built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week; Phases 8–9 (Claude via MCP, with its limits and hardening) are built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 

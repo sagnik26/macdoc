@@ -51,7 +51,7 @@ func crashChild() {
 	runner := &platform.FakeRunner{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
 	cfg := Config{Store: st, StorePath: sp, Home: home, Catalog: cat, Now: func() time.Time { return t0.Add(time.Minute) },
 		Runner: runner, Exec: (&fakeExec{}).run}
-	_, _ = Apply(context.Background(), cfg, p, map[string]bool{p.Items[0].OpportunityID: true})
+	_, _ = Apply(context.Background(), cfg, p, Approvals{p.Items[0].OpportunityID: {Individually: true}})
 	os.Exit(0)
 }
 

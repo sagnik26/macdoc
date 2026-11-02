@@ -158,12 +158,35 @@ var (
 	ErrNoApproval = errors.New("no item was approved")
 )
 
+// Approval is one person's confirmation of one item. Individually is true
+// when they confirmed this item on its own: a y/N answer for it, or the
+// plan's typed code for a RISKY item. A group approval (one Enter over the
+// SAFE and CAUTION items of a plan macdoc made) is Individually false.
+type Approval struct{ Individually bool }
+
+// Approvals maps opportunity IDs to the confirmations given for them.
+type Approvals map[string]Approval
+
+// approves reports whether item may run. A Claude-origin plan's items, and
+// RISKY items, need their own confirmation: a group approval isn't enough
+// (AGENTS invariant 6, Q2 of P6-R1).
+func (a Approvals) approves(item model.PlanItem, origin model.Origin) bool {
+	ap, ok := a[item.OpportunityID]
+	if !ok {
+		return false
+	}
+	if (origin == model.OriginClaude || item.Risk == model.RiskRisky) && !ap.Individually {
+		return false
+	}
+	return true
+}
+
 // Apply verifies plan, locks it as applied, then performs every approved
 // item in order, re-checking each one first. approved holds the opportunity
 // IDs the person confirmed; anything else is skipped. An error means nothing
 // was changed (the plan didn't verify, couldn't be locked, or the sandbox is
 // misconfigured); once items start, failures are reported per item.
-func Apply(ctx context.Context, cfg Config, plan model.Plan, approved map[string]bool) (Report, error) {
+func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals) (Report, error) {
 	rep := Report{PlanID: plan.ID, Origin: plan.Origin, Items: []ItemResult{}}
 	if err := cfg.defaults(); err != nil {
 		return rep, err

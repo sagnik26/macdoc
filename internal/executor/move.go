@@ -278,6 +278,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 		return cancel(skipf("its folder can't be opened: %v", err))
 	}
 	defer func() { _ = unix.Close(pfd) }()
+	hook("opened")
 	// Before the move too: the folder we hold must still be the canonical
 	// parent path (P6-R1 F5).
 	if err := sameDir(pfd, parent); err != nil {

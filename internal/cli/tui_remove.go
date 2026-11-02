@@ -40,25 +40,39 @@ type removedMsg struct {
 
 // removeState is the confirmation box and, once confirmed, its progress.
 type removeState struct {
-	res     engine.PlanResult // what the executor acts on
-	view    engine.PlanResult // the same, cleaned for the terminal (display)
-	code    string            // typed so far, when a RISKY item needs it
-	running bool
-	lines   []string // finished items
-	current string   // the item being removed
+	res       engine.PlanResult // what the executor acts on
+	view      engine.PlanResult // the same, cleaned for the terminal (display)
+	code      string            // typed so far, when a RISKY item needs it
+	confirmed int               // RISKY items confirmed so far, in plan order
+	running   bool
+	lines     []string // finished items
+	current   string   // the item being removed
+}
+
+// riskyItems returns the plan's RISKY items, in order.
+func (r *removeState) riskyItems() []model.PlanItem {
+	var out []model.PlanItem
+	for _, it := range r.res.Plan.Items {
+		if it.Risk == model.RiskRisky {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // needsCode reports whether any item is RISKY.
-func (r *removeState) needsCode() bool {
-	for _, it := range r.res.Plan.Items {
-		if it.Risk == model.RiskRisky {
-			return true
-		}
-	}
-	return false
-}
+func (r *removeState) needsCode() bool { return len(r.riskyItems()) > 0 }
 
-func (r *removeState) planCode() string { return strings.TrimPrefix(r.res.Plan.ID, "P-") }
+// nextRisky returns the RISKY item still waiting for its own confirmation.
+// Each one is confirmed by typing its ID, so none is approved as a group
+// (P6-R1 Q2).
+func (r *removeState) nextRisky() (model.PlanItem, bool) {
+	rs := r.riskyItems()
+	if r.confirmed < len(rs) {
+		return rs[r.confirmed], true
+	}
+	return model.PlanItem{}, false
+}
 
 // executorRemove is the real removal: the executor, with every check, and
 // each item deleted right after it's moved.
@@ -71,9 +85,12 @@ func executorRemove(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (
 		return executor.Report{}, err
 	}
 	defer func() { _ = st.Close() }()
-	approved := map[string]bool{}
+	// SAFE and CAUTION items go with the one Enter on the confirmation box, a
+	// group approval. A RISKY item was confirmed on its own: its ID was typed
+	// before this runs (removeKey only gets here once every one is typed).
+	approved := executor.Approvals{}
 	for _, it := range p.Items {
-		approved[it.OpportunityID] = true
+		approved[it.OpportunityID] = executor.Approval{Individually: it.Risk == model.RiskRisky}
 	}
 	return executor.Apply(context.Background(), executor.Config{
 		Store: st, StorePath: store.DefaultPath(d.home), Home: d.home, Catalog: d.cat, Runner: runner, Now: time.Now,
@@ -146,9 +163,17 @@ func (m tuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.flash = "Canceled. Nothing was removed."
 		return m, nil
 	case tea.KeyEnter:
-		if r.needsCode() && !strings.EqualFold(strings.TrimSpace(r.code), r.planCode()) {
-			m.flash = "Type " + r.planCode() + " first, then press Enter (esc cancels)."
-			return m, nil
+		if want, pending := r.nextRisky(); pending {
+			if !strings.EqualFold(strings.TrimSpace(r.code), want.OpportunityID) {
+				m.flash = "Type " + want.OpportunityID + " first, then press Enter (esc cancels)."
+				return m, nil
+			}
+			r.confirmed++
+			r.code = ""
+			if _, more := r.nextRisky(); more {
+				m.flash = ""
+				return m, nil
+			}
 		}
 		return m.runRemove()
 	case tea.KeyBackspace:
@@ -311,7 +336,10 @@ func (m tuiModel) removeView() string {
 		}
 	case r.needsCode():
 		b.WriteString("\n   " + t.warn.Render("A RISKY item is included. It is deleted for good and can't be brought back.") + "\n")
-		fmt.Fprintf(&b, "   Type %s and press Enter: %s%s\n", t.id.Render(r.planCode()), t.accent.Render(r.code), t.brand.Render("▏"))
+		if want, ok := r.nextRisky(); ok {
+			fmt.Fprintf(&b, "   Type %s and press Enter (%d of %d RISKY): %s%s\n", t.id.Render(want.OpportunityID),
+				r.confirmed+1, len(r.riskyItems()), t.accent.Render(r.code), t.brand.Render("▏"))
+		}
 		b.WriteString("   " + t.muted.Render("esc cancels") + "\n")
 	default:
 		b.WriteString("\n   " + t.muted.Render("Deleted for good. Each item is checked again right before it's removed.") + "\n")

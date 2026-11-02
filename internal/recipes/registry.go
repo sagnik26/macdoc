@@ -3,13 +3,13 @@ package recipes
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
 	"macdoc/internal/model"
+	"macdoc/internal/platform"
 )
 
 var (
@@ -89,7 +89,7 @@ func ExpandHome(home, p string) string {
 // Detectors for native recipes use it to return nil findings when the tool
 // isn't installed.
 var ToolInstalled = func(name string) bool {
-	_, err := exec.LookPath(name)
+	_, err := platform.ResolveTool(name)
 	return err == nil
 }
 

@@ -17,9 +17,9 @@ import (
 // native command's own output or a purge of a manifest-backed entry).
 var mutatingCalls = map[string][]string{
 	// The one recursive delete: a quarantine entry, after checkEntryDir.
-	"os.RemoveAll": {"removeEntry"},
+	"os.RemoveAll": {"removeTree"},
 	// Non-recursive removals of macdoc's own entry files and empty folders.
-	"os.Remove": {"removeEmptyEntry", "writeManifest"},
+	"os.Remove": {"removeEmptyEntry", "removeEntry", "writeManifest"},
 	// Replacing the manifest atomically inside the entry folder.
 	"os.Rename": {"writeManifest"},
 	// Moves relative to opened folders, never overwriting.

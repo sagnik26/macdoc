@@ -19,7 +19,7 @@ type performer struct {
 	cfg      Config
 	pol      *safety.Policy
 	plan     model.Plan
-	approved map[string]bool
+	approved Approvals
 	pre      *precond.Checker
 	ctx      context.Context
 
@@ -54,8 +54,12 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 	res := ItemResult{Item: item}
 	var err error
 	switch {
-	case !p.approved[item.OpportunityID]:
-		err = skip{"not approved"}
+	case !p.approved.approves(item, p.plan.Origin):
+		if _, ok := p.approved[item.OpportunityID]; ok {
+			err = skip{"it needs its own confirmation (a group approval isn't enough for a Claude plan or a RISKY item)"}
+		} else {
+			err = skip{"not approved"}
+		}
 	case p.ctx.Err() != nil:
 		err = skip{"apply was interrupted"}
 	default:

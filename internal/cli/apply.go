@@ -141,16 +141,16 @@ func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.T
 
 // confirmItems asks y/N for RISKY items, and for every item of a plan
 // Claude proposed. Others are approved here and confirmed by the code.
-func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (map[string]bool, error) {
+func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (executor.Approvals, error) {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
-	approved := map[string]bool{}
+	approved := executor.Approvals{}
 	claude := p.Origin == model.OriginClaude
 	if claude {
 		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan "+proposedAt(p.CreatedAt)+". Confirm each item yourself."))
 	}
 	for _, it := range p.Items {
 		if !claude && it.Risk != model.RiskRisky {
-			approved[it.OpportunityID] = true
+			approved[it.OpportunityID] = executor.Approval{} // a group approval
 			continue
 		}
 		q := fmt.Sprintf(" %s %s %s (%s)? [y/N] ", t.riskStyle(it.Risk).Render(string(it.Risk)), it.OpportunityID, it.Title,
@@ -161,21 +161,21 @@ func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (map[st
 			return nil, errors.New("no answer; nothing has been changed")
 		}
 		if a := strings.ToLower(ans); a == "y" || a == "yes" {
-			approved[it.OpportunityID] = true
+			approved[it.OpportunityID] = executor.Approval{Individually: true}
 		}
 	}
 	return approved, nil
 }
 
 // confirmCode asks for the plan's code: the part after "P-".
-func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved map[string]bool) bool {
+func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved executor.Approvals) bool {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	code := strings.TrimPrefix(p.ID, "P-")
 	var bytes int64
 	tiers := map[model.Risk]int{}
 	n := 0
 	for _, it := range p.Items {
-		if !approved[it.OpportunityID] {
+		if _, ok := approved[it.OpportunityID]; !ok {
 			continue
 		}
 		n++

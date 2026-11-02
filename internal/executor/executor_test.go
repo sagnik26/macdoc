@@ -168,10 +168,11 @@ func (e *env) plan(t *testing.T, items ...model.PlanItem) model.Plan {
 	return p
 }
 
-func all(p model.Plan) map[string]bool {
-	m := map[string]bool{}
+// all approves every item of p as a person confirming each one.
+func all(p model.Plan) Approvals {
+	m := Approvals{}
 	for _, it := range p.Items {
-		m[it.OpportunityID] = true
+		m[it.OpportunityID] = Approval{Individually: true}
 	}
 	return m
 }
@@ -333,7 +334,7 @@ func TestNoApprovalNoChange(t *testing.T) {
 	if _, err := Apply(context.Background(), e.cfg, p, nil); !errors.Is(err, ErrNoApproval) {
 		t.Fatalf("err = %v", err)
 	}
-	rep, err := Apply(context.Background(), e.cfg, p, map[string]bool{"O-other": true})
+	rep, err := Apply(context.Background(), e.cfg, p, Approvals{"O-other": {Individually: true}})
 	if err != nil {
 		t.Fatal(err)
 	}

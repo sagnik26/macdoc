@@ -49,10 +49,14 @@ func (ExecRunner) Run(ctx context.Context, cmd Command) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...) //nolint:gosec // G204: read-only Runner; fixed argv from recipes, no shell (forbidcheck enforces).
+	tool, err := ResolveTool(cmd.Name)
+	if err != nil {
+		return Result{}, err
+	}
+	c := exec.CommandContext(ctx, tool, cmd.Args...) //nolint:gosec // G204: read-only Runner; fixed argv from recipes, no shell (forbidcheck enforces); the path was checked by ResolveTool.
 	var stdout, stderr bytes.Buffer
 	c.Stdout, c.Stderr = &stdout, &stderr
-	err := c.Run()
+	err = c.Run()
 	res := Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
 	if ctx.Err() != nil {
 		return res, ctx.Err()

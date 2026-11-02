@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"macdoc/internal/audit"
+	"macdoc/internal/config"
 	"macdoc/internal/quarantine"
 	"macdoc/internal/safety"
 	"macdoc/internal/sandbox"
@@ -45,6 +46,11 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 	if !quarantine.ValidID(id) {
 		return EntryResult{ID: id}, fmt.Errorf("%q isn't a quarantine ID (they look like Q-91XZ)", id)
 	}
+	unlock, err := lockQuarantine(cfg.stateDir())
+	if err != nil {
+		return EntryResult{ID: id}, fmt.Errorf("the quarantine lock can't be taken: %w", err)
+	}
+	defer unlock()
 	rec, err := cfg.Store.Quarantine(id)
 	if err != nil {
 		return EntryResult{ID: id}, err
@@ -83,6 +89,20 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 	defer func() { _ = unix.Close(qfd) }()
 	if err := sameEntry(qfd, m.Name, m.Fingerprint); err != nil {
 		return res, fmt.Errorf("%s %w: the quarantined folder %w", id, ErrNotRestorable, err)
+	}
+	// Restore puts the folder back somewhere the user already chose to clean,
+	// so it is checked again: the policy may have changed (for example a
+	// protected folder added in settings) and the recipe may be gone.
+	recipe, ok := cfg.Catalog.Get(rec.RecipeID)
+	if !ok {
+		return res, fmt.Errorf("%s %w: its recipe %q is no longer in the catalog", id, ErrNotRestorable, rec.RecipeID)
+	}
+	pol, _, err := config.Policy(cfg.Home)
+	if err != nil {
+		return res, err
+	}
+	if err := pol.CheckTarget(m.Original, recipe.Allow); err != nil {
+		return res, fmt.Errorf("%s %w: %w", id, ErrNotRestorable, err)
 	}
 	if err := audit.Probe(audit.Path(cfg.StorePath)); err != nil {
 		return res, fmt.Errorf("%s: the audit log can't be written, so nothing was changed: %w", id, err)
@@ -136,7 +156,12 @@ func Purge(_ context.Context, cfg Config, ids []string) ([]EntryResult, error) {
 
 // purgeAudited purges one entry and records the outcome in the audit log.
 func purgeAudited(cfg Config, root, id string) EntryResult {
+	unlock, err := lockQuarantine(cfg.stateDir())
+	if err != nil {
+		return EntryResult{ID: id, Outcome: OutcomeSkipped, Reason: "the quarantine lock can't be taken: " + err.Error()}
+	}
 	r := purgeOne(cfg, root, id)
+	unlock()
 	rec := audit.Record{Event: audit.QuarantinePurged, QuarantineID: id, Target: r.Original, Reason: r.Reason}
 	if r.Outcome == OutcomeDone {
 		n := r.Bytes
@@ -176,6 +201,9 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 				res.Reason = err.Error()
 				return res
 			}
+			// A purge that was interrupted after the payload went leaves
+			// the manifest behind; clear it (nothing of the item is left).
+			removeLeftoverEntry(root, quarantine.EntryDir(root, id))
 			res.Outcome, res.Reason = OutcomeDone, "its folder was already gone"
 			return res
 		}
@@ -257,23 +285,76 @@ func checkNoOtherVolume(entry string) error {
 	})
 }
 
-// removeEntry deletes an entry folder. os.RemoveAll doesn't follow
-// symlinks. Read-only folders inside (some tools make them) are made
-// writable by their owner first if the first attempt fails.
+// removeEntry deletes an entry folder: the payload first, the manifest
+// last. A crash part-way then leaves a folder macdoc can still account for
+// (the manifest, or only its record), never a payload without its record.
+// os.RemoveAll doesn't follow symlinks.
 func removeEntry(entry string) error {
-	if err := os.RemoveAll(entry); err == nil {
+	if err := removeTree(filepath.Join(entry, quarantine.PayloadDir)); err != nil {
+		return err
+	}
+	hook("purged-payload")
+	if err := os.Remove(filepath.Join(entry, quarantine.ManifestName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("couldn't delete its manifest: %w", err)
+	}
+	return removeTree(entry)
+}
+
+// removeTree removes a folder tree. Read-only folders inside (some tools
+// make them) are made writable by their owner first if the first attempt
+// fails.
+func removeTree(p string) error {
+	if err := os.RemoveAll(p); err == nil {
 		return nil
 	}
-	_ = filepath.WalkDir(entry, func(p string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(p, func(q string, d fs.DirEntry, err error) error {
 		if err == nil && d.IsDir() {
-			_ = os.Chmod(p, 0o700) //nolint:gosec // G302: a folder needs its execute bit to be emptied.
+			_ = os.Chmod(q, 0o700) //nolint:gosec // G302: a folder needs its execute bit to be emptied.
 		}
 		return nil
 	})
-	if err := os.RemoveAll(entry); err != nil {
+	if err := os.RemoveAll(p); err != nil {
 		return fmt.Errorf("couldn't delete all of it: %w", err)
 	}
 	return nil
+}
+
+// removeLeftoverEntry removes an entry folder that is left with no payload,
+// only if it is a real folder directly inside the quarantine root.
+func removeLeftoverEntry(root, entry string) {
+	if filepath.Dir(entry) != root {
+		return
+	}
+	if fi, err := os.Lstat(entry); err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
+		return
+	}
+	_ = removeEntry(entry)
+}
+
+// lockQuarantine takes an exclusive lock on macdoc's quarantine, so a purge
+// and a restore (or two purges) of one entry can't interleave (P6-R1 notes).
+func lockQuarantine(stateDir string) (func(), error) {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(filepath.Join(stateDir, "quarantine.lock"), os.O_RDWR|os.O_CREATE, 0o600) //nolint:gosec // G304: macdoc's own lock file.
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err = unix.Flock(int(f.Fd()), unix.LOCK_EX)
+		if !errors.Is(err, unix.EINTR) {
+			break
+		}
+	}
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return func() {
+		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+		_ = f.Close()
+	}, nil
 }
 
 func describe(e quarantine.Entry) string {

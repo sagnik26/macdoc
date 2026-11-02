@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/text/unicode/norm"
 
@@ -29,6 +30,7 @@ import (
 	"macdoc/internal/planner"
 	"macdoc/internal/platform"
 	"macdoc/internal/quarantine"
+	"macdoc/internal/recipes"
 	"macdoc/internal/sandbox"
 	"macdoc/internal/store"
 )
@@ -680,7 +682,7 @@ func TestRedteamHeldApprovedExtraIDs(t *testing.T) {
 	a := e.folder(t, "Library/Logs/A")
 	b := e.folder(t, "Library/Logs/B")
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, a), e.item(t, "O-bbbbbb", "user.logs", model.RiskSafe, b))
-	rep, err := Apply(context.Background(), e.cfg, p, map[string]bool{"O-aaaaaa": true, "O-zzzzzz": true, "": true, "../x": true})
+	rep, err := Apply(context.Background(), e.cfg, p, Approvals{"O-aaaaaa": {Individually: true}, "O-zzzzzz": {Individually: true}, "": {Individually: true}, "../x": {Individually: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -799,5 +801,122 @@ func TestRedteamFixedMountInsideEntry(t *testing.T) {
 	// accident: RemoveAll's EBUSY on the mount point would also keep the file.
 	if res[0].Outcome != OutcomeSkipped || !strings.Contains(res[0].Reason, "another disk") || !exists(precious) {
 		t.Fatalf("purge of an entry with another volume inside: outcome %s (%q), file kept %v; want skipped for the mounted disk and file kept", res[0].Outcome, res[0].Reason, exists(precious))
+	}
+}
+
+// P6-R1 F5, the second layer on its own: the parent folder's ancestor is
+// swapped for a symlink after macdoc opened the folder and before the move.
+// The check before the move (sameDir) must refuse the item; the move must
+// not run from a folder that no longer matches the canonical path.
+func TestRedteamFixedAncestorSwapAfterOpen(t *testing.T) {
+	e := newEnv(t)
+	e.cfg.DeleteNow = true
+	dd := filepath.Join(e.home, "Library/Developer/Xcode/DerivedData")
+	if err := os.MkdirAll(dd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dd, "notes.bin")
+	if err := os.WriteFile(target, []byte("cache"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	docs := filepath.Join(e.home, "Documents/Dev/Xcode/DerivedData")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(docs, "notes.bin")
+	if err := os.Link(target, victim); err != nil {
+		t.Fatal(err)
+	}
+	p := e.plan(t, e.item(t, "O-aaaaaa", "xcode.derived_data", model.RiskSafe, target))
+	dev := filepath.Join(e.home, "Library/Developer")
+	testHook = func(stage string) {
+		if stage == "opened" {
+			mustRename(t, dev, dev+".moved")
+			mustSymlink(t, filepath.Join(e.home, "Documents/Dev"), dev)
+		}
+	}
+	t.Cleanup(func() { testHook = nil })
+	it := mustApply(t, e, p).Items[0]
+	if it.Outcome != OutcomeSkipped {
+		t.Fatalf("ancestor swapped after the parent was opened: item = %s (%s), want skipped", it.Outcome, it.Reason)
+	}
+	if !exists(victim) {
+		t.Fatal("an entry inside ~/Documents was moved")
+	}
+}
+
+// Purge removes the payload before the manifest: the manifest is still there
+// when the payload is gone, so an interrupted purge stays accountable.
+func TestRedteamFixedPurgeCrashOrder(t *testing.T) {
+	e := newEnv(t)
+	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, e.folder(t, "Library/Logs/A")))
+	qid := mustApply(t, e, p).Items[0].QuarantineID
+	entry := quarantine.EntryDir(quarantine.Root(e.storePath), qid)
+	seen := false
+	testHook = func(stage string) {
+		if stage == "purged-payload" {
+			seen = true
+			if !exists(filepath.Join(entry, quarantine.ManifestName)) {
+				t.Error("the manifest was removed before the payload was purged")
+			}
+			if exists(filepath.Join(entry, quarantine.PayloadDir)) {
+				t.Error("the payload still exists at the point of the manifest check")
+			}
+		}
+	}
+	t.Cleanup(func() { testHook = nil })
+	if _, err := Purge(context.Background(), e.cfg, []string{qid}); err != nil {
+		t.Fatal(err)
+	}
+	if !seen {
+		t.Fatal("purge did not reach the payload step")
+	}
+	if exists(entry) {
+		t.Error("the entry folder is still there after purge")
+	}
+}
+
+// Purge and restore hold one lock on the quarantine: a second taker waits
+// until the first releases it.
+func TestQuarantineLockExcludes(t *testing.T) {
+	dir := t.TempDir()
+	unlock, err := lockQuarantine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acquired := make(chan struct{})
+	go func() {
+		u, err := lockQuarantine(dir)
+		if err == nil {
+			close(acquired)
+			u()
+		}
+	}()
+	select {
+	case <-acquired:
+		t.Fatal("a second lock was taken while the first was held")
+	case <-time.After(200 * time.Millisecond):
+	}
+	unlock()
+	select {
+	case <-acquired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the second lock was never taken after release")
+	}
+}
+
+// Restore re-checks the recipe: an item whose recipe is no longer in the
+// catalog is refused, and nothing moves.
+func TestRestoreRefusedWithoutRecipe(t *testing.T) {
+	e := newEnv(t)
+	target := e.folder(t, "Library/Logs/A")
+	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
+	qid := mustApply(t, e, p).Items[0].QuarantineID
+	e.cfg.Catalog = &recipes.Catalog{}
+	if _, err := Restore(context.Background(), e.cfg, qid); !errors.Is(err, ErrNotRestorable) {
+		t.Fatalf("restore with the recipe gone = %v, want ErrNotRestorable", err)
+	}
+	if exists(target) {
+		t.Fatal("restore moved the folder back although its recipe is gone")
 	}
 }

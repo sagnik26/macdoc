@@ -91,24 +91,64 @@ func TestTUIRemoveRiskyNeedsCode(t *testing.T) {
 	m, calls := removeTUI(t, model.PlanItem{OpportunityID: ops[0].ID, Title: "Old project node_modules", ExpectedBytes: 1,
 		BytesSource: model.SourceMeasured, Risk: model.RiskRisky, Method: model.MethodQuarantine, Target: "/Users/me/p/node_modules"})
 	m = press(t, m, "enter")
-	mustContain(t, m.View(), "Type 7F3K and press Enter")
+	mustContain(t, m.View(), "Type "+ops[0].ID+" and press Enter")
 
 	m = press(t, m, "enter")
 	if len(*calls) != 0 || m.overlay != overlayRemove {
-		t.Fatal("enter without the code removed something")
+		t.Fatal("enter without the item's ID removed something")
 	}
-	for _, k := range []string{"7", "F", "3", "X"} {
+	for _, k := range []string{"X", "X", "X", "X", "X", "X", "X", "X"} {
 		m = press(t, m, k)
 	}
 	m = press(t, m, "enter")
 	if len(*calls) != 0 {
-		t.Fatal("a wrong code removed something")
+		t.Fatal("a wrong ID removed something")
 	}
-	m = step(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
-	m = press(t, m, "k") // case doesn't matter
+	for i := 0; i < 8; i++ {
+		m = step(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	for _, r := range ops[0].ID {
+		m = press(t, m, string(r))
+	}
 	m = press(t, m, "enter")
 	if len(*calls) != 1 {
-		t.Fatal("the right code should remove")
+		t.Fatal("the right ID should remove")
+	}
+}
+
+// Two RISKY items each need their own typed ID; the second one runs the
+// removal, and neither ID alone is enough.
+func TestTUIRemoveTwoRiskyEachNeedOwnID(t *testing.T) {
+	m, calls := removeTUI(t,
+		model.PlanItem{OpportunityID: "O-riska1", Title: "Old node_modules A", ExpectedBytes: 1,
+			BytesSource: model.SourceMeasured, Risk: model.RiskRisky, Method: model.MethodQuarantine, Target: "/Users/me/p/a/node_modules"},
+		model.PlanItem{OpportunityID: "O-riska2", Title: "Old node_modules B", ExpectedBytes: 1,
+			BytesSource: model.SourceMeasured, Risk: model.RiskRisky, Method: model.MethodQuarantine, Target: "/Users/me/p/b/node_modules"})
+	m = press(t, m, "enter")
+	typeID := func(m tuiModel, id string) tuiModel {
+		for _, r := range id {
+			m = press(t, m, string(r))
+		}
+		return m
+	}
+	m = typeID(m, "O-riska1")
+	m = press(t, m, "enter")
+	if len(*calls) != 0 {
+		t.Fatal("the first RISKY item's ID removed the plan")
+	}
+	mustContain(t, m.View(), "Type O-riska2 and press Enter (2 of 2 RISKY)")
+	m = typeID(m, "O-riska1") // the first ID again is not the second item's ID
+	m = press(t, m, "enter")
+	if len(*calls) != 0 {
+		t.Fatal("a repeated ID confirmed the second RISKY item")
+	}
+	for i := 0; i < 8; i++ {
+		m = step(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	m = typeID(m, "O-riska2")
+	press(t, m, "enter")
+	if len(*calls) != 1 {
+		t.Fatal("confirming both RISKY items should remove")
 	}
 }
 
