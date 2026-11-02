@@ -8,15 +8,16 @@ macdoc is **one Go binary** with two ways in. Both sit on the same engine.
                         ┌──────────── one Go binary: macdoc ────────────┐
                         │                                               │
  You in Terminal ─────▶ │  CLI commands        macdoc mcp (stdio)       │ ◀───── Claude Code /
- macdoc wins            │  doctor, wins,       MCP tools: overview,     │        Claude Desktop
+ macdoc doctor wins     │  doctor, wins,       MCP tools: overview,     │        Claude Desktop
  macdoc plan            │  plan, apply …       opportunities, explain,  │        (launches `macdoc mcp`
  macdoc apply P-7F3K    │       │              create_cleanup_plan      │         as a subprocess)
                         │       └──────┬──────────────┘                 │
                         │          ENGINE (probe, scan, recipes,        │
                         │          opportunities, planner)              │
                         │              │                                │
-                        │       executor ◀── reachable ONLY from        │
-                        │                    `macdoc apply` in a TTY    │
+                        │       executor ◀── reachable ONLY from the    │
+                        │          CLI (apply, dashboard remove,        │
+                        │          quarantine), at a TTY, confirmed     │
                         └───────────────────────────────────────────────┘
 ```
 
@@ -30,12 +31,12 @@ macdoc is **one Go binary** with two ways in. Both sit on the same engine.
 | Step | Phases | What we get | Can it delete? |
 |---|---|---|---|
 | 1 | 0 | Safety package (canonicalization, deny list, fuzz tests), sandbox mode, CI import guard | No |
-| 2 | 1–4 | Read-only engine plus CLI: `doctor`, `wins`, `storage`, `dev`, `projects`, `explain`. Used daily on the real Mac to tune recipes | No |
+| 2 | 1–4 | Read-only engine plus CLI: `doctor` and its sections (`health`, `space`, `wins`, `dev`, `projects`, `explain`, `scan`) and the `macdoc` dashboard. Used daily on the real Mac to tune recipes | No |
 | 3 | 5 | Planner: sealed, expiring dry-run plans | No |
 | 4 | 6 | Executor, quarantine and audit. Built and tested **only** inside `MACDOC_SANDBOX`. The first real apply is a SAFE-only plan the user approves | Yes (TTY only) |
 | 5 | 7 | `slow`, `trend`, JSON schemas frozen → **v0.1 = MVP B** | Yes (TTY only) |
 | 6 | 8–9 | MCP server: a thin layer over the engine reusing the frozen JSON, with no executor code. Plus handoff and hardening | No (MCP) |
-| 7 | 10 | Optional daily read-only scans, TUI picker, slowness tips → **C done** | No new paths |
+| 7 | 10 | Optional daily read-only scans, the rest of the TUI picker (the dashboard already marks, plans and removes), slowness tips → **C done** | No new paths |
 
 Rules for every phase:
 - Small commits, with tests written alongside the code.

@@ -33,6 +33,7 @@ Legend for method: **N** = native command, **Q** = quarantine, **A** = advise-on
 | `xcode.device_support` | `~/Library/Developer/Xcode/{iOS,watchOS,tvOS} DeviceSupport/<ver>` for OS versions older than the newest per major | SAFE | Q | Xcode not running | Re-copied on next device connect |
 | `xcode.simulators_unavailable` | Simulators for runtimes no longer installed | SAFE | N `xcrun simctl delete unavailable` | none | n/a (already unusable) |
 | `xcode.sim_runtimes_old` | Old simulator runtimes from `xcrun simctl runtime list -j` | CAUTION | N `xcrun simctl runtime delete <id>` | Simulator not running | Re-download (5–8 GB each) |
+| `xcode.sim_runtimes_orphaned` | Simulator runtimes and their caches left from an Xcode that was removed or isn't selected (only the Command Line Tools active). System-owned, so `simctl` can't remove them | ADVISE | A (steps: install and select Xcode, delete in Settings › Components) | n/a | Re-download from Xcode › Settings › Components |
 | `xcode.sim_devices_idle` | Individual simulator devices idle > 90d | CAUTION | N `xcrun simctl delete <udid>` | Simulator not running | Recreate (app data lost) |
 | `xcode.previews_cache` | `~/Library/Developer/Xcode/UserData/Previews` | SAFE | Q | Xcode not running | Regenerated |
 | `xcode.caches` | `~/Library/Caches/com.apple.dt.Xcode` | SAFE | Q | Xcode not running | Regenerated |

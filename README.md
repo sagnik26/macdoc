@@ -62,7 +62,7 @@ macdoc has **two everyday commands**:
   - **Space:** by category with per-risk columns, **what grew** since a scan about 30 days old (areas and folders), "System Data" decoded, large items with no recipe.
   - **Health:** **"Is memory slowing it down?"** (a verdict, the biggest users against your RAM, swap now and over the last days), findings with explanations, and the top memory users with what each one is.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/slow` `/trend` `/scan` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/slow` `/trend` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
@@ -225,8 +225,8 @@ macdoc is a **storage doctor for developer Macs, with a built-in explanation of 
 - **Diagnoses** the machine: hardware, APFS container usage, purgeable space, local Time Machine snapshots, swap and memory pressure.
 - **Explains where storage went**, including the opaque "System Data" bucket, broken down by real causes: Xcode, Android, Node/React Native, Docker, Python, local AI models, Homebrew and stale projects.
 - **Finds reclaimable space.** Every item has an honest size (measured, tool-reported, estimated or unknown), a risk level (SAFE / CAUTION / RISKY / ADVISE), its idle time, and what it costs to get back.
-- **Plans cleanups as dry-runs first** *(Phase 5)*. Nothing is removed until you review a sealed plan and confirm it in your terminal.
-- **Cleans safely** *(Phase 6)*. It uses each tool's own cleanup command, or moves items to a restorable quarantine, and keeps an audit log.
+- **Plans cleanups as dry-runs first.** Nothing is removed until you review a sealed plan and confirm it (typed code in Terminal, or a second Enter in the dashboard).
+- **Cleans safely.** It uses each tool's own cleanup command, or moves a folder through macdoc's quarantine and deletes it there, so the space is freed at once and a crash never leaves a half-deleted folder. Every step is in an audit log.
 - **Connects to Claude** through a local MCP server (`macdoc mcp`). Claude can diagnose and *propose* plans, and only you can apply them.
 
 It is **not** a "Mac cleaner" in the usual sense. There's no background daemon, no automatic deletion, no "RAM boosting", no killing processes, and no fake health score.
@@ -262,7 +262,7 @@ Developer tooling quietly eats tens of gigabytes:
 
 1. **Developer-aware.** DerivedData is regenerable, but Archives hold irreplaceable dSYMs. A system image that no AVD uses is dead weight.
 2. **Honest numbers.** Allocated bytes, not logical size. Hard links are counted once. Every number says where it came from, and unknown is never shown as 0.
-3. **Safety is the product.** Read-only by default. Actions come only from a fixed recipe catalog with exact command allow-lists, and never from arbitrary paths. There's a dry-run before anything happens, terminal confirmation, a restorable quarantine, and an audit log.
+3. **Safety is the product.** Read-only by default. Actions come only from a fixed recipe catalog with exact command allow-lists, and never from arbitrary paths. There's a dry-run before anything happens, confirmation by a person at the terminal, a crash-safe quarantine step, and an audit log.
 4. **Built for low-RAM hardware.** Scans run in the macOS background priority band with bounded memory.
 5. **Ready for Claude without handing over control.** CI proves the MCP and engine code can never reach the deletion code.
 6. **Local-first and private.** No network calls from macdoc, no telemetry, no account.
@@ -309,7 +309,7 @@ Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/
 - **Executor** (`internal/executor`, the only package that moves, deletes or runs mutating commands):
   - Acts only on a plan that passes `planner.Verify`, after you type its code at a real terminal. Marking the plan applied is the lock, so a plan runs at most once, even after a crash.
   - Re-checks every item right before acting; any change means the item is skipped and audited, never "fixed up".
-  - Folders go to `~/Library/Application Support/macdoc/quarantine/Q-XXXX/` (private, excluded from Spotlight and Time Machine), with a manifest written before the move. A crash at any step leaves a restorable entry and a readable audit log (tested by killing a child process mid-move).
+  - Folders go to `~/Library/Application Support/macdoc/quarantine/Q-XXXX/` (private, excluded from Spotlight and Time Machine), with a manifest written before the move, and are then purged right away through the same checks as `quarantine purge` (since 2026-10-28). A crash at any step leaves a restorable entry and a readable audit log (tested by killing a child process mid-move). If the purge is refused, the entry stays in quarantine and `macdoc quarantine` lists it.
   - The only recursive delete is purging a quarantine entry that has macdoc's own record and manifest; a test pins every delete, rename and exec call site in the package.
   - Every executor test runs under `MACDOC_SANDBOX`, and real native commands are refused in sandbox mode.
 - **CI guards:** `importcheck` (MCP and the engine can't import the executor) and `forbidcheck` (no delete, rename, exec or shell calls outside the executor, aliased imports included). Both are verified against planted violations.
@@ -330,7 +330,7 @@ macdoc (one Go binary)
   internal/probe        hardware, memory, swap, processes, APFS, snapshots (read-only, via Runner)
   internal/scanner      parallel full crawl: allocated bytes, hard links once, bounded memory, background QoS
   internal/store        SQLite state (scans, nodes, unmeasured paths, plans, quarantine, vitals), pure Go
-  internal/recipes      recipe schema, loader + safety lint, detectors, catalog/*.yaml (46 recipes)
+  internal/recipes      recipe schema, loader + safety lint, detectors, catalog/*.yaml (49 recipes)
   internal/projects     project discovery, idle time, git state (read-only git)
   internal/planner      sealed, expiring dry-run plans (IDs only, never paths) and Verify
   internal/precond      preconditions: app not running, emulator stopped, Docker reachable, …
@@ -367,7 +367,7 @@ make fuzz         # fuzz the path-safety layer
 Rules for contributors (human or AI) are in [AGENTS.md](AGENTS.md), and Claude Code specifics are in [CLAUDE.md](CLAUDE.md).
 
 ### How it's being built
-A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md). Every task brief is in [`docs/tasks/`](docs/tasks/), and every report in [`docs/tasks/reports/`](docs/tasks/reports/).
+A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. This ran for Phases 0–3; from Phase 4 on, the tech-lead session built each phase itself and recorded it in a checkpoint. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md). Every task brief is in [`docs/tasks/`](docs/tasks/), and every report in [`docs/tasks/reports/`](docs/tasks/reports/).
 
 ## Documents
 
@@ -389,7 +389,7 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 |---|---|
 | Scope | MVP B (diagnosis, dry-run planner, terminal-confirmed apply, audit log), then C (Claude via local MCP) as a pure addition |
 | Default mode | Read-only. Read-only commands never delete anything, including expired quarantine |
-| Removal | The owning tool's native command first (from an exact allow-list). Otherwise a macdoc-managed quarantine that auto-expires |
+| Removal | The owning tool's native command first (from an exact allow-list). Otherwise a move into macdoc's quarantine, deleted right away so the space is freed (2026-10-28; originally held for 7 days) |
 | Targets | Never outside `$HOME` by path. Anything outside home is only ever touched through native tool commands |
 | Scanning | Full crawl of the Data volume, background priority, streaming aggregation, bounded memory |
 | Language | Go. Single binary, with an optional cgo shim for purgeable space |

@@ -37,14 +37,14 @@
                 │                       store (SQLite: scans, nodes,                      │
                 │                       opportunities, plans, audit index)                │
                 │                                                                        │
-                │  executor  ◀── only reachable from `cli apply` after TTY confirmation   │
+                │  executor  ◀── only reachable from the CLI after confirmation at a TTY │
                 │  (native runner, quarantine mover, re-validator, audit writer)          │
                 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key architectural rules
 1. **The engine is UI-agnostic.** The CLI and MCP layers only call engine functions and render the results.
-2. **The executor is isolated.** It lives in `internal/executor` and is imported **only** by the `apply` and `quarantine purge` commands. The MCP package must not import it, and CI enforces this with an import-graph check (see §8).
+2. **The executor is isolated.** It lives in `internal/executor` and is imported **only** by `internal/cli` (for `apply`, the dashboard's confirmed remove, and `quarantine restore|purge`) and `cmd/macdoc`. The MCP package must not import it, and CI enforces this with an import-graph check (see §8).
 3. **IDs, not paths, cross boundaries.** Plans contain opportunity IDs. Paths are resolved again from the store and re-validated by the executor.
 4. **Everything is structured.** Every command renders from a typed result struct and can emit versioned JSON (`schema_version`).
 5. **Recipes are data.** They're defined in embedded YAML (`recipes/*.yaml`) and validated at startup. Go code provides detectors and validators that are referenced by name.
@@ -55,7 +55,7 @@
 |---|---|---|
 | CLI framework | `spf13/cobra` | Standard choice, gives shell completions |
 | Styling | `charmbracelet/lipgloss` | Colors with truecolor → 256 → 16 fallback and light/dark variants. Respects `NO_COLOR` |
-| TUI | `charmbracelet/bubbletea` + `bubbles` | The read-only `macdoc` dashboard (added after Phase 3), and later the interactive cleanup picker (Phase 10) |
+| TUI | `charmbracelet/bubbletea` + `bubbles` | The `macdoc` dashboard (added after Phase 3): browsing, marking, plans, and since 2026-10-28 confirmed removal (Enter) |
 | Storage | `modernc.org/sqlite` | Pure Go, so no cgo. WAL mode |
 | Recipe files | `gopkg.in/yaml.v3` + `embed` | Validated against a Go struct at startup |
 | MCP (Phase 8) | Official `modelcontextprotocol/go-sdk` | stdio transport |
@@ -83,26 +83,32 @@
 ```
 macdoc/
   cmd/macdoc/main.go             entry; wires cobra
-  internal/cli/                  one file per command; rendering only
-  internal/engine/               public façade used by cli + mcp
+  internal/cli/                  one file per command, plus the dashboard (tui*.go); rendering and wiring
+  internal/engine/               public façade used by cli + mcp (classifier and ranking live here)
   internal/probe/                hardware, memory, swap, APFS, snapshots
   internal/scanner/              full-crawl walker, aggregation, hardlink tracking
-  internal/recipes/              loader, schema, detectors, validators
+  internal/recipes/              loader + safety lint, schema, detectors
     catalog/*.yaml               embedded recipe definitions
-  internal/opportunity/          classify, size, staleness, rank, IDs
   internal/projects/             project discovery + staleness (git, lockfiles)
-  internal/planner/              plan building, hashing, expiry, dry-run render
+  internal/planner/              plan building, sealing, expiry, Verify
+  internal/precond/              precondition checks (read-only, via Runner)
   internal/executor/             ⚠ only deletion-capable package
+    executor.go, perform.go      Apply: per-item re-validation (TOCTOU) and dispatch
     native.go                    allowlisted command runner (no shell)
-    quarantine.go                rename-into-quarantine, manifests, restore, purge
-    validate.go                  pre-execution re-validation (TOCTOU)
+    move.go                      rename into quarantine (renameatx_np), content checks
+    manage.go                    quarantine restore and purge
+  internal/quarantine/           manifests and entry states (read-only)
+  internal/audit/                JSONL writer + reader
   internal/safety/               protected-path deny list, path canonicalization
   internal/config/               settings file (read/write; add-only protected folders)
-  internal/audit/                JSONL writer + reader
   internal/store/                SQLite schema + migrations
-  internal/platform/darwin/      cgo shim (optional) + command fallbacks
-  internal/mcp/                  Phase C: MCP tools (must NOT import executor)
-  testdata/fixtures/             fake home trees for tests
+  internal/fsread/               capped, non-blocking regular-file reader for detectors
+  internal/sandbox/              MACDOC_SANDBOX for executor tests (fails closed)
+  internal/platform/             read-only Runner (+ fake); darwin/ cgo shim + command fallbacks
+  internal/model/                shared types
+  internal/mcp/                  MCP server (must NOT import executor or cli)
+  internal/testutil/fstree/      fake home trees for tests
+  tools/forbidcheck/             AST guard against delete/exec/shell outside the executor
   scripts/importcheck.sh         CI guard on import graph
   schema/*.json                  frozen JSON Schemas of every --json output (Phase 7)
 ```
@@ -275,10 +281,14 @@ Estimates assume part-time work (~15–20 h/week).
 - Account for Claude Desktop's different TCC permissions: tools report `unmeasured` honestly and suggest running `macdoc scan` from Terminal so MCP reads the cached scan.
 - Rate-limit `create_cleanup_plan` to N per minute and cap open plans.
 
+> **Already done (as of 2026-11-02):** `apply` asks `[y/N]` for every item of a Claude-origin plan, every time, with a "Claude proposed this plan" line (Phase 6; not configurable). MCP strings are sanitized and every result carries the untrusted-data note (Phase 8). Left: the proposal time in `apply`, tool-description wording on untrusted names, TCC guidance, the open-plan cap and the rate limit (5 open Claude plans, 10 calls per 10 minutes: MCP_DESIGN §4), and a distinct "older than max_age" message.
+
 ### Phase 10: Daily snapshots, TUI, slowness tips (~1.5 wk)
 - Optional `macdoc schedule enable`, which installs a user launchd agent that runs a **read-only** `macdoc scan --quiet` daily at low priority. It never deletes anything and `schedule disable` removes it.
 - Bubbletea cleanup picker: a checklist with SAFE items pre-checked, a live total, then the same plan → confirm → apply flow.
 - `slow --tips`: suggestions such as "Quit Docker Desktop when you're not using containers (−3 GB RAM)" or "Use a smaller quantized model". Still no process actions.
+
+> **Note (2026-11-02):** the dashboard already has most of the cleanup picker: marking with `space`, a plan from the marks, and confirmed removal with Enter. Phase 10's picker work is what's left of that list (SAFE pre-checked, a live total).
 
 ### Phase 11: Open-source readiness (later)
 - Recipe contribution guide, more generic thresholds, Homebrew tap, signing and notarization, and a privacy statement (no network).
@@ -320,7 +330,7 @@ Estimates assume part-time work (~15–20 h/week).
 |---|---|---|---|
 | Full crawl thrashes an 8 GB Mac | High | Medium | Background QoS, 4 workers, streaming aggregation, memory limit, priority ordering, cached results |
 | Deleted space not freed (snapshots, clones, quarantine) | Medium | High | Report "freed now" vs "freed later", show snapshot caveats, verify step explains the gap |
-| Wrong classification deletes needed data | High | Low | Recipes are allowlisted, deny list applies after canonicalization, uncommitted-git checks, RISKY items get per-item confirmation, quarantine allows undo |
+| Wrong classification deletes needed data | High | Low | Recipes are allowlisted, deny list applies after canonicalization, uncommitted-git checks, `.git`/`.env` content checks before a move, RISKY items get per-item confirmation. Removal is not undoable since 2026-10-28, so every item shows its restore cost |
 | TOCTOU or symlink attack between plan and apply | High | Low | Fingerprint and canonical path re-check, never follow symlinks, skip on mismatch |
 | Native tool behavior changes across versions | Medium | Medium | Parse JSON output where available, version-detect tools, golden tests, prefer the tool's own dry-run (`brew cleanup -n`) |
 | Full Disk Access not granted | Medium | High | Explicit `unmeasured` states and a one-time FDA hint. Never report zero |
@@ -342,8 +352,8 @@ Estimates assume part-time work (~15–20 h/week).
 
 ## 9. Remaining open questions
 
-1. **Direct delete for pure caches?** Quarantining DerivedData or `~/.npm` means space isn't freed until expiry. Should recipes be allowed to opt into `delete` (SAFE, regenerable, native-equivalent only), confirmed per plan? *Suggested: yes, off by default, toggled in `config`.*
-2. **Quarantine expiry default:** 3, 7 or 14 days? *Suggested: 7.* Also, should quarantine have a size cap after which the oldest entries are proposed for purge?
+1. ~~**Direct delete for pure caches?**~~ *Decided 2026-10-28:* every quarantine move is deleted right away (`executor.Config.DeleteNow`), for all risk tiers; the quarantine is a crash-safe staging step. See SAFETY_MODEL §4.6.
+2. **Quarantine expiry default:** 7 days, as built. It now only applies to entries whose immediate purge was refused. A size cap is moot while entries are deleted right away.
 3. **Staleness threshold:** 60, 90 or 180 days idle? *Suggested: 90, configurable per recipe.*
 4. **Local Time Machine snapshots:** advise-only, or a CAUTION recipe using `tmutil thinlocalsnapshots`? *Suggested: CAUTION, with an explanation that these are your local backups.*
 5. **Final name:** `macdoc` is the working name.

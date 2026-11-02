@@ -114,10 +114,12 @@ macdoc doctor projects · scan S-TEST · 2h ago
 - `macdoc log [-n N]`: one line per audit record (plan, apply started, done / skipped / failed with reason, apply finished with the measured change, restored, purged). `--json` returns the raw records.
 - **Dashboard remove (2026-10-28):** on Suggestions, `enter` on an item (or on the ones marked with `space`) seals a plan and opens a confirmation box: each item with its risk, size and path, the total, and "Enter remove · esc cancel". A second `enter` removes SAFE and CAUTION items; with any RISKY item the box asks to type the plan's 4-character code first. While it runs, the box shows each item as it finishes (removed, left alone with the reason, or failed). Afterwards the removed items leave the list and a flash gives "Removed n of m · freed X" (measured) and "Press r to rescan". `enter` on an advice-only item opens its explanation instead; `e` opens the explanation for any item. The footer is `enter remove • space mark • e explain • …`, and the header's status reads "asks before removing".
 - **Delete at once:** `apply` and the dashboard delete each moved item right away (the quarantine is only a crash-safe staging step), so the plan's `→` line for a folder reads `→ deletes <path>` with "Not undoable by macdoc: …", the totals are one "Freed right away" line, and progress says `done`. An item whose purge is refused stays in quarantine and progress says `moved aside, not deleted: Q-XXXX`.
-- **Dashboard (the long way):** after `p` seals a plan, the overlay offers `a apply`, and `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. The dashboard itself never moves or deletes anything, and no subprocess is started.
+- **Dashboard (the long way):** after `p` seals a plan, the overlay offers `a apply`, and `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. Both this and the dashboard remove act only through `internal/executor`, and no subprocess is started.
 - The `macdoc doctor` overview adds a Quarantine line when anything is held, with "ready to purge" for expired entries. It only reports.
 
 ## 2. Report mockups
+
+These are design mockups; the README shows real output. The plan and apply mockups follow the delete-at-once behaviour (§1d).
 
 ### `macdoc doctor`
 ```
@@ -155,16 +157,16 @@ Nothing has been changed. macdoc is read-only unless you run `apply`.
 
 ### `macdoc plan --safe`
 ```
-Plan P-7F3K · 3 items · 31.4 GB · expires in 30 min · origin: cli
+Plan P-7F3K · 3 items · 31.4 GB · expires in 30 min · made by you (macdoc plan --safe)
 
  SAFE
-  ✓ Xcode DerivedData (9 folders)          14.2 GB   → quarantine (restorable 7 days)
+  ✓ Xcode DerivedData (9 folders)          14.2 GB   → deletes ~/Library/Developer/Xcode/DerivedData/…
   ✓ Docker build cache                     11.0 GB   → docker builder prune -f
   ✓ npm · pnpm · Homebrew caches            6.2 GB   → npm cache clean --force
                                                        pnpm store prune
                                                        brew cleanup --prune=all
 
- Freed immediately: ~17.2 GB   Freed when quarantine expires/purged: ~14.2 GB
+ Freed right away: ~31.4 GB
  ⓘ 2 local Time Machine snapshots may delay some space until macOS thins them.
 
  To apply:  macdoc apply P-7F3K
@@ -175,12 +177,12 @@ Plan P-7F3K · 3 items · 31.4 GB · expires in 30 min · origin: cli
 Re-checking 3 items… ✓ Xcode not running ✓ Docker reachable ✓ targets unchanged
 Type "7F3K" to apply 31.4 GB (SAFE: 3 items): 7F3K
 
-  ✓ Xcode DerivedData   → Q-91XZ           14.2 GB
+  ✓ Xcode DerivedData                      14.2 GB
   ✓ Docker build cache                     10.6 GB
   ✓ npm · pnpm · Homebrew caches            6.0 GB
 
-Free space: 9.1 GB → 26.5 GB (+17.4 GB now, +14.2 GB held in quarantine until Nov 9)
-Undo the quarantine part:  macdoc quarantine restore Q-91XZ      Log: macdoc log
+Free space change (measured): +30.8 GB   Expected: 31.4 GB
+Every step is in the audit log: macdoc log
 ```
 
 ## 3. Tone rules

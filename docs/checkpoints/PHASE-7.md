@@ -1,6 +1,6 @@
 # Checkpoint: Phase 7 (`slow`, `trend`, polish → v0.1) 🟡
 
-**Date:** 2026-10-28 · **main:** see `git log` · **Status:** built and tested; the dogfood week (DEVELOPMENT_PLAN §4, Phase 7 last task) has started. Phase 7 is complete when that week is done and the MVP B checklist (§6) holds on the real Mac.
+**Date:** 2026-10-28 · **main:** see `git log` · **Status:** built and tested; the dogfood week (DEVELOPMENT_PLAN §4, Phase 7 last task) started on 2026-10-28 and runs to 2026-11-04. Phase 7 is complete when that week is done and the MVP B checklist (§6) holds on the real Mac.
 
 ## Built
 - **`macdoc doctor slow [--days 7]`** (`engine.Slow`, `internal/cli/slow.go`). It only explains; it never quits or changes an app.
@@ -48,7 +48,7 @@
 | Executor re-validates, acts only through native commands or quarantine | ✅; now also against configured protected folders (`TestConfigProtectAtApply`) |
 | Audit log records every action; restore works | ✅ |
 | Fuzz and TOCTOU tests pass; import guard in CI | ✅ `make check` |
-| ≥ 10 GB reclaimed on the real Mac with no regrets during the dogfood week | 🟡 0.88 GB so far through macdoc (7 applies on 2026-10-28, all `ok`, measured). About 39 GB of simulator files was also freed outside macdoc on the same day; `trend` shows it |
+| ≥ 10 GB reclaimed on the real Mac with no regrets during the dogfood week | 🟡 0.88 GB so far through macdoc (7 applies on 2026-10-28, all `ok`, measured). About 39 GB of simulator files was also freed outside macdoc on the same day; `trend` shows it. **Update 2026-11-02:** the audit log has no applies after 2026-10-28, so the total through macdoc is still 0.88 GB |
 
 ## Real Mac (read-only checks)
 - `doctor slow`: "Memory is tight" at pressure *warn*, with 3.8 GB swap on 8 GB of RAM. Biggest users: Google Chrome 2.1 GB, Cursor 837 MB and claude 410 MB (40% together).

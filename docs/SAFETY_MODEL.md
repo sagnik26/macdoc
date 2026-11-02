@@ -2,12 +2,12 @@
 
 ## 1. Principles
 
-1. **Read-only by default.** Only `apply` and `quarantine purge` / `restore` change anything on disk outside macdoc's own state.
+1. **Read-only by default.** Only `apply`, the dashboard's confirmed remove (Enter) and `quarantine purge` / `restore` change anything on disk outside macdoc's own state.
 2. **Actions are recipes, not paths.** Nothing outside the recipe catalog can be acted on, and nothing a human or Claude types is interpreted as a path to delete.
 3. **Dry-run always comes first.** Every change is preceded by an immutable, hash-sealed plan the user has seen.
 4. **A human at a terminal is the only approver.** TTY plus typed confirmation. Claude can only propose.
 5. **Delegate to the owning tool.** Prefer `brew`, `xcrun simctl`, `docker`, `npm`/`pnpm`/`yarn`, `pip`/`uv`, `ollama`, `pod` and `avdmanager` over touching their internals. The exact commands allowed are an allow-list in `internal/recipes/load.go`.
-6. **Reversible where possible, honest where not.** Use quarantine when no native command exists, and loudly label anything irreversible.
+6. **Reversible where possible, honest where not.** Use quarantine when no native command exists, and loudly label anything irreversible. Since 2026-10-28 a quarantine move is deleted right away (§4.6), so every removal is labelled "Not undoable by macdoc" with its restore cost; the quarantine step keeps a crash recoverable.
 7. **Re-validate at the last moment.** The state at apply time must match the state at plan time, or the item is skipped.
 8. **Everything is audited.**
 
