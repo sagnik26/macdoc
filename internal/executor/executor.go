@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"macdoc/internal/audit"
@@ -27,6 +28,7 @@ import (
 	"macdoc/internal/precond"
 	"macdoc/internal/quarantine"
 	"macdoc/internal/recipes"
+	"macdoc/internal/safety"
 	"macdoc/internal/sandbox"
 	"macdoc/internal/store"
 )
@@ -169,6 +171,9 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved map[string
 	if _, _, err := sandbox.Root(); err != nil {
 		return rep, err
 	}
+	if err := guardStateDir(cfg.stateDir()); err != nil {
+		return rep, fmt.Errorf("nothing was changed: %w", err)
+	}
 	if len(approved) == 0 {
 		return rep, ErrNoApproval
 	}
@@ -284,10 +289,46 @@ func (c *Config) audit(rec audit.Record) error {
 	return audit.Append(audit.Path(c.StorePath), rec)
 }
 
-// tightenStateDir makes macdoc's state directory private (P2-W2 Q4).
+// tightenStateDir makes macdoc's state directory private (P2-W2 Q4). It
+// refuses a state directory that is outside the sandbox, a symlink, or not
+// owned by the user, before anything is changed (P6-R1 F4, F6).
 func tightenStateDir(dir string) error {
+	if err := sandbox.Check(dir); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	if err := checkPrivateDir(dir); err != nil {
+		return err
+	}
 	return os.Chmod(dir, 0o700) //nolint:gosec // G302: a private folder, owner rwx only.
+}
+
+// guardStateDir refuses to act at all when sandbox mode is on and the state
+// directory is outside the sandbox. Apply, Restore and Purge call it before
+// any write, the audit log included (P6-R1 F6).
+func guardStateDir(dir string) error {
+	return sandbox.Check(dir)
+}
+
+// checkPrivateDir accepts a folder only if it is a real folder (not a
+// symlink) owned by the user, at its canonical path. Anything macdoc makes
+// private (the state folder, the quarantine root) must pass this before
+// it is chmodded or written into (P6-R1 F4).
+func checkPrivateDir(dir string) error {
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+		return fmt.Errorf("%s isn't a plain folder", filepath.Base(dir))
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok && int(st.Uid) != os.Getuid() {
+		return fmt.Errorf("%s isn't owned by you", filepath.Base(dir))
+	}
+	if c, err := safety.Canonicalize(dir); err != nil || c != dir {
+		return fmt.Errorf("%s isn't at its canonical path", filepath.Base(dir))
+	}
+	return nil
 }

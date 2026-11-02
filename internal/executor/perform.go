@@ -176,11 +176,24 @@ func nativeArg(r recipes.Recipe, argv []string) (string, bool) {
 // stillListed re-runs the recipe's detector (read-only) and reports whether
 // it still finds arg.
 func stillListed(ctx context.Context, cfg Config, r recipes.Recipe, arg string) (bool, error) {
+	env := recipes.Env{Home: cfg.Home, Runner: cfg.Runner, Now: cfg.Now()}
+	if l, ok := recipes.LookupLister(r.Detector); ok {
+		names, err := l(ctx, env, r)
+		if err != nil {
+			return false, err
+		}
+		for _, n := range names {
+			if n == arg {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
 	d, ok := recipes.Lookup(r.Detector)
 	if !ok {
 		return false, fmt.Errorf("unknown detector %q", r.Detector)
 	}
-	fs, err := d(ctx, recipes.Env{Home: cfg.Home, Runner: cfg.Runner, Now: cfg.Now()}, r)
+	fs, err := d(ctx, env, r)
 	if err != nil {
 		return false, err
 	}

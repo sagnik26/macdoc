@@ -39,6 +39,9 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 	if _, _, err := sandbox.Root(); err != nil {
 		return EntryResult{ID: id}, err
 	}
+	if err := guardStateDir(cfg.stateDir()); err != nil {
+		return EntryResult{ID: id}, fmt.Errorf("nothing was changed: %w", err)
+	}
 	if !quarantine.ValidID(id) {
 		return EntryResult{ID: id}, fmt.Errorf("%q isn't a quarantine ID (they look like Q-91XZ)", id)
 	}
@@ -68,18 +71,21 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 		return res, err
 	}
 	parent := filepath.Dir(m.Original)
-	pfd, err := openDir(parent)
+	pfd, err := openDirStrict(parent)
 	if err != nil {
 		return res, fmt.Errorf("%s %w: the folder it came from (%s) can't be opened: %w", id, ErrNotRestorable, parent, err)
 	}
 	defer func() { _ = unix.Close(pfd) }()
-	qfd, err := openDir(filepath.Dir(payload))
+	qfd, err := openDirStrict(filepath.Dir(payload))
 	if err != nil {
 		return res, err
 	}
 	defer func() { _ = unix.Close(qfd) }()
 	if err := sameEntry(qfd, m.Name, m.Fingerprint); err != nil {
 		return res, fmt.Errorf("%s %w: the quarantined folder %w", id, ErrNotRestorable, err)
+	}
+	if err := audit.Probe(audit.Path(cfg.StorePath)); err != nil {
+		return res, fmt.Errorf("%s: the audit log can't be written, so nothing was changed: %w", id, err)
 	}
 	if err := unix.RenameatxNp(qfd, m.Name, pfd, m.Name, unix.RENAME_EXCL); err != nil {
 		if errors.Is(err, unix.EEXIST) {
@@ -116,6 +122,9 @@ func Purge(_ context.Context, cfg Config, ids []string) ([]EntryResult, error) {
 	}
 	if _, _, err := sandbox.Root(); err != nil {
 		return nil, err
+	}
+	if err := guardStateDir(cfg.stateDir()); err != nil {
+		return nil, fmt.Errorf("nothing was changed: %w", err)
 	}
 	root := cfg.quarantineRoot()
 	out := make([]EntryResult, 0, len(ids))
@@ -183,6 +192,10 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 		res.Reason = err.Error() + "; it isn't touched"
 		return res
 	}
+	if err := audit.Probe(audit.Path(cfg.StorePath)); err != nil {
+		res.Reason = "the audit log can't be written, so nothing was changed: " + err.Error()
+		return res
+	}
 	if err := removeEntry(entry); err != nil {
 		res.Outcome, res.Reason = OutcomeFailed, err.Error()
 		return res
@@ -216,7 +229,32 @@ func checkEntryDir(root, entry string) error {
 			return fmt.Errorf("%s isn't a plain folder", filepath.Base(p))
 		}
 	}
-	return nil
+	return checkNoOtherVolume(entry)
+}
+
+// checkNoOtherVolume refuses an entry with a folder on another volume inside
+// it (a disk image or network share mounted there). Such a folder would be
+// deleted with its contents (P6-R1 F1: defense in depth for purge).
+func checkNoOtherVolume(entry string) error {
+	root, err := deviceOf(entry)
+	if err != nil {
+		return err
+	}
+	n := 0
+	return filepath.WalkDir(entry, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if n++; n > MaxCheckEntries {
+			return fmt.Errorf("it has more than %d entries, too many to check", MaxCheckEntries)
+		}
+		if d.IsDir() && p != entry {
+			if dev, err := deviceOf(p); err != nil || dev != root {
+				return errors.New("another disk is mounted inside it")
+			}
+		}
+		return nil
+	})
 }
 
 // removeEntry deletes an entry folder. os.RemoveAll doesn't follow

@@ -109,7 +109,11 @@ func (p *performer) quarantine(item model.PlanItem, target string) (ItemResult, 
 func checkContents(root string, measure bool) (int64, error) {
 	var total int64
 	n := 0
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	rootDev, err := deviceOf(root)
+	if err != nil {
+		return 0, skipf("it can't be checked: %v", err)
+	}
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return skipf("part of it can't be read, so it can't be checked: %v", err)
 		}
@@ -125,24 +129,49 @@ func checkContents(root string, measure bool) (int64, error) {
 			return nil
 		}
 		rel := strings.TrimPrefix(path, root+"/")
+		// A folder on another volume is a mount point: refuse it before
+		// anything else, vendored or not (P6-R1 F1).
+		if d.IsDir() {
+			if dev, err := deviceOf(path); err != nil || dev != rootDev {
+				return skipf("another disk is mounted inside it (%s)", rel)
+			}
+		}
 		if vendored(rel) {
 			return nil
 		}
-		name := d.Name()
+		name := safety.FoldName(d.Name()) // case-insensitive volumes (P6-R1 F2)
 		switch {
 		case name == ".git":
 			return skipf("it contains a git repository (%s)", rel)
 		case strings.HasPrefix(name, ".env") && !d.IsDir():
 			return skipf("it contains an environment file (%s)", rel)
-		case name == "HEAD" && d.Type().IsRegular() && isDir(filepath.Join(filepath.Dir(path), "objects")) &&
+		case name == "head" && isRepoHead(d) && isDir(filepath.Join(filepath.Dir(path), "objects")) &&
 			isDir(filepath.Join(filepath.Dir(path), "refs")):
+			// A bare repository. HEAD may be a symlink (git still reads
+			// it, P6-R1 F3).
 			return skipf("it contains a git repository (%s)", filepath.Dir(rel))
-		case d.IsDir() && vendorDirs[name] && !measure:
+		case d.IsDir() && vendorDirs[d.Name()] && !measure:
 			return filepath.SkipDir // nothing below is checked; skip the walk too
 		}
 		return nil
 	})
 	return total, err
+}
+
+// isRepoHead reports whether a HEAD entry can be what git reads: a regular
+// file, or a symbolic link (core.preferSymlinkRefs).
+func isRepoHead(d fs.DirEntry) bool {
+	return d.Type().IsRegular() || d.Type()&fs.ModeSymlink != 0
+}
+
+// deviceOf returns the device (volume) a path lives on, without following a
+// final symlink.
+func deviceOf(path string) (uint64, error) {
+	var st unix.Stat_t
+	if err := unix.Lstat(path, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Dev), nil //nolint:gosec // G115: a device number, widened for comparison.
 }
 
 // vendorDirs hold packages installed by a tool, which may ship their own
@@ -175,13 +204,18 @@ func allocBytes(fi os.FileInfo) int64 {
 // ensureRoot creates the quarantine folder, private and excluded from
 // Spotlight and Time Machine.
 func (p *performer) ensureRoot(root string) error {
+	// The sandbox check comes first, then the folder is made and checked as
+	// a real folder the user owns (P6-R1 F4, F6).
+	if err := sandbox.Check(root); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
 	}
-	if err := os.Chmod(root, 0o700); err != nil { //nolint:gosec // G302: a private folder, owner rwx only.
+	if err := checkPrivateDir(root); err != nil {
 		return err
 	}
-	if err := sandbox.Check(root); err != nil {
+	if err := os.Chmod(root, 0o700); err != nil { //nolint:gosec // G302: a private folder, owner rwx only.
 		return err
 	}
 	marker := filepath.Join(root, ".metadata_never_index")
@@ -239,12 +273,17 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 	hook("pending")
 
 	parent, base := filepath.Dir(target), filepath.Base(target)
-	pfd, err := openDir(parent)
+	pfd, err := openDirStrict(parent)
 	if err != nil {
 		return cancel(skipf("its folder can't be opened: %v", err))
 	}
 	defer func() { _ = unix.Close(pfd) }()
-	qfd, err := openDir(payload)
+	// Before the move too: the folder we hold must still be the canonical
+	// parent path (P6-R1 F5).
+	if err := sameDir(pfd, parent); err != nil {
+		return cancel(skip{err.Error()})
+	}
+	qfd, err := openDirStrict(payload)
 	if err != nil {
 		return cancel(err)
 	}
@@ -286,9 +325,27 @@ func (p *performer) moveBack(qfd, pfd int, base, id, entry string, why error) er
 	return fmt.Errorf("%w; it was moved back", why)
 }
 
-// openDir opens a directory without following a final symlink.
-func openDir(path string) (int, error) {
-	return unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+// openDirStrict opens an absolute, canonical folder path one component at a
+// time, and refuses a symlink in any component, not just the last one. A
+// swapped ancestor (a symlink where a folder was) makes it fail, instead of
+// being followed (P6-R1 F5).
+func openDirStrict(path string) (int, error) {
+	fd, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, err
+	}
+	for _, c := range strings.Split(strings.TrimPrefix(path, "/"), "/") {
+		if c == "" {
+			continue
+		}
+		next, err := unix.Openat(fd, c, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		_ = unix.Close(fd)
+		if err != nil {
+			return -1, err
+		}
+		fd = next
+	}
+	return fd, nil
 }
 
 // sameEntry checks that name in the folder dirfd is the fingerprinted
@@ -307,14 +364,22 @@ func sameEntry(dirfd int, name string, fp model.Fingerprint) error {
 	return nil
 }
 
-// sameDir checks that the folder at path is the one dirfd has open.
+// sameDir checks that the folder at path, opened again without following
+// any symlink, is the one dirfd has open. (Re-resolving the path with a
+// plain Lstat would follow a swapped ancestor and always match.)
 func sameDir(dirfd int, path string) error {
-	var a, b unix.Stat_t
+	var a unix.Stat_t
 	if err := unix.Fstat(dirfd, &a); err != nil {
 		return err
 	}
-	if err := unix.Lstat(path, &b); err != nil {
+	fd, err := openDirStrict(path)
+	if err != nil {
 		return fmt.Errorf("its folder changed during the move: %w", err)
+	}
+	defer func() { _ = unix.Close(fd) }()
+	var b unix.Stat_t
+	if err := unix.Fstat(fd, &b); err != nil {
+		return err
 	}
 	if a.Dev != b.Dev || a.Ino != b.Ino {
 		return errors.New("its folder changed during the move")

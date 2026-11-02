@@ -648,9 +648,18 @@ func TestSandboxBoundary(t *testing.T) {
 	}
 	other := t.TempDir()
 	t.Setenv(sandbox.EnvVar, other)
-	it := mustApply(t, e, p).Items[0]
-	if it.Outcome != OutcomeSkipped || !strings.Contains(it.Reason, "sandbox") || !exists(target) {
+	// The state folder is outside the sandbox, so apply refuses before any
+	// write (P6-R1 F6): an error, or a skipped item, and the target untouched.
+	rep, err := Apply(context.Background(), e.cfg, p, all(p))
+	if err != nil {
+		if !strings.Contains(err.Error(), "sandbox") {
+			t.Fatalf("refusal does not name the sandbox: %v", err)
+		}
+	} else if it := rep.Items[0]; it.Outcome != OutcomeSkipped || !strings.Contains(it.Reason, "sandbox") {
 		t.Fatalf("item outside the sandbox = %+v", it)
+	}
+	if !exists(target) {
+		t.Fatal("target moved outside the sandbox")
 	}
 }
 

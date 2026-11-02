@@ -50,7 +50,7 @@ A fresh reviewer session in its own worktree attacked the boundary: report in `d
 - If the store limit is what refuses (plans from another server), the wait shown is the full 10 minutes, an upper bound.
 
 ## Open
-- No report of the P6-R1 executor red-team exists; the executor was out of scope for P9-R1.
+- The P6-R1 executor red-team is resolved (see PHASE-6 and `docs/tasks/reports/P6-R1.md`).
 - Later: an item limit on `list_projects`, the storage breakdown and growth history, and a time limit on `refresh_scan` (P9-R1 notes).
 - Phase 7 is still in its dogfood week (until 2026-11-04). 0.88 GB has been reclaimed through macdoc so far; the MVP B goal is 10 GB.
 - Registering with Claude (`claude mcp add macdoc -- macdoc mcp`) and a first real Claude plan are for the user to do.

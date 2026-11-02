@@ -52,7 +52,11 @@ Also tested:
 - `macdoc quarantine list` → "The quarantine is empty."
 - I didn't drive `apply` through a pseudo-terminal on this Mac: the session's permission check correctly blocked that as a TTY-gate bypass. Confirming a real apply is for the user to do.
 
+## Red-team (P6-R1, 2026-11-02)
+A red-team of `internal/executor` (`docs/tasks/reports/P6-R1.md`) found no path that deletes user data outside the recipe allowlist. It found 8 weaker spots (F1–F8); all are fixed, with tests renamed `TestRedteamFixed*`. Fixes: other-volume check on move and purge, case-folded names in the content check, symlinked bare-repo `HEAD`, private-folder checks on the quarantine root and state folder, strict folder opening along the path, sandbox refusal before any write, an audit probe before purge and restore, and re-listing for AVDs and simulators without scan data. See the report's Resolution for the detail and one open gap (F5's two layers are not separately tested).
+
 ## Not done (by design or later)
+- Red-team notes, untested and deferred: the `node_modules`/`site-packages` exemption depth (a `.git` below a cache target's vendored folder is not checked); the purge vs restore race on one ID (fix: per-entry `flock`); a crash during a DeleteNow purge can leave a damaged, never-purgeable entry (fix: delete `payload/` before `manifest.json`); restore doesn't re-check the policy; tool binaries are resolved through `PATH`; the executor trusts `approved` (no per-item check for Claude-origin or RISKY items).
 - No `--yes`, even for SAFE-only plans. That's stricter than SAFETY_MODEL §4.2 allowed, and the doc is updated.
 - When a parent folder turns into a symlink into a protected place, the whole plan is refused (by Verify) rather than just that item. It's safe, but coarser.
 - Old plan files and `canceled`/`restored`/`purged` store rows aren't pruned yet (Phase 7 polish).

@@ -5,9 +5,9 @@ package executor
 // folder inside a sandboxed fixture home. Native commands only reach the
 // fake Exec; nothing here runs a cleanup tool.
 //
-// TestRedteamBroken* tests expose a finding and FAIL until it is fixed.
-// TestRedteamHeld* tests are attacks that held; they pass and stay as
-// regression tests.
+// TestRedteamFixed* tests were findings (P6-R1 F1-F8) and pass now that
+// they are fixed; they stay as regression tests. TestRedteamHeld* tests are
+// attacks that held; they pass and stay as regression tests.
 
 import (
 	"bufio"
@@ -47,7 +47,7 @@ import (
 // up when unlinkat on the mount point returns EBUSY (an implementation
 // detail, not a check); the entry is then stuck in quarantine with the
 // mount inside it, and the content walk itself read the whole other volume.
-func TestRedteamBrokenNestedMountDeleted(t *testing.T) {
+func TestRedteamFixedNestedMountDeleted(t *testing.T) {
 	if runtime.GOOS != "darwin" || testing.Short() {
 		t.Skip("needs hdiutil (macOS)")
 	}
@@ -95,7 +95,7 @@ func TestRedteamBrokenNestedMountDeleted(t *testing.T) {
 // ".ENV" or a ".Git" repository passes the check and is moved (and, with
 // DeleteNow, deleted), while safety.CheckTarget refuses the same names as
 // targets.
-func TestRedteamBrokenContentCheckIgnoresCase(t *testing.T) {
+func TestRedteamFixedContentCheckIgnoresCase(t *testing.T) {
 	for _, c := range []struct{ name, file string }{
 		{"upper-case env file", "app/.ENV"},
 		{"mixed-case env file", "app/.Env.local"},
@@ -118,7 +118,7 @@ func TestRedteamBrokenContentCheckIgnoresCase(t *testing.T) {
 // P6-R1 F3 (Low): a bare repository whose HEAD is a symbolic link (what
 // git writes with core.preferSymlinkRefs, and still reads) isn't
 // recognized: the check wants HEAD to be a regular file.
-func TestRedteamBrokenBareRepoSymlinkHead(t *testing.T) {
+func TestRedteamFixedBareRepoSymlinkHead(t *testing.T) {
 	e := newEnv(t)
 	target := e.folder(t, "Library/Logs/A", "backup.git/objects/ab/cdef", "backup.git/refs/heads/main", "backup.git/config")
 	mustSymlink(t, "refs/heads/main", filepath.Join(target, "backup.git", "HEAD"))
@@ -138,7 +138,7 @@ func TestRedteamBrokenBareRepoSymlinkHead(t *testing.T) {
 // Canonicalize doesn't follow the final component. Purge later refuses the
 // entry (its canonical path differs), so the moved item stays inside
 // ~/Public.
-func TestRedteamBrokenSymlinkedQuarantineRoot(t *testing.T) {
+func TestRedteamFixedSymlinkedQuarantineRoot(t *testing.T) {
 	e := newEnv(t)
 	e.cfg.DeleteNow = true
 	target := e.folder(t, "Library/Logs/A")
@@ -175,7 +175,7 @@ func TestRedteamBrokenSymlinkedQuarantineRoot(t *testing.T) {
 // executor unlink the ~/Documents name and delete it. The file's data
 // survives through the other link, but an entry in a protected folder was
 // removed. Needs a racing same-user process.
-func TestRedteamBrokenAncestorSwapDuringMove(t *testing.T) {
+func TestRedteamFixedAncestorSwapDuringMove(t *testing.T) {
 	e := newEnv(t)
 	e.cfg.DeleteNow = true
 	dd := filepath.Join(e.home, "Library/Developer/Xcode/DerivedData")
@@ -213,10 +213,15 @@ func TestRedteamBrokenAncestorSwapDuringMove(t *testing.T) {
 // outside it: tightenStateDir chmods the state directory and ensureRoot
 // creates and chmods <state>/quarantine before sandbox.Check(root) runs.
 // The sandbox contract is "refuse to touch any path outside the sandbox".
-func TestRedteamBrokenSandboxStateDirOutside(t *testing.T) {
+func TestRedteamFixedSandboxStateDirOutside(t *testing.T) {
 	e := newEnv(t)
 	target := e.folder(t, "Library/Logs/A")
-	outside := t.TempDir() // not inside MACDOC_SANDBOX
+	// Canonical (EvalSymlinks), so the only reason to refuse is the sandbox
+	// itself, not a non-canonical path (P6-R1 F6).
+	outside, err := filepath.EvalSymlinks(t.TempDir()) // not inside MACDOC_SANDBOX
+	if err != nil {
+		t.Fatal(err)
+	}
 	if root, _, _ := sandbox.Root(); strings.HasPrefix(outside, root) {
 		t.Skip("t.TempDir is inside the sandbox here")
 	}
@@ -248,7 +253,7 @@ func TestRedteamBrokenSandboxStateDirOutside(t *testing.T) {
 // P6-R1 F7 (Low): purge deletes permanently even when the audit log can't
 // be written; the deletion leaves no record. Apply refuses to start without
 // an audit trail (apply_started), purge and restore don't check first.
-func TestRedteamBrokenPurgeWithoutAudit(t *testing.T) {
+func TestRedteamFixedPurgeWithoutAudit(t *testing.T) {
 	e := newEnv(t)
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, e.folder(t, "Library/Logs/A")))
 	qid := mustApply(t, e, p).Items[0].QuarantineID
@@ -278,7 +283,7 @@ func TestRedteamBrokenPurgeWithoutAudit(t *testing.T) {
 // `avdmanager delete avd -n {id}` and `xcrun simctl delete {id}` item is
 // skipped as "no longer listed", even when the AVD is right there. It fails
 // closed, but those two recipes can never run.
-func TestRedteamBrokenRelistNeedsScan(t *testing.T) {
+func TestRedteamFixedRelistNeedsScan(t *testing.T) {
 	withTools(t, "avdmanager")
 	t.Setenv("ANDROID_AVD_HOME", "")
 	t.Setenv("ANDROID_EMULATOR_HOME", "")
@@ -752,5 +757,47 @@ func unmountUnder(t *testing.T, dir, img string) {
 			}
 			return
 		}
+	}
+}
+
+// P6-R1 F1, purge side: a disk mounted inside a quarantined entry (after the
+// move, so the move-time check never saw it) makes purge refuse the entry.
+// Needs hdiutil (macOS); skipped elsewhere.
+func TestRedteamFixedMountInsideEntry(t *testing.T) {
+	if runtime.GOOS != "darwin" || testing.Short() {
+		t.Skip("needs hdiutil (macOS)")
+	}
+	if _, err := exec.LookPath("hdiutil"); err != nil {
+		t.Skip("needs hdiutil")
+	}
+	e := newEnv(t)
+	target := e.folder(t, "Library/Logs/A", "a.log")
+	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
+	qid := mustApply(t, e, p).Items[0].QuarantineID
+	if qid == "" {
+		t.Fatal("setup: the target wasn't quarantined")
+	}
+	payloadA := filepath.Join(quarantine.Root(e.storePath), qid, "payload", "A")
+	mnt := filepath.Join(payloadA, "mnt")
+	if err := os.Mkdir(mnt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := filepath.Join(t.TempDir(), "rt2.dmg")
+	run(t, "hdiutil", "create", "-quiet", "-size", "2m", "-fs", "HFS+", "-volname", "MacdocRT2", "-o", img)
+	run(t, "hdiutil", "attach", "-quiet", "-nobrowse", "-noautoopen", "-mountpoint", mnt, img)
+	t.Cleanup(func() { unmountUnder(t, e.home, img) })
+	precious := filepath.Join(mnt, "precious.txt")
+	if err := os.WriteFile(precious, []byte("data on another volume"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := Purge(context.Background(), e.cfg, []string{qid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Refused by the check (skipped, reason names the disk), not failed by
+	// accident: RemoveAll's EBUSY on the mount point would also keep the file.
+	if res[0].Outcome != OutcomeSkipped || !strings.Contains(res[0].Reason, "another disk") || !exists(precious) {
+		t.Fatalf("purge of an entry with another volume inside: outcome %s (%q), file kept %v; want skipped for the mounted disk and file kept", res[0].Outcome, res[0].Reason, exists(precious))
 	}
 }
