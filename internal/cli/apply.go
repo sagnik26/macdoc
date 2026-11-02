@@ -145,7 +145,7 @@ func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (map[st
 	approved := map[string]bool{}
 	claude := p.Origin == model.OriginClaude
 	if claude {
-		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan. Confirm each item yourself."))
+		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan "+proposedAt(p.CreatedAt)+". Confirm each item yourself."))
 	}
 	for _, it := range p.Items {
 		if !claude && it.Risk != model.RiskRisky {
@@ -260,4 +260,9 @@ func signedBytes(n int64) string {
 		return "-" + engine.DecimalBytes(-n)
 	}
 	return "+" + engine.DecimalBytes(n)
+}
+
+// proposedAt says when a plan was made, in local time: "at 14:02 on 2 Nov".
+func proposedAt(t time.Time) string {
+	return t.Local().Format("at 15:04 on 2 Jan")
 }

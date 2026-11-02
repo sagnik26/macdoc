@@ -93,6 +93,9 @@ type Refusal struct {
 	Reason string `json:"reason"`
 }
 
+// ReasonNotInScan is the refusal for an ID the latest scan doesn't have.
+const ReasonNotInScan = "not in the latest scan (IDs change after each scan; see macdoc doctor wins)"
+
 // Errors from Build.
 var (
 	ErrStaleScan = errors.New("the latest scan is too old to plan from")
@@ -168,7 +171,7 @@ func selectOps(ops []model.Opportunity, sel Selector) ([]model.Opportunity, []Re
 		for _, id := range sel.IDs {
 			op, ok := byID[strings.ToLower(id)]
 			if !ok {
-				refused = append(refused, Refusal{ID: id, Reason: "not in the latest scan (IDs change after each scan; see macdoc doctor wins)"})
+				refused = append(refused, Refusal{ID: id, Reason: ReasonNotInScan})
 				continue
 			}
 			consider(op)

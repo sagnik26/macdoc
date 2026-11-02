@@ -238,7 +238,7 @@ func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
 	}
 	origin := "made by you (" + "macdoc plan " + p.Request + ")"
 	if p.Origin == model.OriginClaude {
-		origin = "proposed by Claude"
+		origin = "proposed by Claude " + proposedAt(p.CreatedAt)
 	}
 	line := fmt.Sprintf("Plan %s · %d item(s) · %s · %s · %s", p.ID, len(p.Items), engine.DecimalBytes(p.TotalBytes), expiry, origin)
 	var out string

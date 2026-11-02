@@ -99,3 +99,39 @@ func TestQuarantineRecords(t *testing.T) {
 		t.Error("schema accepted an unknown status")
 	}
 }
+
+// OpenPlans counts only pending, unexpired plans of the asked origin;
+// CountPlansSince counts every plan of that origin in the window.
+func TestOpenPlansAndCount(t *testing.T) {
+	s := openTemp(t)
+	t0 := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+	add := func(id string, origin model.Origin, created time.Time, ttl time.Duration) {
+		t.Helper()
+		if err := s.AddPlan(PlanRecord{ID: id, SHA256: "h", ScanID: "S-1", Origin: origin, CreatedAt: created, ExpiresAt: created.Add(ttl)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("P-OLD1", model.OriginClaude, t0.Add(-time.Hour), 30*time.Minute)      // expired
+	add("P-APL1", model.OriginClaude, t0.Add(-5*time.Minute), 30*time.Minute)  // applied below
+	add("P-OPN1", model.OriginClaude, t0.Add(-20*time.Minute), 30*time.Minute) // open
+	add("P-OPN2", model.OriginClaude, t0.Add(-2*time.Minute), 30*time.Minute)  // open
+	add("P-CLI1", model.OriginCLI, t0.Add(-time.Minute), 30*time.Minute)       // other origin
+	if err := s.MarkApplied("P-APL1"); err != nil {
+		t.Fatal(err)
+	}
+	open, err := s.OpenPlans(model.OriginClaude, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, r := range open {
+		ids = append(ids, r.ID)
+	}
+	if len(ids) != 2 || ids[0] != "P-OPN1" || ids[1] != "P-OPN2" {
+		t.Errorf("open = %v, want [P-OPN1 P-OPN2]", ids)
+	}
+	n, err := s.CountPlansSince(model.OriginClaude, t0.Add(-10*time.Minute))
+	if err != nil || n != 2 { // P-APL1 and P-OPN2
+		t.Errorf("count = %d, %v; want 2", n, err)
+	}
+}

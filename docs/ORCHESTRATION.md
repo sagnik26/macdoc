@@ -39,7 +39,7 @@ The build is run by a **tech-lead Claude session** (the orchestrator), which del
 | **8–9 MCP** | Tool list | **P8-W1** MCP server · **P9-W1** handoff and hardening | **P9-R1** prompt injection, executor unreachable |
 | **10 Extras** | none | **P10-W1** launchd scan · **P10-W2** TUI picker · **P10-W3** slow tips | none |
 
-> **As run (2026-11-02):** Phases 0–3 ran as above, with briefs and reports in `docs/tasks/`. From Phase 4 on, the tech-lead session built each phase itself, verified it with the same gates (§5) and recorded it in `docs/checkpoints/PHASE-N.md`. No worker or reviewer sessions were started, so there are no task files for P4-W1 to P8-W1 or P6-R1. Before Phase 9 the user decides whether P9-W1 and the P9-R1 red-team run as separate sessions.
+> **As run (2026-11-02):** Phases 0–3 ran as above, with briefs and reports in `docs/tasks/`. From Phase 4 on, the tech-lead session built each phase itself, verified it with the same gates (§5) and recorded it in `docs/checkpoints/PHASE-N.md`. No worker or reviewer sessions were started, so there are no task files for P4-W1 to P8-W1 or P6-R1. Phase 9 was also built by the tech-lead session (2026-11-02) with an inline adversarial review; the separate P9-R1 red-team session hasn't run.
 
 ## 4. Mechanics
 

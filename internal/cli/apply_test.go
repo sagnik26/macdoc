@@ -239,7 +239,7 @@ func TestApplyClaudePlanConfirmsEachItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if !strings.Contains(out, "Claude proposed this plan") || strings.Count(out, "[y/N]") != 2 {
+	if !strings.Contains(out, "Claude proposed this plan "+proposedAt(p.CreatedAt)+".") || strings.Count(out, "[y/N]") != 2 {
 		t.Errorf("no per-item confirmation:\n%s", out)
 	}
 	if present(a) || !present(b) {

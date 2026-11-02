@@ -135,3 +135,34 @@ func (s *Store) MarkApplied(id string) error {
 	}
 	return nil
 }
+
+// OpenPlans returns the pending, unexpired plans of one origin, oldest
+// first. The MCP server uses it to cap how many plans Claude has open.
+func (s *Store) OpenPlans(origin model.Origin, now time.Time) ([]PlanRecord, error) {
+	rows, err := s.db.Query(`SELECT `+planCols+` FROM plans WHERE origin = ? AND status = ? AND expires_at > ?
+		ORDER BY created_at, id`, string(origin), string(PlanPending), toDB(now))
+	if err != nil {
+		return nil, fmt.Errorf("store: open plans: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := []PlanRecord{}
+	for rows.Next() {
+		r, err := scanPlan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: open plans: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// CountPlansSince counts the plans of one origin created at or after since,
+// whatever their status.
+func (s *Store) CountPlansSince(origin model.Origin, since time.Time) (int, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM plans WHERE origin = ? AND created_at >= ?`,
+		string(origin), toDB(since)).Scan(&n); err != nil {
+		return 0, fmt.Errorf("store: count plans: %w", err)
+	}
+	return n, nil
+}

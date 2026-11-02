@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week; Phase 8 (Claude via MCP) is built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built and in its dogfood week; Phases 8–9 (Claude via MCP, with its limits and hardening) are built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (RISKY items need a typed code), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -187,7 +187,7 @@ claude mcp add macdoc -- macdoc mcp       # Claude Code
 ```
 For Claude Desktop, add to `claude_desktop_config.json` under `"mcpServers"`: `"macdoc": {"command": "/Users/you/.local/bin/macdoc", "args": ["mcp"]}`.
 
-Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude can read the overview, suggestions, explanations, projects, the memory diagnosis and growth history, start a read-only rescan, and **propose** a plan. It gets back a plan ID and the command for you, e.g. `macdoc apply P-7F3K`; you run it in Terminal and confirm each item. Claude can't apply, delete, move or restore anything, pass a path, run a command or change settings. A scan started from Claude has the Claude app's file permissions, so it may see less than one from Terminal.
+Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude can read the overview, suggestions, explanations, projects, the memory diagnosis and growth history, start a read-only rescan, and **propose** a plan. It gets back a plan ID and the command for you, e.g. `macdoc apply P-7F3K`; you run it in Terminal and confirm each item. Claude can't apply, delete, move or restore anything, pass a path, run a command or change settings. Claude can have at most 5 plans open and make 10 every 10 minutes. A scan started from Claude has the Claude app's file permissions, so it may see less than one from Terminal; when it does, Claude is told to suggest `macdoc doctor scan` in Terminal.
 
 ## Quick start
 
@@ -283,7 +283,7 @@ Developer tooling quietly eats tens of gigabytes:
 | 6 | Executor + quarantine + audit log → `apply`, `quarantine`, `log` (the first phase that can change files) | ✅ done |
 | 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week in progress |
 | 8 | MCP server for Claude: 11 read and propose-only tools, `macdoc mcp` | ✅ built |
-| 9 | Claude handoff polish and hardening (plan caps, rate limits, TCC notes) | next |
+| 9 | Claude handoff and hardening: proposal time in `apply`, at most 5 open Claude plans and 10 per 10 minutes, rescan guidance, Claude-app permission warnings | ✅ built |
 | 10 | Optional daily read-only scans, TUI picker, slowness tips | |
 | 11 | Open-source readiness | later |
 

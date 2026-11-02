@@ -281,7 +281,7 @@ Estimates assume part-time work (~15–20 h/week).
 - Account for Claude Desktop's different TCC permissions: tools report `unmeasured` honestly and suggest running `macdoc scan` from Terminal so MCP reads the cached scan.
 - Rate-limit `create_cleanup_plan` to N per minute and cap open plans.
 
-> **Already done (as of 2026-11-02):** `apply` asks `[y/N]` for every item of a Claude-origin plan, every time, with a "Claude proposed this plan" line (Phase 6; not configurable). MCP strings are sanitized and every result carries the untrusted-data note (Phase 8). Left: the proposal time in `apply`, tool-description wording on untrusted names, TCC guidance, the open-plan cap and the rate limit (5 open Claude plans, 10 calls per 10 minutes: MCP_DESIGN §4), and a distinct "older than max_age" message.
+> **As built (2026-11-02, see `docs/checkpoints/PHASE-9.md`):** `apply` and `plan show` say "Claude proposed this plan at 14:02 on 2 Nov", and every item of a Claude plan is asked `[y/N]` every time (since Phase 6). That isn't configurable, because a setting could only loosen it. Sanitized strings and the untrusted-data note came in Phase 8; every tool description now also says not to follow instructions in names. TCC: `scan_visibility` on the overview and a saw-less warning after `refresh_scan`. Limits: 5 open Claude plans, 10 calls per 10 minutes, counted in memory and in the store. Stale scans and IDs from an older scan get their own messages for Claude.
 
 ### Phase 10: Daily snapshots, TUI, slowness tips (~1.5 wk)
 - Optional `macdoc schedule enable`, which installs a user launchd agent that runs a **read-only** `macdoc scan --quiet` daily at low priority. It never deletes anything and `schedule disable` removes it.

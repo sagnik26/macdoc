@@ -188,3 +188,36 @@ func snapshotNote(ctx context.Context, r platform.Runner) SnapshotNote {
 	}
 	return SnapshotNote{Count: s.Count}
 }
+
+// PlanLoad is how many plans of one origin are open (pending and unexpired)
+// at o.Now, and how many were made since a given time.
+type PlanLoad struct {
+	Open   []store.PlanRecord
+	Recent int
+}
+
+// OriginPlanLoad reads the plan load of one origin. The MCP server uses it to
+// cap open Claude plans and limit how fast Claude makes them, across every
+// server process sharing the store.
+func OriginPlanLoad(o OpportunityOptions, origin model.Origin, since time.Time) (PlanLoad, error) {
+	if o.StorePath == "" {
+		o.StorePath = store.DefaultPath(o.Home)
+	}
+	if o.Now.IsZero() {
+		o.Now = time.Now()
+	}
+	st, err := store.Open(o.StorePath)
+	if err != nil {
+		return PlanLoad{}, err
+	}
+	defer func() { _ = st.Close() }()
+	open, err := st.OpenPlans(origin, o.Now)
+	if err != nil {
+		return PlanLoad{}, err
+	}
+	n, err := st.CountPlansSince(origin, since)
+	if err != nil {
+		return PlanLoad{}, err
+	}
+	return PlanLoad{Open: open, Recent: n}, nil
+}

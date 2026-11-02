@@ -108,6 +108,7 @@ macdoc doctor projects · scan S-TEST · 2h ago
   - for a plan Claude proposed, a banner ("Claude proposed this plan. Confirm each item yourself.") and `[y/N]` for every item;
   - otherwise `[y/N]` only for RISKY items;
   - then `Type "7F3K" to apply N item(s), <size> (SAFE: n, CAUTION: n):`. The code is case-insensitive. Anything else prints "Not confirmed. Nothing has been changed."
+- A Claude-origin plan starts with "Claude proposed this plan at 14:02 on 2 Nov. Confirm each item yourself." (local time; Phase 9), and its plan header says "proposed by Claude at 14:02 on 2 Nov".
 - Progress is one line per item: `[i/n] O-id Title … done | moved to quarantine Q-XXXX | skipped: <reason> | failed: <reason>`. The summary has the counts, the measured free-space change, what native commands were expected to free, what went to quarantine (still on disk), why the measured number may be lower (snapshots, purgeable accounting, other writes), and a pointer to `macdoc log`. Ctrl-C stops before the next item.
 - `macdoc quarantine [list]`: each entry with its state (held, expired, interrupted, not-moved, missing, damaged), size, original path, plan, recipe and expiry. Expired entries total "ready to purge" with the purge command, and folders without macdoc's record are listed as "Not macdoc's (never touched)". `--json`: `engine.QuarantineResult`.
 - `macdoc quarantine restore <Q-id>` never overwrites. `macdoc quarantine purge --expired | <Q-id…>` lists what will go and asks for the word `purge` at a real terminal.
