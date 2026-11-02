@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "cli.scheduleResult": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "done",
+        "label",
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/schedule-disable.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "schedule disable"
+    },
+    "data": {
+      "$ref": "#/$defs/cli.scheduleResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc schedule disable --json",
+  "type": "object"
+}

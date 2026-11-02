@@ -48,6 +48,8 @@ var jsonCommands = map[string]any{
 	"plan":               engine.PlanResult{},
 	"plan show":          engine.PlanResult{},
 	"plan list":          []store.PlanRecord{},
+	"schedule enable":    scheduleResult{},
+	"schedule disable":   scheduleResult{},
 	"log":                engine.AuditResult{},
 	"quarantine list":    engine.QuarantineResult{},
 	"quarantine restore": executor.EntryResult{},

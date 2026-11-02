@@ -285,7 +285,7 @@ Estimates assume part-time work (~15–20 h/week).
 > **As built (2026-11-02, see `docs/checkpoints/PHASE-9.md`):** `apply` and `plan show` say "Claude proposed this plan at 14:02 on 2 Nov", and every item of a Claude plan is asked `[y/N]` every time (since Phase 6). That isn't configurable, because a setting could only loosen it. Sanitized strings and the untrusted-data note came in Phase 8; every tool description now also says not to follow instructions in names. TCC: `scan_visibility` on the overview and a saw-less warning after `refresh_scan`. Limits: 5 open Claude plans, 10 calls per 10 minutes, counted in memory and in the store. Stale scans and IDs from an older scan get their own messages for Claude.
 
 ### Phase 10: Daily snapshots, TUI, slowness tips (~1.5 wk)
-- Optional `macdoc schedule enable`, which installs a user launchd agent that runs a **read-only** `macdoc scan --quiet` daily at low priority. It never deletes anything and `schedule disable` removes it.
+- Optional `macdoc schedule enable`, which installs a user launchd agent that runs a **read-only** `macdoc scan --quiet` daily at low priority. It never deletes anything and `schedule disable` removes it. *Built as: enable writes the agent file and disable removes it; the person runs the `launchctl` line in Terminal, since macdoc never runs launchctl (AGENTS invariant 1, 2026-11-02 decision).*
 - Bubbletea cleanup picker: a checklist with SAFE items pre-checked, a live total, then the same plan → confirm → apply flow.
 - `slow --tips`: suggestions such as "Quit Docker Desktop when you're not using containers (−3 GB RAM)" or "Use a smaller quantized model". Still no process actions.
 

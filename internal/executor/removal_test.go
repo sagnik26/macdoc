@@ -19,7 +19,7 @@ var mutatingCalls = map[string][]string{
 	// The one recursive delete: a quarantine entry, after checkEntryDir.
 	"os.RemoveAll": {"removeTree"},
 	// Non-recursive removals of macdoc's own entry files and empty folders.
-	"os.Remove": {"removeEmptyEntry", "removeEntry", "writeManifest"},
+	"os.Remove": {"removeEmptyEntry", "removeEntry", "writeManifest", "RemoveSchedule"},
 	// Replacing the manifest atomically inside the entry folder.
 	"os.Rename": {"writeManifest"},
 	// Moves relative to opened folders, never overwriting.

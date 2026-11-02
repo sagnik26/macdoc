@@ -21,7 +21,7 @@
 | `macdoc log [--json]` | read | Audit history |
 | `macdoc config [set\|protect\|unprotect\|path]` | writes macdoc's settings file | `plan_minutes`, `native_timeout_minutes`, and extra protected folders (add-only on top of the built-in list). No `edit`: opening an editor would run a program outside the executor; `config path` prints the file |
 | `macdoc mcp` | read + Claude-origin plans | MCP stdio server for Claude Code / Claude Desktop (Phase 8). Prints a hint to stderr if started by hand |
-| `macdoc schedule enable\|disable` | Phase 10 | Daily read-only scan via launchd |
+| `macdoc schedule enable\|disable` | Phase 10 (built) | Writes or removes the daily read-only scan's launchd agent; the person runs the printed `launchctl` line in Terminal |
 
 Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as unused. Color follows the `NO_COLOR` convention instead.)
 

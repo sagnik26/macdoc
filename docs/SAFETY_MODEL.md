@@ -121,6 +121,11 @@ The home directory itself, any top-level home folder, and any path with fewer th
   - Entry states, read by `internal/quarantine` without changing anything: held, interrupted (the manifest says pending but the folder is there: restorable), not-moved (apply stopped before the move: the original was never touched), missing, and damaged (the manifest doesn't match the store record, or the payload is a symlink). Damaged entries are never restored or purged. Folders without a store record are listed as not macdoc's and never touched.
   - Restore re-checks the original path canonically, re-checks the policy and the recipe's allowlist (the policy may have changed since the move), refuses if anything exists there, checks the payload's inode, and renames with `RENAME_EXCL`. Purge requires the store record, a manifest that matches it, a real entry folder directly in the root and a real payload folder, and no folder on another volume inside the entry (`checkNoOtherVolume`), then removes the payload first and the manifest last (so an interrupted purge is still accountable), then the folder, making read-only folders writable on a second attempt. Purge and restore hold an exclusive lock on `quarantine.lock` in the state folder, so they can't interleave on one entry. Purge and restore also need a writable audit log before they act (see §4.7).
 
+### 4.6a Daily scan agent (Phase 10)
+- `macdoc schedule enable` writes `~/Library/LaunchAgents/com.macdoc.scan.plist`: `macdoc scan --quiet` every day at 09:00, at low priority, output to macdoc's state folder. `schedule disable` removes that file, and only if the file is macdoc's (it carries the label `com.macdoc.scan`); a foreign file is never replaced or removed.
+- macdoc never runs `launchctl`. The printed line (`launchctl bootstrap gui/<uid> <path>` to start, `launchctl bootout gui/<uid>/com.macdoc.scan` to stop) is run by the person in Terminal.
+- The write and removal are in `internal/executor` (the only place that deletes). In sandbox mode the LaunchAgents folder must be inside the sandbox.
+
 ### 4.7 Audit log
 `~/Library/Application Support/macdoc/audit.jsonl`, append-only, `fsync` per record.
 

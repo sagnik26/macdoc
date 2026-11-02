@@ -36,6 +36,18 @@ func (m *tuiModel) toggleMark() {
 	m.moveCursor("down")
 }
 
+// preMarkSafe marks the SAFE suggestions of a fresh scan, so the picker
+// starts with the items that are safest to remove (Phase 10). Advice-only
+// items can't be marked. Nothing is planned or removed by marking: a plan
+// still needs p, and removal still needs its confirmation.
+func (m *tuiModel) preMarkSafe() {
+	for _, op := range m.items() {
+		if op.Risk == model.RiskSafe && op.Method != model.MethodAdvise {
+			m.marked[op.ID] = true
+		}
+	}
+}
+
 // markedSelector plans the marked suggestions in ranked order, or the
 // selected one if none is marked. It returns nil (with a flash) if there is
 // nothing to plan.

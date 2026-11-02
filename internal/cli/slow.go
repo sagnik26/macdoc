@@ -15,6 +15,7 @@ import (
 
 func newSlowCmd(g *globalFlags) *cobra.Command {
 	var days int
+	var tips bool
 	cmd := &cobra.Command{
 		Use:   "slow",
 		Short: "Why your Mac feels slow: memory pressure, swap and the biggest memory users (read-only)",
@@ -34,6 +35,9 @@ database, so the swap history fills in as you use macdoc.`,
 				return err
 			}
 			res := engine.Slow(context.Background(), engine.SlowOptions{Home: home, Runner: runner, Days: days})
+			if tips {
+				res.Tips = engine.TipsFor(res.Groups)
+			}
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "doctor slow", res, slices.Concat(res.Health.Report.Warnings, res.Warnings))
 			}
@@ -41,6 +45,7 @@ database, so the swap history fills in as you use macdoc.`,
 		},
 	}
 	cmd.Flags().IntVar(&days, "days", 7, "days of swap history to show")
+	cmd.Flags().BoolVar(&tips, "tips", false, "suggest what to do about the biggest memory users (still read-only)")
 	return cmd
 }
 
@@ -85,6 +90,13 @@ func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 			}
 		}
 		fmt.Fprintf(&b, "  %s\n", t.wrap(t.faint.Render(engine.RSSNote), 2))
+	}
+
+	if len(res.Tips) > 0 {
+		fmt.Fprintf(&b, "\n%s\n", t.heading("Tips"))
+		for _, tp := range res.Tips {
+			fmt.Fprintf(&b, "  %s\n", t.wrap(t.text.Render(tp.Text), 2))
+		}
 	}
 
 	if len(res.Notes) > 0 {

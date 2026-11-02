@@ -421,6 +421,7 @@ func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
 	case msg.err == nil && !m.stopping:
 		m.data, m.note = cleanData(msg.data), ""
 		clear(m.marked) // IDs belong to a scan
+		m.preMarkSafe()
 		m.cursor = min(m.cursor, max(0, len(m.items())-1))
 	case m.stopping || errors.Is(msg.err, context.Canceled):
 		if m.data != nil {

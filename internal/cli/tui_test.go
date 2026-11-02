@@ -95,6 +95,7 @@ func TestTUILoadingSteps(t *testing.T) {
 
 func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
+	clear(m.marked) // layout test: the cursor row shows its own marker
 	out := m.View()
 	mustContain(t, out, "◆ macdoc", "1 Overview", "6 Health", "asks before removing", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
@@ -147,6 +148,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 
 func TestTUIWideShowsDetailBesideList(t *testing.T) {
 	m := step(t, loaded(t, 140, 30), keys("2")...)
+	clear(m.marked) // layout test: the cursor row shows its own marker
 	out := m.View()
 	mustContain(t, out, "│ ▶ │ O-ab12cd", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
 }
@@ -435,5 +437,24 @@ func TestWelcomePaletteFitsWindow(t *testing.T) {
 			t.Errorf("h=%d: view is %d lines", h, n+1)
 		}
 		mustContain(t, m.View(), "/scan")
+	}
+}
+
+// Phase 10: a fresh scan pre-marks its SAFE suggestions, and only those, so
+// the picker starts with the safest items marked.
+func TestPicker_PreMarksSafeOnly(t *testing.T) {
+	m := loaded(t, 120, 40)
+	saw := 0
+	for _, op := range m.items() {
+		want := op.Risk == model.RiskSafe && op.Method != model.MethodAdvise
+		if got := m.marked[op.ID]; got != want {
+			t.Errorf("%s (%s, %s): marked = %v, want %v", op.ID, op.Risk, op.Method, got, want)
+		}
+		if want {
+			saw++
+		}
+	}
+	if saw == 0 {
+		t.Fatal("fixture has no SAFE suggestion; the test checks nothing")
 	}
 }

@@ -47,6 +47,7 @@ type SlowResult struct {
 	Summary  string       `json:"summary,omitempty"` // the biggest users against RAM size
 	Notes    []string     `json:"notes,omitempty"`   // other things that slow a Mac down, e.g. low disk
 	Groups   []SlowGroup  `json:"groups"`
+	Tips     []SlowTip    `json:"tips,omitempty"` // with --tips: what to do about the big users
 	Swap     SwapHistory  `json:"swap_history"`
 	Warnings []string     `json:"warnings,omitempty"`
 }

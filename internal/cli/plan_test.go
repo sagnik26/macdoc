@@ -208,6 +208,7 @@ func TestTUIMarkAndPlan(t *testing.T) {
 		return samplePlan(), nil
 	}
 	ops := m.items()
+	clear(m.marked) // the picker pre-marks SAFE items; this test marks by hand
 
 	m = step(t, m, keys(" ")...) // marks item 1, moves to 2
 	m = step(t, m, keys("down", " ")...)
@@ -262,7 +263,7 @@ func TestTUIPlanEdgeCases(t *testing.T) {
 			m.cursor = i
 			m = step(t, m, keys(" ")...)
 			mustContain(t, m.View(), "Advice-only items can't go into a plan")
-			if len(m.marked) != 0 {
+			if m.marked[op.ID] {
 				t.Error("an advice item was marked")
 			}
 		}

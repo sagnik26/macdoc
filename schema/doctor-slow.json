@@ -97,6 +97,15 @@
         "swap_history": {
           "$ref": "#/$defs/engine.SwapHistory"
         },
+        "tips": {
+          "items": {
+            "$ref": "#/$defs/engine.SlowTip"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "verdict": {
           "type": "string"
         },
@@ -116,6 +125,25 @@
         "level",
         "swap_history",
         "verdict"
+      ],
+      "type": "object"
+    },
+    "engine.SlowTip": {
+      "properties": {
+        "group": {
+          "type": "string"
+        },
+        "rss_bytes": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "group",
+        "rss_bytes",
+        "text"
       ],
       "type": "object"
     },

@@ -104,16 +104,18 @@ func executorRemove(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (
 // and opens the confirmation box. Advice-only items have nothing to remove,
 // so Enter explains them instead.
 func (m tuiModel) startRemove() (tea.Model, tea.Cmd) {
-	if n, _ := m.markedTotal(); n == 0 {
-		ops := m.items()
-		if m.cursor >= len(ops) {
-			return m, nil
-		}
+	// Enter on an advice row always explains it, even when other items are
+	// marked (the picker pre-marks SAFE items, so marks are the usual case).
+	ops := m.items()
+	if m.cursor < len(ops) {
 		if op := ops[m.cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
 			m.detail = !m.detail
 			m.flash = "macdoc can't remove this one. The steps to do it yourself are below."
 			return m, nil
 		}
+	}
+	if n, _ := m.markedTotal(); n == 0 && m.cursor >= len(ops) {
+		return m, nil
 	}
 	sel := m.markedSelector()
 	if sel == nil || m.planning {
