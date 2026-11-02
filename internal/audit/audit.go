@@ -72,6 +72,20 @@ func Tail(b []byte) string {
 	return "…" + string(b[len(b)-MaxOutput:])
 }
 
+// Probe checks that the audit log can be opened for writing, without writing
+// anything. Actions that can't be undone (a purge, a restore) call it first,
+// so nothing changes when the record of it couldn't be written (P6-R1 F7).
+func Probe(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600) //nolint:gosec // G304: macdoc's own audit log.
+	if err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	return f.Close()
+}
+
 // Append writes rec as one line to the log at path and syncs it. The file is
 // created 0600 if missing and opened append-only, under an exclusive lock so
 // concurrent writers can't interleave lines.

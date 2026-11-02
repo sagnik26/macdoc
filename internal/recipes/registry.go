@@ -28,6 +28,32 @@ func Register(name string, d Detector) {
 	detectors[name] = d
 }
 
+// A Lister names what the native tool itself lists right now, read-only and
+// without a scan. Executing a native item re-checks it against this list, so
+// a detector that needs scan data (Env.Nodes) doesn't stop the re-check
+// (P6-R1 F8).
+type Lister func(ctx context.Context, env Env, r Recipe) ([]string, error)
+
+var listers = map[string]Lister{}
+
+// RegisterLister adds a lister for the detector name. Call it from init().
+func RegisterLister(detector string, l Lister) {
+	regMu.Lock()
+	defer regMu.Unlock()
+	if _, dup := listers[detector]; dup {
+		panic("recipes: duplicate lister " + detector)
+	}
+	listers[detector] = l
+}
+
+// LookupLister returns the lister for the detector name, if there is one.
+func LookupLister(detector string) (Lister, bool) {
+	regMu.RLock()
+	defer regMu.RUnlock()
+	l, ok := listers[detector]
+	return l, ok
+}
+
 // Lookup returns the detector registered under name.
 func Lookup(name string) (Detector, bool) {
 	regMu.RLock()

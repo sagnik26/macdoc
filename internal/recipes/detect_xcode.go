@@ -26,6 +26,7 @@ func init() {
 	Register("simctl_runtimes", detectSimctlRuntimes)
 	Register("orphaned_sim_runtimes", detectOrphanedSimRuntimes)
 	Register("simctl_idle_devices", detectSimctlIdle)
+	RegisterLister("simctl_idle_devices", listSimDeviceIDs)
 	Register("cocoapods_cache", detectCocoaPodsCache)
 }
 
@@ -309,6 +310,22 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 		Bytes: b,
 		Note:  "Simulators: " + strings.Join(names, ", "),
 	}}, nil
+}
+
+// listSimDeviceIDs lists the UDIDs that `xcrun simctl delete` takes: the
+// available, shut-down devices (P6-R1 F8). Read-only, and no staleness.
+func listSimDeviceIDs(ctx context.Context, env Env, _ Recipe) ([]string, error) {
+	devs, ok, err := simDevices(ctx, env)
+	if !ok || err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, d := range devs {
+		if d.IsAvailable && d.State != "Booted" && validNativeArg(d.UDID) {
+			out = append(out, d.UDID)
+		}
+	}
+	return out, nil
 }
 
 // detectSimctlIdle emits available, shut-down devices whose data directory

@@ -25,6 +25,7 @@ import (
 func init() {
 	Register("gradle_wrapper_old", detectGradleWrapperOld)
 	Register("android_avds", detectAndroidAVDs)
+	RegisterLister("android_avds", listAVDNames)
 	Register("android_avd_snapshots", detectAVDSnapshots)
 	Register("android_system_images", detectSystemImages)
 	Register("android_old_versions", detectAndroidOldVersions)
@@ -226,6 +227,25 @@ func avdTitle(a avd) string {
 		return d
 	}
 	return a.name
+}
+
+// listAVDNames lists the AVD names that `avdmanager delete avd -n` takes
+// (P6-R1 F8). Read-only, and no staleness: the plan already decided that.
+func listAVDNames(_ context.Context, env Env, _ Recipe) ([]string, error) {
+	if !ToolInstalled("avdmanager") {
+		return nil, nil
+	}
+	avds, err := listAVDs(env)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, a := range avds {
+		if a.ok && validNativeArg(a.name) {
+			out = append(out, a.name)
+		}
+	}
+	return out, nil
 }
 
 // detectAndroidAVDs emits emulators idle for r.StaleDays (default 60). The

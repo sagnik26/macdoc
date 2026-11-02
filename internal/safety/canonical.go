@@ -81,6 +81,12 @@ func fold(s string) string {
 	return norm.NFC.String(cases.Fold().String(norm.NFC.String(s)))
 }
 
+// FoldName returns the comparison key for one name on disk: the same folding
+// the protected-path rules use. Case-insensitive volumes (APFS by default)
+// open ".GIT" as ".git", so checks on names inside a folder compare folded
+// names too.
+func FoldName(s string) string { return fold(s) }
+
 // components splits a cleaned absolute path into its non-empty components.
 func components(p string) []string {
 	var out []string
