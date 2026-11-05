@@ -81,12 +81,12 @@ func LoadFS(fsys fs.FS, dir string) (*Catalog, error) {
 	return &Catalog{Recipes: all}, nil
 }
 
-// nativeArgvAllowed is the exact allow-list of native argvs
+// NativeArgvAllowed is the exact allow-list of native argvs
 // (docs/SAFETY_MODEL.md §5: recipes pin exact argv). "{id}" is literal here
 // and stands for Finding.NativeArg. Anything else is rejected, so no recipe
 // can run code through a tool, touch Docker volumes or wipe everything a tool
 // owns.
-var nativeArgvAllowed = [][]string{
+var NativeArgvAllowed = [][]string{
 	{"brew", "cleanup", "--prune=all"},
 	{"brew", "autoremove"},
 	{"docker", "builder", "prune", "-f"},
@@ -107,17 +107,17 @@ var nativeArgvAllowed = [][]string{
 	{"avdmanager", "delete", "avd", "-n", Placeholder},
 }
 
-// dryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
+// DryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
 // run these during scan and wins, so each must be the tool's own read-only
 // dry run. None takes "{id}".
-var dryRunArgvAllowed = [][]string{
+var DryRunArgvAllowed = [][]string{
 	{"brew", "cleanup", "-n", "--prune=all"},
 	{"brew", "autoremove", "-n"},
 	{"conda", "clean", "--all", "--dry-run"},
 }
 
-// argvIn reports whether argv is exactly one of set.
-func argvIn(argv []string, set [][]string) bool {
+// ArgvIn reports whether argv is exactly one of set.
+func ArgvIn(argv []string, set [][]string) bool {
 	return slices.ContainsFunc(set, func(a []string) bool { return slices.Equal(a, argv) })
 }
 
@@ -200,7 +200,7 @@ func Validate(r Recipe) error {
 	for _, p := range r.Allow {
 		if err := lintPattern(p); err != nil {
 			bad("allow %q: %v", p, err)
-		} else if err := lintAllowProtected(p); err != nil {
+		} else if err := LintAllowProtected(p); err != nil {
 			bad("allow %q: %v", p, err)
 		}
 	}
@@ -220,10 +220,10 @@ func Validate(r Recipe) error {
 				bad("native argv %q: %v", argv, err)
 			}
 		}
-		if len(r.Native.Argv) > 0 && !argvIn(r.Native.Argv, nativeArgvAllowed) {
+		if len(r.Native.Argv) > 0 && !ArgvIn(r.Native.Argv, NativeArgvAllowed) {
 			bad("native argv %q: native argv not in the allow-list", r.Native.Argv)
 		}
-		if len(r.Native.DryRunArgv) > 0 && !argvIn(r.Native.DryRunArgv, dryRunArgvAllowed) {
+		if len(r.Native.DryRunArgv) > 0 && !ArgvIn(r.Native.DryRunArgv, DryRunArgvAllowed) {
 			bad("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
 		}
 	}
@@ -268,7 +268,7 @@ func lintPattern(p string) error {
 // projectTreePatterns are the allow patterns for project folders anywhere in
 // home (Phase 4 project artifacts). Their leading "~/*/**" can match inside protected folders such as
 // ~/Documents, so they are exempt from the protected-root and
-// two-wildcard rules of lintAllowProtected, and only from those. projectDirs
+// two-wildcard rules of LintAllowProtected, and only from those. ProjectDirs
 // skips protected folders, and CheckTarget rejects them again at plan and
 // apply time.
 var projectTreePatterns = []string{
@@ -284,14 +284,14 @@ var protectedNameSamples = []string{".git", ".env", ".env.local", "x.sqlite", "x
 // appleContainers stands for every ~/Library/Containers/com.apple.* entry.
 const appleContainers = "library/containers/com.apple.*"
 
-// lintAllowProtected rejects an allow pattern that could match a protected
+// LintAllowProtected rejects an allow pattern that could match a protected
 // path (docs/SAFETY_MODEL.md §5): one whose leading components could match a
 // home-relative protected root, or a folder inside or containing one; one
 // whose first two components below "~" are both wildcards; or one whose final
 // component could match a protected name. Matching is case-insensitive. A
 // final "*" in a pattern without "**" is the children of one fixed folder
 // and is left to CheckTarget, which rejects protected names at runtime.
-func lintAllowProtected(p string) error {
+func LintAllowProtected(p string) error {
 	comps := strings.Split(strings.ToLower(strings.TrimPrefix(p, "~/")), "/")
 	if !slices.Contains(projectTreePatterns, p) {
 		if len(comps) >= 2 && isGlob(comps[0]) && isGlob(comps[1]) {

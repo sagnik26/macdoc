@@ -46,7 +46,7 @@ const nodeBatch = 1000
 // ScanSummary is what `macdoc scan` reports.
 type ScanSummary struct {
 	Info             model.ScanInfo     `json:"scan"`
-	TopLevel         []model.Node       `json:"top_level"`  // direct children of the root
+	TopLevel         []model.Node       `json:"top_level"`  // direct Children of the root
 	Largest          []model.Node       `json:"largest"`    // biggest "where the space actually is" folders
 	Unmeasured       []model.Unmeasured `json:"unmeasured"` //
 	HardlinkLimitHit bool               `json:"hardlink_limit_hit,omitempty"`
@@ -136,7 +136,7 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 	return ScanSummary{
 		DataVolumeUsed:   dataVolumeUsed(ctx, o.Runner),
 		Info:             info,
-		TopLevel:         children(res.Nodes, res.Root),
+		TopLevel:         Children(res.Nodes, res.Root),
 		Largest:          Largest(res.Nodes, 10, 1_000_000_000),
 		Unmeasured:       res.Unmeasured,
 		HardlinkLimitHit: res.HardlinkLimitHit,
@@ -163,7 +163,7 @@ func dataVolumeUsed(ctx context.Context, r platform.Runner) model.Bytes {
 	return unknown
 }
 
-// keepTopLevel wraps a Keep callback so the scan root's direct children are
+// keepTopLevel wraps a Keep callback so the scan root's direct Children are
 // always kept (the overview lists them), whatever their size.
 func keepTopLevel(opts scanner.Options, keep func(string) bool) func(string) bool {
 	root := opts.Root
@@ -175,8 +175,8 @@ func keepTopLevel(opts scanner.Options, keep func(string) bool) func(string) boo
 	}
 }
 
-// children returns the kept direct children of dir, biggest first.
-func children(nodes []model.Node, dir string) []model.Node {
+// Children returns the kept direct Children of dir, biggest first.
+func Children(nodes []model.Node, dir string) []model.Node {
 	var out []model.Node
 	for _, n := range nodes {
 		if n.Path != dir && filepath.Dir(n.Path) == dir {

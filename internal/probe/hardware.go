@@ -14,14 +14,14 @@ import (
 
 // Commands used by the hardware collector. Fixed argv, no shell.
 var (
-	cmdSysctlHW = platform.Command{Name: "sysctl", Args: []string{"hw.model", "hw.memsize", "hw.ncpu", "machdep.cpu.brand_string"}}
-	cmdSwVers   = platform.Command{Name: "sw_vers"}
+	CmdSysctlHW = platform.Command{Name: "sysctl", Args: []string{"hw.model", "hw.memsize", "hw.ncpu", "machdep.cpu.brand_string"}}
+	CmdSwVers   = platform.Command{Name: "sw_vers"}
 )
 
-// runReadOnly runs cmd through r and returns stdout. A run error or a
+// RunReadOnly runs cmd through r and returns stdout. A run error or a
 // non-zero exit is an error labeled with the command and, for non-zero
 // exits, the trimmed stderr.
-func runReadOnly(ctx context.Context, r platform.Runner, cmd platform.Command) ([]byte, error) {
+func RunReadOnly(ctx context.Context, r platform.Runner, cmd platform.Command) ([]byte, error) {
 	label := platform.Key(cmd)
 	res, err := r.Run(ctx, cmd)
 	if err != nil {
@@ -89,7 +89,7 @@ func ParseSwVers(out []byte) (version, build string, err error) {
 // CollectHardware runs sysctl + sw_vers through r.
 func CollectHardware(ctx context.Context, r platform.Runner) (Hardware, error) {
 	var hw Hardware
-	out, err := runReadOnly(ctx, r, cmdSysctlHW)
+	out, err := RunReadOnly(ctx, r, CmdSysctlHW)
 	if err != nil {
 		return hw, err
 	}
@@ -113,7 +113,7 @@ func CollectHardware(ctx context.Context, r platform.Runner) (Hardware, error) {
 	}
 	hw.MemoryBytes = mem
 
-	out, err = runReadOnly(ctx, r, cmdSwVers)
+	out, err = RunReadOnly(ctx, r, CmdSwVers)
 	if err != nil {
 		return hw, err
 	}

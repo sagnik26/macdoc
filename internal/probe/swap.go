@@ -10,8 +10,8 @@ import (
 	"macdoc/internal/platform"
 )
 
-// cmdSwapUsage reads vm.swapusage. Fixed argv, no shell.
-var cmdSwapUsage = platform.Command{Name: "sysctl", Args: []string{"-n", "vm.swapusage"}}
+// CmdSwapUsage reads vm.swapusage. Fixed argv, no shell.
+var CmdSwapUsage = platform.Command{Name: "sysctl", Args: []string{"-n", "vm.swapusage"}}
 
 // ParseSwapUsage parses `sysctl -n vm.swapusage`, e.g.
 // "total = 5120.00M  used = 3838.06M  free = 1281.94M  (encrypted)".
@@ -40,7 +40,7 @@ func ParseSwapUsage(out []byte) (Swap, error) {
 		if i+2 >= len(fields) || fields[i+1] != "=" {
 			return Swap{}, fmt.Errorf("probe: vm.swapusage: malformed %q field", f)
 		}
-		n, err := parseSwapSize(fields[i+2])
+		n, err := ParseSwapSize(fields[i+2])
 		if err != nil {
 			return Swap{}, fmt.Errorf("probe: vm.swapusage: %s: %w", f, err)
 		}
@@ -56,8 +56,8 @@ func ParseSwapUsage(out []byte) (Swap, error) {
 	return s, nil
 }
 
-// parseSwapSize converts "5120.00M" to bytes (binary multipliers, rounded).
-func parseSwapSize(v string) (int64, error) {
+// ParseSwapSize converts "5120.00M" to bytes (binary multipliers, rounded).
+func ParseSwapSize(v string) (int64, error) {
 	if v == "" {
 		return 0, fmt.Errorf("empty size")
 	}
@@ -83,7 +83,7 @@ func parseSwapSize(v string) (int64, error) {
 
 // CollectSwap runs sysctl -n vm.swapusage through r.
 func CollectSwap(ctx context.Context, r platform.Runner) (Swap, error) {
-	out, err := runReadOnly(ctx, r, cmdSwapUsage)
+	out, err := RunReadOnly(ctx, r, CmdSwapUsage)
 	if err != nil {
 		return Swap{}, err
 	}

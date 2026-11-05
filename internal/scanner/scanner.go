@@ -95,12 +95,12 @@ const (
 	// cancellation is noticed between batches.
 	batchSize = 512
 
-	reasonPermission = "permission denied (grant Full Disk Access to your terminal)"
+	ReasonPermission = "permission denied (grant Full Disk Access to your terminal)"
 )
 
-// fstatat is the per-entry lstat. Tests replace it to simulate a mount point
+// Fstatat is the per-entry lstat. Tests replace it to simulate a mount point
 // (a different st_dev), which can't be created without root.
-var fstatat = unix.Fstatat
+var Fstatat = unix.Fstatat
 
 // dir is a directory that is still being listed or still has unfinished
 // subdirectories. Finished directories are folded into their parent and
@@ -121,10 +121,10 @@ type dir struct {
 	mtime   int64
 }
 
-type scanner struct {
+type Scanner struct {
 	threshold int64
 	keep      func(string) bool
-	prefix    string
+	Prefix    string
 	rootDev   int32
 	skip      map[string]bool // lowercased unmapped paths
 	opaque    map[string]bool // lowercased unmapped paths
@@ -135,7 +135,7 @@ type scanner struct {
 	bytes atomic.Int64
 	cur   atomic.Pointer[dir]
 
-	links linkSet
+	links LinkSet
 
 	mu         sync.Mutex
 	cond       *sync.Cond
@@ -144,7 +144,7 @@ type scanner struct {
 	canceled   bool
 	root       *dir // set once the root is finalized
 	nodes      []model.Node
-	unmeasured []model.Unmeasured
+	Unmeasured []model.Unmeasured
 }
 
 // Scan walks opts.Root. It returns an error only for an unusable root;
@@ -176,20 +176,20 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("scanner: root %s: not a directory", root)
 	}
 
-	s := &scanner{
+	s := &Scanner{
 		threshold: opts.KeepThreshold,
 		keep:      opts.Keep,
-		prefix:    prefix,
+		Prefix:    prefix,
 		rootDev:   st.Dev,
 		skip:      lowerSet(opts.Skip),
 		opaque:    lowerSet(opts.Opaque),
-		links:     linkSet{limit: opts.HardlinkLimit},
+		links:     LinkSet{Limit: opts.HardlinkLimit},
 	}
 	if s.threshold <= 0 {
 		s.threshold = defaultKeepThreshold
 	}
-	if s.links.limit <= 0 {
-		s.links.limit = defaultHardlinkLimit
+	if s.links.Limit <= 0 {
+		s.links.Limit = defaultHardlinkLimit
 	}
 	s.watchDirs = make(map[string]bool)
 	for p := range s.skip {
@@ -263,12 +263,12 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		return a.Path < b.Path
 	})
 	return Result{
-		Root:             s.mapPath(root),
+		Root:             s.MapPath(root),
 		TotalBytes:       s.root.bytes,
 		TotalFiles:       s.root.files,
 		Nodes:            s.nodes,
-		Unmeasured:       s.unmeasured,
-		HardlinkLimitHit: s.links.hit,
+		Unmeasured:       s.Unmeasured,
+		HardlinkLimitHit: s.links.Hit,
 		Incomplete:       s.canceled,
 		Duration:         time.Since(start),
 	}, nil
@@ -284,28 +284,28 @@ func lowerSet(paths []string) map[string]bool {
 	return m
 }
 
-// mapPath applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
-func (s *scanner) mapPath(p string) string {
-	if s.prefix == "" || s.prefix == "/" {
+// MapPath applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
+func (s *Scanner) MapPath(p string) string {
+	if s.Prefix == "" || s.Prefix == "/" {
 		return p
 	}
-	if p == s.prefix {
+	if p == s.Prefix {
 		return "/"
 	}
-	if strings.HasPrefix(p, s.prefix) && p[len(s.prefix)] == '/' {
-		return p[len(s.prefix):]
+	if strings.HasPrefix(p, s.Prefix) && p[len(s.Prefix)] == '/' {
+		return p[len(s.Prefix):]
 	}
 	return p
 }
 
-func join(dirPath, name string) string {
+func Join(dirPath, name string) string {
 	if dirPath == "/" {
 		return "/" + name
 	}
 	return dirPath + "/" + name
 }
 
-func (s *scanner) progress(fn func(Progress), every time.Duration, start time.Time, done <-chan struct{}) {
+func (s *Scanner) progress(fn func(Progress), every time.Duration, start time.Time, done <-chan struct{}) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -315,14 +315,14 @@ func (s *scanner) progress(fn func(Progress), every time.Duration, start time.Ti
 		case <-t.C:
 			p := Progress{Files: s.files.Load(), Bytes: s.bytes.Load(), Elapsed: time.Since(start)}
 			if d := s.cur.Load(); d != nil {
-				p.CurrentDir = s.mapPath(d.path)
+				p.CurrentDir = s.MapPath(d.path)
 			}
 			fn(p)
 		}
 	}
 }
 
-func (s *scanner) worker() {
+func (s *Scanner) worker() {
 	for {
 		d := s.next()
 		if d == nil {
@@ -340,7 +340,7 @@ func (s *scanner) worker() {
 
 // next pops the next directory, waiting while others may still push work.
 // It returns nil when the walk is finished or canceled.
-func (s *scanner) next() *dir {
+func (s *Scanner) next() *dir {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for len(s.stack) == 0 && s.active > 0 && !s.canceled {
@@ -363,7 +363,7 @@ type totals struct {
 
 // list reads d's entries, counts files and pushes subdirectories. It always
 // ends by releasing d's own pending count, even on error or cancel.
-func (s *scanner) list(d *dir) {
+func (s *Scanner) list(d *dir) {
 	s.cur.Store(d)
 	var acc totals
 	defer func() {
@@ -379,13 +379,13 @@ func (s *scanner) list(d *dir) {
 	}
 	f, err := os.OpenFile(d.path, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
-		s.fail(d.path, err)
+		s.Fail(d.path, err)
 		return
 	}
 	defer f.Close() //nolint:errcheck // read-only directory handle
 	rc, err := f.SyscallConn()
 	if err != nil {
-		s.fail(d.path, err)
+		s.Fail(d.path, err)
 		return
 	}
 	// The directory must still be the one its parent saw: same device and
@@ -395,7 +395,7 @@ func (s *scanner) list(d *dir) {
 		err = cerr
 	}
 	if err != nil {
-		s.fail(d.path, err)
+		s.Fail(d.path, err)
 		return
 	}
 	if st.Dev != s.rootDev || st.Ino != d.ino {
@@ -406,7 +406,7 @@ func (s *scanner) list(d *dir) {
 		if len(names) > 0 {
 			var abort bool
 			if cerr := rc.Control(func(fd uintptr) { abort = s.batch(d, int(fd), names, &acc) }); cerr != nil {
-				s.fail(d.path, cerr)
+				s.Fail(d.path, cerr)
 				return
 			}
 			if abort {
@@ -415,7 +415,7 @@ func (s *scanner) list(d *dir) {
 		}
 		if rerr != nil {
 			if !errors.Is(rerr, io.EOF) {
-				s.fail(d.path, rerr)
+				s.Fail(d.path, rerr)
 			}
 			return
 		}
@@ -424,7 +424,7 @@ func (s *scanner) list(d *dir) {
 
 // batch stats one batch of names relative to the open directory fd. It
 // returns true if the directory should not be read further.
-func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
+func (s *Scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 	var children []*dir
 	var nbytes, nfiles int64
 	defer func() {
@@ -438,22 +438,22 @@ func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 			s.mu.Unlock()
 		}
 	}()
-	var st unix.Stat_t // reused: it escapes through the fstatat hook
+	var st unix.Stat_t // reused: it escapes through the Fstatat hook
 	for _, name := range names {
-		if err := fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		if err := Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
 			if vanished(err) {
 				continue
 			}
 			if errors.Is(err, fs.ErrPermission) {
-				s.fail(d.path, err) // no search permission: one entry for the dir
+				s.Fail(d.path, err) // no search permission: one entry for the dir
 				return true
 			}
-			s.fail(join(d.path, name), err)
+			s.Fail(Join(d.path, name), err)
 			continue
 		}
 		var isOpaque bool
 		if d.watch {
-			lp := strings.ToLower(join(d.path, name))
+			lp := strings.ToLower(Join(d.path, name))
 			if s.skip[lp] {
 				continue
 			}
@@ -467,7 +467,7 @@ func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 			}
 			c := &dir{
 				parent:  d,
-				path:    join(d.path, name),
+				path:    Join(d.path, name),
 				ino:     st.Ino,
 				depth:   d.depth + 1,
 				opaque:  isOpaque,
@@ -482,7 +482,7 @@ func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 			children = append(children, c)
 			nbytes += n
 		case unix.S_IFREG:
-			if st.Nlink > 1 && !s.links.count(st.Dev, st.Ino, st.Nlink) {
+			if st.Nlink > 1 && !s.links.Count(st.Dev, st.Ino, st.Nlink) {
 				continue // another link to this inode was already counted
 			}
 			acc.bytes += n
@@ -493,7 +493,7 @@ func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 			if n >= s.threshold && !d.opaque && !d.hidden {
 				s.mu.Lock()
 				s.nodes = append(s.nodes, model.Node{
-					Path:     s.mapPath(join(d.path, name)),
+					Path:     s.MapPath(Join(d.path, name)),
 					Kind:     model.NodeFile,
 					Bytes:    n,
 					Files:    1,
@@ -514,15 +514,15 @@ func (s *scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 // release drops one pending count from d. When it reaches zero, d is
 // finished: it is kept if the rules say so and folded into its parent,
 // which may finish in turn. Caller holds s.mu.
-func (s *scanner) release(d *dir) {
+func (s *Scanner) release(d *dir) {
 	for d != nil {
 		d.pending--
 		if d.pending > 0 {
 			return
 		}
-		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.mapPath(d.path))))) {
+		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.MapPath(d.path))))) {
 			s.nodes = append(s.nodes, model.Node{
-				Path:     s.mapPath(d.path),
+				Path:     s.MapPath(d.path),
 				Kind:     model.NodeDir,
 				Bytes:    d.bytes,
 				Files:    d.files,
@@ -549,29 +549,29 @@ func vanished(err error) bool {
 }
 
 // fail records p as unmeasured unless it simply vanished.
-func (s *scanner) fail(p string, err error) {
+func (s *Scanner) Fail(p string, err error) {
 	if vanished(err) {
 		return
 	}
 	reason := err.Error()
 	var pe *fs.PathError
 	if errors.Is(err, fs.ErrPermission) {
-		reason = reasonPermission
+		reason = ReasonPermission
 	} else if errors.As(err, &pe) {
 		reason = pe.Err.Error() // the path is already in Unmeasured.Path
 	}
 	s.mu.Lock()
-	s.unmeasured = append(s.unmeasured, model.Unmeasured{Path: s.mapPath(p), Reason: reason})
+	s.Unmeasured = append(s.Unmeasured, model.Unmeasured{Path: s.MapPath(p), Reason: reason})
 	s.mu.Unlock()
 }
 
-// linkSet de-duplicates hard links by (dev, ino). An entry is dropped once
+// LinkSet de-duplicates hard links by (dev, ino). An entry is dropped once
 // all of its links have been seen, so only partially seen inodes use memory.
-type linkSet struct {
+type LinkSet struct {
 	mu    sync.Mutex
-	limit int
-	m     map[linkKey]uint16 // remaining links not yet seen
-	hit   bool
+	Limit int
+	M     map[linkKey]uint16 // remaining links not yet seen
+	Hit   bool
 }
 
 type linkKey struct {
@@ -580,26 +580,26 @@ type linkKey struct {
 }
 
 // count reports whether this link's blocks should be counted.
-func (l *linkSet) count(dev int32, ino uint64, nlink uint16) bool {
+func (l *LinkSet) Count(dev int32, ino uint64, nlink uint16) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	k := linkKey{dev, ino}
-	if rem, ok := l.m[k]; ok {
+	if rem, ok := l.M[k]; ok {
 		if rem <= 1 {
-			delete(l.m, k)
+			delete(l.M, k)
 		} else {
-			l.m[k] = rem - 1
+			l.M[k] = rem - 1
 		}
 		return false
 	}
-	if len(l.m) >= l.limit {
-		l.hit = true
+	if len(l.M) >= l.Limit {
+		l.Hit = true
 		return true
 	}
-	if l.m == nil {
-		l.m = make(map[linkKey]uint16)
+	if l.M == nil {
+		l.M = make(map[linkKey]uint16)
 	}
-	l.m[k] = nlink - 1
+	l.M[k] = nlink - 1
 	return true
 }
 

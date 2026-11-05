@@ -6,15 +6,15 @@ import (
 	"macdoc/internal/store"
 )
 
-// scanNodes adapts one stored scan to recipes.NodeSource.
-type scanNodes struct {
-	st     *store.Store
-	scanID string
+// ScanNodes adapts one stored scan to recipes.NodeSource.
+type ScanNodes struct {
+	St     *store.Store
+	ScanID string
 }
 
-var _ recipes.NodeSource = scanNodes{}
+var _ recipes.NodeSource = ScanNodes{}
 
 // Nodes implements recipes.NodeSource.
-func (s scanNodes) Nodes(prefix string, maxDepth int) ([]model.Node, error) {
-	return s.st.Nodes(s.scanID, store.NodeQuery{Prefix: prefix, MaxDepth: maxDepth})
+func (s ScanNodes) Nodes(prefix string, maxDepth int) ([]model.Node, error) {
+	return s.St.Nodes(s.ScanID, store.NodeQuery{Prefix: prefix, MaxDepth: maxDepth})
 }

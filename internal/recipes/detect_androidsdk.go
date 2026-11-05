@@ -24,18 +24,18 @@ import (
 
 func init() {
 	Register("gradle_wrapper_old", detectGradleWrapperOld)
-	Register("android_avds", detectAndroidAVDs)
+	Register("android_avds", DetectAndroidAVDs)
 	RegisterLister("android_avds", listAVDNames)
 	Register("android_avd_snapshots", detectAVDSnapshots)
 	Register("android_system_images", detectSystemImages)
-	Register("android_old_versions", detectAndroidOldVersions)
+	Register("android_old_versions", DetectAndroidOldVersions)
 	Register("android_studio_old", detectAndroidStudioOld)
 }
 
-// androidSDKRoot returns $ANDROID_HOME, else $ANDROID_SDK_ROOT, else
+// AndroidSDKRoot returns $ANDROID_HOME, else $ANDROID_SDK_ROOT, else
 // ~/Library/Android/sdk. ok is false when the root isn't strictly inside
 // home: SDK packages are only ever quarantined from home.
-func androidSDKRoot(env Env) (root string, ok bool) {
+func AndroidSDKRoot(env Env) (root string, ok bool) {
 	root = os.Getenv("ANDROID_HOME")
 	if root == "" {
 		root = os.Getenv("ANDROID_SDK_ROOT")
@@ -52,9 +52,9 @@ func underHome(home, p string) bool {
 	return strings.HasPrefix(strings.ToLower(p), strings.ToLower(filepath.Clean(home))+"/")
 }
 
-// avdHome returns where the emulator keeps AVDs: $ANDROID_AVD_HOME, else
+// AvdHome returns where the emulator keeps AVDs: $ANDROID_AVD_HOME, else
 // $ANDROID_EMULATOR_HOME/avd, else ~/.android/avd.
-func avdHome(env Env) string {
+func AvdHome(env Env) string {
 	if d := os.Getenv("ANDROID_AVD_HOME"); d != "" {
 		return filepath.Clean(ExpandHome(env.Home, d))
 	}
@@ -64,10 +64,10 @@ func avdHome(env Env) string {
 	return filepath.Join(env.Home, ".android/avd")
 }
 
-// readIni parses key=value lines of a small regular file (readSmallFile).
+// readIni parses key=value lines of a small regular file (ReadSmallFile).
 // Lines without "=" are ignored.
 func readIni(path string) (map[string]string, error) {
-	data, err := readSmallFile(path, maxSmallFile)
+	data, err := ReadSmallFile(path, maxSmallFile)
 	if err != nil {
 		return nil, err
 	}
@@ -92,12 +92,12 @@ type avd struct {
 	ok bool
 }
 
-// listAVDs reads the AVD registry. A missing AVD home means no AVDs; any
+// ListAVDs reads the AVD registry. A missing AVD home means no AVDs; any
 // other read error is returned, so callers never treat an unreadable
 // registry as "no AVDs reference this". Every AVD is returned, so all their
 // system images count as used; only those with ok set may become findings.
-func listAVDs(env Env) ([]avd, error) {
-	dir := avdHome(env)
+func ListAVDs(env Env) ([]avd, error) {
+	dir := AvdHome(env)
 	ents, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -179,7 +179,7 @@ func subdirs(dir string) ([]string, error) {
 // dirFinding sizes a directory found on disk from the scan; if the scan
 // didn't keep it the size is unknown, never 0.
 func dirFinding(env Env, path, title string) (Finding, error) {
-	n, found, err := scanNode(env, path)
+	n, found, err := ScanNode(env, path)
 	if err != nil {
 		return Finding{}, err
 	}
@@ -200,7 +200,7 @@ func gradleDistVersion(n model.Node) []int {
 	if m == nil {
 		return nil
 	}
-	return parseVersion(m[1])
+	return ParseVersion(m[1])
 }
 
 func detectGradleWrapperOld(_ context.Context, env Env, _ Recipe) ([]Finding, error) {
@@ -235,26 +235,26 @@ func listAVDNames(_ context.Context, env Env, _ Recipe) ([]string, error) {
 	if !ToolInstalled("avdmanager") {
 		return nil, nil
 	}
-	avds, err := listAVDs(env)
+	avds, err := ListAVDs(env)
 	if err != nil {
 		return nil, err
 	}
 	var out []string
 	for _, a := range avds {
-		if a.ok && validNativeArg(a.name) {
+		if a.ok && ValidNativeArg(a.name) {
 			out = append(out, a.name)
 		}
 	}
 	return out, nil
 }
 
-// detectAndroidAVDs emits emulators idle for r.StaleDays (default 60). The
+// DetectAndroidAVDs emits emulators idle for r.StaleDays (default 60). The
 // AVD name is the native argument for `avdmanager delete avd -n`.
-func detectAndroidAVDs(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectAndroidAVDs(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Nodes == nil || !ToolInstalled("avdmanager") {
 		return nil, nil
 	}
-	avds, err := listAVDs(env)
+	avds, err := ListAVDs(env)
 	if err != nil {
 		return nil, err
 	}
@@ -264,14 +264,14 @@ func detectAndroidAVDs(_ context.Context, env Env, r Recipe) ([]Finding, error) 
 	}
 	var out []Finding
 	for _, a := range avds {
-		if !a.ok || !validNativeArg(a.name) {
+		if !a.ok || !ValidNativeArg(a.name) {
 			continue
 		}
-		n, found, err := scanNode(env, a.dir)
+		n, found, err := ScanNode(env, a.dir)
 		if err != nil {
 			return nil, err
 		}
-		if !found || !stale(env, n.MtimeMax, days) {
+		if !found || !Stale(env, n.MtimeMax, days) {
 			continue
 		}
 		f := nodeFinding(n)
@@ -289,7 +289,7 @@ func detectAVDSnapshots(_ context.Context, env Env, _ Recipe) ([]Finding, error)
 	if env.Nodes == nil {
 		return nil, nil
 	}
-	avds, err := listAVDs(env)
+	avds, err := ListAVDs(env)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func detectAVDSnapshots(_ context.Context, env Env, _ Recipe) ([]Finding, error)
 		if fi, err := os.Lstat(snap); err != nil || !fi.IsDir() {
 			continue
 		}
-		n, found, err := scanNode(env, snap)
+		n, found, err := ScanNode(env, snap)
 		if err != nil {
 			return nil, err
 		}
@@ -320,11 +320,11 @@ func detectAVDSnapshots(_ context.Context, env Env, _ Recipe) ([]Finding, error)
 // detectSystemImages emits <sdk>/system-images/<api>/<tag>/<abi> directories
 // that no AVD's config.ini points at (image.sysdir.*).
 func detectSystemImages(_ context.Context, env Env, _ Recipe) ([]Finding, error) {
-	root, ok := androidSDKRoot(env)
+	root, ok := AndroidSDKRoot(env)
 	if !ok || env.Nodes == nil {
 		return nil, nil
 	}
-	avds, err := listAVDs(env)
+	avds, err := ListAVDs(env)
 	if err != nil {
 		return nil, err
 	}
@@ -378,15 +378,15 @@ func detectSystemImages(_ context.Context, env Env, _ Recipe) ([]Finding, error)
 
 var sdkSubdirTitles = map[string]string{"build-tools": "Android build-tools", "ndk": "Android NDK"}
 
-// detectAndroidOldVersions emits every version directory of
+// DetectAndroidOldVersions emits every version directory of
 // <sdk>/<params.subdir> except the newest.
-func detectAndroidOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectAndroidOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	sub := r.Params["subdir"]
 	title, known := sdkSubdirTitles[sub]
 	if !known {
 		return nil, fmt.Errorf("recipe %s: detector android_old_versions needs params.subdir build-tools or ndk", r.ID)
 	}
-	root, ok := androidSDKRoot(env)
+	root, ok := AndroidSDKRoot(env)
 	if !ok || env.Nodes == nil {
 		return nil, nil
 	}
@@ -395,7 +395,7 @@ func detectAndroidOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, 
 		return nil, err
 	}
 	var out []Finding
-	for _, name := range allButNewest(names, parseVersion) {
+	for _, name := range allButNewest(names, ParseVersion) {
 		f, err := dirFinding(env, filepath.Join(root, sub, name), title+" "+name)
 		if err != nil {
 			return nil, err
@@ -416,7 +416,7 @@ func studioVersion(n model.Node) []int {
 	if m == nil {
 		return nil
 	}
-	return parseVersion(m[1])
+	return ParseVersion(m[1])
 }
 
 // detectAndroidStudioOld emits AndroidStudio<ver> folders when a newer

@@ -25,8 +25,8 @@ import (
 
 // removeReadyMsg is the plan sealed for a removal.
 type removeReadyMsg struct {
-	res engine.PlanResult
-	err error
+	Res engine.PlanResult
+	Err error
 }
 
 // removeProgressMsg is an item starting or finishing.
@@ -35,12 +35,12 @@ type removeProgressMsg executor.ItemEvent
 // removedMsg is the end of a removal.
 type removedMsg struct {
 	rep executor.Report
-	err error
+	Err error
 }
 
 // removeState is the confirmation box and, once confirmed, its progress.
 type removeState struct {
-	res       engine.PlanResult // what the executor acts on
+	Res       engine.PlanResult // what the executor acts on
 	view      engine.PlanResult // the same, cleaned for the terminal (display)
 	code      string            // typed so far, when a RISKY item needs it
 	confirmed int               // RISKY items confirmed so far, in plan order
@@ -52,7 +52,7 @@ type removeState struct {
 // riskyItems returns the plan's RISKY items, in order.
 func (r *removeState) riskyItems() []model.PlanItem {
 	var out []model.PlanItem
-	for _, it := range r.res.Plan.Items {
+	for _, it := range r.Res.Plan.Items {
 		if it.Risk == model.RiskRisky {
 			out = append(out, it)
 		}
@@ -76,11 +76,11 @@ func (r *removeState) nextRisky() (model.PlanItem, bool) {
 
 // executorRemove is the real removal: the executor, with every check, and
 // each item deleted right after it's moved.
-func executorRemove(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error) {
-	if !realTTY(os.Stdin, os.Stdout) {
+func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error) {
+	if !RealTTY(os.Stdin, os.Stdout) {
 		return executor.Report{}, errors.New("removing needs you at a Terminal")
 	}
-	st, err := store.Open(store.DefaultPath(d.home))
+	st, err := store.Open(store.DefaultPath(d.Home))
 	if err != nil {
 		return executor.Report{}, err
 	}
@@ -93,9 +93,9 @@ func executorRemove(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (
 		approved[it.OpportunityID] = executor.Approval{Individually: it.Risk == model.RiskRisky}
 	}
 	return executor.Apply(context.Background(), executor.Config{
-		Store: st, StorePath: store.DefaultPath(d.home), Home: d.home, Catalog: d.cat, Runner: runner, Now: time.Now,
+		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: d.cat, Runner: Runner, Now: time.Now,
 		DeleteNow: true,
-		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, runner) },
+		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
 		OnItem:    onItem,
 	}, p, approved)
 }
@@ -103,77 +103,77 @@ func executorRemove(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (
 // startRemove seals a plan for the marked suggestions (or the selected one)
 // and opens the confirmation box. Advice-only items have nothing to remove,
 // so Enter explains them instead.
-func (m tuiModel) startRemove() (tea.Model, tea.Cmd) {
+func (m TuiModel) startRemove() (tea.Model, tea.Cmd) {
 	// Enter on an advice row always explains it, even when other items are
 	// marked (the picker pre-marks SAFE items, so marks are the usual case).
-	ops := m.items()
-	if m.cursor < len(ops) {
-		if op := ops[m.cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
-			m.detail = !m.detail
-			m.flash = "macdoc can't remove this one. The steps to do it yourself are below."
+	ops := m.Items()
+	if m.Cursor < len(ops) {
+		if op := ops[m.Cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
+			m.Detail = !m.Detail
+			m.Flash = "macdoc can't remove this one. The steps to do it yourself are below."
 			return m, nil
 		}
 	}
-	if n, _ := m.markedTotal(); n == 0 && m.cursor >= len(ops) {
+	if n, _ := m.markedTotal(); n == 0 && m.Cursor >= len(ops) {
 		return m, nil
 	}
-	sel := m.markedSelector()
-	if sel == nil || m.planning {
+	sel := m.MarkedSelector()
+	if sel == nil || m.Planning {
 		return m, nil
 	}
-	if m.data == nil || m.deps.makePlan == nil {
-		m.flash = "Check your Mac first."
+	if m.Data == nil || m.Deps.MakePlan == nil {
+		m.Flash = "Check your Mac first."
 		return m, nil
 	}
-	m.planning = true
-	m.flash = "Checking…"
-	deps, pre, s := m.deps, m.data.planOps, *sel
+	m.Planning = true
+	m.Flash = "Checking…"
+	deps, pre, s := m.Deps, m.Data.PlanOps, *sel
 	return m, func() tea.Msg {
-		res, err := deps.makePlan(deps, s, pre)
-		return removeReadyMsg{res: res, err: err}
+		res, err := deps.MakePlan(deps, s, pre)
+		return removeReadyMsg{Res: res, Err: err}
 	}
 }
 
-func (m tuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
-	m.planning = false
+func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
+	m.Planning = false
 	switch {
-	case msg.err == nil:
-		m.removing = &removeState{res: msg.res, view: display(msg.res)}
-		m.overlay, m.scroll = overlayRemove, 0
-		clear(m.marked)
-	case errors.Is(msg.err, planner.ErrNothing):
+	case msg.Err == nil:
+		m.removing = &removeState{Res: msg.Res, view: display(msg.Res)}
+		m.Overlay, m.scroll = OverlayRemove, 0
+		clear(m.Marked)
+	case errors.Is(msg.Err, planner.ErrNothing):
 		reason := "none of them can be removed right now"
-		if len(msg.res.Refused) > 0 {
-			reason = msg.res.Refused[0].Reason
+		if len(msg.Res.Refused) > 0 {
+			reason = msg.Res.Refused[0].Reason
 		}
-		m.flash = "Can't remove it: " + reason
+		m.Flash = "Can't remove it: " + reason
 	default:
-		m.flash = "Can't remove it: " + msg.err.Error()
+		m.Flash = "Can't remove it: " + msg.Err.Error()
 	}
 	return m, nil
 }
 
 // removeKey handles keys in the confirmation box.
-func (m tuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	r := m.removing
 	if r.running {
 		return m, nil // it finishes on its own; every item is checked first
 	}
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.overlay, m.removing = overlayNone, nil
-		m.flash = "Canceled. Nothing was removed."
+		m.Overlay, m.removing = OverlayNone, nil
+		m.Flash = "Canceled. Nothing was removed."
 		return m, nil
 	case tea.KeyEnter:
 		if want, pending := r.nextRisky(); pending {
 			if !strings.EqualFold(strings.TrimSpace(r.code), want.OpportunityID) {
-				m.flash = "Type " + want.OpportunityID + " first, then press Enter (esc cancels)."
+				m.Flash = "Type " + want.OpportunityID + " first, then press Enter (esc cancels)."
 				return m, nil
 			}
 			r.confirmed++
 			r.code = ""
 			if _, more := r.nextRisky(); more {
-				m.flash = ""
+				m.Flash = ""
 				return m, nil
 			}
 		}
@@ -192,21 +192,21 @@ func (m tuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m tuiModel) runRemove() (tea.Model, tea.Cmd) {
+func (m TuiModel) runRemove() (tea.Model, tea.Cmd) {
 	r := m.removing
 	r.running = true
-	run := m.deps.remove
+	run := m.Deps.Remove
 	if run == nil {
 		run = executorRemove
 	}
-	deps, plan := m.deps, r.res.Plan
+	deps, plan := m.Deps, r.Res.Plan
 	return m, func() tea.Msg {
 		rep, err := run(deps, plan, func(ev executor.ItemEvent) { deps.post(removeProgressMsg(ev)) })
-		return removedMsg{rep: rep, err: err}
+		return removedMsg{rep: rep, Err: err}
 	}
 }
 
-func (m tuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
 	ev := display(executor.ItemEvent(msg))
 	r := m.removing
 	if r == nil {
@@ -221,14 +221,14 @@ func (m tuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m tuiModel) resultLine(res executor.ItemResult) string {
+func (m TuiModel) resultLine(res executor.ItemResult) string {
 	t := m.t
 	switch res.Outcome {
 	case executor.OutcomeDone:
 		if res.QuarantineID != "" && !res.Deleted {
 			return t.warn.Render("◐ ") + res.Item.Title + t.muted.Render(" moved aside as "+res.QuarantineID+", not deleted")
 		}
-		return t.ok.Render("✓ ") + res.Item.Title + t.muted.Render(" removed")
+		return t.Ok.Render("✓ ") + res.Item.Title + t.muted.Render(" removed")
 	case executor.OutcomeSkipped:
 		return t.warn.Render("– ") + res.Item.Title + t.muted.Render(" left alone: "+res.Reason)
 	}
@@ -237,11 +237,11 @@ func (m tuiModel) resultLine(res executor.ItemResult) string {
 
 // removed closes the box, drops what was removed from the list and says
 // how much space came back.
-func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
-	m.overlay, m.removing, m.scroll = overlayNone, nil, 0
+func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
+	m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
 	msg.rep = display(msg.rep) // only shown from here on; IDs are unchanged
-	if msg.err != nil {
-		m.flash = "Nothing was removed: " + msg.err.Error()
+	if msg.Err != nil {
+		m.Flash = "Nothing was removed: " + msg.Err.Error()
 		return m, nil
 	}
 	rep := msg.rep
@@ -251,16 +251,16 @@ func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 			done[it.Item.OpportunityID] = true
 		}
 	}
-	if m.data != nil {
-		ops := m.data.res.Opportunities.Opportunities
+	if m.Data != nil {
+		ops := m.Data.Res.Opportunities.Opportunities
 		kept := ops[:0:0]
 		for _, op := range ops {
 			if !done[op.ID] {
 				kept = append(kept, op)
 			}
 		}
-		m.data.res.Opportunities.Opportunities = kept
-		if p := m.data.planOps; p != nil {
+		m.Data.Res.Opportunities.Opportunities = kept
+		if p := m.Data.PlanOps; p != nil {
 			raw := *p
 			raw.Opportunities = nil
 			for _, op := range p.Opportunities {
@@ -268,9 +268,9 @@ func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 					raw.Opportunities = append(raw.Opportunities, op)
 				}
 			}
-			m.data.planOps = &raw
+			m.Data.PlanOps = &raw
 		}
-		m.cursor = max(0, min(m.cursor, len(kept)-1))
+		m.Cursor = max(0, min(m.Cursor, len(kept)-1))
 	}
 	var parts []string
 	n := rep.Count(executor.OutcomeDone)
@@ -285,12 +285,12 @@ func (m tuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	parts = append(parts, rep.Warnings...)
-	m.flash = strings.Join(parts, " · ") + ". Press r to rescan."
+	m.Flash = strings.Join(parts, " · ") + ". Press r to rescan."
 	return m, nil
 }
 
 // removeView is the confirmation box.
-func (m tuiModel) removeView() string {
+func (m TuiModel) removeView() string {
 	t := m.t
 	r := m.removing
 	if r == nil {
@@ -313,7 +313,7 @@ func (m tuiModel) removeView() string {
 			where = strings.Join(it.Argv, " ")
 		}
 		fmt.Fprintf(&b, "   %s %s  %s  %s\n", t.riskStyle(it.Risk).Render(fmt.Sprintf("%-7s", it.Risk)),
-			t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(it.Title), t.muted.Render(tildePath(m.deps.home, where)))
+			t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(it.Title), t.muted.Render(TildePath(m.Deps.Home, where)))
 	}
 	for _, rf := range r.view.Refused {
 		fmt.Fprintf(&b, "   %s %s\n", t.warn.Render("not included:"), t.muted.Render(rf.ID+" "+rf.Reason))
@@ -339,7 +339,7 @@ func (m tuiModel) removeView() string {
 	case r.needsCode():
 		b.WriteString("\n   " + t.warn.Render("A RISKY item is included. It is deleted for good and can't be brought back.") + "\n")
 		if want, ok := r.nextRisky(); ok {
-			fmt.Fprintf(&b, "   Type %s and press Enter (%d of %d RISKY): %s%s\n", t.id.Render(want.OpportunityID),
+			fmt.Fprintf(&b, "   Type %s and press Enter (%d of %d RISKY): %s%s\n", t.Id.Render(want.OpportunityID),
 				r.confirmed+1, len(r.riskyItems()), t.accent.Render(r.code), t.brand.Render("▏"))
 		}
 		b.WriteString("   " + t.muted.Render("esc cancels") + "\n")

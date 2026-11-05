@@ -134,7 +134,7 @@ func latestComplete(storePath string) (model.ScanInfo, error) {
 	return st.LatestScan(model.ScanComplete)
 }
 
-// topLevel returns the stored direct children of the scan root.
+// topLevel returns the stored direct Children of the scan root.
 func topLevel(storePath string, info model.ScanInfo) ([]model.Node, error) {
 	st, err := store.Open(storePath)
 	if err != nil {
@@ -149,7 +149,7 @@ func topLevel(storePath string, info model.ScanInfo) ([]model.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return children(nodes, root), nil
+	return Children(nodes, root), nil
 }
 
 // LastScan returns the latest complete scan and its age, or store.ErrNoScan.

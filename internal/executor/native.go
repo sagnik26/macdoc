@@ -11,9 +11,9 @@ import (
 	"macdoc/internal/platform"
 )
 
-// resolveTool finds a bare tool name on PATH and returns the path to run,
+// ResolveTool finds a bare tool name on PATH and returns the path to run,
 // after the trust check in platform.ResolveTool.
-func resolveTool(name string) (string, error) { return platform.ResolveTool(name) }
+func ResolveTool(name string) (string, error) { return platform.ResolveTool(name) }
 
 const timeoutTmutil = 30 * time.Second
 
@@ -27,13 +27,13 @@ func realExec(ctx context.Context, argv []string, timeout time.Duration) ([]byte
 	if len(argv) == 0 {
 		return nil, -1, errors.New("empty command")
 	}
-	tool, err := resolveTool(argv[0])
+	tool, err := ResolveTool(argv[0])
 	if err != nil {
 		return nil, -1, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, tool, argv[1:]...) //nolint:gosec // G204: fixed argv from a verified plan's recipe, run by the path resolveTool checked; no shell.
+	cmd := exec.CommandContext(ctx, tool, argv[1:]...) //nolint:gosec // G204: fixed argv from a verified plan's recipe, run by the path ResolveTool checked; no shell.
 	var out tailBuffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err = cmd.Run()

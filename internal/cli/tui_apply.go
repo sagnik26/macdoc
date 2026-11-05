@@ -13,30 +13,30 @@ import (
 	"macdoc/internal/planner"
 )
 
-// appliedMsg arrives when the dashboard gets the terminal back after apply.
-type appliedMsg struct {
-	id  string
-	err error
+// AppliedMsg arrives when the dashboard gets the terminal back after apply.
+type AppliedMsg struct {
+	Id  string
+	Err error
 }
 
-// applyHandoff runs `macdoc apply <id>` in this process on the real
+// ApplyHandoff runs `macdoc apply <id>` in this process on the real
 // terminal while the dashboard is paused (tea.Exec). It is the same command
 // with the same checks: a real terminal, the dry run again, per-item y/N
 // where needed and the typed code. The dashboard itself never changes
 // anything.
-type applyHandoff struct {
-	home string
-	id   string
-	in   io.Reader
-	out  io.Writer
-	run  func(cmd *cobra.Command, d applyDeps, id string) error // runApply; tests replace it
+type ApplyHandoff struct {
+	Home    string
+	Id      string
+	in      io.Reader
+	out     io.Writer
+	RunFunc func(cmd *cobra.Command, d ApplyDeps, id string) error // RunApply; tests replace it
 }
 
-func (a *applyHandoff) SetStdin(r io.Reader)  { a.in = r }
-func (a *applyHandoff) SetStdout(w io.Writer) { a.out = w }
-func (a *applyHandoff) SetStderr(io.Writer)   {}
+func (a *ApplyHandoff) SetStdin(r io.Reader)  { a.in = r }
+func (a *ApplyHandoff) SetStdout(w io.Writer) { a.out = w }
+func (a *ApplyHandoff) SetStderr(io.Writer)   {}
 
-func (a *applyHandoff) Run() error {
+func (a *ApplyHandoff) Run() error {
 	if a.in == nil {
 		a.in = os.Stdin
 	}
@@ -47,8 +47,8 @@ func (a *applyHandoff) Run() error {
 	cmd.SetIn(a.in)
 	cmd.SetOut(a.out)
 	t := themeFor(a.out)
-	_, _ = fmt.Fprintf(a.out, "\n %s\n\n", t.heading("macdoc apply "+a.id))
-	if err := a.run(cmd, applyDeps{home: a.home, now: nowFunc}, a.id); err != nil {
+	_, _ = fmt.Fprintf(a.out, "\n %s\n\n", t.heading("macdoc apply "+a.Id))
+	if err := a.RunFunc(cmd, ApplyDeps{Home: a.Home, Now: NowFunc}, a.Id); err != nil {
 		_, _ = fmt.Fprintf(a.out, "\n %s %s\n", t.bad.Render("macdoc:"), err.Error())
 	}
 	_, _ = fmt.Fprint(a.out, "\n "+t.muted.Render("Press Enter to go back to the dashboard."))
@@ -58,37 +58,37 @@ func (a *applyHandoff) Run() error {
 
 // startApply pauses the dashboard and hands the terminal to apply. id may
 // be empty: then it's the plan sealed in this session.
-func (m tuiModel) startApply(id string) (tea.Model, tea.Cmd) {
+func (m TuiModel) startApply(id string) (tea.Model, tea.Cmd) {
 	id = strings.ToUpper(strings.TrimSpace(id))
-	if id == "" && m.plan != nil {
-		id = m.plan.Plan.ID
+	if id == "" && m.Plan != nil {
+		id = m.Plan.Plan.ID
 	}
 	if id == "" {
-		m.flash = "Usage: /apply <P-id>, or seal a plan first (mark suggestions with space, then p)."
+		m.Flash = "Usage: /apply <P-id>, or seal a plan first (mark suggestions with space, then p)."
 		return m, nil
 	}
 	if !planner.ValidID(id) {
-		m.flash = fmt.Sprintf("%q isn't a plan ID (they look like P-7F3K).", id)
+		m.Flash = fmt.Sprintf("%q isn't a plan ID (they look like P-7F3K).", id)
 		return m, nil
 	}
-	run := m.deps.apply
+	run := m.Deps.apply
 	if run == nil {
-		run = runApply
+		run = RunApply
 	}
-	h := &applyHandoff{home: m.deps.home, id: id, run: run}
-	return m, tea.Exec(h, func(err error) tea.Msg { return appliedMsg{id: id, err: err} })
+	h := &ApplyHandoff{Home: m.Deps.Home, Id: id, RunFunc: run}
+	return m, tea.Exec(h, func(err error) tea.Msg { return AppliedMsg{Id: id, Err: err} })
 }
 
 // applied is the dashboard coming back from apply.
-func (m tuiModel) applied(msg appliedMsg) (tea.Model, tea.Cmd) {
-	m.overlay, m.scroll = overlayNone, 0
-	if m.plan != nil && m.plan.Plan.ID == msg.id {
-		m.plan = nil
+func (m TuiModel) applied(msg AppliedMsg) (tea.Model, tea.Cmd) {
+	m.Overlay, m.scroll = OverlayNone, 0
+	if m.Plan != nil && m.Plan.Plan.ID == msg.Id {
+		m.Plan = nil
 	}
-	if msg.err != nil {
-		m.flash = "Couldn't hand the terminal to apply: " + msg.err.Error()
+	if msg.Err != nil {
+		m.Flash = "Couldn't hand the terminal to apply: " + msg.Err.Error()
 		return m, nil
 	}
-	m.flash = "Back from macdoc apply " + msg.id + ". What happened is in macdoc log. Press r to rescan for fresh numbers."
+	m.Flash = "Back from macdoc apply " + msg.Id + ". What happened is in macdoc log. Press r to rescan for fresh numbers."
 	return m, nil
 }

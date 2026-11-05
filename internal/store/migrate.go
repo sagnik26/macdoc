@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// migrations are applied in order; migrations[i] is schema version i+1.
+// Migrations are applied in order; Migrations[i] is schema version i+1.
 // Never edit a released migration: append a new one.
-var migrations = []string{
+var Migrations = []string{
 	// v1: scans, kept nodes and unmeasured paths. Times are unix nanoseconds.
 	// nodes.depth is the absolute component count of path ("/" = 0) and is
 	// what NodeQuery.MaxDepth filters on; nodes.rel_depth is model.Node.Depth
@@ -86,13 +86,13 @@ var migrations = []string{
 	CREATE INDEX vitals_at ON vitals (at);`,
 }
 
-// migrate brings the schema up to len(migrations). Each migration runs in its
+// migrate brings the schema up to len(Migrations). Each migration runs in its
 // own transaction together with its schema_migrations row. A database whose
 // schema is newer than this code is rejected rather than downgraded.
 func (s *Store) migrate() error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+	if _, err := s.DB.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version    INTEGER PRIMARY KEY,
 		applied_at INTEGER NOT NULL
 	)`); err != nil {
@@ -113,7 +113,7 @@ func (s *Store) migrate() error {
 // version is read inside the (immediate) transaction, so two processes
 // opening the same database cannot apply a migration twice.
 func (s *Store) migrateOne() (done bool, err error) {
-	tx, err := s.db.Begin()
+	tx, err := s.DB.Begin()
 	if err != nil {
 		return false, fmt.Errorf("store: migrate: %w", err)
 	}
@@ -122,15 +122,15 @@ func (s *Store) migrateOne() (done bool, err error) {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&cur); err != nil {
 		return false, fmt.Errorf("store: migrate: %w", err)
 	}
-	if cur > len(migrations) {
+	if cur > len(Migrations) {
 		return false, fmt.Errorf("store: database schema version %d is newer than this macdoc supports (%d)",
-			cur, len(migrations))
+			cur, len(Migrations))
 	}
-	if cur == len(migrations) {
+	if cur == len(Migrations) {
 		return true, nil
 	}
 	next := cur + 1
-	if _, err := tx.Exec(migrations[cur]); err != nil {
+	if _, err := tx.Exec(Migrations[cur]); err != nil {
 		return false, fmt.Errorf("store: migration %d: %w", next, err)
 	}
 	if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,

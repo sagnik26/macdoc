@@ -21,11 +21,11 @@ import (
 // commands through env.Runner.
 
 func init() {
-	Register("xcode_device_support", detectDeviceSupport)
+	Register("xcode_device_support", DetectDeviceSupport)
 	Register("simctl_unavailable_devices", detectSimctlUnavailable)
 	Register("simctl_runtimes", detectSimctlRuntimes)
 	Register("orphaned_sim_runtimes", detectOrphanedSimRuntimes)
-	Register("simctl_idle_devices", detectSimctlIdle)
+	Register("simctl_idle_devices", DetectSimctlIdle)
 	RegisterLister("simctl_idle_devices", listSimDeviceIDs)
 	Register("cocoapods_cache", detectCocoaPodsCache)
 }
@@ -41,14 +41,14 @@ var nativeArgRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 // (e.g. `xcrun simctl runtime delete all`) or change what the command does.
 var reservedNativeArgs = []string{"all", "unavailable", "booted", "help", "version"}
 
-func validNativeArg(s string) bool {
+func ValidNativeArg(s string) bool {
 	return len(s) <= 255 && nativeArgRE.MatchString(s) &&
 		!slices.ContainsFunc(reservedNativeArgs, func(r string) bool { return strings.EqualFold(r, s) })
 }
 
-// toolMissing reports whether a listing command failed only because the tool
+// ToolMissing reports whether a listing command failed only because the tool
 // (or a sub-tool such as simctl) isn't installed. That is not an error.
-func toolMissing(res platform.Result, err error) bool {
+func ToolMissing(res platform.Result, err error) bool {
 	msg := ""
 	switch {
 	case err != nil:
@@ -71,7 +71,7 @@ func runListing(ctx context.Context, env Env, name string, args ...string) (out 
 	}
 	cmd := platform.Command{Name: name, Args: args}
 	res, err := env.Runner.Run(ctx, cmd)
-	if toolMissing(res, err) {
+	if ToolMissing(res, err) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -83,8 +83,8 @@ func runListing(ctx context.Context, env Env, name string, args ...string) (out 
 	return res.Stdout, true, nil
 }
 
-// scanNode returns the kept scan node at exactly path.
-func scanNode(env Env, path string) (model.Node, bool, error) {
+// ScanNode returns the kept scan node at exactly path.
+func ScanNode(env Env, path string) (model.Node, bool, error) {
 	if env.Nodes == nil {
 		return model.Node{}, false, nil
 	}
@@ -121,8 +121,8 @@ func unscanned() model.Bytes {
 	return model.Bytes{Source: model.SourceUnknown, Reason: "not in the latest scan (under the keep threshold, or not scanned yet)"}
 }
 
-// now returns env.Now, or the wall clock if it isn't set.
-func (env Env) now() time.Time {
+// Clock returns env.Now, or the wall clock if it isn't set.
+func (env Env) Clock() time.Time {
 	if env.Now.IsZero() {
 		return time.Now()
 	}
@@ -132,8 +132,8 @@ func (env Env) now() time.Time {
 // versionRE finds a dotted numeric version, e.g. "17.2" in "iPhone15,2 17.2 (21C62)".
 var versionRE = regexp.MustCompile(`^\d+(\.\d+)*$`)
 
-// parseVersion returns the numeric components of a dotted version, or nil.
-func parseVersion(s string) []int {
+// ParseVersion returns the numeric components of a dotted version, or nil.
+func ParseVersion(s string) []int {
 	if !versionRE.MatchString(s) {
 		return nil
 	}
@@ -175,14 +175,14 @@ var deviceSupportDirs = []string{"iOS DeviceSupport", "watchOS DeviceSupport", "
 // "17.2 (21C62)" and "iPhone15,2 17.2 (21C62)" both give 17.2.
 func deviceSupportVersion(n model.Node) []int {
 	for _, f := range strings.Fields(filepath.Base(n.Path)) {
-		if v := parseVersion(f); v != nil {
+		if v := ParseVersion(f); v != nil {
 			return v
 		}
 	}
 	return nil
 }
 
-func detectDeviceSupport(_ context.Context, env Env, _ Recipe) ([]Finding, error) {
+func DetectDeviceSupport(_ context.Context, env Env, _ Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
 	}
@@ -236,8 +236,8 @@ func simDevices(ctx context.Context, env Env) (devs []simDevice, ok bool, err er
 	return devs, true, nil
 }
 
-// runtimeName turns "com.apple.CoreSimulator.SimRuntime.iOS-17-2" into "iOS 17.2".
-func runtimeName(id string) string {
+// RuntimeName turns "com.apple.CoreSimulator.SimRuntime.iOS-17-2" into "iOS 17.2".
+func RuntimeName(id string) string {
 	i := strings.LastIndex(id, ".")
 	plat, ver, _ := strings.Cut(id[i+1:], "-")
 	if ver == "" {
@@ -246,7 +246,7 @@ func runtimeName(id string) string {
 	return plat + " " + strings.ReplaceAll(ver, "-", ".")
 }
 
-func simDeviceDir(env Env, udid string) string {
+func SimDeviceDir(env Env, udid string) string {
 	return filepath.Join(env.Home, "Library/Developer/CoreSimulator/Devices", udid)
 }
 
@@ -265,14 +265,14 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 		if d.IsAvailable {
 			continue
 		}
-		names = append(names, d.Name+" ("+runtimeName(d.runtime)+")")
+		names = append(names, d.Name+" ("+RuntimeName(d.runtime)+")")
 		// The UDID is joined into a path to size the device, so it must look
 		// like an identifier; otherwise the device counts as not measured.
-		if !validNativeArg(d.UDID) {
+		if !ValidNativeArg(d.UDID) {
 			missing++
 			continue
 		}
-		n, found, err := scanNode(env, simDeviceDir(env, d.UDID))
+		n, found, err := ScanNode(env, SimDeviceDir(env, d.UDID))
 		var size int64
 		switch {
 		case err != nil:
@@ -287,7 +287,7 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 			continue
 		}
 		var ok bool
-		if total, ok = addSize(total, size); !ok {
+		if total, ok = AddSize(total, size); !ok {
 			sumOK = false
 		}
 	}
@@ -321,16 +321,16 @@ func listSimDeviceIDs(ctx context.Context, env Env, _ Recipe) ([]string, error) 
 	}
 	var out []string
 	for _, d := range devs {
-		if d.IsAvailable && d.State != "Booted" && validNativeArg(d.UDID) {
+		if d.IsAvailable && d.State != "Booted" && ValidNativeArg(d.UDID) {
 			out = append(out, d.UDID)
 		}
 	}
 	return out, nil
 }
 
-// detectSimctlIdle emits available, shut-down devices whose data directory
+// DetectSimctlIdle emits available, shut-down devices whose data directory
 // hasn't changed for r.StaleDays (default 90).
-func detectSimctlIdle(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectSimctlIdle(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
 	}
@@ -344,19 +344,19 @@ func detectSimctlIdle(ctx context.Context, env Env, r Recipe) ([]Finding, error)
 	}
 	var out []Finding
 	for _, d := range devs {
-		if !d.IsAvailable || d.State == "Booted" || !validNativeArg(d.UDID) {
+		if !d.IsAvailable || d.State == "Booted" || !ValidNativeArg(d.UDID) {
 			continue
 		}
-		n, found, err := scanNode(env, simDeviceDir(env, d.UDID))
+		n, found, err := ScanNode(env, SimDeviceDir(env, d.UDID))
 		if err != nil {
 			return nil, err
 		}
-		if !found || !stale(env, n.MtimeMax, days) {
+		if !found || !Stale(env, n.MtimeMax, days) {
 			continue
 		}
 		f := nodeFinding(n)
 		f.NativeArg = d.UDID
-		f.Title = "Simulator " + d.Name + " (" + runtimeName(d.runtime) + ")"
+		f.Title = "Simulator " + d.Name + " (" + RuntimeName(d.runtime) + ")"
 		out = append(out, f)
 	}
 	return out, nil
@@ -393,13 +393,13 @@ func detectSimctlRuntimes(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 	sort.Strings(ids)
 
 	plat := func(rt simRuntime) string {
-		p, _, _ := strings.Cut(runtimeName(rt.RuntimeIdentifier), " ")
+		p, _, _ := strings.Cut(RuntimeName(rt.RuntimeIdentifier), " ")
 		return p
 	}
 	newest := map[string][]int{}
 	for _, id := range ids {
 		rt := doc[id]
-		if v := parseVersion(rt.Version); slices.Compare(v, newest[plat(rt)]) > 0 {
+		if v := ParseVersion(rt.Version); slices.Compare(v, newest[plat(rt)]) > 0 {
 			newest[plat(rt)] = v
 		}
 	}
@@ -409,7 +409,7 @@ func detectSimctlRuntimes(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 		rt := doc[id]
 		// The identifier is used verbatim as the native argument, so it must
 		// be the listing's own key and look like an identifier.
-		if !rt.Deletable || rt.Identifier != id || !validNativeArg(id) {
+		if !rt.Deletable || rt.Identifier != id || !ValidNativeArg(id) {
 			continue
 		}
 		f := Finding{
@@ -420,13 +420,13 @@ func detectSimctlRuntimes(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 		}
 		if rt.SizeBytes <= 0 {
 			f.Bytes = model.Bytes{Source: model.SourceUnknown, Reason: "simctl did not report a size"}
-		} else if rt.SizeBytes > maxPlausibleBytes {
+		} else if rt.SizeBytes > MaxPlausibleBytes {
 			f.Bytes = implausibleSize("simctl")
 		}
 		if t, err := time.Parse(time.RFC3339, rt.LastUsedAt); err == nil {
 			f.LastUsed = t.UTC()
 		}
-		if v := parseVersion(rt.Version); v != nil && slices.Equal(v, newest[plat(rt)]) {
+		if v := ParseVersion(rt.Version); v != nil && slices.Equal(v, newest[plat(rt)]) {
 			f.Note = "This is the newest installed " + plat(rt) + " runtime; Xcode needs one to run " + plat(rt) + " simulators."
 		}
 		fs = append(fs, f)
@@ -453,7 +453,7 @@ func detectOrphanedSimRuntimes(ctx context.Context, env Env, _ Recipe) ([]Findin
 		cmd := platform.Command{Name: "xcrun", Args: []string{"--find", "simctl"}}
 		res, err := env.Runner.Run(ctx, cmd)
 		switch {
-		case toolMissing(res, err):
+		case ToolMissing(res, err):
 			// simctl unavailable: report what's left on disk
 		case err != nil:
 			return nil, fmt.Errorf("%s: %w", platform.Key(cmd), err)
@@ -465,7 +465,7 @@ func detectOrphanedSimRuntimes(ctx context.Context, env Env, _ Recipe) ([]Findin
 	}
 	var out []Finding
 	for _, d := range orphanedRuntimeDirs {
-		n, found, err := scanNode(env, d.path)
+		n, found, err := ScanNode(env, d.path)
 		if err != nil {
 			return nil, err
 		}
@@ -486,5 +486,5 @@ func detectCocoaPodsCache(ctx context.Context, env Env, r Recipe) ([]Finding, er
 	if !ToolInstalled("pod") {
 		return nil, nil
 	}
-	return detectPath(ctx, env, r)
+	return DetectPath(ctx, env, r)
 }

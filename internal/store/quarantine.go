@@ -38,7 +38,7 @@ type QuarantineRecord struct {
 func (s *Store) AddQuarantine(r QuarantineRecord) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	_, err := s.db.Exec(`INSERT INTO quarantine (id, plan_id, item_id, recipe_id, original, bytes, created_at, expires_at, status)
+	_, err := s.DB.Exec(`INSERT INTO quarantine (id, plan_id, item_id, recipe_id, original, bytes, created_at, expires_at, status)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.PlanID, r.ItemID, r.RecipeID, r.Original, r.Bytes, toDB(r.CreatedAt), toDB(r.ExpiresAt), string(QuarantinePending))
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *Store) AddQuarantine(r QuarantineRecord) error {
 func (s *Store) SetQuarantineStatus(id string, from, to QuarantineStatus) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	res, err := s.db.Exec(`UPDATE quarantine SET status = ? WHERE id = ? AND status = ?`, string(to), id, string(from))
+	res, err := s.DB.Exec(`UPDATE quarantine SET status = ? WHERE id = ? AND status = ?`, string(to), id, string(from))
 	if err != nil {
 		return fmt.Errorf("store: quarantine status: %w", err)
 	}
@@ -67,7 +67,7 @@ func (s *Store) SetQuarantineStatus(id string, from, to QuarantineStatus) error 
 // HasQuarantine reports whether a quarantine ID is taken.
 func (s *Store) HasQuarantine(id string) (bool, error) {
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM quarantine WHERE id = ?`, id).Scan(&n); err != nil {
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM quarantine WHERE id = ?`, id).Scan(&n); err != nil {
 		return false, fmt.Errorf("store: quarantine: %w", err)
 	}
 	return n > 0, nil
@@ -89,7 +89,7 @@ func scanQuarantine(sc interface{ Scan(...any) error }) (QuarantineRecord, error
 
 // Quarantine returns the record of entry id, or ErrNoQuarantine.
 func (s *Store) Quarantine(id string) (QuarantineRecord, error) {
-	r, err := scanQuarantine(s.db.QueryRow(`SELECT `+quarantineCols+` FROM quarantine WHERE id = ?`, id))
+	r, err := scanQuarantine(s.DB.QueryRow(`SELECT `+quarantineCols+` FROM quarantine WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNoQuarantine
 	}
@@ -102,7 +102,7 @@ func (s *Store) Quarantine(id string) (QuarantineRecord, error) {
 // QuarantineEntries returns entries in the given statuses (all if none),
 // oldest first.
 func (s *Store) QuarantineEntries(statuses ...QuarantineStatus) ([]QuarantineRecord, error) {
-	rows, err := s.db.Query(`SELECT ` + quarantineCols + ` FROM quarantine ORDER BY created_at, id`)
+	rows, err := s.DB.Query(`SELECT ` + quarantineCols + ` FROM quarantine ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: quarantine: %w", err)
 	}

@@ -15,7 +15,7 @@ import (
 
 // Commands used by the memory collector. Fixed argv, no shell.
 var (
-	cmdVMStat         = platform.Command{Name: "vm_stat"}
+	CmdVMStat         = platform.Command{Name: "vm_stat"}
 	cmdMemsize        = platform.Command{Name: "sysctl", Args: []string{"-n", "hw.memsize"}}
 	cmdMemoryPressure = platform.Command{Name: "memory_pressure", Args: []string{"-Q"}}
 	cmdPressureLevel  = platform.Command{Name: "sysctl", Args: []string{"-n", "kern.memorystatus_vm_pressure_level"}}
@@ -127,7 +127,7 @@ func ParsePressureLevel(out []byte) Pressure {
 // Only a vm_stat failure is returned as an error; otherwise TotalBytes stays
 // 0, FreePercent -1 and Pressure PressureUnknown when their command fails.
 func CollectMemory(ctx context.Context, r platform.Runner) (Memory, error) {
-	out, err := runReadOnly(ctx, r, cmdVMStat)
+	out, err := RunReadOnly(ctx, r, CmdVMStat)
 	if err != nil {
 		return Memory{FreePercent: -1, Pressure: PressureUnknown}, err
 	}
@@ -136,17 +136,17 @@ func CollectMemory(ctx context.Context, r platform.Runner) (Memory, error) {
 		return Memory{FreePercent: -1, Pressure: PressureUnknown}, err
 	}
 
-	if out, err := runReadOnly(ctx, r, cmdMemsize); err == nil {
+	if out, err := RunReadOnly(ctx, r, cmdMemsize); err == nil {
 		if n, err := parsePositiveInt(string(out)); err == nil {
 			m.TotalBytes = n
 		}
 	}
-	if out, err := runReadOnly(ctx, r, cmdMemoryPressure); err == nil {
+	if out, err := RunReadOnly(ctx, r, cmdMemoryPressure); err == nil {
 		if n, err := ParseMemoryPressure(out); err == nil {
 			m.FreePercent = n
 		}
 	}
-	if out, err := runReadOnly(ctx, r, cmdPressureLevel); err == nil {
+	if out, err := RunReadOnly(ctx, r, cmdPressureLevel); err == nil {
 		m.Pressure = ParsePressureLevel(out)
 	}
 	return m, nil

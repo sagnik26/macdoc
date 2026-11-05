@@ -62,7 +62,7 @@ check() {
 		deps=" ${line#*|} "
 		base=$(base_of "$imp")
 		case "$base" in
-		"$target" | "$target"/* | "$module/internal/cli" | "$module/cmd/macdoc") continue ;;
+		"$target" | "$target"/* | "$module/internal/cli" | "$module/internal/cli/tests" | "$module/cmd/macdoc") continue ;;
 		esac
 		case "$deps" in
 		*" $target "* | *" $target ["*) ;;

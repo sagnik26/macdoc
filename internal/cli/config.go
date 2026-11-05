@@ -12,8 +12,8 @@ import (
 	"macdoc/internal/safety"
 )
 
-// configView is the data behind `macdoc config`.
-type configView struct {
+// ConfigView is the data behind `macdoc config`.
+type ConfigView struct {
 	Path     string         `json:"path"`
 	Settings map[string]int `json:"settings"` // effective values
 	Protect  []string       `json:"protect"`  // yours
@@ -21,7 +21,7 @@ type configView struct {
 	System   []string       `json:"system_protected"`
 }
 
-func newConfigCmd(g *globalFlags) *cobra.Command {
+func newConfigCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Show or change macdoc's settings and your protected folders",
@@ -35,7 +35,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
   macdoc config path                    where the settings file is`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			v := configView{Path: config.Path(home), Settings: map[string]int{}, Protect: append([]string{}, c.Protect...),
+			v := ConfigView{Path: config.Path(home), Settings: map[string]int{}, Protect: append([]string{}, c.Protect...),
 				BuiltIn: safety.HomeProtected(), System: safety.SystemRoots()}
 			for _, s := range config.Settings {
 				v.Settings[s.Key] = c.Effective(s.Key)
@@ -57,7 +57,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
 
 	edit := func(fn func(c *config.Config, args []string) (string, error)) func(*cobra.Command, []string) error {
 		return func(cmd *cobra.Command, args []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -125,7 +125,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
 		Short: "Print where the settings file is",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -137,7 +137,7 @@ func newConfigCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-func renderConfig(w io.Writer, c config.Config, v configView) error {
+func renderConfig(w io.Writer, c config.Config, v ConfigView) error {
 	c, v = display(c), display(v) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -160,8 +160,8 @@ func renderConfig(w io.Writer, c config.Config, v configView) error {
 		fmt.Fprintf(&b, "  %s\n", t.text.Render(p))
 	}
 	fmt.Fprintf(&b, "\n%s\n", t.heading("Always protected"))
-	fmt.Fprintf(&b, "  %s\n", t.wrap(t.muted.Render("~/"+strings.Join(v.BuiltIn, ", ~/")), 2))
-	fmt.Fprintf(&b, "  %s\n", t.wrap(t.muted.Render("and system folders: "+strings.Join(v.System, ", ")), 2))
+	fmt.Fprintf(&b, "  %s\n", t.Wrap(t.muted.Render("~/"+strings.Join(v.BuiltIn, ", ~/")), 2))
+	fmt.Fprintf(&b, "  %s\n", t.Wrap(t.muted.Render("and system folders: "+strings.Join(v.System, ", ")), 2))
 	fmt.Fprintf(&b, "\n%s %s\n", t.muted.Render("Settings file:"), v.Path)
 	_, err := io.WriteString(w, b.String())
 	return err

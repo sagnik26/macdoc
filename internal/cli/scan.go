@@ -13,7 +13,7 @@ import (
 	"macdoc/internal/model"
 )
 
-func newScanCmd(g *globalFlags) *cobra.Command {
+func newScanCmd(g *GlobalFlags) *cobra.Command {
 	var foreground bool
 	var workers int
 	cmd := &cobra.Command{
@@ -29,13 +29,13 @@ func newScanCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-func renderScan(w io.Writer, s engine.ScanSummary) error {
+func RenderScan(w io.Writer, s engine.ScanSummary) error {
 	s = display(s) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	in := s.Info
 	dur := in.FinishedAt.Sub(in.StartedAt).Round(time.Second)
-	fmt.Fprintf(&b, "%s %s · %s in %d files · %s", t.heading("Scan"), t.id.Render(in.ID), t.size.Render(engine.DecimalBytes(in.TotalBytes)), in.TotalFiles, dur)
+	fmt.Fprintf(&b, "%s %s · %s in %d files · %s", t.heading("Scan"), t.Id.Render(in.ID), t.size.Render(engine.DecimalBytes(in.TotalBytes)), in.TotalFiles, dur)
 	if in.Status != model.ScanComplete {
 		b.WriteString(t.warn.Render(fmt.Sprintf(" · %s (interrupted; results are partial)", in.Status)))
 	}
@@ -109,8 +109,8 @@ func hasPermissionGap(us []model.Unmeasured) bool {
 	return false
 }
 
-// isTerminal reports whether w (a reader or writer) is a character device (a TTY).
-func isTerminal(w any) bool {
+// IsTerminal reports whether w (a reader or writer) is a character device (a TTY).
+func IsTerminal(w any) bool {
 	f, ok := w.(*os.File)
 	if !ok {
 		return false

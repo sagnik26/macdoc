@@ -18,14 +18,14 @@ import (
 // version is set at build time via -ldflags.
 var version = "dev"
 
-type globalFlags struct {
+type GlobalFlags struct {
 	json  bool
 	quiet bool
 }
 
 // NewRootCmd builds the command tree.
 func NewRootCmd() *cobra.Command {
-	g := &globalFlags{}
+	g := &GlobalFlags{}
 	root := &cobra.Command{
 		Use:           "macdoc",
 		Short:         "Explain why your developer Mac is full and slow, and safely get space back",
@@ -44,11 +44,11 @@ func NewRootCmd() *cobra.Command {
 		if g.json || g.quiet || !interactive(cmd) {
 			return doctor.RunE(cmd, args)
 		}
-		home, err := userHome()
+		home, err := UserHome()
 		if err != nil {
 			return err
 		}
-		cat, err := loadCatalog()
+		cat, err := LoadCatalog()
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func NewRootCmd() *cobra.Command {
 
 // interactive reports whether stdin and stdout are a capable terminal.
 func interactive(cmd *cobra.Command) bool {
-	return isTerminal(cmd.InOrStdin()) && isTerminal(cmd.OutOrStdout()) && os.Getenv("TERM") != "dumb"
+	return IsTerminal(cmd.InOrStdin()) && IsTerminal(cmd.OutOrStdout()) && os.Getenv("TERM") != "dumb"
 }
 
 // Execute runs the CLI and returns the process exit code.
@@ -71,7 +71,7 @@ func Execute() int {
 	return 0
 }
 
-func newVersionCmd(g *globalFlags) *cobra.Command {
+func newVersionCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the macdoc version",

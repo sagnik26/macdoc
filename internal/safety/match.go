@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// patternComponents expands a "~" prefix and returns the folded components of
+// patternComponents expands a "~" prefix and returns the folded Components of
 // an allow pattern. ok is false for any pattern that is not absolute or
 // "~"-prefixed (including "~user/...").
 func (p *Policy) patternComponents(pattern string) (comps []string, ok bool) {
@@ -21,24 +21,24 @@ func (p *Policy) patternComponents(pattern string) (comps []string, ok bool) {
 	return foldedComponents(pattern), true
 }
 
-// matchAllow reports whether the folded path components match any pattern.
+// matchAllow reports whether the folded path Components match any pattern.
 func (p *Policy) matchAllow(pc []string, allow []string) bool {
 	for _, pat := range allow {
-		if comps, ok := p.patternComponents(pat); ok && matchComponents(comps, pc) {
+		if comps, ok := p.patternComponents(pat); ok && MatchComponents(comps, pc) {
 			return true
 		}
 	}
 	return false
 }
 
-// matchComponents matches pattern components against path components. "**"
-// matches zero or more whole components; every other pattern component is
+// MatchComponents matches pattern Components against path Components. "**"
+// matches zero or more whole Components; every other pattern component is
 // matched against exactly one path component with path.Match. A malformed
 // pattern component never matches.
 //
 // It is a dynamic-programming match, so it stays O(len(pat)*len(name)) no
 // matter how many "**" the pattern contains.
-func matchComponents(pat, name []string) bool {
+func MatchComponents(pat, name []string) bool {
 	m := len(name)
 	// next[j] reports whether pat[i+1:] matches name[j:].
 	next := make([]bool, m+1)
@@ -61,7 +61,7 @@ func matchComponents(pat, name []string) bool {
 }
 
 // depthOK reports whether pc, already known to be within $HOME, is at least 2
-// components below $HOME.
+// Components below $HOME.
 func (p *Policy) depthOK(pc []string) bool {
 	return len(pc)-len(p.homeComps) >= 2
 }

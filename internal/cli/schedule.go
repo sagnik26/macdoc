@@ -11,8 +11,8 @@ import (
 	"macdoc/internal/store"
 )
 
-// scheduleResult is what `macdoc schedule` did and what to run next.
-type scheduleResult struct {
+// ScheduleResult is what `macdoc schedule` did and what to run next.
+type ScheduleResult struct {
 	Action string `json:"action"`         // enable or disable
 	Label  string `json:"label"`          // the launch agent's name
 	Path   string `json:"path"`           // the one file written or removed
@@ -23,7 +23,7 @@ type scheduleResult struct {
 // newScheduleCmd installs or removes the daily read-only scan. It writes and
 // removes one LaunchAgents file; launchctl (which starts and stops a
 // background job) is left to the person, in Terminal.
-func newScheduleCmd(g *globalFlags) *cobra.Command {
+func newScheduleCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "schedule",
 		Short: "Run a read-only scan every morning (a launchd agent)",
@@ -41,7 +41,7 @@ in Terminal.`,
 		Short: "Write the daily scan agent",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -57,7 +57,7 @@ in Terminal.`,
 			if err != nil {
 				return err
 			}
-			res := scheduleResult{Action: "enable", Label: executor.ScheduleLabel, Path: path, Done: true,
+			res := ScheduleResult{Action: "enable", Label: executor.ScheduleLabel, Path: path, Done: true,
 				Next: fmt.Sprintf("launchctl bootstrap gui/%d %s", os.Getuid(), path)}
 			if g.json {
 				return writeJSON(cmd.OutOrStdout(), "schedule enable", res)
@@ -71,7 +71,7 @@ in Terminal.`,
 		Short: "Remove the daily scan agent",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -80,7 +80,7 @@ in Terminal.`,
 				return err
 			}
 			path := executor.ScheduleAgentPath(home)
-			res := scheduleResult{Action: "disable", Label: executor.ScheduleLabel, Path: path, Done: removed,
+			res := ScheduleResult{Action: "disable", Label: executor.ScheduleLabel, Path: path, Done: removed,
 				Next: fmt.Sprintf("launchctl bootout gui/%d/%s", os.Getuid(), executor.ScheduleLabel)}
 			msg := "No daily scan was scheduled. Nothing to remove."
 			if removed {

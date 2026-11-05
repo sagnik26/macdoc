@@ -13,7 +13,7 @@ import (
 	"macdoc/internal/store"
 )
 
-func newTrendCmd(g *globalFlags) *cobra.Command {
+func newTrendCmd(g *GlobalFlags) *cobra.Command {
 	var days int
 	cmd := &cobra.Command{
 		Use:   "trend",
@@ -27,7 +27,7 @@ only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
 			if days < 1 || days > 365 {
 				return fmt.Errorf("--days must be between 1 and 365")
 			}
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -43,14 +43,14 @@ only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
 			if g.json {
 				return writeJSON(cmd.OutOrStdout(), "doctor trend", res)
 			}
-			return renderTrend(cmd.OutOrStdout(), res, home)
+			return RenderTrend(cmd.OutOrStdout(), res, home)
 		},
 	}
 	cmd.Flags().IntVar(&days, "days", 30, "compare with a scan about this many days old")
 	return cmd
 }
 
-func renderTrend(w io.Writer, res engine.TrendResult, home string) error {
+func RenderTrend(w io.Writer, res engine.TrendResult, home string) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -58,14 +58,14 @@ func renderTrend(w io.Writer, res engine.TrendResult, home string) error {
 	if !t.on {
 		fmt.Fprintf(&b, "macdoc doctor trend · %s\n\n", span)
 	} else {
-		b.WriteString(t.card(t.brand.Render("◆ macdoc")+" "+t.title.Render("doctor trend")+t.muted.Render(" · "+span)) + "\n")
+		b.WriteString(t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("doctor trend")+t.muted.Render(" · "+span)) + "\n")
 	}
 	floor := engine.DecimalBytes(res.KeptFloor)
 
 	fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("Scanned data"), t.size.Render(changeText(res.Total, floor)),
 		t.muted.Render(fmt.Sprintf("(%s → %s)", engine.DecimalBytes(res.From.TotalBytes), engine.DecimalBytes(res.To.TotalBytes))))
 	if res.Note != "" {
-		fmt.Fprintf(&b, " %s\n", t.wrap(t.warn.Render(res.Note), 1))
+		fmt.Fprintf(&b, " %s\n", t.Wrap(t.warn.Render(res.Note), 1))
 	}
 
 	b.WriteString("\n" + t.section(t.accent, "By area", "Before → Now"))
@@ -84,10 +84,10 @@ func renderTrend(w io.Writer, res engine.TrendResult, home string) error {
 	}
 	for _, f := range res.Growing {
 		fmt.Fprintf(&b, "  %s %s %s\n", t.size.Render(fmt.Sprintf("%-18s", changeText(f.Change, floor))),
-			t.text.Render(tildePath(home, f.Path)), t.muted.Render("(now "+engine.DecimalBytes(f.After)+")"))
+			t.text.Render(TildePath(home, f.Path)), t.muted.Render("(now "+engine.DecimalBytes(f.After)+")"))
 	}
 
-	fmt.Fprintf(&b, "\n %s\n", t.wrap(t.faint.Render(fmt.Sprintf(
+	fmt.Fprintf(&b, "\n %s\n", t.Wrap(t.faint.Render(fmt.Sprintf(
 		"Scans store folders of %s or more. A folder missing from a scan was smaller than that, so its size is shown as \"<%s\" and changes involving it as a lower bound (\"or more\").", floor, floor)), 1))
 	b.WriteString(t.footer("macdoc doctor wins"))
 	_, err := io.WriteString(w, b.String())
@@ -131,7 +131,7 @@ func changeStyle(t *theme, r engine.Range) lipgloss.Style {
 	case r.Low > 0:
 		return t.warn
 	case r.High < 0:
-		return t.ok
+		return t.Ok
 	}
 	return t.muted
 }

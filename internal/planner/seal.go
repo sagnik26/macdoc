@@ -75,7 +75,7 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 		return fmt.Errorf("plans folder: %w", err)
 	}
 	for range idRetries {
-		id, err := newID()
+		id, err := NewID()
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 		if err != nil {
 			return err
 		}
-		if err := writeNew(filepath.Join(dir, id+".json"), append(b, '\n')); err != nil {
+		if err := WriteNew(filepath.Join(dir, id+".json"), append(b, '\n')); err != nil {
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}
@@ -108,7 +108,7 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 	return errors.New("couldn't find an unused plan ID")
 }
 
-func newID() (string, error) {
+func NewID() (string, error) {
 	b := make([]byte, idLen)
 	for i := range b {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(idChars))))
@@ -120,8 +120,8 @@ func newID() (string, error) {
 	return "P-" + string(b), nil
 }
 
-// writeNew creates path (failing if it exists), writes b and syncs it.
-func writeNew(path string, b []byte) error {
+// WriteNew creates path (failing if it exists), writes b and syncs it.
+func WriteNew(path string, b []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fileMode) //nolint:gosec // G304: path is the plans folder plus a generated ID.
 	if err != nil {
 		return err

@@ -17,7 +17,7 @@ import (
 	"macdoc/internal/store"
 )
 
-func newQuarantineCmd(g *globalFlags) *cobra.Command {
+func newQuarantineCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "quarantine",
 		Short: "See, restore or purge folders that apply moved aside",
@@ -30,24 +30,24 @@ as ready to purge, but nothing is ever purged without you.
   macdoc quarantine purge --expired permanently delete expired entries
   macdoc quarantine purge Q-91XZ    permanently delete one entry`,
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error { return runQuarantineList(cmd, g, time.Now()) },
+		RunE: func(cmd *cobra.Command, _ []string) error { return RunQuarantineList(cmd, g, time.Now()) },
 	}
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "What's held in quarantine (changes nothing)",
 		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return runQuarantineList(cmd, g, time.Now()) },
+		RunE:  func(cmd *cobra.Command, _ []string) error { return RunQuarantineList(cmd, g, time.Now()) },
 	}
 	restore := &cobra.Command{
 		Use:   "restore <Q-id>",
 		Short: "Move a quarantined folder back where it was (never overwrites)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			return runRestore(cmd, g, home, args[0], nil)
+			return RunRestore(cmd, g, home, args[0], nil)
 		},
 	}
 	var expired bool
@@ -55,11 +55,11 @@ as ready to purge, but nothing is ever purged without you.
 		Use:   "purge (--expired | <Q-id>...)",
 		Short: "Permanently delete quarantine entries, after you confirm in Terminal",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			return runPurge(cmd, g, home, args, expired, time.Now())
+			return RunPurge(cmd, g, home, args, expired, time.Now())
 		},
 	}
 	purge.Flags().BoolVar(&expired, "expired", false, "every entry past its 7 days")
@@ -67,8 +67,8 @@ as ready to purge, but nothing is ever purged without you.
 	return cmd
 }
 
-func runQuarantineList(cmd *cobra.Command, g *globalFlags, now time.Time) error {
-	home, err := userHome()
+func RunQuarantineList(cmd *cobra.Command, g *GlobalFlags, now time.Time) error {
+	home, err := UserHome()
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func renderQuarantine(w io.Writer, res engine.QuarantineResult, home string, now
 	for _, e := range res.Entries {
 		r := e.Record
 		state := string(e.State)
-		st := t.ok
+		st := t.Ok
 		switch {
 		case e.State == quarantine.StateHeld && e.Expired:
 			state, st = "expired", t.warn
@@ -109,8 +109,8 @@ func renderQuarantine(w io.Writer, res engine.QuarantineResult, home string, now
 		if e.Expired {
 			when = "expired " + engine.FormatAge(now.Sub(r.ExpiresAt)) + " ago"
 		}
-		fmt.Fprintf(&b, "  %s  %s  %s  %s\n", t.id.Render(r.ID), st.Render(fmt.Sprintf("%-11s", state)),
-			t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(r.Bytes))), t.text.Render(tildePath(home, r.Original)))
+		fmt.Fprintf(&b, "  %s  %s  %s  %s\n", t.Id.Render(r.ID), st.Render(fmt.Sprintf("%-11s", state)),
+			t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(r.Bytes))), t.text.Render(TildePath(home, r.Original)))
 		note := fmt.Sprintf("from %s · %s · %s", r.PlanID, r.RecipeID, when)
 		if e.Problem != "" {
 			note += " · " + e.Problem
@@ -119,13 +119,13 @@ func renderQuarantine(w io.Writer, res engine.QuarantineResult, home string, now
 	}
 	if res.ExpiredCount > 0 {
 		fmt.Fprintf(&b, "\n %s %s\n", t.warn.Render(fmt.Sprintf("%s in %d expired entr%s ready to purge:", engine.DecimalBytes(res.ExpiredBytes), res.ExpiredCount, plural(res.ExpiredCount, "y", "ies"))),
-			t.command([]string{"macdoc", "quarantine", "purge", "--expired"}))
+			t.Command([]string{"macdoc", "quarantine", "purge", "--expired"}))
 	}
 	if len(res.Unknown) > 0 {
 		fmt.Fprintf(&b, "\n %s\n", t.muted.Render("Not macdoc's (never touched): "+strings.Join(res.Unknown, ", ")))
 	}
 	if len(res.Entries) > 0 {
-		fmt.Fprintf(&b, "\n %s %s\n", t.muted.Render("Put one back:"), t.command([]string{"macdoc", "quarantine", "restore", "<Q-id>"}))
+		fmt.Fprintf(&b, "\n %s %s\n", t.muted.Render("Put one back:"), t.Command([]string{"macdoc", "quarantine", "restore", "<Q-id>"}))
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
@@ -140,14 +140,14 @@ func plural(n int, one, many string) string {
 
 // executorConfig is the executor setup for quarantine commands.
 func executorConfig(home string, st *store.Store, now func() time.Time) (executor.Config, error) {
-	cat, err := loadCatalog()
+	cat, err := LoadCatalog()
 	if err != nil {
 		return executor.Config{}, err
 	}
-	return executor.Config{Store: st, StorePath: store.DefaultPath(home), Home: home, Catalog: cat, Runner: runner, Now: now}, nil
+	return executor.Config{Store: st, StorePath: store.DefaultPath(home), Home: home, Catalog: cat, Runner: Runner, Now: now}, nil
 }
 
-func runRestore(cmd *cobra.Command, g *globalFlags, home, arg string, now func() time.Time) error {
+func RunRestore(cmd *cobra.Command, g *GlobalFlags, home, arg string, now func() time.Time) error {
 	if now == nil {
 		now = time.Now
 	}
@@ -168,13 +168,13 @@ func runRestore(cmd *cobra.Command, g *globalFlags, home, arg string, now func()
 		return writeJSON(cmd.OutOrStdout(), "quarantine restore", res)
 	}
 	t := themeFor(cmd.OutOrStdout())
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), " %s %s %s\n", t.done("Restored"), t.id.Render(res.ID), t.text.Render("to "+tildePath(home, res.Original)))
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), " %s %s %s\n", t.done("Restored"), t.Id.Render(res.ID), t.text.Render("to "+TildePath(home, res.Original)))
 	return err
 }
 
-// runPurge permanently deletes entries after a typed confirmation in a
+// RunPurge permanently deletes entries after a typed confirmation in a
 // real terminal.
-func runPurge(cmd *cobra.Command, g *globalFlags, home string, args []string, expired bool, now time.Time) error {
+func RunPurge(cmd *cobra.Command, g *GlobalFlags, home string, args []string, expired bool, now time.Time) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	if expired == (len(args) > 0) {
 		return errors.New("say what to purge: --expired, or quarantine IDs (macdoc quarantine purge Q-91XZ)")
@@ -182,7 +182,7 @@ func runPurge(cmd *cobra.Command, g *globalFlags, home string, args []string, ex
 	if g.json {
 		return errors.New("purge asks you to confirm in Terminal, so it has no --json")
 	}
-	if !realTTY(in, out) {
+	if !RealTTY(in, out) {
 		return errors.New("purge needs you at a Terminal to confirm; piped or redirected input isn't accepted")
 	}
 	res, err := engine.Quarantine(engine.OpportunityOptions{Home: home, Now: now})
@@ -218,10 +218,10 @@ func runPurge(cmd *cobra.Command, g *globalFlags, home string, args []string, ex
 	}
 	for _, id := range ids {
 		e := byID[id]
-		_, _ = fmt.Fprintf(out, "  %s  %9s  %s\n", t.id.Render(id), engine.DecimalBytes(e.Record.Bytes), tildePath(home, e.Record.Original))
+		_, _ = fmt.Fprintf(out, "  %s  %9s  %s\n", t.Id.Render(id), engine.DecimalBytes(e.Record.Bytes), TildePath(home, e.Record.Original))
 	}
 	_, _ = fmt.Fprintf(out, "\n %s Type %s to permanently delete %d entr%s (%s): ", t.warn.Render("This can't be undone."),
-		t.id.Render(`"purge"`), len(ids), plural(len(ids), "y", "ies"), engine.DecimalBytes(bytes))
+		t.Id.Render(`"purge"`), len(ids), plural(len(ids), "y", "ies"), engine.DecimalBytes(bytes))
 	ans, err := readLine(bufio.NewReader(in))
 	if err != nil || ans != "purge" {
 		_, _ = fmt.Fprintln(out, " "+t.done("Not confirmed. Nothing has been changed."))
@@ -245,9 +245,9 @@ func runPurge(cmd *cobra.Command, g *globalFlags, home string, args []string, ex
 		switch r.Outcome {
 		case executor.OutcomeDone:
 			freed += r.Bytes
-			_, _ = fmt.Fprintf(out, "  %s %s\n", t.id.Render(r.ID), t.ok.Render("purged"))
+			_, _ = fmt.Fprintf(out, "  %s %s\n", t.Id.Render(r.ID), t.Ok.Render("purged"))
 		default:
-			_, _ = fmt.Fprintf(out, "  %s %s %s\n", t.id.Render(r.ID), t.warn.Render(string(r.Outcome)+":"), t.muted.Render(r.Reason))
+			_, _ = fmt.Fprintf(out, "  %s %s %s\n", t.Id.Render(r.ID), t.warn.Render(string(r.Outcome)+":"), t.muted.Render(r.Reason))
 		}
 	}
 	_, err = fmt.Fprintf(out, "\n %s\n", t.done(fmt.Sprintf("Purged %s. Recorded in the audit log (macdoc log).", engine.DecimalBytes(freed))))

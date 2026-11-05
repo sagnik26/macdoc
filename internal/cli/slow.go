@@ -13,7 +13,7 @@ import (
 	"macdoc/internal/engine"
 )
 
-func newSlowCmd(g *globalFlags) *cobra.Command {
+func newSlowCmd(g *GlobalFlags) *cobra.Command {
 	var days int
 	var tips bool
 	cmd := &cobra.Command{
@@ -30,18 +30,18 @@ database, so the swap history fills in as you use macdoc.`,
 			if days < 1 || days > 365 {
 				return fmt.Errorf("--days must be between 1 and 365")
 			}
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			res := engine.Slow(context.Background(), engine.SlowOptions{Home: home, Runner: runner, Days: days})
+			res := engine.Slow(context.Background(), engine.SlowOptions{Home: home, Runner: Runner, Days: days})
 			if tips {
 				res.Tips = engine.TipsFor(res.Groups)
 			}
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "doctor slow", res, slices.Concat(res.Health.Report.Warnings, res.Warnings))
 			}
-			return renderSlow(cmd.OutOrStdout(), res, time.Now())
+			return RenderSlow(cmd.OutOrStdout(), res, time.Now())
 		},
 	}
 	cmd.Flags().IntVar(&days, "days", 7, "days of swap history to show")
@@ -49,7 +49,7 @@ database, so the swap history fills in as you use macdoc.`,
 	return cmd
 }
 
-func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
+func RenderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -57,9 +57,9 @@ func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 	writeVitals(&b, t, res.Health, "")
 
 	fmt.Fprintf(&b, "\n%s\n", t.heading("Is memory slowing it down?"))
-	fmt.Fprintf(&b, "  %s %s\n", t.sev(res.Level), t.wrap(t.text.Render(res.Verdict), 4))
+	fmt.Fprintf(&b, "  %s %s\n", t.sev(res.Level), t.Wrap(t.text.Render(res.Verdict), 4))
 	if res.Summary != "" {
-		fmt.Fprintf(&b, "    %s\n", t.wrap(t.muted.Render("Biggest users: "+res.Summary), 4))
+		fmt.Fprintf(&b, "    %s\n", t.Wrap(t.muted.Render("Biggest users: "+res.Summary), 4))
 	}
 
 	fmt.Fprintf(&b, "\n%s\n", t.heading("Swap"))
@@ -79,30 +79,30 @@ func renderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 	if len(res.Groups) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", t.heading("Biggest memory users"))
 		for _, g := range res.Groups {
-			fmt.Fprintf(&b, "  %s %s", t.text.Render(fmt.Sprintf("%-24s", truncate(g.Name, 24))),
+			fmt.Fprintf(&b, "  %s %s", t.text.Render(fmt.Sprintf("%-24s", Truncate(g.Name, 24))),
 				t.size.Render(fmt.Sprintf("%9s", engine.BinaryBytes(g.RSSBytes))))
 			if g.Count > 1 {
 				b.WriteString(t.muted.Render(fmt.Sprintf("  %d processes", g.Count)))
 			}
 			b.WriteString("\n")
 			if g.Explain != "" {
-				fmt.Fprintf(&b, "    %s\n", t.wrap(t.muted.Render(g.Explain), 4))
+				fmt.Fprintf(&b, "    %s\n", t.Wrap(t.muted.Render(g.Explain), 4))
 			}
 		}
-		fmt.Fprintf(&b, "  %s\n", t.wrap(t.faint.Render(engine.RSSNote), 2))
+		fmt.Fprintf(&b, "  %s\n", t.Wrap(t.faint.Render(engine.RSSNote), 2))
 	}
 
 	if len(res.Tips) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", t.heading("Tips"))
 		for _, tp := range res.Tips {
-			fmt.Fprintf(&b, "  %s\n", t.wrap(t.text.Render(tp.Text), 2))
+			fmt.Fprintf(&b, "  %s\n", t.Wrap(t.text.Render(tp.Text), 2))
 		}
 	}
 
 	if len(res.Notes) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", t.heading("Also"))
 		for _, n := range res.Notes {
-			fmt.Fprintf(&b, "  %s %s\n", t.sev(engine.SeverityWarn), t.wrap(t.text.Render(n), 4))
+			fmt.Fprintf(&b, "  %s %s\n", t.sev(engine.SeverityWarn), t.Wrap(t.text.Render(n), 4))
 		}
 	}
 

@@ -228,7 +228,7 @@ func largeUncovered(nodes []model.Node, ops []model.Opportunity) []model.Node {
 	var out []model.Node
 	for _, n := range Largest(nodes, 0, largeMinBytes) {
 		p := foldPath(n.Path)
-		if shown[p] || targets[p] || hasAncestor(targets, p) {
+		if shown[p] || targets[p] || HasAncestor(targets, p) {
 			continue
 		}
 		out = append(out, n)

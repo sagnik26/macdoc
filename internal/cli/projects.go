@@ -15,7 +15,7 @@ import (
 // minProjectBytes hides projects whose artifacts are too small to matter.
 const minProjectBytes = 1_000_000
 
-func newProjectsCmd(g *globalFlags) *cobra.Command {
+func newProjectsCmd(g *GlobalFlags) *cobra.Command {
 	var idle int
 	cmd := &cobra.Command{
 		Use:   "projects",
@@ -25,28 +25,28 @@ func newProjectsCmd(g *globalFlags) *cobra.Command {
 			if idle < 0 {
 				return fmt.Errorf("--idle must be 0 or more")
 			}
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			res, err := engine.Projects(context.Background(), engine.OpportunityOptions{Home: home, Runner: runner})
+			res, err := engine.Projects(context.Background(), engine.OpportunityOptions{Home: home, Runner: Runner})
 			if err != nil {
 				return err
 			}
-			res = filterProjects(res, idle)
+			res = FilterProjects(res, idle)
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "projects", res, res.Warnings)
 			}
-			return renderProjects(cmd.OutOrStdout(), res, home, idle)
+			return RenderProjects(cmd.OutOrStdout(), res, home, idle)
 		},
 	}
 	cmd.Flags().IntVar(&idle, "idle", 0, "only projects idle at least this many days")
 	return cmd
 }
 
-// filterProjects drops projects with under 1 MB of artifacts and, with
+// FilterProjects drops projects with under 1 MB of artifacts and, with
 // idle > 0, projects not known to be idle that long.
-func filterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
+func FilterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
 	out := []projects.Project{}
 	for _, p := range res.Projects {
 		if p.ArtifactBytes < minProjectBytes || (idle > 0 && p.IdleDays < idle) {
@@ -58,7 +58,7 @@ func filterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
 	return res
 }
 
-func renderProjects(w io.Writer, res engine.ProjectsResult, home string, idle int) error {
+func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle int) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -77,7 +77,7 @@ func renderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 		}
 	}
 	for _, p := range res.Projects {
-		head := t.title.Render(tildePath(home, p.Root))
+		head := t.Title.Render(TildePath(home, p.Root))
 		if len(p.Kinds) > 0 {
 			head += t.muted.Render(" · " + strings.Join(p.Kinds, ", "))
 		}
@@ -87,7 +87,7 @@ func renderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 		for i, a := range p.Artifacts {
 			parts[i] = a.Rel + " " + engine.DecimalBytes(a.Bytes)
 		}
-		fmt.Fprintf(&b, "    %s\n", t.wrap(t.muted.Render(strings.Join(parts, " · ")), 4))
+		fmt.Fprintf(&b, "    %s\n", t.Wrap(t.muted.Render(strings.Join(parts, " · ")), 4))
 		if p.Protected {
 			fmt.Fprintf(&b, "    %s\n", t.muted.Render("In a protected folder: listed only, macdoc never moves anything here."))
 		}
@@ -107,7 +107,7 @@ func renderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 		}
 		b.WriteString(t.section(t.warn, "DerivedData of deleted projects", engine.DecimalBytes(sum)))
 		for _, d := range gone {
-			fmt.Fprintf(&b, "  %s  %s\n", t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(d.Bytes))), tildePath(home, d.Workspace))
+			fmt.Fprintf(&b, "  %s  %s\n", t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(d.Bytes))), TildePath(home, d.Workspace))
 		}
 		b.WriteString("\n")
 	}
@@ -129,7 +129,7 @@ func idleText(t *theme, p projects.Project) string {
 	}
 	st := t.text
 	if p.IdleDays >= 90 {
-		st = t.ok
+		st = t.Ok
 	}
 	return st.Render(s) + t.muted.Render(" ("+p.ActivitySource+")")
 }
@@ -138,7 +138,7 @@ func idleText(t *theme, p projects.Project) string {
 func gitText(t *theme, p projects.Project) string {
 	switch p.Git {
 	case projects.GitClean:
-		return t.ok.Render("git clean")
+		return t.Ok.Render("git clean")
 	case projects.GitDirty:
 		return t.warn.Render("uncommitted changes")
 	case projects.GitNone:
@@ -147,8 +147,8 @@ func gitText(t *theme, p projects.Project) string {
 	return t.muted.Render("git not checked")
 }
 
-// tildePath shows p relative to home as "~/…".
-func tildePath(home, p string) string {
+// TildePath shows p relative to home as "~/…".
+func TildePath(home, p string) string {
 	if rest, ok := strings.CutPrefix(p, strings.TrimSuffix(home, "/")+"/"); ok {
 		return "~/" + rest
 	}

@@ -11,21 +11,21 @@ import (
 )
 
 func init() {
-	Register("node_modules_stale", detectNodeModulesStale)
-	Register("nvm_old_versions", detectNvmOldVersions)
+	Register("node_modules_stale", DetectNodeModulesStale)
+	Register("nvm_old_versions", DetectNvmOldVersions)
 }
 
 // nodeLockfiles are the lockfiles that mark a project's node_modules.
 var nodeLockfiles = []string{"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock"}
 
-// detectNodeModulesStale emits project node_modules directories that are at
+// DetectNodeModulesStale emits project node_modules directories that are at
 // least params["min_bytes"] and idle for stale_days. A project is a parent
 // with package.json and a lockfile (regular files, via os.Lstat); global and
 // tool installs (…/lib/node_modules, hidden or Library trees) are skipped.
 // Idle time is the newest of the folder's mtime and the manifest/lockfile
-// mtimes, so a recently edited project isn't stale. It never runs npm, pnpm
+// mtimes, so a recently edited project isn't Stale. It never runs npm, pnpm
 // or yarn.
-func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
 	}
@@ -33,7 +33,7 @@ func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, er
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := projectDirs(env, "node_modules")
+	nodes, err := ProjectDirs(env, "node_modules")
 	if err != nil {
 		return nil, err
 	}
@@ -48,13 +48,13 @@ func detectNodeModulesStale(_ context.Context, env Env, r Recipe) ([]Finding, er
 			continue
 		}
 		mtime = max(mtime, n.MtimeMax)
-		if !stale(env, mtime, r.StaleDays) {
+		if !Stale(env, mtime, r.StaleDays) {
 			continue
 		}
 		f := nodeFinding(n)
 		f.LastUsed = unixTime(mtime)
 		f.Title = "node_modules in " + filepath.Base(parent)
-		if !withProject(env, &f, parent, r.StaleDays) {
+		if !WithProject(env, &f, parent, r.StaleDays) {
 			continue
 		}
 		out = append(out, f)
@@ -120,16 +120,16 @@ func (a nodeVersion) matches(prefix string) bool {
 	return s == p || strings.HasPrefix(s, p+".")
 }
 
-// detectNvmOldVersions emits installed nvm Node versions (kept children of
+// DetectNvmOldVersions emits installed nvm Node versions (kept children of
 // params["dir"]) except the newest and the one ~/.nvm/alias/default resolves
 // to. If the default alias exists but can't be resolved, it emits nothing,
 // because any version might be the default.
-func detectNvmOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, error) {
-	dir, err := requireParam(r, "dir")
+func DetectNvmOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+	dir, err := RequireParam(r, "dir")
 	if err != nil {
 		return nil, err
 	}
-	aliasDir, err := requireParam(r, "alias")
+	aliasDir, err := RequireParam(r, "alias")
 	if err != nil || env.Nodes == nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func detectNvmOldVersions(_ context.Context, env Env, r Recipe) ([]Finding, erro
 		}
 		f := nodeFinding(n)
 		f.Title = "Node.js " + v.name + " (nvm)"
-		f.Note = "Default is " + orNone(def) + "; newest installed is " + newest.name + "."
+		f.Note = "Default is " + OrNone(def) + "; newest installed is " + newest.name + "."
 		out = append(out, f)
 	}
 	return out, nil
@@ -189,7 +189,7 @@ func nvmDefault(aliasDir string, versions []nodeVersion) (string, bool, error) {
 		if alias == "" || strings.Contains(alias, "..") || strings.HasPrefix(alias, "/") {
 			return "", false, nil
 		}
-		b, err := readSmallFile(filepath.Join(aliasDir, alias), maxSmallFile)
+		b, err := ReadSmallFile(filepath.Join(aliasDir, alias), maxSmallFile)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				if alias == "default" {
@@ -198,7 +198,7 @@ func nvmDefault(aliasDir string, versions []nodeVersion) (string, bool, error) {
 				return "", false, nil
 			}
 			// Includes a symlink, FIFO, directory or oversized alias file
-			// (readSmallFile): a warning, and nothing is emitted.
+			// (ReadSmallFile): a warning, and nothing is emitted.
 			return "", false, err
 		}
 		val := strings.TrimSpace(string(b))
@@ -230,7 +230,7 @@ func newestMatching(versions []nodeVersion, prefix string) (string, bool) {
 	return best.name, true
 }
 
-func orNone(s string) string {
+func OrNone(s string) string {
 	if s == "" {
 		return "not set"
 	}

@@ -10,9 +10,9 @@ type SlowTip struct {
 	Text     string `json:"text"`
 }
 
-// slowTips maps a probe group name to the suggestion. Only groups the scan
+// SlowTips maps a probe group name to the suggestion. Only groups the scan
 // measured get a tip, and the tip names the measured size.
-var slowTips = map[string]string{
+var SlowTips = map[string]string{
 	"Docker":           "Quit Docker Desktop when you're not using containers.",
 	"Ollama":           "Use a smaller quantized model, or unload the one you aren't using (`ollama ps` shows what's loaded).",
 	"Android Emulator": "Close the emulators you aren't using; each holds its RAM setting until it's closed.",
@@ -27,7 +27,7 @@ var slowTips = map[string]string{
 func TipsFor(groups []SlowGroup) []SlowTip {
 	var out []SlowTip
 	for _, g := range groups {
-		text, ok := slowTips[g.Name]
+		text, ok := SlowTips[g.Name]
 		if !ok || g.RSSBytes <= 0 {
 			continue
 		}

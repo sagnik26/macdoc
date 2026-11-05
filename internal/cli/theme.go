@@ -25,8 +25,8 @@ type theme struct {
 	r     *lipgloss.Renderer
 	width int // terminal width for boxes; 0 = unknown
 
-	brand, title, text, muted, faint, accent, id, size lipgloss.Style
-	ok, warn, bad, info, risky                         lipgloss.Style
+	brand, Title, text, muted, faint, accent, Id, size lipgloss.Style
+	Ok, warn, bad, info, risky                         lipgloss.Style
 	cmdName, cmdFlag, cmdArg                           lipgloss.Style
 	jsonKey, jsonString, jsonNumber, jsonLiteral       lipgloss.Style
 }
@@ -66,18 +66,18 @@ var (
 // background asks the terminal once, and a full report renders many views.
 func newTheme(w io.Writer) *theme {
 	f, ok := w.(*os.File)
-	if !ok || !isTerminal(w) {
-		return plainTheme()
+	if !ok || !IsTerminal(w) {
+		return PlainTheme()
 	}
 	themeMu.Lock()
 	defer themeMu.Unlock()
 	if t, ok := themeCache[f.Fd()]; ok {
 		return t
 	}
-	t := plainTheme()
+	t := PlainTheme()
 	if r := lipgloss.NewRenderer(f); r.ColorProfile() != termenv.Ascii {
 		setBackground(r)
-		t = colorTheme(r, termWidth(f))
+		t = ColorTheme(r, termWidth(f))
 	}
 	themeCache[f.Fd()] = t
 	return t
@@ -99,16 +99,16 @@ func setBackground(r *lipgloss.Renderer) {
 	}
 }
 
-func plainTheme() *theme {
+func PlainTheme() *theme {
 	r := lipgloss.NewRenderer(io.Discard)
 	r.SetColorProfile(termenv.Ascii)
-	t := colorTheme(r, 0)
+	t := ColorTheme(r, 0)
 	t.on = false
 	return t
 }
 
-// colorTheme builds styles on renderer r (whose profile decides the depth).
-func colorTheme(r *lipgloss.Renderer, width int) *theme {
+// ColorTheme builds styles on renderer r (whose profile decides the depth).
+func ColorTheme(r *lipgloss.Renderer, width int) *theme {
 	s := func(c lipgloss.TerminalColor) lipgloss.Style { return r.NewStyle().Foreground(c) }
 	return &theme{
 		on:    true,
@@ -117,15 +117,15 @@ func colorTheme(r *lipgloss.Renderer, width int) *theme {
 		width: width,
 
 		brand:  s(colBrand).Bold(true),
-		title:  s(colText).Bold(true),
+		Title:  s(colText).Bold(true),
 		text:   s(colText),
 		muted:  s(colMuted),
 		faint:  s(colFaint),
 		accent: s(colCyan),
-		id:     s(colCyan),
+		Id:     s(colCyan),
 		size:   s(colText).Bold(true),
 
-		ok:    s(colGreen),
+		Ok:    s(colGreen),
 		warn:  s(colYellow),
 		bad:   s(colRed),
 		info:  s(colBlue),
@@ -142,7 +142,7 @@ func colorTheme(r *lipgloss.Renderer, width int) *theme {
 	}
 }
 
-// termWidth is the terminal's column count, or 0 if unknown.
+// termWidth is the terminal's Column count, or 0 if unknown.
 func termWidth(f *os.File) int {
 	w, _, err := termSize(f)
 	if err != nil || w <= 0 {
@@ -173,7 +173,7 @@ func (t *theme) riskStyle(r model.Risk) lipgloss.Style {
 }
 
 // badge is a tier's short label as a colored pill (plain: the bare label).
-func (t *theme) badge(r model.Risk) string {
+func (t *theme) Badge(r model.Risk) string {
 	label := string(r)
 	if !t.on {
 		return label
@@ -182,7 +182,7 @@ func (t *theme) badge(r model.Risk) string {
 }
 
 // dot is "● " in the tier color when color is on, else "".
-func (t *theme) dot(r model.Risk) string {
+func (t *theme) Dot(r model.Risk) string {
 	if !t.on {
 		return ""
 	}
@@ -206,13 +206,13 @@ func (t *theme) usageStyle(used, total int64) lipgloss.Style {
 	case f >= 0.80:
 		return t.warn
 	}
-	return t.ok
+	return t.Ok
 }
 
 // meter is a slim colored usage bar (plain: the classic block bar).
-func (t *theme) meter(used, total int64, width int) string {
+func (t *theme) Meter(used, total int64, width int) string {
 	if !t.on {
-		return bar(used, total, width)
+		return Bar(used, total, width)
 	}
 	filled := 0
 	if total > 0 {
@@ -237,7 +237,7 @@ func (t *theme) sev(s engine.Severity) string {
 }
 
 // command highlights a native command: tool name, flags, arguments.
-func (t *theme) command(argv []string) string {
+func (t *theme) Command(argv []string) string {
 	if !t.on {
 		return strings.Join(argv, " ")
 	}
@@ -258,7 +258,7 @@ func (t *theme) command(argv []string) string {
 // card draws a rounded box around lines with one space of padding, sized to
 // the widest line (and at most the terminal width). Plain themes return the
 // lines unboxed.
-func (t *theme) card(lines ...string) string {
+func (t *theme) Card(lines ...string) string {
 	if !t.on {
 		return strings.Join(lines, "\n") + "\n"
 	}
@@ -280,14 +280,14 @@ func (t *theme) card(lines ...string) string {
 }
 
 // heading renders a bold section heading.
-func (t *theme) heading(s string) string { return t.title.Render(s) }
+func (t *theme) heading(s string) string { return t.Title.Render(s) }
 
 // done is the closing reassurance line.
 func (t *theme) done(s string) string {
 	if !t.on {
 		return s
 	}
-	return t.ok.Render("✓") + " " + t.muted.Render(s)
+	return t.Ok.Render("✓") + " " + t.muted.Render(s)
 }
 
 // themedWriter carries a fixed theme to the renderers (the TUI renders into
@@ -316,7 +316,7 @@ func (t *theme) pressure(p string) string {
 	case "warn", "warning":
 		return t.warn.Render("● " + p)
 	}
-	return t.ok.Render("● " + p)
+	return t.Ok.Render("● " + p)
 }
 
 // commandHeader is the first line of a section view, e.g.
@@ -325,8 +325,8 @@ func (t *theme) commandHeader(section, scanID, age string) string {
 	if !t.on {
 		return fmt.Sprintf("macdoc doctor %s · scan %s · %s\n\n", section, scanID, age)
 	}
-	return t.card(t.brand.Render("◆ macdoc")+" "+t.title.Render("doctor "+section)+
-		t.muted.Render(" · scan ")+t.id.Render(scanID)+t.muted.Render(" · "+age)) + "\n"
+	return t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("doctor "+section)+
+		t.muted.Render(" · scan ")+t.Id.Render(scanID)+t.muted.Render(" · "+age)) + "\n"
 }
 
 // section renders " Name ─────── total" to a fixed width; name is drawn in
@@ -348,10 +348,10 @@ func (t *theme) footer(next string) string {
 	return " " + t.accent.Render(next) + t.faint.Render(" · ") + t.done("nothing has been changed") + "\n"
 }
 
-// wrap soft-wraps s, which starts at column indent, to the theme width and
+// wrap soft-wraps s, which starts at Column indent, to the theme width and
 // indents the continuation lines to match. Without a known width it returns
 // s unchanged.
-func (t *theme) wrap(s string, indent int) string {
+func (t *theme) Wrap(s string, indent int) string {
 	if t.width <= indent+10 {
 		return s
 	}

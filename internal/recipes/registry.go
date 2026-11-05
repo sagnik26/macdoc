@@ -94,16 +94,16 @@ var ToolInstalled = func(name string) bool {
 }
 
 func init() {
-	Register("children", detectChildren)
-	Register("path", detectPath)
+	Register("children", DetectChildren)
+	Register("path", DetectPath)
 }
 
-// detectChildren emits one finding per kept direct child of params["dir"]
+// DetectChildren emits one finding per kept direct child of params["dir"]
 // (from the scan), sized from the scan, LastUsed = newest mtime below.
 // Optional params["min_bytes"] (default 1) skips tiny children, and
 // params["exclude"] (comma-separated base names, case-insensitive) skips
 // children that other recipes own.
-func detectChildren(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectChildren(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	dir := r.Params["dir"]
 	if dir == "" {
 		return nil, fmt.Errorf("recipe %s: detector children needs params.dir", r.ID)
@@ -142,10 +142,10 @@ func paramSet(r Recipe, key string) map[string]bool {
 	return set
 }
 
-// detectPath emits one finding for params["path"] if the scan kept it. With
+// DetectPath emits one finding for params["path"] if the scan kept it. With
 // params["size"] "unknown" the size isn't claimed: the cleanup frees only an
 // unknown part of the folder.
-func detectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	p := r.Params["path"]
 	if p == "" {
 		return nil, fmt.Errorf("recipe %s: detector path needs params.path", r.ID)

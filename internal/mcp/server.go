@@ -90,13 +90,13 @@ func (s *Server) opp() engine.OpportunityOptions {
 
 // result wraps sanitized data with the untrusted-data note.
 func result(data any, warnings []string) (*sdk.CallToolResult, any, error) {
-	clean, err := sanitize(data)
+	clean, err := Sanitize(data)
 	if err != nil {
 		return nil, nil, err
 	}
 	out := map[string]any{"data": clean, "note": UntrustedNote}
 	if len(warnings) > 0 {
-		w, _ := sanitize(warnings)
+		w, _ := Sanitize(warnings)
 		out["warnings"] = w
 	}
 	return nil, out, nil
@@ -105,5 +105,5 @@ func result(data any, warnings []string) (*sdk.CallToolResult, any, error) {
 // toolError is an error Claude sees as the tool's result, cleaned like any
 // other string (errors can quote paths).
 func toolError(err error) (*sdk.CallToolResult, any, error) {
-	return nil, nil, errors.New(cleanString(err.Error()))
+	return nil, nil, errors.New(CleanString(err.Error()))
 }

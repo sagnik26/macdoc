@@ -24,9 +24,9 @@ const overviewTopLevel = 5
 // overviewPerTier is how many recipe groups each reclaimable tier names.
 const overviewPerTier = 3
 
-// scanRoot overrides the scan root; tests point it at a fixture tree so
+// ScanRoot overrides the scan root; tests point it at a fixture tree so
 // `doctor scan` never crawls the real disk. Empty means the Data volume.
-var scanRoot = ""
+var ScanRoot = ""
 
 // overviewMode selects the short overview or the full report.
 type overviewMode struct {
@@ -38,12 +38,12 @@ type overviewMode struct {
 
 // runOverview runs `macdoc` / `macdoc doctor` (short) and `macdoc doctor scan`
 // (rescan + full report).
-func runOverview(cmd *cobra.Command, g *globalFlags, m overviewMode) error {
-	home, err := userHome()
+func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
+	home, err := UserHome()
 	if err != nil {
 		return err
 	}
-	cat, err := loadCatalog()
+	cat, err := LoadCatalog()
 	if err != nil {
 		return err
 	}
@@ -58,17 +58,17 @@ func runOverview(cmd *cobra.Command, g *globalFlags, m overviewMode) error {
 	defer stop()
 
 	errOut := cmd.ErrOrStderr()
-	tty := !g.json && !g.quiet && isTerminal(errOut)
+	tty := !g.json && !g.quiet && IsTerminal(errOut)
 	status := func(s string) {
 		if tty {
 			_, _ = fmt.Fprintf(errOut, "\r\033[K%s", s)
 		}
 	}
-	opts := engine.OverviewOptions{Home: home, Runner: runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: scanRoot}
+	opts := engine.OverviewOptions{Home: home, Runner: Runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: ScanRoot}
 	if tty {
 		opts.Progress = func(p scanner.Progress) {
 			status(fmt.Sprintf("Scanning… %s · %d files · %s · %s",
-				engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), truncate(p.CurrentDir, 50)))
+				engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(p.CurrentDir, 50)))
 		}
 		if !m.rescan {
 			status("Checking your Mac…")
@@ -83,23 +83,23 @@ func runOverview(cmd *cobra.Command, g *globalFlags, m overviewMode) error {
 		if g.json {
 			return writeJSONWarn(cmd.OutOrStdout(), "doctor", res, res.Warnings)
 		}
-		return renderOverview(cmd.OutOrStdout(), res, cat)
+		return RenderOverview(cmd.OutOrStdout(), res, cat)
 	}
 
 	// Full report: every section, reusing the opportunities computed above.
 	space, err := engine.Storage(ctx, engine.StorageOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat},
+		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat},
 		Large:              true,
 		Precomputed:        &res.Opportunities,
 	})
 	if err != nil {
 		return err
 	}
-	dev := devResult(res.Opportunities, "")
+	dev := BuildDevResult(res.Opportunities, "")
 	if g.json {
 		return writeJSONWarn(cmd.OutOrStdout(), "doctor scan", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
 	}
-	return renderFull(cmd.OutOrStdout(), res, space, dev, cat)
+	return RenderFull(cmd.OutOrStdout(), res, space, dev, cat)
 }
 
 // FullResult is the `macdoc doctor scan --json` document.
@@ -109,25 +109,25 @@ type FullResult struct {
 	Dev      DevResult             `json:"dev"`
 }
 
-// renderFull prints the overview followed by every section in full.
-func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResult, dev DevResult, cat *recipes.Catalog) error {
+// RenderFull prints the overview followed by every section in full.
+func RenderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResult, dev DevResult, cat *recipes.Catalog) error {
 	res, space, dev = display(res), display(space), display(dev) // disk-sourced text, cleaned for the terminal (display)
 	sections := []struct {
 		title  string
 		render func(io.Writer) error
 	}{
-		{"OVERVIEW", func(w io.Writer) error { return renderOverview(w, res, cat) }},
+		{"OVERVIEW", func(w io.Writer) error { return RenderOverview(w, res, cat) }},
 		{"SCAN", func(w io.Writer) error {
 			if res.ScanSummary == nil {
 				_, err := fmt.Fprintf(w, "Using scan %s from %s.\n", res.Scan.ID, res.ScanAge)
 				return err
 			}
-			return renderScan(w, *res.ScanSummary)
+			return RenderScan(w, *res.ScanSummary)
 		}},
-		{"HEALTH", func(w io.Writer) error { return renderDoctor(w, res.Health) }},
-		{"SPACE", func(w io.Writer) error { return renderStorage(w, space, true) }},
-		{"ALL SUGGESTIONS", func(w io.Writer) error { return renderWins(w, res.Opportunities, cat, true, "") }},
-		{"BY TOOLCHAIN", func(w io.Writer) error { return renderDev(w, dev, cat) }},
+		{"HEALTH", func(w io.Writer) error { return RenderDoctor(w, res.Health) }},
+		{"SPACE", func(w io.Writer) error { return RenderStorage(w, space, true) }},
+		{"ALL SUGGESTIONS", func(w io.Writer) error { return RenderWins(w, res.Opportunities, cat, true, "") }},
+		{"BY TOOLCHAIN", func(w io.Writer) error { return RenderDev(w, dev, cat) }},
 	}
 	t := themeFor(w)
 	for i, s := range sections {
@@ -147,7 +147,7 @@ func renderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 	return nil
 }
 
-func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
+func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -194,7 +194,7 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		}
 	}
 	fmt.Fprintf(&b, "\n%s%s%s actionable · %s advice\n", t.heading("Reclaimable"),
-		strings.Repeat(" ", 30), t.ok.Bold(t.on).Render(engine.DecimalBytes(actionable)), t.info.Render(engine.DecimalBytes(advice)))
+		strings.Repeat(" ", 30), t.Ok.Bold(t.on).Render(engine.DecimalBytes(actionable)), t.info.Render(engine.DecimalBytes(advice)))
 	if len(ops) == 0 {
 		b.WriteString("  Nothing to reclaim was found in the latest scan.\n")
 	}
@@ -203,7 +203,7 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		if len(tierOps) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "  %s%s %s   %s\n", t.dot(tier), t.riskStyle(tier).Render(fmt.Sprintf("%-18s", shortTierName(tier))),
+		fmt.Fprintf(&b, "  %s%s %s   %s\n", t.Dot(tier), t.riskStyle(tier).Render(fmt.Sprintf("%-18s", shortTierName(tier))),
 			t.size.Render(fmt.Sprintf("%9s", tierTotal(res.Opportunities.Totals[tier], tierOps))), t.muted.Render(tierSummary(tierOps, cat)))
 	}
 
@@ -211,7 +211,7 @@ func renderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		line := fmt.Sprintf("%d entr%s · %s held, restorable", q.Entries, plural(q.Entries, "y", "ies"), engine.DecimalBytes(q.HeldBytes))
 		fmt.Fprintf(&b, "\n%s %s\n", t.heading("Quarantine"), t.muted.Render(line+" (macdoc quarantine)"))
 		if q.ExpiredCount > 0 {
-			fmt.Fprintf(&b, "  %s %s\n", t.warn.Render(engine.DecimalBytes(q.ExpiredBytes)+" ready to purge:"), t.command([]string{"macdoc", "quarantine", "purge", "--expired"}))
+			fmt.Fprintf(&b, "  %s %s\n", t.warn.Render(engine.DecimalBytes(q.ExpiredBytes)+" ready to purge:"), t.Command([]string{"macdoc", "quarantine", "purge", "--expired"}))
 		}
 	}
 	if res.ScanStale {
@@ -262,7 +262,7 @@ func tierSummary(ops []model.Opportunity, cat *recipes.Catalog) string {
 	type group struct {
 		title string
 		n     int
-		bytes int64
+		Bytes int64
 		known bool
 	}
 	byRecipe := map[string]*group{}
@@ -276,7 +276,7 @@ func tierSummary(ops []model.Opportunity, cat *recipes.Catalog) string {
 		}
 		g.n++
 		if op.Bytes.Source != model.SourceUnknown {
-			g.bytes += op.Bytes.Value
+			g.Bytes += op.Bytes.Value
 			g.known = true
 		}
 	}
@@ -284,11 +284,11 @@ func tierSummary(ops []model.Opportunity, cat *recipes.Catalog) string {
 	for _, id := range order {
 		g := byRecipe[id]
 		if g.n > 1 {
-			g.title = fmt.Sprintf("%d × %s", g.n, recipeTitle(cat, id))
+			g.title = fmt.Sprintf("%d × %s", g.n, RecipeTitle(cat, id))
 		}
 		groups = append(groups, g)
 	}
-	sort.SliceStable(groups, func(i, j int) bool { return groups[i].bytes > groups[j].bytes })
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Bytes > groups[j].Bytes })
 	var parts []string
 	for i, g := range groups {
 		if i == overviewPerTier {
@@ -297,9 +297,9 @@ func tierSummary(ops []model.Opportunity, cat *recipes.Catalog) string {
 		}
 		size := "size unknown"
 		if g.known {
-			size = engine.DecimalBytes(g.bytes)
+			size = engine.DecimalBytes(g.Bytes)
 		}
-		parts = append(parts, fmt.Sprintf("%s %s", truncate(g.title, 40), size))
+		parts = append(parts, fmt.Sprintf("%s %s", Truncate(g.title, 40), size))
 	}
 	return strings.Join(parts, " · ")
 }

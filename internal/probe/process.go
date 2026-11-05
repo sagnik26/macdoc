@@ -13,9 +13,9 @@ import (
 	"macdoc/internal/platform"
 )
 
-// cmdPS lists resident memory (KB) and command path of every process.
+// CmdPS lists resident memory (KB) and command path of every process.
 // Fixed argv, no shell; it never signals or changes any process.
-var cmdPS = platform.Command{Name: "ps", Args: []string{"-axo", "rss=,comm="}}
+var CmdPS = platform.Command{Name: "ps", Args: []string{"-axo", "rss=,comm="}}
 
 // Friendly names for known dev-heavy process groups.
 const (
@@ -58,7 +58,7 @@ func ParsePS(out []byte, n int) ([]ProcessGroup, error) {
 			continue
 		}
 		parsed++
-		name := groupName(comm)
+		name := GroupName(comm)
 		g := groups[name]
 		if g == nil {
 			g = &ProcessGroup{Name: name}
@@ -90,9 +90,9 @@ func ParsePS(out []byte, n int) ([]ProcessGroup, error) {
 	return list, nil
 }
 
-// groupName maps a ps comm value (a full path or a bare name, possibly a
+// GroupName maps a ps comm value (a full path or a bare name, possibly a
 // process title with spaces) to the group it is counted under.
-func groupName(comm string) string {
+func GroupName(comm string) string {
 	base := comm
 	if strings.HasPrefix(comm, "/") {
 		base = comm[strings.LastIndex(comm, "/")+1:]
@@ -170,7 +170,7 @@ func stripHelper(name string) string {
 
 // CollectProcesses runs ps through r and returns the top n groups.
 func CollectProcesses(ctx context.Context, r platform.Runner, n int) ([]ProcessGroup, error) {
-	out, err := runReadOnly(ctx, r, cmdPS)
+	out, err := RunReadOnly(ctx, r, CmdPS)
 	if err != nil {
 		return nil, err
 	}

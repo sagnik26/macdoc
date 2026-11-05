@@ -63,9 +63,9 @@ type TrendResult struct {
 // ErrNoHistory means there is only one complete scan, so nothing to compare.
 var ErrNoHistory = errors.New("only one scan so far: trends need two")
 
-// keptFloor is the scanner's default keep threshold: smaller folders aren't
+// KeptFloor is the scanner's default keep threshold: smaller folders aren't
 // stored (scanner.defaultKeepThreshold).
-const keptFloor = 100 << 20
+const KeptFloor = 100 << 20
 
 // growMin is the smallest growth listed under "growing".
 const growMin = 500_000_000
@@ -114,7 +114,7 @@ func Trend(o TrendOptions) (TrendResult, error) {
 	}
 	defer func() { _ = st.Close() }()
 
-	res := TrendResult{Days: o.Days, KeptFloor: keptFloor, Areas: []TrendArea{}, Growing: []TrendFolder{}}
+	res := TrendResult{Days: o.Days, KeptFloor: KeptFloor, Areas: []TrendArea{}, Growing: []TrendFolder{}}
 	if res.To, err = st.LatestScan(model.ScanComplete); err != nil {
 		return res, err
 	}
@@ -151,8 +151,8 @@ func Trend(o TrendOptions) (TrendResult, error) {
 			area.Before = area.Before.add(sizeIn(before, p))
 			area.After = area.After.add(sizeIn(after, p))
 		}
-		if area.Before.High <= int64(len(a.paths))*keptFloor && area.Before.Low == 0 &&
-			area.After.High <= int64(len(a.paths))*keptFloor && area.After.Low == 0 {
+		if area.Before.High <= int64(len(a.paths))*KeptFloor && area.Before.Low == 0 &&
+			area.After.High <= int64(len(a.paths))*KeptFloor && area.After.Low == 0 {
 			continue // never big enough to be stored
 		}
 		area.Change = Range{area.After.Low - area.Before.High, area.After.High - area.Before.Low}
@@ -177,12 +177,12 @@ func nodeSizes(st *store.Store, scanID string) (map[string]model.Node, error) {
 	return m, nil
 }
 
-// sizeIn is p's size in a scan: exact if stored, else 0 up to keptFloor.
+// sizeIn is p's size in a scan: exact if stored, else 0 up to KeptFloor.
 func sizeIn(nodes map[string]model.Node, p string) Range {
 	if n, ok := nodes[strings.ToLower(p)]; ok {
 		return Range{n.Bytes, n.Bytes}
 	}
-	return Range{0, keptFloor}
+	return Range{0, KeptFloor}
 }
 
 func (r Range) add(o Range) Range { return Range{r.Low + o.Low, r.High + o.High} }
@@ -191,7 +191,7 @@ func mid(r Range) int64 { return r.Low + (r.High-r.Low)/2 }
 
 // growing finds the folders that grew by at least growMin, keeping the
 // deepest one that explains most of a growth: a folder is dropped when one
-// of its children grew by at least 80% as much.
+// of its Children grew by at least 80% as much.
 func growing(before, after map[string]model.Node) []TrendFolder {
 	type cand struct {
 		TrendFolder
@@ -218,7 +218,7 @@ func growing(before, after map[string]model.Node) []TrendFolder {
 		}
 		cands = append(cands, cand{TrendFolder{Path: n.Path, Before: b, After: n.Bytes, Change: ch}, strings.Count(n.Path, "/")})
 	}
-	// Deepest first, so children are judged before their parents.
+	// Deepest first, so Children are judged before their parents.
 	sort.Slice(cands, func(i, j int) bool {
 		if cands[i].depth != cands[j].depth {
 			return cands[i].depth > cands[j].depth

@@ -105,7 +105,7 @@ func resolveRoot(v string) (string, error) {
 		}
 		return "", fmt.Errorf("sandbox: %s=%s contains the home directory %s; use a dedicated temporary directory", EnvVar, r, home)
 	}
-	if err := checkSystemRoots(r); err != nil {
+	if err := CheckSystemRoots(r); err != nil {
 		return "", err
 	}
 	return r, nil
@@ -114,9 +114,9 @@ func resolveRoot(v string) (string, error) {
 // tempRoots are the only system areas a sandbox may live in.
 var tempRoots = []string{"/private/var/folders", "/private/tmp"}
 
-// checkSystemRoots rejects a resolved sandbox root that equals, contains or
+// CheckSystemRoots rejects a resolved sandbox root that equals, contains or
 // is within a system root, unless it is strictly below a temp dir.
-func checkSystemRoots(r string) error {
+func CheckSystemRoots(r string) error {
 	for _, s := range safety.SystemRoots() {
 		if safety.Within(r, s) {
 			return fmt.Errorf("sandbox: %s=%s covers system path %s; use a dedicated temporary directory", EnvVar, r, s)

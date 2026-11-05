@@ -22,7 +22,7 @@ type Vitals struct {
 func (s *Store) AddVitals(v Vitals) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	tx, err := s.db.Begin()
+	tx, err := s.DB.Begin()
 	if err != nil {
 		return fmt.Errorf("store: vitals: %w", err)
 	}
@@ -43,7 +43,7 @@ func (s *Store) AddVitals(v Vitals) error {
 
 // VitalsSince returns the samples taken at or after since, oldest first.
 func (s *Store) VitalsSince(since time.Time) ([]Vitals, error) {
-	rows, err := s.db.Query(`SELECT at, mem_total, swap_used, free_percent, pressure, disk_free
+	rows, err := s.DB.Query(`SELECT at, mem_total, swap_used, free_percent, pressure, disk_free
 		FROM vitals WHERE at >= ? ORDER BY at, rowid`, toDB(since))
 	if err != nil {
 		return nil, fmt.Errorf("store: vitals: %w", err)

@@ -51,12 +51,12 @@ const (
 // Store is an open database. It is safe for use by one process; methods are
 // safe for concurrent use by multiple goroutines.
 type Store struct {
-	db      *sql.DB
+	DB      *sql.DB
 	writeMu sync.Mutex // serializes write transactions within the process
 }
 
 // Open opens (creating if needed, with parent dirs 0700 and the file 0600)
-// the database at path and applies migrations.
+// the database at path and applies Migrations.
 func Open(path string) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("store: empty database path")
@@ -73,7 +73,7 @@ func Open(path string) (*Store, error) {
 	}
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetMaxIdleConns(maxOpenConns)
-	s := &Store{db: db}
+	s := &Store{DB: db}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -122,7 +122,7 @@ func dsn(path string) string {
 
 // Close closes the database.
 func (s *Store) Close() error {
-	return s.db.Close()
+	return s.DB.Close()
 }
 
 // BeginScan records a new running scan and returns its ID ("S-" + 8 base32
@@ -135,7 +135,7 @@ func (s *Store) BeginScan(root, macdocVersion string, startedAt time.Time) (stri
 		if err != nil {
 			return "", err
 		}
-		res, err := s.db.Exec(`INSERT INTO scans
+		res, err := s.DB.Exec(`INSERT INTO scans
 			(id, root, started_at, status, total_bytes, total_files, unmeasured_count, macdoc_version)
 			VALUES (?, ?, ?, ?, 0, 0, 0, ?) ON CONFLICT(id) DO NOTHING`,
 			id, root, toDB(startedAt), string(model.ScanRunning), macdocVersion)
@@ -151,15 +151,15 @@ func (s *Store) BeginScan(root, macdocVersion string, startedAt time.Time) (stri
 	return "", fmt.Errorf("store: begin scan: no unique ID after %d attempts", idAttempts)
 }
 
-// randRead is crypto/rand.Read; tests replace it to force ID collisions.
-var randRead = rand.Read
+// RandRead is crypto/rand.Read; tests replace it to force ID collisions.
+var RandRead = rand.Read
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
 
 // newScanID returns "S-" plus 8 base32 characters (40 random bits).
 func newScanID() (string, error) {
 	var b [5]byte
-	if _, err := randRead(b[:]); err != nil {
+	if _, err := RandRead(b[:]); err != nil {
 		return "", fmt.Errorf("store: scan ID: %w", err)
 	}
 	return "S-" + idEncoding.EncodeToString(b[:]), nil
@@ -181,8 +181,8 @@ func (s *Store) AddNodes(scanID string, nodes []model.Node) error {
 		}
 		defer func() { _ = stmt.Close() }()
 		for _, n := range nodes {
-			if _, err := stmt.Exec(scanID, n.Path, fold(n.Path), string(n.Kind), n.Bytes,
-				n.Files, n.MtimeMax, depthOf(n.Path), n.Depth); err != nil {
+			if _, err := stmt.Exec(scanID, n.Path, Fold(n.Path), string(n.Kind), n.Bytes,
+				n.Files, n.MtimeMax, DepthOf(n.Path), n.Depth); err != nil {
 				return fmt.Errorf("node %q: %w", n.Path, err)
 			}
 		}
@@ -228,7 +228,7 @@ func (s *Store) FinishScan(scanID string, status model.ScanStatus, totalBytes, t
 func (s *Store) writeRunning(scanID string, fn func(*sql.Tx) error) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	tx, err := s.db.Begin()
+	tx, err := s.DB.Begin()
 	if err != nil {
 		return fmt.Errorf("store: %s: %w", scanID, err)
 	}
@@ -281,13 +281,13 @@ func scanInfo(row *sql.Row) (model.ScanInfo, error) {
 
 // Scan returns one scan's info.
 func (s *Store) Scan(scanID string) (model.ScanInfo, error) {
-	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans WHERE id = ?`, scanID))
+	return scanInfo(s.DB.QueryRow(`SELECT `+scanCols+` FROM scans WHERE id = ?`, scanID))
 }
 
 // LatestScan returns the most recently started scan with the given status
 // (any status if status is ""), or ErrNoScan.
 func (s *Store) LatestScan(status model.ScanStatus) (model.ScanInfo, error) {
-	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans
+	return scanInfo(s.DB.QueryRow(`SELECT `+scanCols+` FROM scans
 		WHERE ? = '' OR status = ?
 		ORDER BY started_at DESC, rowid DESC LIMIT 1`, string(status), string(status)))
 }
@@ -295,14 +295,14 @@ func (s *Store) LatestScan(status model.ScanStatus) (model.ScanInfo, error) {
 // ScanAtOrBefore returns the newest complete scan started at or before at,
 // or ErrNoScan.
 func (s *Store) ScanAtOrBefore(at time.Time) (model.ScanInfo, error) {
-	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans
+	return scanInfo(s.DB.QueryRow(`SELECT `+scanCols+` FROM scans
 		WHERE status = ? AND started_at <= ?
 		ORDER BY started_at DESC, rowid DESC LIMIT 1`, string(model.ScanComplete), toDB(at)))
 }
 
 // OldestScan returns the oldest complete scan, or ErrNoScan.
 func (s *Store) OldestScan() (model.ScanInfo, error) {
-	return scanInfo(s.db.QueryRow(`SELECT `+scanCols+` FROM scans
+	return scanInfo(s.DB.QueryRow(`SELECT `+scanCols+` FROM scans
 		WHERE status = ? ORDER BY started_at, rowid LIMIT 1`, string(model.ScanComplete)))
 }
 
@@ -324,8 +324,8 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 	// maxDepth -1, LIMIT -1) so the SQL text stays fixed.
 	prefix, like, prefixDepth := "", "", 0
 	if q.Prefix != "" {
-		if p := fold(path.Clean(q.Prefix)); p != "/" {
-			prefix, like, prefixDepth = p, escapeLike(p)+"/%", depthOf(p)
+		if p := Fold(path.Clean(q.Prefix)); p != "/" {
+			prefix, like, prefixDepth = p, EscapeLike(p)+"/%", DepthOf(p)
 		}
 	}
 	maxDepth := -1
@@ -336,7 +336,7 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 	if q.Limit > 0 {
 		limit = q.Limit
 	}
-	rows, err := s.db.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
+	rows, err := s.DB.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
 		WHERE scan_id = ? AND bytes >= ?
 			AND (? = '' OR path_fold = ? OR path_fold LIKE ? ESCAPE '\')
 			AND (? < 0 OR depth <= ?)
@@ -369,7 +369,7 @@ func (s *Store) Unmeasured(scanID string) ([]model.Unmeasured, error) {
 	if err := s.scanExists(scanID); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT path, reason FROM unmeasured WHERE scan_id = ?
+	rows, err := s.DB.Query(`SELECT path, reason FROM unmeasured WHERE scan_id = ?
 		ORDER BY path, rowid`, scanID)
 	if err != nil {
 		return nil, fmt.Errorf("store: unmeasured: %w", err)
@@ -391,7 +391,7 @@ func (s *Store) Unmeasured(scanID string) ([]model.Unmeasured, error) {
 
 func (s *Store) scanExists(scanID string) error {
 	var one int
-	err := s.db.QueryRow(`SELECT 1 FROM scans WHERE id = ?`, scanID).Scan(&one)
+	err := s.DB.QueryRow(`SELECT 1 FROM scans WHERE id = ?`, scanID).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("store: %s: %w", scanID, ErrNoScan)
 	}
@@ -407,11 +407,11 @@ func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
 	if limit <= 0 {
 		limit = -1
 	}
-	rows, err := s.db.Query(`SELECT s.id, s.started_at, n.bytes
+	rows, err := s.DB.Query(`SELECT s.id, s.started_at, n.bytes
 		FROM nodes n JOIN scans s ON s.id = n.scan_id
 		WHERE n.path_fold = ? AND s.status = ?
 		ORDER BY s.started_at DESC, s.rowid DESC LIMIT ?`,
-		fold(path.Clean(p)), string(model.ScanComplete), limit)
+		Fold(path.Clean(p)), string(model.ScanComplete), limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: history: %w", err)
 	}
@@ -451,11 +451,11 @@ func (s *Store) PruneScans(keep int) error {
 	return s.PruneScansWeekly(keep, 0, time.Time{})
 }
 
-// week is the bucket PruneScansWeekly keeps one scan per.
-const week = 7 * 24 * time.Hour
+// Week is the bucket PruneScansWeekly keeps one scan per.
+const Week = 7 * 24 * time.Hour
 
 // PruneScansWeekly is PruneScans that also keeps the newest complete scan of
-// each calendar week (weeks since the Unix epoch, so the buckets don't move)
+// each calendar Week (weeks since the Unix epoch, so the buckets don't move)
 // for the last weeks weeks before now, so `trend` has history to compare.
 func (s *Store) PruneScansWeekly(keep, weeks int, now time.Time) error {
 	if keep < 0 || weeks < 0 {
@@ -466,14 +466,14 @@ func (s *Store) PruneScansWeekly(keep, weeks int, now time.Time) error {
 	if err := s.prune(keep, weeks, now); err != nil {
 		return fmt.Errorf("store: prune: %w", err)
 	}
-	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+	if _, err := s.DB.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
 		return fmt.Errorf("store: prune: checkpoint: %w", err)
 	}
 	return nil
 }
 
 func (s *Store) prune(keep, weeks int, now time.Time) error {
-	tx, err := s.db.Begin()
+	tx, err := s.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -488,14 +488,14 @@ func (s *Store) prune(keep, weeks int, now time.Time) error {
 	}
 	since := int64(math.MaxInt64) // no weekly scans unless weeks > 0
 	if weeks > 0 {
-		since = toDB(now.Add(-time.Duration(weeks) * week))
+		since = toDB(now.Add(-time.Duration(weeks) * Week))
 	}
 	if _, err := tx.Exec(`DELETE FROM scans WHERE status = ? AND id NOT IN
 		(SELECT id FROM scans WHERE status = ? ORDER BY started_at DESC, rowid DESC LIMIT ?)
 		AND id NOT IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER
 			(PARTITION BY started_at / ? ORDER BY started_at DESC, rowid DESC) AS n
 			FROM scans WHERE status = ? AND started_at >= ?) WHERE n = 1)`,
-		complete, complete, keep, int64(week), complete, since); err != nil {
+		complete, complete, keep, int64(Week), complete, since); err != nil {
 		return err
 	}
 	if newest.Valid {
@@ -507,14 +507,14 @@ func (s *Store) prune(keep, weeks int, now time.Time) error {
 	return tx.Commit()
 }
 
-// fold is the case- and normalization-insensitive form of a path: NFC, then
+// Fold is the case- and normalization-insensitive form of a path: NFC, then
 // lower case.
-func fold(p string) string {
+func Fold(p string) string {
 	return strings.ToLower(norm.NFC.String(p))
 }
 
-// depthOf counts the non-empty components of p; "/" has depth 0.
-func depthOf(p string) int {
+// DepthOf counts the non-empty components of p; "/" has depth 0.
+func DepthOf(p string) int {
 	n := 0
 	for c := range strings.SplitSeq(p, "/") {
 		if c != "" {
@@ -526,8 +526,8 @@ func depthOf(p string) int {
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-// escapeLike escapes LIKE wildcards and the escape character itself.
-func escapeLike(s string) string { return likeEscaper.Replace(s) }
+// EscapeLike escapes LIKE wildcards and the escape character itself.
+func EscapeLike(s string) string { return likeEscaper.Replace(s) }
 
 // Times are stored as unix nanoseconds (INTEGER) and read back as UTC.
 func toDB(t time.Time) int64 { return t.UnixNano() }

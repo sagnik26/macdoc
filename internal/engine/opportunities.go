@@ -51,7 +51,7 @@ var ErrNoScan = errors.New(`no scan yet. Run "macdoc doctor" (it scans automatic
 
 // Tunables; variables so tests can shorten them.
 var (
-	detectorTimeout     = 90 * time.Second
+	DetectorTimeout     = 90 * time.Second
 	detectorConcurrency = 4
 )
 
@@ -116,7 +116,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor scan" to refresh`, int(age.Hours())))
 	}
 
-	nodes := scanNodes{st: st, scanID: info.ID}
+	nodes := ScanNodes{St: st, ScanID: info.ID}
 	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
 	env.Projects = sync.OnceValues(func() (projects.Result, error) {
 		return discoverProjects(ctx, o, nodes, info.ID)
@@ -131,7 +131,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 			continue
 		}
 		for _, f := range run.findings {
-			op, warn, ok := classify(run.recipe, f, info.ID, o.Now, policy, len(run.findings))
+			op, warn, ok := Classify(run.recipe, f, info.ID, o.Now, policy, len(run.findings))
 			switch warn {
 			case "":
 			case unknownIdle:
@@ -155,14 +155,14 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))
 	}
 
-	ops, dupWarnings := dropEqualTargets(dedupe(ops))
+	ops, dupWarnings := DropEqualTargets(dedupe(ops))
 	res.Warnings = append(res.Warnings, dupWarnings...)
 	ops, merged := mergeOverlaps(ops)
 	if merged > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) inside another listed folder were merged into it", merged))
 	}
 	subtractContained(ops)
-	assignIDs(ops)
+	AssignIDs(ops)
 	rank(ops)
 	for _, op := range ops {
 		if op.Bytes.Source != model.SourceUnknown {
@@ -277,7 +277,7 @@ func runDetector(ctx context.Context, env recipes.Env, r recipes.Recipe) ([]reci
 	if !ok {
 		return nil, fmt.Sprintf("unknown detector %q", r.Detector)
 	}
-	ctx, cancel := context.WithTimeout(ctx, detectorTimeout)
+	ctx, cancel := context.WithTimeout(ctx, DetectorTimeout)
 	defer cancel()
 	type result struct {
 		fs  []recipes.Finding
@@ -301,18 +301,18 @@ func runDetector(ctx context.Context, env recipes.Env, r recipes.Recipe) ([]reci
 	case res := <-done:
 		return res.fs, res.err
 	case <-ctx.Done():
-		return nil, fmt.Sprintf("detector stopped after %s: %v", detectorTimeout, ctx.Err())
+		return nil, fmt.Sprintf("detector stopped after %s: %v", DetectorTimeout, ctx.Err())
 	}
 }
 
-// unknownIdle is the warning classify returns for a finding dropped because
+// unknownIdle is the warning Classify returns for a finding dropped because
 // its recipe needs a minimum idle time and the last use is unknown. The
 // caller counts these and reports them once.
 const unknownIdle = "\x00unknown-idle"
 
-// classify turns one finding into an opportunity, or drops it. A dropped
+// Classify turns one finding into an opportunity, or drops it. A dropped
 // finding may come with a warning (or unknownIdle).
-func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time, policy *safety.Policy, siblings int) (model.Opportunity, string, bool) {
+func Classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time, policy *safety.Policy, siblings int) (model.Opportunity, string, bool) {
 	op := model.Opportunity{
 		ScanID:    scanID,
 		RecipeID:  r.ID,
@@ -338,11 +338,11 @@ func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 		if r.Native == nil || len(r.Native.Argv) == 0 || !recipes.ToolInstalled(r.Native.Argv[0]) {
 			return op, "", false
 		}
-		cmd, err := substitute(r.Native.Argv, f.NativeArg)
+		cmd, err := Substitute(r.Native.Argv, f.NativeArg)
 		if err != nil {
 			return op, fmt.Sprintf("%s: skipped an item: %v", r.ID, err), false
 		}
-		dry, err := substitute(r.Native.DryRunArgv, f.NativeArg)
+		dry, err := Substitute(r.Native.DryRunArgv, f.NativeArg)
 		if err != nil {
 			return op, fmt.Sprintf("%s: skipped an item: %v", r.ID, err), false
 		}
@@ -375,11 +375,11 @@ func classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 
 	if op.Title == "" {
 		op.Title = r.Title
-		if multiInstance(r, siblings) && f.Target != "" {
+		if MultiInstance(r, siblings) && f.Target != "" {
 			op.Title += " · " + instanceName(r, f.Target)
 		}
 	}
-	op.ID = opportunityID(scanID, r.ID, f.Target, f.NativeArg)
+	op.ID = OpportunityID(scanID, r.ID, f.Target, f.NativeArg)
 	return op, "", true
 }
 
@@ -395,10 +395,10 @@ func RaisedFrom(op model.Opportunity, cat *recipes.Catalog) (model.Risk, bool) {
 	return r.Risk, true
 }
 
-// multiInstance reports whether a recipe yields several findings (or is the
+// MultiInstance reports whether a recipe yields several findings (or is the
 // one-per-folder "children" or "derived_data" detector), so each needs its own name in the
 // title.
-func multiInstance(r recipes.Recipe, siblings int) bool {
+func MultiInstance(r recipes.Recipe, siblings int) bool {
 	return r.Detector == "children" || r.Detector == "derived_data" || siblings > 1
 }
 
@@ -413,11 +413,11 @@ func instanceName(r recipes.Recipe, target string) string {
 	return base
 }
 
-// substitute and checkNativeArg live in recipes so the planner can re-check
+// Substitute and CheckNativeArg live in recipes so the planner can re-check
 // sealed argv against the same rules.
 var (
-	substitute     = recipes.Substitute
-	checkNativeArg = recipes.CheckNativeArg
+	Substitute     = recipes.Substitute
+	CheckNativeArg = recipes.CheckNativeArg
 )
 
 func sourceConfidence(s model.Source) float64 {
@@ -451,7 +451,7 @@ func mergeOverlaps(ops []model.Opportunity) ([]model.Opportunity, int) {
 	var out []model.Opportunity
 	merged := 0
 	for _, op := range ops {
-		if actionable(op) && hasAncestor(targets, foldPath(op.Target)) {
+		if actionable(op) && HasAncestor(targets, foldPath(op.Target)) {
 			merged++
 			continue
 		}
@@ -460,12 +460,12 @@ func mergeOverlaps(ops []model.Opportunity) ([]model.Opportunity, int) {
 	return out, merged
 }
 
-// dropEqualTargets keeps one actionable opportunity per target when
+// DropEqualTargets keeps one actionable opportunity per target when
 // different recipes report the same path: the higher risk (more
 // conservative), then the lower recipe ID. Findings of the same recipe are
 // left alone (they differ by tool identifier; exact duplicates are already
 // gone).
-func dropEqualTargets(ops []model.Opportunity) ([]model.Opportunity, []string) {
+func DropEqualTargets(ops []model.Opportunity) ([]model.Opportunity, []string) {
 	winner := map[string]int{} // folded target -> index in ops
 	for i, op := range ops {
 		if !actionable(op) {
@@ -529,7 +529,7 @@ func subtractContained(ops []model.Opportunity) {
 			}
 			found = true
 			sum += op.Bytes.Value
-			weakest = weaker(weakest, op.Bytes.Source)
+			weakest = Weaker(weakest, op.Bytes.Source)
 		}
 		if !found {
 			continue
@@ -540,7 +540,7 @@ func subtractContained(ops []model.Opportunity) {
 				continue
 			}
 			op.Bytes.Value = max(0, op.Bytes.Value-sum)
-			op.Bytes.Source = weaker(op.Bytes.Source, weakest)
+			op.Bytes.Source = Weaker(op.Bytes.Source, weakest)
 			op.Confidence = sourceConfidence(op.Bytes.Source)
 			if op.Note != "" {
 				op.Note += "; "
@@ -550,14 +550,14 @@ func subtractContained(ops []model.Opportunity) {
 	}
 }
 
-func weaker(a, b model.Source) model.Source {
+func Weaker(a, b model.Source) model.Source {
 	if slices.Index(sourceStrength, a) < slices.Index(sourceStrength, b) {
 		return a
 	}
 	return b
 }
 
-func hasAncestor(set map[string]bool, p string) bool {
+func HasAncestor(set map[string]bool, p string) bool {
 	if p == "/" {
 		return false
 	}
@@ -573,15 +573,15 @@ func hasAncestor(set map[string]bool, p string) bool {
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
 
-// opportunityID returns the full-length lowercase ID body (without "O-").
-func opportunityID(scanID, recipeID, target, nativeArg string) string {
+// OpportunityID returns the full-length lowercase ID body (without "O-").
+func OpportunityID(scanID, recipeID, target, nativeArg string) string {
 	sum := sha256.Sum256([]byte(scanID + "\x00" + recipeID + "\x00" + target + "\x00" + nativeArg))
 	return strings.ToLower(idEncoding.EncodeToString(sum[:]))
 }
 
-// assignIDs shortens each full ID to 6 characters, extending colliding IDs
+// AssignIDs shortens each full ID to 6 characters, extending colliding IDs
 // (all members of the collision) to 8, then further if still needed.
-func assignIDs(ops []model.Opportunity) {
+func AssignIDs(ops []model.Opportunity) {
 	full := make([]string, len(ops))
 	n := make([]int, len(ops))
 	for i, op := range ops {

@@ -12,23 +12,23 @@ import (
 	"macdoc/internal/model"
 )
 
-func newStorageCmd(g *globalFlags) *cobra.Command {
+func newStorageCmd(g *GlobalFlags) *cobra.Command {
 	var large bool
 	cmd := &cobra.Command{
 		Use:   "storage",
 		Short: `Where space goes, by category, with "System Data" decoded (read-only)`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			cat, err := loadCatalog()
+			cat, err := LoadCatalog()
 			if err != nil {
 				return err
 			}
 			res, err := engine.Storage(context.Background(), engine.StorageOptions{
-				OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat},
+				OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat},
 				Large:              large,
 			})
 			if err != nil {
@@ -37,14 +37,14 @@ func newStorageCmd(g *globalFlags) *cobra.Command {
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "storage", res, res.Warnings)
 			}
-			return renderStorage(cmd.OutOrStdout(), res, large)
+			return RenderStorage(cmd.OutOrStdout(), res, large)
 		},
 	}
 	cmd.Flags().BoolVar(&large, "large", false, "also list big items no recipe covers (advice only)")
 	return cmd
 }
 
-func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
+func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -65,7 +65,7 @@ func renderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 
 	b.WriteString("\n " + t.heading(`"System Data", decoded`) + "\n")
 	for _, p := range res.SystemData {
-		fmt.Fprintf(&b, "  %s %s\n", t.text.Render(fmt.Sprintf("%-58s", truncate(p.Name, 58))), t.size.Render(partSize(p.Bytes)))
+		fmt.Fprintf(&b, "  %s %s\n", t.text.Render(fmt.Sprintf("%-58s", Truncate(p.Name, 58))), t.size.Render(partSize(p.Bytes)))
 		fmt.Fprintln(&b, t.muted.Render("      "+p.Explain))
 	}
 

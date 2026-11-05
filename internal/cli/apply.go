@@ -22,23 +22,23 @@ import (
 	"macdoc/internal/store"
 )
 
-// realTTY reports whether r and w are both a real terminal (an ioctl check,
+// RealTTY reports whether r and w are both a real terminal (an ioctl check,
 // so /dev/null and pipes don't pass). Tests replace it; nothing else does.
-var realTTY = func(r io.Reader, w io.Writer) bool {
+var RealTTY = func(r io.Reader, w io.Writer) bool {
 	in, ok1 := r.(*os.File)
 	out, ok2 := w.(*os.File)
 	return ok1 && ok2 && term.IsTerminal(in.Fd()) && term.IsTerminal(out.Fd())
 }
 
-// applyDeps are what apply touches, so tests can point it at a sandbox.
-type applyDeps struct {
-	home string
-	now  func() time.Time
+// ApplyDeps are what apply touches, so tests can point it at a sandbox.
+type ApplyDeps struct {
+	Home string
+	Now  func() time.Time
 	exec executor.NativeExec // nil: the real one
-	keep bool                // tests: leave moved items in quarantine instead of deleting them
+	Keep bool                // tests: leave moved items in quarantine instead of deleting them
 }
 
-func newApplyCmd(g *globalFlags) *cobra.Command {
+func newApplyCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "apply <P-id>",
 		Short: "Carry out a sealed plan, after you confirm it here in Terminal",
@@ -57,34 +57,34 @@ It needs a real Terminal: piped input is refused, and there is no --yes.`,
 			if g.json {
 				return errors.New("apply asks you to confirm in Terminal, so it has no --json; see the result with macdoc log --json")
 			}
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			return runApply(cmd, applyDeps{home: home, now: time.Now}, args[0])
+			return RunApply(cmd, ApplyDeps{Home: home, Now: time.Now}, args[0])
 		},
 	}
 }
 
-func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
+func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
 	if !planner.ValidID(id) {
 		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K; see macdoc plan list)", arg)
 	}
-	if !realTTY(in, out) {
+	if !RealTTY(in, out) {
 		return errors.New("apply needs you at a Terminal to confirm; piped or redirected input isn't accepted")
 	}
-	cat, err := loadCatalog()
+	cat, err := LoadCatalog()
 	if err != nil {
 		return err
 	}
-	opts := engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: cat, Now: d.now()}
+	opts := engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: cat, Now: d.Now()}
 	res, err := engine.ShowPlan(context.Background(), opts, id)
 	if err != nil {
 		return err
 	}
-	if err := renderApplyPlan(out, res, d.home, d.now()); err != nil {
+	if err := renderApplyPlan(out, res, d.Home, d.Now()); err != nil {
 		return err
 	}
 	switch res.Status {
@@ -98,7 +98,7 @@ func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
 
 	t := themeFor(out)
 	rd := bufio.NewReader(in)
-	approved, err := confirmItems(rd, out, t, res.Plan)
+	approved, err := ConfirmItems(rd, out, t, res.Plan)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
 		return nil
 	}
 
-	st, err := store.Open(store.DefaultPath(d.home))
+	st, err := store.Open(store.DefaultPath(d.Home))
 	if err != nil {
 		return err
 	}
@@ -120,9 +120,9 @@ func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
 	defer stop()
 	_, _ = fmt.Fprintln(out)
 	rep, err := executor.Apply(ctx, executor.Config{
-		Store: st, StorePath: store.DefaultPath(d.home), Home: d.home, Catalog: cat, Runner: runner, Exec: d.exec, Now: d.now,
-		DeleteNow: !d.keep,
-		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, runner) },
+		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: cat, Runner: Runner, Exec: d.exec, Now: d.Now,
+		DeleteNow: !d.Keep,
+		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
 		OnItem:    func(ev executor.ItemEvent) { writeProgress(out, t, ev) },
 	}, res.Plan, approved)
 	if err != nil {
@@ -134,19 +134,19 @@ func runApply(cmd *cobra.Command, d applyDeps, arg string) error {
 // renderApplyPlan shows the dry run again, without the "to apply" footer.
 func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
 	if res.Status == planner.StatusPending {
-		res.Status = "" // renderPlan prints the apply hint only for pending plans
+		res.Status = "" // RenderPlan prints the apply hint only for pending plans
 	}
-	return renderPlan(w, res, home, now)
+	return RenderPlan(w, res, home, now)
 }
 
-// confirmItems asks y/N for RISKY items, and for every item of a plan
+// ConfirmItems asks y/N for RISKY items, and for every item of a plan
 // Claude proposed. Others are approved here and confirmed by the code.
-func confirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (executor.Approvals, error) {
+func ConfirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (executor.Approvals, error) {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	approved := executor.Approvals{}
 	claude := p.Origin == model.OriginClaude
 	if claude {
-		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan "+proposedAt(p.CreatedAt)+". Confirm each item yourself."))
+		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan "+ProposedAt(p.CreatedAt)+". Confirm each item yourself."))
 	}
 	for _, it := range p.Items {
 		if !claude && it.Risk != model.RiskRisky {
@@ -190,7 +190,7 @@ func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved
 			parts = append(parts, fmt.Sprintf("%s: %d", r, tiers[r]))
 		}
 	}
-	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.id.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
+	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.Id.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
 	ans, err := readLine(rd)
 	return err == nil && strings.EqualFold(strings.TrimSpace(ans), code)
 }
@@ -207,16 +207,16 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 	ev = display(ev) // disk-sourced text, cleaned for the terminal (display)
 	it := ev.Item
 	if ev.Result == nil {
-		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.id.Render(it.OpportunityID), it.Title)
+		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.Id.Render(it.OpportunityID), it.Title)
 		return
 	}
 	r := ev.Result
 	switch r.Outcome {
 	case executor.OutcomeDone:
 		if r.QuarantineID != "" && !r.Deleted {
-			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.id.Render(r.QuarantineID))
+			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.Id.Render(r.QuarantineID))
 		} else {
-			_, _ = fmt.Fprintln(w, t.ok.Render("done"))
+			_, _ = fmt.Fprintln(w, t.Ok.Render("done"))
 		}
 	case executor.OutcomeSkipped:
 		_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("skipped:"), t.muted.Render(r.Reason))
@@ -266,7 +266,7 @@ func signedBytes(n int64) string {
 	return "+" + engine.DecimalBytes(n)
 }
 
-// proposedAt says when a plan was made, in local time: "at 14:02 on 2 Nov".
-func proposedAt(t time.Time) string {
+// ProposedAt says when a plan was made, in local time: "at 14:02 on 2 Nov".
+func ProposedAt(t time.Time) string {
 	return t.Local().Format("at 15:04 on 2 Jan")
 }

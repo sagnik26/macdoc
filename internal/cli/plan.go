@@ -37,7 +37,7 @@ func preconditionLabel(p string) string {
 	return p
 }
 
-func newPlanCmd(g *globalFlags) *cobra.Command {
+func newPlanCmd(g *GlobalFlags) *cobra.Command {
 	var safe bool
 	var tier, recipe string
 	cmd := &cobra.Command{
@@ -55,15 +55,15 @@ seals it. Nothing on your Mac changes. A plan expires after 30 minutes.
 
 Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sel, err := planSelector(args, safe, tier, recipe)
+			sel, err := PlanSelector(args, safe, tier, recipe)
 			if err != nil {
 				return err
 			}
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			cat, err := loadCatalog()
+			cat, err := LoadCatalog()
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 				}
 			}
 			res, err := engine.CreatePlan(context.Background(), engine.PlanOptions{
-				OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat},
+				OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat},
 				Selector:           sel,
 			})
 			return finishPlan(cmd.OutOrStdout(), g, res, home, err)
@@ -88,22 +88,22 @@ Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 		Short: "Show a plan again, with its status (changes nothing)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			cat, err := loadCatalog()
+			cat, err := LoadCatalog()
 			if err != nil {
 				return err
 			}
-			res, err := engine.ShowPlan(context.Background(), engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat}, strings.ToUpper(args[0]))
+			res, err := engine.ShowPlan(context.Background(), engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat}, strings.ToUpper(args[0]))
 			if err != nil {
 				return err
 			}
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "plan show", res, res.Warnings)
 			}
-			return renderPlan(cmd.OutOrStdout(), res, home, time.Now())
+			return RenderPlan(cmd.OutOrStdout(), res, home, time.Now())
 		},
 	}
 	list := &cobra.Command{
@@ -111,7 +111,7 @@ Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 		Short: "Recent plans and their status (changes nothing)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -129,8 +129,8 @@ Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 	return cmd
 }
 
-// planSelector turns arguments and flags into exactly one selector.
-func planSelector(args []string, safe bool, tier, recipe string) (planner.Selector, error) {
+// PlanSelector turns arguments and flags into exactly one selector.
+func PlanSelector(args []string, safe bool, tier, recipe string) (planner.Selector, error) {
 	n := 0
 	for _, set := range []bool{len(args) > 0, safe, tier != "", recipe != ""} {
 		if set {
@@ -161,7 +161,7 @@ func planSelector(args []string, safe bool, tier, recipe string) (planner.Select
 
 // finishPlan renders a CreatePlan result, or explains why nothing was
 // planned.
-func finishPlan(w io.Writer, g *globalFlags, res engine.PlanResult, home string, err error) error {
+func finishPlan(w io.Writer, g *GlobalFlags, res engine.PlanResult, home string, err error) error {
 	switch {
 	case errors.Is(err, planner.ErrNothing):
 		if g.json {
@@ -177,10 +177,10 @@ func finishPlan(w io.Writer, g *globalFlags, res engine.PlanResult, home string,
 	case g.json:
 		return writeJSONWarn(w, "plan", res, res.Warnings)
 	}
-	return renderPlan(w, res, home, time.Now())
+	return RenderPlan(w, res, home, time.Now())
 }
 
-func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
+func RenderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -224,7 +224,7 @@ func renderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 	writeNotes(&b, t, res.Warnings)
 	b.WriteString(" " + t.done("Nothing has been changed.") + "\n")
 	if res.Status == planner.StatusPending {
-		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it:"), t.command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
+		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it:"), t.Command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
@@ -239,12 +239,12 @@ func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
 	}
 	origin := "made by you (" + "macdoc plan " + p.Request + ")"
 	if p.Origin == model.OriginClaude {
-		origin = "proposed by Claude " + proposedAt(p.CreatedAt)
+		origin = "proposed by Claude " + ProposedAt(p.CreatedAt)
 	}
 	line := fmt.Sprintf("Plan %s · %d item(s) · %s · %s · %s", p.ID, len(p.Items), engine.DecimalBytes(p.TotalBytes), expiry, origin)
 	var out string
 	if t.on {
-		out = t.card(t.brand.Render("◆ ")+t.title.Render("Plan ")+t.id.Render(p.ID)+t.muted.Render(strings.TrimPrefix(line, "Plan "+p.ID))) + "\n"
+		out = t.Card(t.brand.Render("◆ ")+t.Title.Render("Plan ")+t.Id.Render(p.ID)+t.muted.Render(strings.TrimPrefix(line, "Plan "+p.ID))) + "\n"
 	} else {
 		out = line + "\n\n"
 	}
@@ -264,14 +264,14 @@ func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
 func writeAction(b *strings.Builder, t *theme, a planner.Action, home string) {
 	it := a.Item
 	size := sizeCell(model.Bytes{Value: it.ExpectedBytes, Source: it.BytesSource})
-	fmt.Fprintf(b, "  %s  %s %s\n", t.id.Render(it.OpportunityID), t.text.Render(padRight(truncateANSI(it.Title, 44), 44)), t.size.Render(fmt.Sprintf("%9s", size)))
+	fmt.Fprintf(b, "  %s  %s %s\n", t.Id.Render(it.OpportunityID), t.text.Render(padRight(truncateANSI(it.Title, 44), 44)), t.size.Render(fmt.Sprintf("%9s", size)))
 	const indent = "            "
 	switch a.Kind {
 	case planner.ActionNative:
-		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ runs"), t.command(a.Argv))
+		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ runs"), t.Command(a.Argv))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
 	case planner.ActionQuarantine:
-		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(tildePath(home, a.Target)))
+		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(TildePath(home, a.Target)))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
 	}
 	if it.RiskReason != "" {
@@ -318,11 +318,11 @@ func renderPlanList(w io.Writer, recs []store.PlanRecord, now time.Time) error {
 	}
 	for _, r := range recs {
 		status := string(r.Status)
-		st := t.ok
+		st := t.Ok
 		if r.Status == store.PlanPending && !now.Before(r.ExpiresAt) {
 			status, st = "expired", t.muted
 		}
-		fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n", t.id.Render(r.ID), st.Render(fmt.Sprintf("%-8s", status)),
+		fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n", t.Id.Render(r.ID), st.Render(fmt.Sprintf("%-8s", status)),
 			t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(r.TotalBytes))), t.muted.Render(fmt.Sprintf("%2d item(s)", r.Items)),
 			t.muted.Render("made "+engine.FormatAge(now.Sub(r.CreatedAt))+" by "+string(r.Origin)))
 	}

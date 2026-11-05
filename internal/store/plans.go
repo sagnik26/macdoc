@@ -43,13 +43,13 @@ func (s *Store) AddPlan(r PlanRecord) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM plans WHERE id = ?`, r.ID).Scan(&n); err != nil {
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM plans WHERE id = ?`, r.ID).Scan(&n); err != nil {
 		return fmt.Errorf("store: add plan: %w", err)
 	}
 	if n > 0 {
 		return ErrPlanExists
 	}
-	_, err := s.db.Exec(`INSERT INTO plans (id, sha256, scan_id, origin, created_at, expires_at, items, total_bytes, status)
+	_, err := s.DB.Exec(`INSERT INTO plans (id, sha256, scan_id, origin, created_at, expires_at, items, total_bytes, status)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.SHA256, r.ScanID, string(r.Origin), toDB(r.CreatedAt), toDB(r.ExpiresAt), r.Items, r.TotalBytes, string(PlanPending))
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *Store) AddPlan(r PlanRecord) error {
 // HasPlan reports whether a plan ID is taken.
 func (s *Store) HasPlan(id string) (bool, error) {
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM plans WHERE id = ?`, id).Scan(&n); err != nil {
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM plans WHERE id = ?`, id).Scan(&n); err != nil {
 		return false, fmt.Errorf("store: plan: %w", err)
 	}
 	return n > 0, nil
@@ -83,7 +83,7 @@ func scanPlan(sc interface{ Scan(...any) error }) (PlanRecord, error) {
 
 // Plan returns the record of plan id, or ErrNoPlan.
 func (s *Store) Plan(id string) (PlanRecord, error) {
-	r, err := scanPlan(s.db.QueryRow(`SELECT `+planCols+` FROM plans WHERE id = ?`, id))
+	r, err := scanPlan(s.DB.QueryRow(`SELECT `+planCols+` FROM plans WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNoPlan
 	}
@@ -95,7 +95,7 @@ func (s *Store) Plan(id string) (PlanRecord, error) {
 
 // Plans returns up to limit plan records, newest first.
 func (s *Store) Plans(limit int) ([]PlanRecord, error) {
-	rows, err := s.db.Query(`SELECT `+planCols+` FROM plans ORDER BY created_at DESC, id LIMIT ?`, limit)
+	rows, err := s.DB.Query(`SELECT `+planCols+` FROM plans ORDER BY created_at DESC, id LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: plans: %w", err)
 	}
@@ -121,7 +121,7 @@ var ErrPlanNotPending = errors.New("store: plan is not pending")
 func (s *Store) MarkApplied(id string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	res, err := s.db.Exec(`UPDATE plans SET status = ? WHERE id = ? AND status = ?`,
+	res, err := s.DB.Exec(`UPDATE plans SET status = ? WHERE id = ? AND status = ?`,
 		string(PlanApplied), id, string(PlanPending))
 	if err != nil {
 		return fmt.Errorf("store: mark applied: %w", err)
@@ -139,7 +139,7 @@ func (s *Store) MarkApplied(id string) error {
 // OpenPlans returns the pending, unexpired plans of one origin, oldest
 // first. The MCP server uses it to cap how many plans Claude has open.
 func (s *Store) OpenPlans(origin model.Origin, now time.Time) ([]PlanRecord, error) {
-	rows, err := s.db.Query(`SELECT `+planCols+` FROM plans WHERE origin = ? AND status = ? AND expires_at > ?
+	rows, err := s.DB.Query(`SELECT `+planCols+` FROM plans WHERE origin = ? AND status = ? AND expires_at > ?
 		ORDER BY created_at, id`, string(origin), string(PlanPending), toDB(now))
 	if err != nil {
 		return nil, fmt.Errorf("store: open plans: %w", err)
@@ -160,7 +160,7 @@ func (s *Store) OpenPlans(origin model.Origin, now time.Time) ([]PlanRecord, err
 // whatever their status.
 func (s *Store) CountPlansSince(origin model.Origin, since time.Time) (int, error) {
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM plans WHERE origin = ? AND created_at >= ?`,
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM plans WHERE origin = ? AND created_at >= ?`,
 		string(origin), toDB(since)).Scan(&n); err != nil {
 		return 0, fmt.Errorf("store: count plans: %w", err)
 	}

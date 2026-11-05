@@ -26,7 +26,7 @@ type DevResult struct {
 	Warnings   []string                `json:"warnings,omitempty"`
 }
 
-func newDevCmd(g *globalFlags) *cobra.Command {
+func newDevCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dev [toolchain]",
 		Short: "Reclaimable space per developer toolchain (read-only)",
@@ -43,11 +43,11 @@ func newDevCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dev := devResult(res, tc)
+			dev := BuildDevResult(res, tc)
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "dev", dev, dev.Warnings)
 			}
-			return renderDev(cmd.OutOrStdout(), dev, cat)
+			return RenderDev(cmd.OutOrStdout(), dev, cat)
 		},
 	}
 }
@@ -63,7 +63,7 @@ func parseToolchain(s string) (string, error) {
 	return s, nil
 }
 
-func devResult(res engine.OpportunityResult, tc string) DevResult {
+func BuildDevResult(res engine.OpportunityResult, tc string) DevResult {
 	groups := engine.ByToolchain(res.Opportunities)
 	if tc != "" {
 		var only []engine.ToolchainTotal
@@ -80,7 +80,7 @@ func devResult(res engine.OpportunityResult, tc string) DevResult {
 	return DevResult{Scan: res.Scan, ScanAge: res.ScanAge, Toolchain: tc, Toolchains: groups, Warnings: res.Warnings}
 }
 
-func renderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
+func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 	d = display(d) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)

@@ -61,11 +61,11 @@ var protectedSuffixes = []string{".sqlite", ".sqlite3", ".db"}
 // journal suffixes. Losing a -wal file loses committed transactions.
 var sqliteSidecars = []string{"", "-wal", "-shm", "-journal"}
 
-// containsProtected prefixes the reported root when a path is a strict
+// ContainsProtected prefixes the reported root when a path is a strict
 // ancestor of a named protected root.
-const containsProtected = "contains protected path "
+const ContainsProtected = "contains protected path "
 
-// protectedRoot is one protected path with its folded components cached.
+// protectedRoot is one protected path with its folded Components cached.
 type protectedRoot struct {
 	path   string
 	comps  []string
@@ -141,13 +141,13 @@ func (p *Policy) isProtectedWith(path string, containers []protectedRoot) (bool,
 	if !hasPrefixComps(pc, p.homeComps) {
 		for _, r := range p.roots {
 			if !r.system && len(pc) < len(r.comps) && hasPrefixComps(pc, r.comps) {
-				return true, containsProtected + r.path
+				return true, ContainsProtected + r.path
 			}
 		}
 		// Containers itself is a strict ancestor of the com.apple.* entries.
 		for _, c := range containers {
 			if len(pc) <= len(c.comps) && hasPrefixComps(pc, c.comps) {
-				return true, containsProtected + filepath.Join(c.path, "com.apple.*")
+				return true, ContainsProtected + filepath.Join(c.path, "com.apple.*")
 			}
 		}
 	}

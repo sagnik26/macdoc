@@ -88,7 +88,7 @@ func (e Entry) WithModTime(t time.Time) Entry {
 }
 
 const (
-	defaultDirMode  os.FileMode = 0o755
+	DefaultDirMode  os.FileMode = 0o755
 	defaultFileMode os.FileMode = 0o644
 )
 
@@ -126,7 +126,7 @@ func Build(t testing.TB, root string, entries ...Entry) {
 		if e.Kind == KindDir {
 			t.Cleanup(func() {
 				// Restore so t.TempDir's RemoveAll can descend into it.
-				_ = os.Chmod(p, defaultDirMode)
+				_ = os.Chmod(p, DefaultDirMode)
 			})
 		}
 	}
@@ -163,13 +163,13 @@ func create(root string, e Entry) error {
 	}
 	p := filepath.Join(root, e.Path)
 	if e.Kind != KindDir {
-		if err := os.MkdirAll(filepath.Dir(p), defaultDirMode); err != nil {
+		if err := os.MkdirAll(filepath.Dir(p), DefaultDirMode); err != nil {
 			return err
 		}
 	}
 	switch e.Kind {
 	case KindDir:
-		return os.MkdirAll(p, defaultDirMode)
+		return os.MkdirAll(p, DefaultDirMode)
 	case KindFile:
 		return writeFile(p, e.Size, e.Sparse)
 	case KindSymlink:

@@ -26,13 +26,13 @@ import (
 // more entries is skipped: macdoc can't vouch for what it didn't look at.
 const MaxCheckEntries = 500_000
 
-// testHook, when set by tests, is called at each step of a move so a crash
+// TestHook, when set by tests, is called at each step of a move so a crash
 // can be simulated there.
-var testHook func(stage string)
+var TestHook func(stage string)
 
 func hook(stage string) {
-	if testHook != nil {
-		testHook(stage)
+	if TestHook != nil {
+		TestHook(stage)
 	}
 }
 

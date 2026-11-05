@@ -11,14 +11,14 @@ import (
 	"macdoc/internal/engine"
 )
 
-func newLogCmd(g *globalFlags) *cobra.Command {
+func newLogCmd(g *GlobalFlags) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "log",
 		Short: "What macdoc has changed: plans, applies, restores and purges (changes nothing)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
@@ -29,14 +29,14 @@ func newLogCmd(g *globalFlags) *cobra.Command {
 			if g.json {
 				return writeJSON(cmd.OutOrStdout(), "log", res)
 			}
-			return renderLog(cmd.OutOrStdout(), res, home)
+			return RenderLog(cmd.OutOrStdout(), res, home)
 		},
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", 50, "show the last N records (0: all)")
 	return cmd
 }
 
-func renderLog(w io.Writer, res engine.AuditResult, home string) error {
+func RenderLog(w io.Writer, res engine.AuditResult, home string) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -56,7 +56,7 @@ func renderLog(w io.Writer, res engine.AuditResult, home string) error {
 func logLine(t *theme, r audit.Record, home string) string {
 	what := r.Target
 	if what != "" {
-		what = tildePath(home, what)
+		what = TildePath(home, what)
 	} else if len(r.Argv) > 0 {
 		what = strings.Join(r.Argv, " ")
 	}
@@ -66,32 +66,32 @@ func logLine(t *theme, r audit.Record, home string) string {
 	}
 	switch r.Event {
 	case audit.PlanCreated:
-		return fmt.Sprintf("%s %s · %d item(s) · %s%s", t.text.Render("plan"), t.id.Render(r.Plan), r.Items, engine.DecimalBytes(r.ExpectedBytes), t.muted.Render(" ("+r.Origin+")"))
+		return fmt.Sprintf("%s %s · %d item(s) · %s%s", t.text.Render("plan"), t.Id.Render(r.Plan), r.Items, engine.DecimalBytes(r.ExpectedBytes), t.muted.Render(" ("+r.Origin+")"))
 	case audit.ApplyStarted:
-		return fmt.Sprintf("%s %s · %d item(s)", t.text.Render("apply started"), t.id.Render(r.Plan), r.Items)
+		return fmt.Sprintf("%s %s · %d item(s)", t.text.Render("apply started"), t.Id.Render(r.Plan), r.Items)
 	case audit.ItemDone:
 		q := ""
 		if r.QuarantineID != "" {
 			q = " → " + r.QuarantineID
 		}
-		return fmt.Sprintf("  %s %s %s%s", t.ok.Render("done"), t.id.Render(r.Item), what, q)
+		return fmt.Sprintf("  %s %s %s%s", t.Ok.Render("done"), t.Id.Render(r.Item), what, q)
 	case audit.ItemSkipped:
-		return fmt.Sprintf("  %s %s %s%s", t.warn.Render("skipped"), t.id.Render(r.Item), what, t.muted.Render(reason))
+		return fmt.Sprintf("  %s %s %s%s", t.warn.Render("skipped"), t.Id.Render(r.Item), what, t.muted.Render(reason))
 	case audit.ItemFailed:
-		return fmt.Sprintf("  %s %s %s%s", t.bad.Render("failed"), t.id.Render(r.Item), what, t.muted.Render(reason))
+		return fmt.Sprintf("  %s %s %s%s", t.bad.Render("failed"), t.Id.Render(r.Item), what, t.muted.Render(reason))
 	case audit.ApplyFinished:
-		s := fmt.Sprintf("%s %s · %s", t.text.Render("apply finished"), t.id.Render(r.Plan), r.Result)
+		s := fmt.Sprintf("%s %s · %s", t.text.Render("apply finished"), t.Id.Render(r.Plan), r.Result)
 		if r.ActualBytes != nil {
 			s += " · free space " + signedBytes(*r.ActualBytes)
 		}
 		return s
 	case audit.QuarantineRestored:
-		return fmt.Sprintf("%s %s to %s", t.text.Render("restored"), t.id.Render(r.QuarantineID), what)
+		return fmt.Sprintf("%s %s to %s", t.text.Render("restored"), t.Id.Render(r.QuarantineID), what)
 	case audit.QuarantinePurged:
 		if r.Result == "ok" {
-			return fmt.Sprintf("%s %s %s", t.text.Render("purged"), t.id.Render(r.QuarantineID), what)
+			return fmt.Sprintf("%s %s %s", t.text.Render("purged"), t.Id.Render(r.QuarantineID), what)
 		}
-		return fmt.Sprintf("%s %s%s", t.warn.Render("purge refused"), t.id.Render(r.QuarantineID), t.muted.Render(reason))
+		return fmt.Sprintf("%s %s%s", t.warn.Render("purge refused"), t.Id.Render(r.QuarantineID), t.muted.Render(reason))
 	}
 	return r.Event
 }

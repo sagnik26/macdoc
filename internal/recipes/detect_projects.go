@@ -11,14 +11,14 @@ import (
 )
 
 func init() {
-	Register("project_artifact", detectProjectArtifact)
+	Register("project_artifact", DetectProjectArtifact)
 	Register("derived_data", detectDerivedData)
 }
 
 // Risk reasons for project state.
 const (
-	reasonDirty   = "the project has uncommitted changes"
-	reasonUnknown = "macdoc couldn't confirm the project has no uncommitted changes"
+	ReasonDirty   = "the project has uncommitted changes"
+	ReasonUnknown = "macdoc couldn't confirm the project has no uncommitted changes"
 )
 
 // envProjects returns the shared project discovery result, or false if there
@@ -34,7 +34,7 @@ func envProjects(env Env) (projects.Result, bool, error) {
 	return res, true, nil
 }
 
-// detectProjectArtifact emits project artifact folders whose path relative
+// DetectProjectArtifact emits project artifact folders whose path relative
 // to the project root is in params["artifacts"] (comma-separated, e.g.
 // "ios/Pods,Pods"), at least params["min_bytes"] (default 1 MB). Projects in
 // protected folders are skipped. LastUsed is the project's last activity
@@ -42,7 +42,7 @@ func envProjects(env Env) (projects.Result, bool, error) {
 // the item out for recipes with stale_days. Unless git says the project is
 // clean or it isn't in git, the risk is raised to params["dirty_risk"]
 // (default CAUTION).
-func detectProjectArtifact(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+func DetectProjectArtifact(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	want := map[string]bool{}
 	for _, a := range strings.Split(r.Params["artifacts"], ",") {
 		if a = strings.TrimSpace(a); a != "" {
@@ -96,9 +96,9 @@ func gitRaise(p projects.Project, risk model.Risk) (model.Risk, string) {
 	case projects.GitClean, projects.GitNone:
 		return "", ""
 	case projects.GitDirty:
-		return risk, reasonDirty
+		return risk, ReasonDirty
 	}
-	return risk, reasonUnknown
+	return risk, ReasonUnknown
 }
 
 // projectNote describes a project's activity and git state in one line.
@@ -129,18 +129,18 @@ func projectFor(env Env, root string) (projects.Project, bool) {
 	return res.Find(root)
 }
 
-// withProject refines a node_modules or .venv finding with its project:
+// WithProject refines a node_modules or .venv finding with its project:
 // the project's last activity counts as use (so a project committed to last
-// week isn't stale even if its dependencies are old), and its git state is
+// week isn't Stale even if its dependencies are old), and its git state is
 // noted. It reports false if the project was active within days.
-func withProject(env Env, f *Finding, root string, days int) bool {
+func WithProject(env Env, f *Finding, root string, days int) bool {
 	p, ok := projectFor(env, root)
 	if !ok {
 		return true
 	}
 	if p.IdleDays >= 0 && p.LastActive.After(f.LastUsed) {
 		f.LastUsed = p.LastActive
-		if !stale(env, f.LastUsed.Unix(), days) {
+		if !Stale(env, f.LastUsed.Unix(), days) {
 			return false
 		}
 	}
@@ -152,7 +152,7 @@ func withProject(env Env, f *Finding, root string, days int) bool {
 // detector, noting the project each was built from, or that the project no
 // longer exists.
 func detectDerivedData(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
-	fs, err := detectChildren(ctx, env, r)
+	fs, err := DetectChildren(ctx, env, r)
 	if err != nil || len(fs) == 0 {
 		return fs, err
 	}

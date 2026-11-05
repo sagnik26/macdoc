@@ -12,12 +12,12 @@ import (
 	"macdoc/internal/platform"
 )
 
-// runner is the command runner used by read-only commands; tests replace it.
-var runner platform.Runner = platform.ExecRunner{}
+// Runner is the command Runner used by read-only commands; tests replace it.
+var Runner platform.Runner = platform.ExecRunner{}
 
 // newDoctorCmd builds `macdoc doctor`: the one command that shows everything,
 // with sections underneath it for detail.
-func newDoctorCmd(g *globalFlags) *cobra.Command {
+func newDoctorCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Everything at once: health, where your space is, and what you can reclaim (read-only)",
@@ -45,11 +45,11 @@ no scan yet. Use a section for more detail:
 		Short: "Disk, memory, swap, snapshots and top memory users (read-only)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res := engine.Doctor(context.Background(), runner)
+			res := engine.Doctor(context.Background(), Runner)
 			if g.json {
 				return writeJSON(cmd.OutOrStdout(), "doctor health", res)
 			}
-			return renderDoctor(cmd.OutOrStdout(), res)
+			return RenderDoctor(cmd.OutOrStdout(), res)
 		},
 	}
 	space := newStorageCmd(g)
@@ -76,7 +76,7 @@ func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra st
 	}
 	switch {
 	case t.on:
-		b.WriteString(t.card(t.brand.Render("◆ macdoc") + t.muted.Render(machine+extra)))
+		b.WriteString(t.Card(t.brand.Render("◆ macdoc") + t.muted.Render(machine+extra)))
 		b.WriteString("\n")
 	default:
 		fmt.Fprintf(b, "macdoc%s%s\n\n", machine, extra)
@@ -87,7 +87,7 @@ func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra st
 	if d.ContainerTotalBytes > 0 {
 		used := d.ContainerTotalBytes - d.ContainerFreeBytes
 		line := fmt.Sprintf("%s%s %s / %s used   %s free", label("Disk"),
-			t.meter(used, d.ContainerTotalBytes, 28), t.size.Render(engine.DecimalBytes(used)),
+			t.Meter(used, d.ContainerTotalBytes, 28), t.size.Render(engine.DecimalBytes(used)),
 			engine.DecimalBytes(d.ContainerTotalBytes), t.usageStyle(used, d.ContainerTotalBytes).Render(engine.DecimalBytes(d.ContainerFreeBytes)))
 		if d.PurgeableBytes.Value > 0 {
 			line += t.muted.Render(fmt.Sprintf("  (+%s purgeable)", engine.DecimalBytes(d.PurgeableBytes.Value)))
@@ -121,7 +121,7 @@ func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra st
 func writeFindings(b *strings.Builder, t *theme, fs []engine.Finding, max int, details bool) {
 	fmt.Fprintln(b, t.heading("What matters most"))
 	if len(fs) == 0 {
-		fmt.Fprintln(b, "  "+t.ok.Render("Nothing urgent.")+" Disk, memory, and swap look healthy.")
+		fmt.Fprintln(b, "  "+t.Ok.Render("Nothing urgent.")+" Disk, memory, and swap look healthy.")
 	}
 	for i, f := range fs {
 		if max > 0 && i == max {
@@ -135,8 +135,8 @@ func writeFindings(b *strings.Builder, t *theme, fs []engine.Finding, max int, d
 	}
 }
 
-// renderDoctor renders `macdoc doctor health`.
-func renderDoctor(w io.Writer, res engine.DoctorResult) error {
+// RenderDoctor renders `macdoc doctor health`.
+func RenderDoctor(w io.Writer, res engine.DoctorResult) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -152,7 +152,7 @@ func renderDoctor(w io.Writer, res engine.DoctorResult) error {
 			if p.Count > 1 {
 				count = fmt.Sprintf(" (%d processes)", p.Count)
 			}
-			fmt.Fprintf(&b, "  %s %s%s\n", t.text.Render(fmt.Sprintf("%-28s", truncate(p.Name, 28))),
+			fmt.Fprintf(&b, "  %s %s%s\n", t.text.Render(fmt.Sprintf("%-28s", Truncate(p.Name, 28))),
 				t.size.Render(fmt.Sprintf("%9s", engine.BinaryBytes(p.RSSBytes))), t.muted.Render(count))
 		}
 	}
@@ -181,7 +181,7 @@ func severityMark(s engine.Severity) string {
 }
 
 // bar renders a fixed-width usage bar.
-func bar(used, total int64, width int) string {
+func Bar(used, total int64, width int) string {
 	if total <= 0 {
 		return "▕" + strings.Repeat(" ", width) + "▏"
 	}
@@ -190,7 +190,7 @@ func bar(used, total int64, width int) string {
 	return "▕" + strings.Repeat("█", filled) + strings.Repeat(" ", width-filled) + "▏"
 }
 
-func truncate(s string, n int) string {
+func Truncate(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {
 		return s

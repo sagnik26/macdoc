@@ -17,7 +17,7 @@ import (
 // Rule names reported in a Violation.
 const (
 	RuleProtected   = "protected"    // inside a protected path (§3)
-	RuleTooShallow  = "too-shallow"  // $HOME itself or < 2 components below $HOME
+	RuleTooShallow  = "too-shallow"  // $HOME itself or < 2 Components below $HOME
 	RuleNotAllowed  = "not-allowed"  // matches none of the recipe allow patterns
 	RuleNotAbsolute = "not-absolute" // input path was relative
 	RuleInvalid     = "invalid"      // empty, NUL bytes, unresolvable
@@ -38,9 +38,9 @@ func (v *Violation) Error() string {
 // Policy holds the protected-path rules for one user.
 type Policy struct {
 	home           string   // canonical $HOME
-	extraProtected []string // canonical extra protected paths
+	ExtraProtected []string // canonical extra protected paths
 
-	homeComps  []string        // folded components of home
+	homeComps  []string        // folded Components of home
 	containers []protectedRoot // home/Library/Containers, lexical and resolved
 	roots      []protectedRoot // system, home-relative and extra roots
 }
@@ -49,7 +49,7 @@ type Policy struct {
 // extraProtected entry must be absolute; they are canonicalized (a trailing
 // "/" is ignored). "~" prefixes in extraProtected expand to home.
 //
-// The resolved home must have at least 2 components and must not be within
+// The resolved home must have at least 2 Components and must not be within
 // any system root, except strictly below /private/var/folders (temp dirs) or
 // /Volumes (homes on external disks).
 func NewPolicy(home string, extraProtected []string) (*Policy, error) {
@@ -62,7 +62,7 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 	}
 	hc := foldedComponents(h)
 	if len(hc) < 2 {
-		return nil, fmt.Errorf("safety: home %q must have at least 2 components", h)
+		return nil, fmt.Errorf("safety: home %q must have at least 2 Components", h)
 	}
 	if err := checkHomeLocation(h, hc); err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 			return nil, err
 		}
 		for _, r := range p.roots[n:] {
-			p.extraProtected = append(p.extraProtected, r.path)
+			p.ExtraProtected = append(p.ExtraProtected, r.path)
 		}
 	}
 	return p, nil
@@ -123,7 +123,7 @@ func checkHomeLocation(h string, hc []string) error {
 // a trailing "/" is accepted there. Input with a ".." component is returned
 // unchanged so that Canonicalize still rejects it.
 func cleanRoot(s string) string {
-	if hasDotDot(s) {
+	if HasDotDot(s) {
 		return s
 	}
 	return filepath.Clean(s)
@@ -157,7 +157,7 @@ func (p *Policy) Home() string { return p.home }
 //   - rejects a trailing "/" or a final "." component (other than "/"
 //     itself): the kernel follows a final symlink for those, but the
 //     canonical form would name the link
-//   - cleans inner "." components and repeated "/" lexically
+//   - cleans inner "." Components and repeated "/" lexically
 //   - resolves symlinks in every existing ancestor (the final component is NOT
 //     followed if it is itself a symlink; Lstat semantics)
 //   - Unicode NFC-normalizes the result
@@ -172,7 +172,7 @@ func Canonicalize(path string) (string, error) {
 		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "path contains a NUL byte"}
 	case !filepath.IsAbs(path):
 		return "", &Violation{Path: path, Rule: RuleNotAbsolute, Detail: "path is relative"}
-	case hasDotDot(path):
+	case HasDotDot(path):
 		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "path contains .."}
 	case path != "/" && (strings.HasSuffix(path, "/") || strings.HasSuffix(path, "/.")):
 		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "trailing slash or /."}
@@ -208,14 +208,14 @@ func Within(root, path string) bool {
 //   - it is within $HOME (RuleOutsideHome); every macdoc target outside home
 //     is acted on only through native tool commands, never by path
 //   - it is not $HOME, not a top-level home folder, and is at least 2
-//     components below $HOME
+//     Components below $HOME
 //   - it matches at least one allow pattern
 //
 // Checks run in that order: canonicalize, protected, outside-home, depth,
 // allow.
 //
 // Allow patterns are absolute or "~"-prefixed. "*" matches exactly one path
-// component (no "/"); "**" matches zero or more components. Matching is
+// component (no "/"); "**" matches zero or more Components. Matching is
 // case-insensitive and NFC-normalized. An empty allow list allows nothing.
 //
 // On rejection the error is a *Violation.
@@ -226,7 +226,7 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 	}
 	if prot, root := p.isProtectedWith(c, p.currentContainers()); prot {
 		detail := "inside protected path " + root
-		if strings.HasPrefix(root, containsProtected) {
+		if strings.HasPrefix(root, ContainsProtected) {
 			detail = root
 		}
 		return &Violation{Path: c, Rule: RuleProtected, Detail: detail}
@@ -236,7 +236,7 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 		return &Violation{Path: c, Rule: RuleOutsideHome, Detail: "not within " + p.home}
 	}
 	if !p.depthOK(pc) {
-		return &Violation{Path: c, Rule: RuleTooShallow, Detail: "must be at least 2 components below " + p.home}
+		return &Violation{Path: c, Rule: RuleTooShallow, Detail: "must be at least 2 Components below " + p.home}
 	}
 	if !p.matchAllow(pc, allow) {
 		return &Violation{Path: c, Rule: RuleNotAllowed, Detail: "matches no allow pattern"}
@@ -249,7 +249,7 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 //
 // IMPORTANT: path MUST be canonical, i.e. the result of Canonicalize. The
 // check is purely lexical: non-canonical input (a path through a symlinked
-// parent, or with "." or ".." components) can miss a protected root that the
+// parent, or with "." or ".." Components) can miss a protected root that the
 // kernel would resolve it to. CheckTarget canonicalizes for you.
 func (p *Policy) IsProtected(path string) (bool, string) {
 	return p.isProtected(path)

@@ -46,7 +46,7 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 	if !quarantine.ValidID(id) {
 		return EntryResult{ID: id}, fmt.Errorf("%q isn't a quarantine ID (they look like Q-91XZ)", id)
 	}
-	unlock, err := lockQuarantine(cfg.stateDir())
+	unlock, err := LockQuarantine(cfg.stateDir())
 	if err != nil {
 		return EntryResult{ID: id}, fmt.Errorf("the quarantine lock can't be taken: %w", err)
 	}
@@ -156,7 +156,7 @@ func Purge(_ context.Context, cfg Config, ids []string) ([]EntryResult, error) {
 
 // purgeAudited purges one entry and records the outcome in the audit log.
 func purgeAudited(cfg Config, root, id string) EntryResult {
-	unlock, err := lockQuarantine(cfg.stateDir())
+	unlock, err := LockQuarantine(cfg.stateDir())
 	if err != nil {
 		return EntryResult{ID: id, Outcome: OutcomeSkipped, Reason: "the quarantine lock can't be taken: " + err.Error()}
 	}
@@ -331,9 +331,9 @@ func removeLeftoverEntry(root, entry string) {
 	_ = removeEntry(entry)
 }
 
-// lockQuarantine takes an exclusive lock on macdoc's quarantine, so a purge
+// LockQuarantine takes an exclusive lock on macdoc's quarantine, so a purge
 // and a restore (or two purges) of one entry can't interleave (P6-R1 notes).
-func lockQuarantine(stateDir string) (func(), error) {
+func LockQuarantine(stateDir string) (func(), error) {
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, err
 	}

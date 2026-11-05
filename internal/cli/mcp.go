@@ -29,21 +29,21 @@ carry out a plan Claude proposed, run the macdoc apply command it gives you in
 Terminal and confirm each item.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := userHome()
+			home, err := UserHome()
 			if err != nil {
 				return err
 			}
-			cat, err := loadCatalog()
+			cat, err := LoadCatalog()
 			if err != nil {
 				return err
 			}
-			if isTerminal(cmd.InOrStdin()) {
+			if IsTerminal(cmd.InOrStdin()) {
 				// stdout is the protocol; a hint for a person goes to stderr.
 				fmt.Fprintln(os.Stderr, "macdoc mcp is the MCP server for Claude and waits for a client on stdin. See: macdoc mcp --help. Ctrl+C quits.")
 			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return mcp.Run(ctx, mcp.Options{Home: home, Runner: runner, Catalog: cat, Version: version, ScanRoot: scanRoot})
+			return mcp.Run(ctx, mcp.Options{Home: home, Runner: Runner, Catalog: cat, Version: version, ScanRoot: ScanRoot})
 		},
 	}
 }

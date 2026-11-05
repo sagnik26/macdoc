@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	Register("docker_df", detectDockerDF)
+	Register("docker_df", DetectDockerDF)
 	Register("docker_dangling", detectDockerDangling)
 }
 
@@ -51,7 +51,7 @@ func runDocker(ctx context.Context, env Env, args ...string) (out []byte, ok boo
 		if strings.Contains(msg, "connect") && (strings.Contains(msg, "daemon") || strings.Contains(msg, "docker api")) {
 			return nil, false, nil
 		}
-		return nil, false, fmt.Errorf("docker %s: exit %d: %s", args[0], res.ExitCode, firstLine(res.Stderr))
+		return nil, false, fmt.Errorf("docker %s: exit %d: %s", args[0], res.ExitCode, FirstLine(res.Stderr))
 	}
 	return res.Stdout, true, nil
 }
@@ -72,12 +72,12 @@ func jsonLines[T any](b []byte, what string) ([]T, error) {
 	return out, nil
 }
 
-// detectDockerDF emits the row of `docker system df` named by
+// DetectDockerDF emits the row of `docker system df` named by
 // params["type"]. Native recipes report the reclaimable size; the advise
 // recipe for volumes reports the total size, since nothing is reclaimed.
 // Docker's sizes are decimal (go-units).
-func detectDockerDF(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
-	typ, err := requireParam(r, "type")
+func DetectDockerDF(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
+	typ, err := RequireParam(r, "type")
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func detectDockerDF(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
 		if r.Method == model.MethodAdvise {
 			size = row.Size
 		}
-		b, ok := parseSize(size, 1000)
+		b, ok := ParseSize(size, 1000)
 		if !ok {
 			return nil, fmt.Errorf("docker system df: %s: bad size %q", typ, size)
 		}
@@ -126,15 +126,15 @@ func detectDockerDangling(ctx context.Context, env Env, _ Recipe) ([]Finding, er
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	f := Finding{Note: plural(len(rows), "untagged image", "untagged images")}
+	f := Finding{Note: Plural(len(rows), "untagged image", "untagged images")}
 	var total int64
 	for _, row := range rows {
-		b, ok := parseSize(row.Size, 1000)
+		b, ok := ParseSize(row.Size, 1000)
 		if !ok {
 			f.Bytes = model.Bytes{Source: model.SourceUnknown, Reason: fmt.Sprintf("docker reported an unreadable size %q", row.Size)}
 			return []Finding{f}, nil
 		}
-		if total, ok = addSize(total, b); !ok {
+		if total, ok = AddSize(total, b); !ok {
 			f.Bytes = implausibleSize("docker images")
 			return []Finding{f}, nil
 		}

@@ -117,7 +117,7 @@ func gitState(ctx context.Context, env Env, root string) (GitState, time.Time, s
 		return GitUnknown, time.Time{}, "git status failed: " + firstLine(st.Stderr)
 	}
 	state := GitClean
-	if changed(st.Stdout) {
+	if Changed(st.Stdout) {
 		state = GitDirty
 	}
 	var commit time.Time
@@ -131,9 +131,9 @@ func gitState(ctx context.Context, env Env, root string) (GitState, time.Time, s
 	return state, commit, ""
 }
 
-// changed reports whether `git status --porcelain` output lists a change
+// Changed reports whether `git status --porcelain` output lists a change
 // other than Finder's untracked .DS_Store files.
-func changed(porcelain []byte) bool {
+func Changed(porcelain []byte) bool {
 	for _, line := range strings.Split(string(porcelain), "\n") {
 		line = strings.TrimRight(line, "\r")
 		if strings.TrimSpace(line) == "" {

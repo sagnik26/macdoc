@@ -15,18 +15,18 @@ import (
 	"macdoc/internal/platform/darwin"
 )
 
-// diskutilTimeout bounds each diskutil invocation.
-const diskutilTimeout = 15 * time.Second
+// DiskutilTimeout bounds each diskutil invocation.
+const DiskutilTimeout = 15 * time.Second
 
 // purgeableReason explains why PurgeableBytes is unknown.
 const purgeableReason = "purgeable space needs the cgo build"
 
-// purgeableBytes is the shim lookup; a variable so tests can replace it.
-var purgeableBytes = darwin.PurgeableBytes
+// PurgeableLookup is the shim lookup; a variable so tests can replace it.
+var PurgeableLookup = darwin.PurgeableBytes
 
 var (
-	cmdDiskutilInfo = platform.Command{Name: "diskutil", Args: []string{"info", "-plist", "/"}, Timeout: diskutilTimeout}
-	cmdAPFSList     = platform.Command{Name: "diskutil", Args: []string{"apfs", "list", "-plist"}, Timeout: diskutilTimeout}
+	cmdDiskutilInfo = platform.Command{Name: "diskutil", Args: []string{"info", "-plist", "/"}, Timeout: DiskutilTimeout}
+	cmdAPFSList     = platform.Command{Name: "diskutil", Args: []string{"apfs", "list", "-plist"}, Timeout: DiskutilTimeout}
 )
 
 // diskutilInfo holds the keys of `diskutil info -plist` that we read.
@@ -139,7 +139,7 @@ func CollectDisk(ctx context.Context, r platform.Runner) (Disk, error) {
 }
 
 func purgeable() model.Bytes {
-	if n, ok := purgeableBytes(); ok {
+	if n, ok := PurgeableLookup(); ok {
 		return model.Bytes{Value: n, Source: model.SourceMeasured}
 	}
 	return model.Bytes{Source: model.SourceUnknown, Reason: purgeableReason}

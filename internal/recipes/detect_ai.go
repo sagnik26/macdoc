@@ -15,16 +15,16 @@ import (
 
 func init() {
 	Register("ollama_models", detectOllamaModels)
-	Register("lmstudio_models", detectLMStudioModels)
+	Register("lmstudio_models", DetectLMStudioModels)
 }
 
-// ollamaNameRe accepts library model names as `ollama list` prints them
+// OllamaNameRe accepts library model names as `ollama list` prints them
 // ("llama3.2:latest"). Names with "/" (namespaced or hf.co models),
 // whitespace, a leading "-" or shell characters are rejected.
-var ollamaNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9._-]+)?$`)
+var OllamaNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9._-]+)?$`)
 
 // ollamaDateLayouts are the absolute MODIFIED formats accepted; relative
-// ones ("3 weeks ago") are parsed by ollamaRelative.
+// ones ("3 weeks ago") are parsed by OllamaRelative.
 var ollamaDateLayouts = []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"}
 
 // detectOllamaModels parses `ollama list` (testdata/w2_ollama_list.txt):
@@ -45,12 +45,12 @@ func detectOllamaModels(ctx context.Context, env Env, _ Recipe) ([]Finding, erro
 		if strings.Contains(strings.ToLower(string(res.Stderr)), "connect") {
 			return nil, nil // the Ollama server isn't running
 		}
-		return nil, fmt.Errorf("ollama list: exit %d: %s", res.ExitCode, firstLine(res.Stderr))
+		return nil, fmt.Errorf("ollama list: exit %d: %s", res.ExitCode, FirstLine(res.Stderr))
 	}
 	var out []Finding
 	for i, line := range strings.Split(string(res.Stdout), "\n") {
 		f := strings.Fields(line)
-		if i == 0 || len(f) < 4 || !ollamaNameRe.MatchString(f[0]) {
+		if i == 0 || len(f) < 4 || !OllamaNameRe.MatchString(f[0]) {
 			continue
 		}
 		name, size, modified := f[0], f[2], ""
@@ -63,7 +63,7 @@ func detectOllamaModels(ctx context.Context, env Env, _ Recipe) ([]Finding, erro
 			modified = strings.Join(f[next:], " ")
 		}
 		fd := Finding{NativeArg: name, Title: "Ollama model " + name}
-		if b, ok := parseSize(size, 1000); ok && b > 0 {
+		if b, ok := ParseSize(size, 1000); ok && b > 0 {
 			fd.Bytes = model.Bytes{Value: b, Source: model.SourceTool}
 		} else {
 			fd.Bytes = model.Bytes{Source: model.SourceUnknown, Reason: fmt.Sprintf("ollama list reported size %q", size)}
@@ -74,8 +74,8 @@ func detectOllamaModels(ctx context.Context, env Env, _ Recipe) ([]Finding, erro
 				break
 			}
 		}
-		if d, ok := ollamaRelative(modified); fd.LastUsed.IsZero() && ok {
-			fd.LastUsed = env.now().Add(-d).UTC()
+		if d, ok := OllamaRelative(modified); fd.LastUsed.IsZero() && ok {
+			fd.LastUsed = env.Clock().Add(-d).UTC()
 		}
 		if fd.LastUsed.IsZero() && modified != "" {
 			fd.Note = "Last modified " + modified + "."
@@ -95,9 +95,9 @@ var ollamaUnits = map[string]time.Duration{
 	"month": 30 * 24 * time.Hour, "year": 365 * 24 * time.Hour,
 }
 
-// ollamaRelative parses ollama's relative MODIFIED forms into an
+// OllamaRelative parses ollama's relative MODIFIED forms into an
 // approximate age. Anything else is unknown (ok false).
-func ollamaRelative(s string) (time.Duration, bool) {
+func OllamaRelative(s string) (time.Duration, bool) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "less than a second ago":
 		return 0, true
@@ -121,15 +121,15 @@ func isSizeUnit(s string) bool {
 	return strings.HasSuffix(strings.ToUpper(s), "B") && strings.Trim(strings.ToUpper(s), "KMGTIB") == ""
 }
 
-// detectLMStudioModels emits model directories <root>/<publisher>/<model>
+// DetectLMStudioModels emits model directories <root>/<publisher>/<model>
 // for each comma-separated root in params["dirs"]. The recipe keeps the
 // publisher directories (keep_children_of the roots); model directories are
 // seen when the scan keeps them, which it does for anything at or above its
 // keep threshold (100 MB by default), so a two-level walk of env.Nodes finds
 // them. Publisher names aren't known statically, so keep_children_of can't
 // name them.
-func detectLMStudioModels(_ context.Context, env Env, r Recipe) ([]Finding, error) {
-	dirs, err := requireParam(r, "dirs")
+func DetectLMStudioModels(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+	dirs, err := RequireParam(r, "dirs")
 	if err != nil || env.Nodes == nil {
 		return nil, err
 	}

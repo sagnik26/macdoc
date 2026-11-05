@@ -15,11 +15,11 @@ import (
 	"macdoc/internal/recipes"
 )
 
-// userHome and loadCatalog are variables so tests can use a fixture home and
+// UserHome and LoadCatalog are variables so tests can use a fixture home and
 // test-only recipes.
 var (
-	userHome    = os.UserHomeDir
-	loadCatalog = recipes.Load
+	UserHome    = os.UserHomeDir
+	LoadCatalog = recipes.Load
 )
 
 // groupThreshold is how many opportunities of one recipe wins lists before
@@ -34,21 +34,21 @@ var tierNames = map[model.Risk]string{
 	model.RiskAdvise:  "Your call (advice only)",
 }
 
-// loadOpportunities runs the engine with the real home, catalog and runner.
+// loadOpportunities runs the engine with the real home, catalog and Runner.
 func loadOpportunities(ctx context.Context) (engine.OpportunityResult, *recipes.Catalog, error) {
-	home, err := userHome()
+	home, err := UserHome()
 	if err != nil {
 		return engine.OpportunityResult{}, nil, err
 	}
-	cat, err := loadCatalog()
+	cat, err := LoadCatalog()
 	if err != nil {
 		return engine.OpportunityResult{}, nil, err
 	}
-	res, err := engine.Opportunities(ctx, engine.OpportunityOptions{Home: home, Runner: runner, Catalog: cat})
+	res, err := engine.Opportunities(ctx, engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat})
 	return res, cat, err
 }
 
-func newWinsCmd(g *globalFlags) *cobra.Command {
+func newWinsCmd(g *GlobalFlags) *cobra.Command {
 	var all bool
 	var tier string
 	cmd := &cobra.Command{
@@ -56,7 +56,7 @@ func newWinsCmd(g *globalFlags) *cobra.Command {
 		Short: "Top space wins from the latest scan, by risk tier (read-only)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			risk, err := parseTier(tier)
+			risk, err := ParseTier(tier)
 			if err != nil {
 				return err
 			}
@@ -70,7 +70,7 @@ func newWinsCmd(g *globalFlags) *cobra.Command {
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "wins", res, res.Warnings)
 			}
-			return renderWins(cmd.OutOrStdout(), res, cat, all, risk)
+			return RenderWins(cmd.OutOrStdout(), res, cat, all, risk)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "list every item instead of grouping repeated ones")
@@ -78,7 +78,7 @@ func newWinsCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-func parseTier(s string) (model.Risk, error) {
+func ParseTier(s string) (model.Risk, error) {
 	if s == "" {
 		return "", nil
 	}
@@ -102,7 +102,7 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 	return res
 }
 
-func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
+func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -124,7 +124,7 @@ func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		if len(ops) == 0 {
 			continue
 		}
-		b.WriteString(t.section(t.riskStyle(risk), t.dot(risk)+tierNames[risk], tierTotal(res.Totals[risk], ops)))
+		b.WriteString(t.section(t.riskStyle(risk), t.Dot(risk)+tierNames[risk], tierTotal(res.Totals[risk], ops)))
 		writeOpportunities(&b, t, ops, cat, all)
 		b.WriteString("\n")
 	}
@@ -134,9 +134,9 @@ func renderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 	return err
 }
 
-// sectionHeader renders " Name ─────── total" to a fixed width.
-func sectionHeader(name, total string) string {
-	return plainTheme().section(lipgloss.Style{}, name, total)
+// SectionHeader renders " Name ─────── total" to a fixed width.
+func SectionHeader(name, total string) string {
+	return PlainTheme().section(lipgloss.Style{}, name, total)
 }
 
 // tierTotal is the known total, flagged when some sizes are unknown. A total
@@ -177,7 +177,7 @@ func writeOpportunities(b *strings.Builder, t *theme, ops []model.Opportunity, c
 				continue
 			}
 			grouped[op.RecipeID] = true
-			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], recipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
+			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], RecipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
 			fmt.Fprintf(b, "  %-8s  %8s  %s  %s\n", "", "", t.text.Render(fmt.Sprintf("%-44s", title)), t.muted.Render("(macdoc doctor wins --all)"))
 			continue
 		}
@@ -187,14 +187,14 @@ func writeOpportunities(b *strings.Builder, t *theme, ops []model.Opportunity, c
 
 // writeOpportunity renders one line, plus the native command below it.
 func writeOpportunity(b *strings.Builder, t *theme, op model.Opportunity) {
-	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.id.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
-		t.text.Render(fmt.Sprintf("%-44s", truncate(op.Title, 44))), t.muted.Render(restoreNote(op)))
+	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.Id.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
+		t.text.Render(fmt.Sprintf("%-44s", Truncate(op.Title, 44))), t.muted.Render(RestoreNote(op)))
 	if op.Method == model.MethodNative && len(op.Command) > 0 {
-		fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render("→"), t.command(op.Command))
+		fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render("→"), t.Command(op.Command))
 	}
 }
 
-func recipeTitle(cat *recipes.Catalog, id string) string {
+func RecipeTitle(cat *recipes.Catalog, id string) string {
 	if cat != nil {
 		if r, ok := cat.Get(id); ok {
 			return r.Title
@@ -214,8 +214,8 @@ func sizeCell(v model.Bytes) string {
 	return engine.DecimalBytes(v.Value)
 }
 
-// restoreNote is the short restore cost shown on every line.
-func restoreNote(op model.Opportunity) string {
+// RestoreNote is the short restore cost shown on every line.
+func RestoreNote(op model.Opportunity) string {
 	r := op.Restore
 	if op.Method != model.MethodAdvise {
 		switch r.Kind {
@@ -229,7 +229,7 @@ func restoreNote(op model.Opportunity) string {
 		}
 	}
 	if r.Note != "" {
-		return truncate(r.Note, 40)
+		return Truncate(r.Note, 40)
 	}
 	if r.Kind == model.RestoreIrreplaceable {
 		return "can't be restored"

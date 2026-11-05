@@ -123,8 +123,8 @@ func SlowFrom(h DoctorResult, o SlowOptions) SlowResult {
 		info := groupInfo[g.Name]
 		res.Groups = append(res.Groups, SlowGroup{ProcessGroup: g, Dev: info.dev, Explain: info.explain})
 	}
-	res.Level, res.Verdict = slowVerdict(rep)
-	res.Summary = slowSummary(rep)
+	res.Level, res.Verdict = SlowVerdict(rep)
+	res.Summary = SlowSummary(rep)
 	if d := rep.Disk; d.ContainerTotalBytes > 0 && d.ContainerFreeBytes < lowFreeBytes && res.Level != SeverityCritical {
 		res.Notes = append(res.Notes, fmt.Sprintf("Only %s free on disk. Swap and APFS need headroom; with under 10 GB free, macOS slows down and can hang under load.",
 			DecimalBytes(d.ContainerFreeBytes)))
@@ -142,8 +142,8 @@ func SlowFrom(h DoctorResult, o SlowOptions) SlowResult {
 	return res
 }
 
-// slowVerdict is the one-line answer to "is memory why it's slow?".
-func slowVerdict(rep probe.Report) (Severity, string) {
+// SlowVerdict is the one-line answer to "is memory why it's slow?".
+func SlowVerdict(rep probe.Report) (Severity, string) {
 	swap := rep.Swap.UsedBytes
 	lowDisk := rep.Disk.ContainerTotalBytes > 0 && rep.Disk.ContainerFreeBytes < lowFreeBytes
 	switch {
@@ -162,9 +162,9 @@ func slowVerdict(rep probe.Report) (Severity, string) {
 	return SeverityInfo, "Memory pressure couldn't be read (see warnings)."
 }
 
-// slowSummary names the biggest users against the size of RAM, e.g.
+// SlowSummary names the biggest users against the size of RAM, e.g.
 // "Docker 3.1 GB and Android Emulator 2.4 GB on 8.0 GB of RAM".
-func slowSummary(rep probe.Report) string {
+func SlowSummary(rep probe.Report) string {
 	ram := ramOf(rep)
 	if ram <= 0 {
 		return ""

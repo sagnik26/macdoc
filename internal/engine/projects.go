@@ -45,7 +45,7 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 	if err != nil {
 		return ProjectsResult{}, err
 	}
-	r, err := discoverProjects(ctx, o, scanNodes{st: st, scanID: info.ID}, info.ID)
+	r, err := discoverProjects(ctx, o, ScanNodes{St: st, ScanID: info.ID}, info.ID)
 	if err != nil {
 		return ProjectsResult{}, err
 	}
@@ -60,9 +60,9 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 // state can change, so it isn't kept long).
 const projectCacheTTL = 2 * time.Minute
 
-var projectCache struct {
+var ProjectCache struct {
 	sync.Mutex
-	key string
+	Key string
 	at  time.Time
 	res projects.Result
 }
@@ -71,20 +71,20 @@ var projectCache struct {
 // result for the same home and scan.
 func discoverProjects(ctx context.Context, o OpportunityOptions, nodes projects.NodeSource, scanID string) (projects.Result, error) {
 	key := o.Home + "\x00" + o.StorePath + "\x00" + scanID
-	projectCache.Lock()
-	if projectCache.key == key && time.Since(projectCache.at) < projectCacheTTL {
-		r := projectCache.res
-		projectCache.Unlock()
+	ProjectCache.Lock()
+	if ProjectCache.Key == key && time.Since(ProjectCache.at) < projectCacheTTL {
+		r := ProjectCache.res
+		ProjectCache.Unlock()
 		return r, nil
 	}
-	projectCache.Unlock()
+	ProjectCache.Unlock()
 
 	r, err := projects.Discover(ctx, projects.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}, projects.Options{})
 	if err != nil {
 		return r, err
 	}
-	projectCache.Lock()
-	projectCache.key, projectCache.at, projectCache.res = key, time.Now(), r
-	projectCache.Unlock()
+	ProjectCache.Lock()
+	ProjectCache.Key, ProjectCache.at, ProjectCache.res = key, time.Now(), r
+	ProjectCache.Unlock()
 	return r, nil
 }

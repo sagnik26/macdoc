@@ -35,10 +35,10 @@ type tab int
 
 const (
 	tabOverview tab = iota
-	tabSuggestions
+	TabSuggestions
 	tabToolchains
 	tabProjects
-	tabSpace
+	TabSpace
 	tabHealth
 )
 
@@ -46,10 +46,10 @@ var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "S
 
 // slashCommand is one entry of the / palette.
 type slashCommand struct {
-	name, args, desc string
+	Name, args, desc string
 }
 
-var slashCommands = []slashCommand{
+var SlashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
 	{"plan", "[safe|caution|risky]", "seal a dry-run plan: marked suggestions, or a whole tier"},
@@ -84,58 +84,58 @@ const (
 )
 
 type (
-	stepMsg     engine.OverviewStep
-	progressMsg scanner.Progress
-	loadedMsg   struct {
-		data *tuiData
-		err  error
+	StepMsg     engine.OverviewStep
+	ProgressMsg scanner.Progress
+	LoadedMsg   struct {
+		Data *TuiData
+		Err  error
 	}
-	planMsg struct {
-		res engine.PlanResult
-		err error
+	PlanMsg struct {
+		Res engine.PlanResult
+		Err error
 	}
 )
 
-// tuiData is everything the dashboard shows.
-type tuiData struct {
-	res      engine.OverviewResult
+// TuiData is everything the dashboard shows.
+type TuiData struct {
+	Res      engine.OverviewResult
 	space    engine.StorageResult
-	dev      DevResult
-	projects engine.ProjectsResult
-	slow     engine.SlowResult
-	trend    *engine.TrendResult // nil when there's nothing to compare yet
+	Dev      DevResult
+	Projects engine.ProjectsResult
+	Slow     engine.SlowResult
+	Trend    *engine.TrendResult // nil when there's nothing to compare yet
 	trendMsg string              // why trend is nil
 	// planOps are the opportunities as the engine returned them, passed to
 	// CreatePlan as Precomputed. Everything above is a display copy, cleaned
 	// for the terminal (display), and must never be planned from.
-	planOps *engine.OpportunityResult
+	PlanOps *engine.OpportunityResult
 }
 
-// tuiDeps are shared by every copy of the model.
-type tuiDeps struct {
-	home string
+// TuiDeps are shared by every copy of the model.
+type TuiDeps struct {
+	Home string
 	cat  *recipes.Catalog
 	send func(tea.Msg) // set once the program exists; nil in tests
 	// load and makePlan replace the engine in tests.
-	load     func(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error)
-	makePlan func(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
-	// apply replaces runApply in tests.
-	apply func(cmd *cobra.Command, d applyDeps, id string) error
+	Load     func(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error)
+	MakePlan func(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
+	// apply replaces RunApply in tests.
+	apply func(cmd *cobra.Command, d ApplyDeps, id string) error
 	// remove replaces executorRemove in tests.
-	remove func(d *tuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error)
+	Remove func(d *TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error)
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
 // opportunities when they are from the latest scan.
-func enginePlan(d *tuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
+func enginePlan(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
 	return engine.CreatePlan(context.Background(), engine.PlanOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat},
+		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.cat},
 		Selector:           sel,
 		Precomputed:        pre,
 	})
 }
 
-func (d *tuiDeps) post(msg tea.Msg) {
+func (d *TuiDeps) post(msg tea.Msg) {
 	if d.send != nil {
 		d.send(msg)
 	}
@@ -177,65 +177,65 @@ func newKeyMap() keyMap {
 type overlay int
 
 const (
-	overlayNone overlay = iota
+	OverlayNone overlay = iota
 	overlayHelp
 	overlayJSON
-	overlayPlan
-	overlayRemove
+	OverlayPlan
+	OverlayRemove
 )
 
-type tuiModel struct {
-	deps *tuiDeps
+type TuiModel struct {
+	Deps *TuiDeps
 	t    *theme
 	keys keyMap
 	help help.Model
 
 	w, h int
-	tab  tab
+	Tab  tab
 
 	// loading
-	loading  bool
-	stopping bool // Esc pressed; waiting for the engine to return
-	quitting bool // quit once loading returns
+	Loading  bool
+	Stopping bool // Esc pressed; waiting for the engine to return
+	Quitting bool // quit once loading returns
 	steps    []loadStep
 	prog     scanner.Progress
 	estimate int64 // bytes the scan is expected to reach (last scan), 0 = unknown
 	spin     spinner.Model
-	bar      progress.Model
+	Bar      progress.Model
 	cancel   context.CancelFunc
 
-	data *tuiData
+	Data *TuiData
 	note string // empty-state or error text when there is no data
 
 	// suggestions
-	cursor int
-	detail bool // narrow screens: the detail replaces the list
+	Cursor int
+	Detail bool // narrow screens: the detail replaces the list
 
 	// plans: marked suggestion IDs (shared by copies of the model, cleared
 	// on every new load), the plan being sealed, and the last one made
-	marked   map[string]bool
-	planning bool
-	plan     *engine.PlanResult
+	Marked   map[string]bool
+	Planning bool
+	Plan     *engine.PlanResult
 	removing *removeState // the remove confirmation box, while open
 
 	scroll  int
-	overlay overlay
+	Overlay overlay
 	jsonDoc string
 
 	input     textinput.Model
-	inputMode rune // 0 or '/'
+	InputMode rune // 0 or '/'
 	pick      int  // highlighted completion
-	flash     string
+	Flash     string
 
-	initCmd tea.Cmd
+	InitCmd tea.Cmd
 
 	// welcome screen
-	intro       bool
+	Intro       bool
 	introPick   int
-	introStatus introStatus
+	IntroStatus IntroStatus
 }
 
-func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
+func NewTUIModel(deps *TuiDeps, t *theme) TuiModel {
 	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
 		FPS:    time.Second / 10,
@@ -252,7 +252,7 @@ func newTUIModel(deps *tuiDeps, t *theme) tuiModel {
 	h.Styles.ShortDesc = t.muted
 	h.Styles.ShortSeparator = t.faint
 	h.ShortSeparator = " • "
-	return tuiModel{deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, bar: bar, input: in, w: 100, h: 30, marked: map[string]bool{}}
+	return TuiModel{Deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, Bar: bar, input: in, w: 100, h: 30, Marked: map[string]bool{}}
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -263,58 +263,58 @@ func runTUI(home string, cat *recipes.Catalog) error {
 	t := newTheme(os.Stdout)
 	if !t.on {
 		// NO_COLOR or a monochrome terminal: keep the layout, drop colors.
-		t = plainLayoutTheme()
+		t = PlainLayoutTheme()
 	}
-	deps := &tuiDeps{home: home, cat: cat, load: engineLoad, makePlan: enginePlan}
-	m := newTUIModel(deps, t)
+	deps := &TuiDeps{Home: home, cat: cat, Load: engineLoad, MakePlan: enginePlan}
+	m := NewTUIModel(deps, t)
 	// Open on the welcome screen; nothing runs until the user picks.
-	m.intro, m.introStatus = true, loadIntroStatus(home)
+	m.Intro, m.IntroStatus = true, loadIntroStatus(home)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	deps.send = p.Send
 	final, err := p.Run()
 	if err != nil {
 		return err
 	}
-	if fm, ok := final.(tuiModel); ok && fm.data != nil {
+	if fm, ok := final.(TuiModel); ok && fm.Data != nil {
 		fmt.Println(t.done("Nothing has been changed."))
 	}
 	return nil
 }
 
-// plainLayoutTheme draws boxes and badges without color.
-func plainLayoutTheme() *theme {
-	t := plainTheme()
+// PlainLayoutTheme draws boxes and badges without color.
+func PlainLayoutTheme() *theme {
+	t := PlainTheme()
 	t.on = true
 	return t
 }
 
 // engineLoad is the real loader: overview, then space and toolchains.
-func engineLoad(ctx context.Context, d *tuiDeps, rescan bool) (*tuiData, error) {
+func engineLoad(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error) {
 	res, err := engine.Overview(ctx, engine.OverviewOptions{
-		Home: d.home, Runner: runner, Version: version, Rescan: rescan, Catalog: d.cat, ScanRoot: scanRoot,
-		Step:     func(s engine.OverviewStep) { d.post(stepMsg(s)) },
-		Progress: func(p scanner.Progress) { d.post(progressMsg(p)) },
+		Home: d.Home, Runner: Runner, Version: version, Rescan: rescan, Catalog: d.cat, ScanRoot: ScanRoot,
+		Step:     func(s engine.OverviewStep) { d.post(StepMsg(s)) },
+		Progress: func(p scanner.Progress) { d.post(ProgressMsg(p)) },
 	})
 	if err != nil {
 		return nil, err
 	}
-	d.post(stepMsg(stepSpace))
+	d.post(StepMsg(stepSpace))
 	space, err := engine.Storage(ctx, engine.StorageOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat},
+		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.cat},
 		Large:              true,
 		Precomputed:        &res.Opportunities,
 	})
 	if err != nil {
 		return nil, err
 	}
-	d.post(stepMsg(stepProjects))
-	projs, err := engine.Projects(ctx, engine.OpportunityOptions{Home: d.home, Runner: runner, Catalog: d.cat})
+	d.post(StepMsg(stepProjects))
+	projs, err := engine.Projects(ctx, engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.cat})
 	if err != nil {
 		return nil, err
 	}
-	data := &tuiData{res: res, space: space, dev: devResult(res.Opportunities, ""), projects: filterProjects(projs, 0),
-		slow: engine.SlowFrom(res.Health, engine.SlowOptions{Home: d.home})}
-	data.trend, data.trendMsg = loadTrend(d.home)
+	data := &TuiData{Res: res, space: space, Dev: BuildDevResult(res.Opportunities, ""), Projects: FilterProjects(projs, 0),
+		Slow: engine.SlowFrom(res.Health, engine.SlowOptions{Home: d.Home})}
+	data.Trend, data.trendMsg = loadTrend(d.Home)
 	return data, nil
 }
 
@@ -331,37 +331,37 @@ func loadTrend(home string) (*engine.TrendResult, string) {
 	return &tr, ""
 }
 
-func (m tuiModel) Init() tea.Cmd { return m.initCmd }
+func (m TuiModel) Init() tea.Cmd { return m.InitCmd }
 
 // startLoad puts m into the loading state and returns the command that runs
 // the engine. Call it on the model that Update returns (or before the program
 // starts, for the first load).
-func (m *tuiModel) startLoad(rescan bool) tea.Cmd {
+func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	m.loading, m.stopping = true, false
+	m.Loading, m.Stopping = true, false
 	m.steps, m.prog = nil, scanner.Progress{}
 	m.estimate = 0
-	if m.data != nil {
-		m.estimate = m.data.res.Scan.TotalBytes
+	if m.Data != nil {
+		m.estimate = m.Data.Res.Scan.TotalBytes
 	}
-	deps := m.deps
+	deps := m.Deps
 	run := func() tea.Msg {
-		data, err := deps.load(ctx, deps, rescan)
-		return loadedMsg{data: data, err: err}
+		data, err := deps.Load(ctx, deps, rescan)
+		return LoadedMsg{Data: data, Err: err}
 	}
 	return tea.Batch(run, m.spin.Tick)
 }
 
-func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m TuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.t.width = msg.Width
-		m.bar.Width = min(48, max(10, msg.Width-30))
+		m.Bar.Width = min(48, max(10, msg.Width-30))
 		return m, nil
 
-	case stepMsg:
+	case StepMsg:
 		now := time.Now()
 		for i := range m.steps {
 			if !m.steps[i].done {
@@ -371,17 +371,17 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.steps = append(m.steps, loadStep{step: engine.OverviewStep(msg), start: now})
 		return m, nil
 
-	case progressMsg:
+	case ProgressMsg:
 		m.prog = scanner.Progress(msg)
 		return m, nil
 
-	case loadedMsg:
+	case LoadedMsg:
 		return m.loaded(msg)
 
-	case planMsg:
+	case PlanMsg:
 		return m.planned(msg)
 
-	case appliedMsg:
+	case AppliedMsg:
 		return m.applied(msg)
 
 	case removeReadyMsg:
@@ -394,7 +394,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.removed(msg)
 
 	case spinner.TickMsg:
-		if !m.loading {
+		if !m.Loading {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -402,8 +402,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		m.flash = ""
-		if m.inputMode != 0 {
+		m.Flash = ""
+		if m.InputMode != 0 {
 			return m.updateInput(msg)
 		}
 		return m.updateKey(msg)
@@ -411,119 +411,119 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m tuiModel) loaded(msg loadedMsg) (tea.Model, tea.Cmd) {
-	m.loading, m.cancel = false, nil
-	if m.quitting {
+func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
+	m.Loading, m.cancel = false, nil
+	if m.Quitting {
 		return m, tea.Quit
 	}
 	// A stopped scan can still return (partial) results; they are never shown.
 	switch {
-	case msg.err == nil && !m.stopping:
-		m.data, m.note = cleanData(msg.data), ""
-		clear(m.marked) // IDs belong to a scan
+	case msg.Err == nil && !m.Stopping:
+		m.Data, m.note = cleanData(msg.Data), ""
+		clear(m.Marked) // IDs belong to a scan
 		m.preMarkSafe()
-		m.cursor = min(m.cursor, max(0, len(m.items())-1))
-	case m.stopping || errors.Is(msg.err, context.Canceled):
-		if m.data != nil {
-			m.flash = "Scan stopped. Showing the previous results."
+		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
+	case m.Stopping || errors.Is(msg.Err, context.Canceled):
+		if m.Data != nil {
+			m.Flash = "Scan stopped. Showing the previous results."
 		} else {
 			m.note = "Scan stopped before it finished. Press r (or /scan) to scan again."
 		}
 	default:
-		if m.data != nil {
-			m.flash = "Error: " + msg.err.Error()
+		if m.Data != nil {
+			m.Flash = "Error: " + msg.Err.Error()
 		} else {
-			m.note = msg.err.Error()
+			m.note = msg.Err.Error()
 		}
 	}
-	m.stopping = false
+	m.Stopping = false
 	return m, nil
 }
 
-func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
-	if m.overlay == overlayRemove && m.removing != nil {
+	if m.Overlay == OverlayRemove && m.removing != nil {
 		if k == "ctrl+c" && !m.removing.running {
 			return m, tea.Quit
 		}
 		return m.removeKey(msg)
 	}
-	if k == "ctrl+c" || (k == "q" && m.overlay == overlayNone) {
-		if m.loading && m.cancel != nil {
-			if m.quitting { // second press: leave now
+	if k == "ctrl+c" || (k == "q" && m.Overlay == OverlayNone) {
+		if m.Loading && m.cancel != nil {
+			if m.Quitting { // second press: leave now
 				return m, tea.Quit
 			}
-			m.quitting = true
+			m.Quitting = true
 			m.cancel()
 			return m, nil
 		}
 		return m, tea.Quit
 	}
-	if m.loading {
+	if m.Loading {
 		if k == "esc" && m.cancel != nil {
-			m.stopping = true
+			m.Stopping = true
 			m.cancel()
 		}
 		return m, nil
 	}
 
-	if m.overlay != overlayNone {
-		if k == "a" && m.overlay == overlayPlan && m.plan != nil && m.plan.Status == planner.StatusPending {
-			return m.startApply(m.plan.Plan.ID)
+	if m.Overlay != OverlayNone {
+		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.StatusPending {
+			return m.startApply(m.Plan.Plan.ID)
 		}
 		switch k {
 		case "esc", "q", "?", "enter":
-			m.overlay, m.scroll = overlayNone, 0
+			m.Overlay, m.scroll = OverlayNone, 0
 		default:
 			m.scrollBy(k)
 		}
 		return m, nil
 	}
-	if m.intro {
+	if m.Intro {
 		return m.updateIntroKey(k)
 	}
 
 	switch k {
 	case "esc":
-		m.detail = false
+		m.Detail = false
 	case "?":
-		m.overlay, m.scroll = overlayHelp, 0
+		m.Overlay, m.scroll = overlayHelp, 0
 	case "/":
-		m.inputMode, m.pick = rune(k[0]), 0
+		m.InputMode, m.pick = rune(k[0]), 0
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
 	case "tab", "right", "l":
-		m.setTab((m.tab + 1) % tab(len(tabTitles)))
+		m.setTab((m.Tab + 1) % tab(len(tabTitles)))
 	case "shift+tab", "left", "h":
-		m.setTab((m.tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
+		m.setTab((m.Tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
 	case "1", "2", "3", "4", "5", "6":
 		m.setTab(tab(k[0] - '1'))
 	case "r":
-		return m, m.startLoad(true)
+		return m, m.StartLoad(true)
 	case "enter":
-		if m.tab == tabSuggestions && len(m.items()) > 0 {
-			if m.detail {
-				m.detail = false
+		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
+			if m.Detail {
+				m.Detail = false
 				break
 			}
 			return m.startRemove()
 		}
 	case "e":
-		if m.tab == tabSuggestions && len(m.items()) > 0 {
-			m.detail = !m.detail
+		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
+			m.Detail = !m.Detail
 		}
 	case " ":
-		if m.tab == tabSuggestions {
+		if m.Tab == TabSuggestions {
 			m.toggleMark()
 		}
 	case "p":
-		if m.tab == tabSuggestions {
-			return m.startPlan(m.markedSelector())
+		if m.Tab == TabSuggestions {
+			return m.startPlan(m.MarkedSelector())
 		}
-		m.flash = "Plans are made on the Suggestions tab (2): mark items with space, then press p."
+		m.Flash = "Plans are made on the Suggestions tab (2): mark items with space, then press p."
 	default:
-		if m.tab == tabSuggestions && !m.detail {
+		if m.Tab == TabSuggestions && !m.Detail {
 			m.moveCursor(k)
 		} else {
 			m.scrollBy(k)
@@ -532,30 +532,30 @@ func (m tuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *tuiModel) setTab(t tab) {
-	m.tab, m.scroll, m.detail = t, 0, false
+func (m *TuiModel) setTab(t tab) {
+	m.Tab, m.scroll, m.Detail = t, 0, false
 }
 
-func (m *tuiModel) moveCursor(k string) {
-	n := len(m.items())
+func (m *TuiModel) moveCursor(k string) {
+	n := len(m.Items())
 	switch k {
 	case "up", "k":
-		m.cursor--
+		m.Cursor--
 	case "down", "j":
-		m.cursor++
+		m.Cursor++
 	case "pgup":
-		m.cursor -= 10
+		m.Cursor -= 10
 	case "pgdown", " ":
-		m.cursor += 10
+		m.Cursor += 10
 	case "home", "g":
-		m.cursor = 0
+		m.Cursor = 0
 	case "end", "G":
-		m.cursor = n - 1
+		m.Cursor = n - 1
 	}
-	m.cursor = max(0, min(m.cursor, n-1))
+	m.Cursor = max(0, min(m.Cursor, n-1))
 }
 
-func (m *tuiModel) scrollBy(k string) {
+func (m *TuiModel) scrollBy(k string) {
 	switch k {
 	case "up", "k":
 		m.scroll--
@@ -578,13 +578,13 @@ func (m *tuiModel) scrollBy(k string) {
 // completion is one row of the palette.
 type completion struct{ value, desc string }
 
-func (m tuiModel) completions() []completion {
+func (m TuiModel) completions() []completion {
 	q := strings.ToLower(strings.TrimSpace(m.input.Value()))
 	var out []completion
 	name, _, _ := strings.Cut(q, " ")
-	for _, c := range slashCommands {
-		if strings.HasPrefix(c.name, name) {
-			v := c.name
+	for _, c := range SlashCommands {
+		if strings.HasPrefix(c.Name, name) {
+			v := c.Name
 			if c.args != "" {
 				v += " " + c.args
 			}
@@ -594,13 +594,13 @@ func (m tuiModel) completions() []completion {
 	return out
 }
 
-func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	comps := m.completions()
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		m.inputMode = 0
+		m.InputMode = 0
 		m.input.Blur()
 		return m, nil
 	case "up":
@@ -627,9 +627,9 @@ func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				v = c
 			}
 		}
-		m.inputMode = 0
+		m.InputMode = 0
 		m.input.Blur()
-		return m.runCommand(v)
+		return m.RunCommand(v)
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -637,16 +637,16 @@ func (m tuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
+func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
 	views := map[string]tab{
-		"overview": tabOverview, "wins": tabSuggestions, "suggestions": tabSuggestions,
-		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": tabSpace, "storage": tabSpace, "health": tabHealth, "slow": tabHealth, "trend": tabSpace,
+		"overview": tabOverview, "wins": TabSuggestions, "suggestions": TabSuggestions,
+		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": TabSpace, "storage": TabSpace, "health": tabHealth, "slow": tabHealth, "trend": TabSpace,
 	}
 	if v, ok := views[name]; ok {
 		m.setTab(v)
-		if m.intro { // a view from the welcome screen starts the dashboard there
+		if m.Intro { // a view from the welcome screen starts the dashboard there
 			return m, m.leaveIntro(false)
 		}
 		return m, nil
@@ -654,92 +654,92 @@ func (m tuiModel) runCommand(line string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "":
 	case "scan":
-		m.intro = false
-		return m, m.startLoad(true)
+		m.Intro = false
+		return m, m.StartLoad(true)
 	case "explain", "json":
-		if m.intro {
-			m.flash = "Choose “Check my Mac” first: /" + name + " needs results."
+		if m.Intro {
+			m.Flash = "Choose “Check my Mac” first: /" + name + " needs results."
 			return m, nil
 		}
 		if name == "explain" {
 			return m.explain(arg)
 		}
 		m.jsonDoc = m.currentJSON()
-		m.overlay, m.scroll = overlayJSON, 0
+		m.Overlay, m.scroll = overlayJSON, 0
 	case "plan":
-		if m.intro {
-			m.flash = "Choose “Check my Mac” first: /plan needs results."
+		if m.Intro {
+			m.Flash = "Choose “Check my Mac” first: /plan needs results."
 			return m, nil
 		}
 		switch r := model.Risk(strings.ToUpper(arg)); r {
 		case "":
-			return m.startPlan(m.markedSelector())
+			return m.startPlan(m.MarkedSelector())
 		case model.RiskSafe, model.RiskCaution, model.RiskRisky:
 			return m.startPlan(&planner.Selector{Tier: r})
 		}
-		m.flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
+		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
 	case "apply":
 		return m.startApply(arg)
 	case "mcp":
-		m.flash = "Connect Claude once: claude mcp add macdoc -- macdoc mcp · Claude proposes, only you apply them."
+		m.Flash = "Connect Claude once: claude mcp add macdoc -- macdoc mcp · Claude proposes, only you apply them."
 	case "help":
-		m.overlay, m.scroll = overlayHelp, 0
+		m.Overlay, m.scroll = overlayHelp, 0
 	case "quit", "exit", "q":
 		return m, tea.Quit
 	default:
-		m.flash = fmt.Sprintf("Unknown command /%s. Type / to see the list.", name)
+		m.Flash = fmt.Sprintf("Unknown command /%s. Type / to see the list.", name)
 	}
 	return m, nil
 }
 
-func (m tuiModel) explain(id string) (tea.Model, tea.Cmd) {
+func (m TuiModel) explain(id string) (tea.Model, tea.Cmd) {
 	if id == "" {
-		m.flash = "Usage: /explain <id>, e.g. /explain O-ab12cd"
+		m.Flash = "Usage: /explain <id>, e.g. /explain O-ab12cd"
 		return m, nil
 	}
-	for i, op := range m.items() {
+	for i, op := range m.Items() {
 		if strings.EqualFold(op.ID, id) {
-			m.setTab(tabSuggestions)
-			m.cursor, m.detail = i, true
+			m.setTab(TabSuggestions)
+			m.Cursor, m.Detail = i, true
 			return m, nil
 		}
 	}
-	m.flash = id + " is not in the latest scan; IDs change after a new scan."
+	m.Flash = id + " is not in the latest scan; IDs change after a new scan."
 	return m, nil
 }
 
 // items are the suggestions, in ranked order.
-func (m tuiModel) items() []model.Opportunity {
-	if m.data == nil {
+func (m TuiModel) Items() []model.Opportunity {
+	if m.Data == nil {
 		return nil
 	}
-	return m.data.res.Opportunities.Opportunities
+	return m.Data.Res.Opportunities.Opportunities
 }
 
 // currentJSON is the current view's data, as the matching --json command
 // would print it (without the envelope).
-func (m tuiModel) currentJSON() string {
-	if m.data == nil {
+func (m TuiModel) currentJSON() string {
+	if m.Data == nil {
 		return "null"
 	}
 	var v any
-	switch m.tab {
+	switch m.Tab {
 	case tabOverview:
-		v = m.data.res
-	case tabSuggestions:
-		if ops := m.items(); m.detail && m.cursor < len(ops) {
-			v = ops[m.cursor]
+		v = m.Data.Res
+	case TabSuggestions:
+		if ops := m.Items(); m.Detail && m.Cursor < len(ops) {
+			v = ops[m.Cursor]
 		} else {
-			v = m.data.res.Opportunities
+			v = m.Data.Res.Opportunities
 		}
 	case tabToolchains:
-		v = m.data.dev
+		v = m.Data.Dev
 	case tabProjects:
-		v = m.data.projects
-	case tabSpace:
-		v = m.data.space
+		v = m.Data.Projects
+	case TabSpace:
+		v = m.Data.space
 	case tabHealth:
-		v = m.data.slow
+		v = m.Data.Slow
 	}
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -750,28 +750,28 @@ func (m tuiModel) currentJSON() string {
 
 // --- view ---
 
-func (m tuiModel) bodyHeight() int {
+func (m TuiModel) bodyHeight() int {
 	h := m.h - 4 // header, tabs, rule, footer
-	if m.inputMode != 0 {
+	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
 		h -= 2 + end - start
-	} else if m.flash != "" {
+	} else if m.Flash != "" {
 		h--
 	}
 	return max(3, h)
 }
 
-func (m tuiModel) View() string {
+func (m TuiModel) View() string {
 	t := m.t
 	var b strings.Builder
-	if m.intro && m.overlay == overlayNone && !m.loading {
+	if m.Intro && m.Overlay == OverlayNone && !m.Loading {
 		b.WriteString(fitHeight(m.introView(), m.introHeight(), m.w))
-		if m.inputMode != 0 {
+		if m.InputMode != 0 {
 			b.WriteString(m.inputView())
-		} else if m.flash != "" {
-			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.flash)), m.w-4) + "\n")
+		} else if m.Flash != "" {
+			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
 		}
-		if m.inputMode != 0 {
+		if m.InputMode != 0 {
 			b.WriteString(m.footerView())
 		} else {
 			b.WriteString(m.introFooter())
@@ -783,29 +783,29 @@ func (m tuiModel) View() string {
 
 	var body string
 	switch {
-	case m.loading:
+	case m.Loading:
 		body = m.loadingView()
-	case m.overlay == overlayHelp:
-		body = m.scrolled(m.helpView())
-	case m.overlay == overlayJSON:
-		body = m.scrolled(highlightJSON(t, m.jsonDoc))
-	case m.overlay == overlayPlan:
+	case m.Overlay == overlayHelp:
+		body = m.scrolled(m.HelpView())
+	case m.Overlay == overlayJSON:
+		body = m.scrolled(HighlightJSON(t, m.jsonDoc))
+	case m.Overlay == OverlayPlan:
 		body = m.scrolled(m.planView())
-	case m.overlay == overlayRemove:
+	case m.Overlay == OverlayRemove:
 		body = m.scrolled(m.removeView())
-	case m.data == nil:
+	case m.Data == nil:
 		body = "\n  " + t.muted.Render(display(m.note))
-	case m.tab == tabSuggestions:
+	case m.Tab == TabSuggestions:
 		body = m.suggestionsView()
 	default:
 		body = m.scrolled(m.textView())
 	}
 	b.WriteString(fitHeight(body, m.bodyHeight(), m.w))
 
-	if m.inputMode != 0 {
+	if m.InputMode != 0 {
 		b.WriteString(m.inputView())
-	} else if m.flash != "" {
-		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.flash)), m.w-4) + "\n")
+	} else if m.Flash != "" {
+		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
 	}
 	b.WriteString(m.footerView())
 	return b.String()
@@ -827,48 +827,48 @@ func fitHeight(s string, h, w int) string {
 }
 
 // scrolled applies the scroll offset to a text body.
-func (m *tuiModel) scrolled(s string) string {
+func (m *TuiModel) scrolled(s string) string {
 	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
 	maxOff := max(0, len(lines)-m.bodyHeight())
 	m.scroll = min(m.scroll, maxOff)
 	return strings.Join(lines[m.scroll:], "\n")
 }
 
-func (m tuiModel) headerView() string {
+func (m TuiModel) headerView() string {
 	t := m.t
 	left := " " + t.brand.Render("◆ macdoc")
 	var right []string
-	if m.data != nil {
-		hw := m.data.res.Health.Report.Hardware
+	if m.Data != nil {
+		hw := m.Data.Res.Health.Report.Hardware
 		if hw.Model != "" {
 			left += t.muted.Render("  " + hw.Model + " · " + strings.TrimPrefix(hw.Chip, "Apple "))
 		}
-		if d := m.data.res.Health.Report.Disk; d.ContainerTotalBytes > 0 {
+		if d := m.Data.Res.Health.Report.Disk; d.ContainerTotalBytes > 0 {
 			used := d.ContainerTotalBytes - d.ContainerFreeBytes
 			right = append(right, t.usageStyle(used, d.ContainerTotalBytes).Render(engine.DecimalBytes(d.ContainerFreeBytes)+" free"))
 		}
-		age := "scan " + m.data.res.ScanAge
-		if m.data.res.Scanned {
+		age := "scan " + m.Data.Res.ScanAge
+		if m.Data.Res.Scanned {
 			age = "scanned just now"
 		}
 		st := t.muted
-		if m.data.res.ScanStale {
+		if m.Data.Res.ScanStale {
 			st = t.warn
 		}
 		right = append(right, st.Render(age))
 	}
-	right = append(right, t.ok.Render("asks before removing"))
+	right = append(right, t.Ok.Render("asks before removing"))
 	r := strings.Join(right, t.faint.Render(" · ")) + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
 	return left + strings.Repeat(" ", gap) + r
 }
 
-func (m tuiModel) tabsView() string {
+func (m TuiModel) tabsView() string {
 	t := m.t
 	var parts []string
 	for i, title := range tabTitles {
 		label := fmt.Sprintf("%d %s", i+1, title)
-		if tab(i) == m.tab {
+		if tab(i) == m.Tab {
 			parts = append(parts, t.r.NewStyle().Background(colBrand).Foreground(colOnBadge).Bold(true).Padding(0, 1).Render(label))
 		} else {
 			parts = append(parts, t.muted.Padding(0, 1).Render(label))
@@ -878,22 +878,22 @@ func (m tuiModel) tabsView() string {
 	return row + "\n" + t.rule(m.w)
 }
 
-func (m tuiModel) footerView() string {
+func (m TuiModel) footerView() string {
 	var keys []key.Binding
 	switch {
-	case m.inputMode != 0:
+	case m.InputMode != 0:
 		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel}
-	case m.loading:
+	case m.Loading:
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
-	case m.overlay == overlayRemove:
+	case m.Overlay == OverlayRemove:
 		keys = nil
-	case m.overlay == overlayPlan && m.plan != nil && m.plan.Status == planner.StatusPending:
+	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.StatusPending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
-	case m.overlay != overlayNone:
+	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
-	case m.tab == tabSuggestions && m.detail:
+	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
-	case m.tab == tabSuggestions:
+	case m.Tab == TabSuggestions:
 		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
@@ -906,21 +906,21 @@ func (m tuiModel) footerView() string {
 // when the window has room (up to half its height, and always leaving the
 // header, input line, footer and 3 body lines), otherwise a window that
 // keeps the picked one in view.
-func (m tuiModel) paletteWindow() (start, end int) {
+func (m TuiModel) paletteWindow() (start, end int) {
 	n := len(m.completions())
 	rows := min(n, max(4, m.h/2), max(1, m.h-9))
 	start = max(0, min(m.pick-rows+1, n-rows))
 	return start, start + rows
 }
 
-func (m tuiModel) inputView() string {
+func (m TuiModel) inputView() string {
 	t := m.t
 	var b strings.Builder
 	comps := m.completions()
 	start, end := m.paletteWindow()
 	for i := start; i < end; i++ {
 		c := comps[i]
-		prefix := string(m.inputMode)
+		prefix := string(m.InputMode)
 		name := t.accent.Render(fmt.Sprintf("%-18s", prefix+c.value))
 		line := "   " + name + " " + t.muted.Render(c.desc)
 		if i == m.pick {
@@ -929,11 +929,11 @@ func (m tuiModel) inputView() string {
 		b.WriteString(truncateANSI(line, m.w) + "\n")
 	}
 	b.WriteString(t.rule(m.w) + "\n")
-	b.WriteString(" " + t.brand.Render("› "+string(m.inputMode)) + m.input.View() + "\n")
+	b.WriteString(" " + t.brand.Render("› "+string(m.InputMode)) + m.input.View() + "\n")
 	return b.String()
 }
 
-func (m tuiModel) loadingView() string {
+func (m TuiModel) loadingView() string {
 	t := m.t
 	var b strings.Builder
 	b.WriteString("\n")
@@ -943,28 +943,28 @@ func (m tuiModel) loadingView() string {
 	for _, s := range m.steps {
 		label := stepLabels[s.step]
 		if s.done {
-			fmt.Fprintf(&b, "  %s %s %s\n", t.ok.Render("✓"), t.muted.Render(label), t.faint.Render(fmtDur(s.took)))
+			fmt.Fprintf(&b, "  %s %s %s\n", t.Ok.Render("✓"), t.muted.Render(label), t.faint.Render(fmtDur(s.took)))
 			continue
 		}
-		fmt.Fprintf(&b, "  %s %s %s\n", m.spin.View(), t.title.Render(label+"…"), t.faint.Render(fmtDur(time.Since(s.start))))
+		fmt.Fprintf(&b, "  %s %s %s\n", m.spin.View(), t.Title.Render(label+"…"), t.faint.Render(fmtDur(time.Since(s.start))))
 		if s.step == engine.StepScan {
 			b.WriteString(m.scanProgressView())
 		}
 	}
-	if m.stopping || m.quitting {
+	if m.Stopping || m.Quitting {
 		b.WriteString("\n  " + t.warn.Render("Stopping… partial results are not used."))
 	}
 	return b.String()
 }
 
-func (m tuiModel) scanProgressView() string {
+func (m TuiModel) scanProgressView() string {
 	t := m.t
 	p := m.prog
 	var b strings.Builder
 	b.WriteString("\n")
 	if m.estimate > 0 {
 		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
-		fmt.Fprintf(&b, "    %s %s\n", m.bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
+		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
 	}
 	fmt.Fprintf(&b, "    %s  %s  %s\n", t.size.Render(engine.DecimalBytes(p.Bytes)),
 		t.muted.Render(fmt.Sprintf("%s files", groupDigits(p.Files))), t.faint.Render(p.Elapsed.Round(time.Second).String()))
@@ -976,13 +976,13 @@ func (m tuiModel) scanProgressView() string {
 }
 
 // textView renders a non-list tab as tables.
-func (m tuiModel) textView() string {
-	switch m.tab {
+func (m TuiModel) textView() string {
+	switch m.Tab {
 	case tabToolchains:
 		return m.toolchainTables()
 	case tabProjects:
 		return m.projectTables()
-	case tabSpace:
+	case TabSpace:
 		return m.spaceTables()
 	case tabHealth:
 		return m.healthTables()
@@ -1002,14 +1002,14 @@ func indentLines(s, pad string) string {
 
 // suggestionsView is the selectable table, with the selected item's details
 // beside it (wide screens) or instead of it (Enter on narrow ones).
-func (m tuiModel) suggestionsView() string {
-	ops := m.items()
+func (m TuiModel) suggestionsView() string {
+	ops := m.Items()
 	if len(ops) == 0 {
 		return "\n  " + m.t.muted.Render("Nothing to reclaim was found in the latest scan.")
 	}
 	h := m.bodyHeight()
-	if m.detail && m.w < 120 {
-		return m.scrolled(m.detailView(ops[m.cursor], m.w))
+	if m.Detail && m.w < 120 {
+		return m.scrolled(m.detailView(ops[m.Cursor], m.w))
 	}
 	listW := m.w
 	if m.w >= 120 {
@@ -1019,7 +1019,7 @@ func (m tuiModel) suggestionsView() string {
 	if m.w < 120 {
 		return list
 	}
-	detail := fitHeight(m.detailView(ops[m.cursor], m.w-listW-3), h, m.w-listW-3)
+	detail := fitHeight(m.detailView(ops[m.Cursor], m.w-listW-3), h, m.w-listW-3)
 	l, d := strings.Split(list, "\n"), strings.Split(detail, "\n")
 	var b strings.Builder
 	for i := 0; i < h; i++ {
@@ -1030,40 +1030,40 @@ func (m tuiModel) suggestionsView() string {
 
 // listView is the tier totals and a window of the suggestions table that
 // keeps the cursor in view.
-func (m tuiModel) listView(ops []model.Opportunity, w, h int) string {
+func (m TuiModel) listView(ops []model.Opportunity, w, h int) string {
 	t := m.t
 	var totals []string
 	for _, tier := range engine.TierOrder {
 		if tierOps := opsInTier(ops, tier); len(tierOps) > 0 {
 			totals = append(totals, t.riskStyle(tier).Bold(true).Render(riskLabel(tier))+" "+
-				t.size.Render(tierTotal(m.data.res.Opportunities.Totals[tier], tierOps)))
+				t.size.Render(tierTotal(m.Data.Res.Opportunities.Totals[tier], tierOps)))
 		}
 	}
 	rowsFit := max(1, h-6) // blank, totals, table top border, header, header rule, bottom border
-	start := max(0, min(m.cursor-rowsFit/2, len(ops)-rowsFit))
+	start := max(0, min(m.Cursor-rowsFit/2, len(ops)-rowsFit))
 	end := min(len(ops), start+rowsFit)
-	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.cursor+1, len(ops)))
+	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.Cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
 	if note := m.markedNote(); note != "" {
 		head += "   " + note
 	}
-	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.cursor-start, w-2, w < m.w), " ")
+	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w), " ")
 }
 
-func (m tuiModel) detailView(op model.Opportunity, w int) string {
-	ex := ExplainResult{Scan: m.data.res.Scan, Opportunity: op, BaseRisk: op.Risk}
-	if base, raised := engine.RaisedFrom(op, m.deps.cat); raised {
+func (m TuiModel) detailView(op model.Opportunity, w int) string {
+	ex := ExplainResult{Scan: m.Data.Res.Scan, Opportunity: op, BaseRisk: op.Risk}
+	if base, raised := engine.RaisedFrom(op, m.Deps.cat); raised {
 		ex.BaseRisk = base
 	}
 	var buf strings.Builder
 	saved := m.t.width
 	m.t.width = w
-	_ = renderExplain(&themedWriter{Writer: &buf, t: m.t}, ex)
+	_ = RenderExplain(&themedWriter{Writer: &buf, t: m.t}, ex)
 	m.t.width = saved
 	return "\n" + buf.String()
 }
 
-func (m tuiModel) helpView() string {
+func (m TuiModel) HelpView() string {
 	t := m.t
 	var b strings.Builder
 	b.WriteString("\n " + t.heading("Keys") + "\n")
@@ -1084,8 +1084,8 @@ func (m tuiModel) helpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", k[0])), t.muted.Render(k[1]))
 	}
 	b.WriteString("\n " + t.heading("Commands") + "\n")
-	for _, c := range slashCommands {
-		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.name+" "+c.args))), t.muted.Render(c.desc))
+	for _, c := range SlashCommands {
+		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.Name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
 	b.WriteString(t.muted.Render("   Nothing is removed until you confirm. Enter shows what will go and how\n"))
@@ -1123,8 +1123,8 @@ func truncateMiddle(s string, n int) string {
 	return string(r[:half]) + "…" + string(r[len(r)-(n-1-half):])
 }
 
-// highlightJSON colors keys, strings, numbers and literals.
-func highlightJSON(t *theme, src string) string {
+// HighlightJSON colors keys, strings, numbers and literals.
+func HighlightJSON(t *theme, src string) string {
 	var b strings.Builder
 	b.WriteString("\n")
 	for _, line := range strings.Split(src, "\n") {
@@ -1180,14 +1180,14 @@ var _ io.Writer = (*themedWriter)(nil)
 
 // cleanData returns the display copy of freshly loaded data, keeping the
 // engine's opportunities aside (planOps) for planning.
-func cleanData(d *tuiData) *tuiData {
+func cleanData(d *TuiData) *TuiData {
 	if d == nil {
 		return nil
 	}
-	raw := d.res.Opportunities
-	// tuiData's fields are unexported, which display (textsafe.Copy) leaves
+	raw := d.Res.Opportunities
+	// TuiData's fields are unexported, which display (textsafe.Copy) leaves
 	// as they are, so each is cleaned on its own.
-	c := tuiData{res: display(d.res), space: display(d.space), dev: display(d.dev), projects: display(d.projects),
-		slow: display(d.slow), trend: display(d.trend), trendMsg: display(d.trendMsg), planOps: &raw}
+	c := TuiData{Res: display(d.Res), space: display(d.space), Dev: display(d.Dev), Projects: display(d.Projects),
+		Slow: display(d.Slow), Trend: display(d.Trend), trendMsg: display(d.trendMsg), PlanOps: &raw}
 	return &c
 }

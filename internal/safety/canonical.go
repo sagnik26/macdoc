@@ -14,7 +14,7 @@ import (
 
 // resolveParents resolves symlinks in dir and every ancestor of it. It walks
 // up to the deepest existing ancestor, resolves that with EvalSymlinks, then
-// re-appends the components that don't exist yet.
+// re-appends the Components that don't exist yet.
 func resolveParents(dir string) (string, error) {
 	var tail []string
 	cur := dir
@@ -39,10 +39,10 @@ func resolveParents(dir string) (string, error) {
 	return resolved, nil
 }
 
-// hasDotDot reports whether the raw path has a ".." component. Such paths are
+// HasDotDot reports whether the raw path has a ".." component. Such paths are
 // rejected rather than cleaned: lexical cleaning disagrees with the kernel
 // when ".." follows a symlink, and scanner paths never contain "..".
-func hasDotDot(p string) bool {
+func HasDotDot(p string) bool {
 	for _, c := range strings.Split(p, "/") {
 		if c == ".." {
 			return true
@@ -87,8 +87,8 @@ func fold(s string) string {
 // names too.
 func FoldName(s string) string { return fold(s) }
 
-// components splits a cleaned absolute path into its non-empty components.
-func components(p string) []string {
+// Components splits a cleaned absolute path into its non-empty Components.
+func Components(p string) []string {
 	var out []string
 	for _, c := range strings.Split(p, "/") {
 		if c != "" {
@@ -98,16 +98,16 @@ func components(p string) []string {
 	return out
 }
 
-// foldedComponents cleans p and returns its folded components.
+// foldedComponents cleans p and returns its folded Components.
 func foldedComponents(p string) []string {
-	cs := components(filepath.Clean(p))
+	cs := Components(filepath.Clean(p))
 	for i, c := range cs {
 		cs[i] = fold(c)
 	}
 	return cs
 }
 
-// hasPrefixComps reports whether path starts with all of root's components.
+// hasPrefixComps reports whether path starts with all of root's Components.
 // Both must already be folded.
 func hasPrefixComps(root, path []string) bool {
 	if len(path) < len(root) {
