@@ -6,6 +6,8 @@ macdoc is a command-line tool for macOS. It reads your disk and memory, explains
 
 > **Status: early release.** The core commands work. Expect rough edges, and see [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for what's planned.
 
+![The macdoc welcome screen in a terminal](docs/images/macdoc-welcome.png)
+
 ## Why it's safe
 
 - **Read-only by default.** Scans, reports and plans change nothing on your Mac.
