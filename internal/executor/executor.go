@@ -59,6 +59,10 @@ type Config struct {
 	FreeSpace func(ctx context.Context) (int64, error)
 	// OnItem, if set, is told when an item starts and when it ends.
 	OnItem func(ev ItemEvent)
+	// StageHook is a test seam: it is called at each step of a move or purge
+	// (for example "pending", "moved", "purged-payload") so a crash or a swap
+	// can be simulated there. Production leaves it nil.
+	StageHook func(stage string)
 	// DeleteNow purges each item's quarantine entry right after the move,
 	// through the same checks as Purge, so the space is freed at once. If
 	// that purge is refused, the item stays restorable in quarantine.

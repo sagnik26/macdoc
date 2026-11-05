@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # print a stack trace.
 LDFLAGS := -s -w -X macdoc/internal/cli.version=$(VERSION)
 
-.PHONY: build install uninstall test lint importcheck forbidcheck fuzz check clean
+.PHONY: build install uninstall test cover lint importcheck forbidcheck fuzz check clean
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/macdoc ./cmd/macdoc
@@ -22,6 +22,12 @@ uninstall:
 
 test:
 	$(GO) test -race ./...
+
+# Coverage across packages. Tests live in each package's tests/ folder, so a
+# plain `go test -cover ./internal/x` reports 0% for the package they test.
+cover:
+	$(GO) test -count=1 -coverpkg=./internal/...,./tools/...,./cmd/... -coverprofile=coverage.out ./...
+	$(GO) tool cover -func=coverage.out | tail -1
 
 lint:
 	golangci-lint run ./...

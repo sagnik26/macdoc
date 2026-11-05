@@ -199,13 +199,12 @@ func TestRedteamFixedAncestorSwapDuringMove(t *testing.T) {
 	}
 	p := e.plan(t, e.item(t, "O-aaaaaa", "xcode.derived_data", model.RiskSafe, target))
 	dev := filepath.Join(e.home, "Library/Developer")
-	executor.TestHook = func(stage string) {
+	e.cfg.StageHook = func(stage string) {
 		if stage == "pending" {
 			mustRename(t, dev, dev+".moved")
 			mustSymlink(t, filepath.Join(e.home, "Documents/Dev"), dev)
 		}
 	}
-	t.Cleanup(func() { executor.TestHook = nil })
 	it := mustApply(t, e, p).Items[0]
 	if !exists(victim) {
 		t.Fatalf("an entry inside ~/Documents was moved and deleted (item %s, deleted %v)", it.Outcome, it.Deleted)
@@ -830,13 +829,12 @@ func TestRedteamFixedAncestorSwapAfterOpen(t *testing.T) {
 	}
 	p := e.plan(t, e.item(t, "O-aaaaaa", "xcode.derived_data", model.RiskSafe, target))
 	dev := filepath.Join(e.home, "Library/Developer")
-	executor.TestHook = func(stage string) {
+	e.cfg.StageHook = func(stage string) {
 		if stage == "opened" {
 			mustRename(t, dev, dev+".moved")
 			mustSymlink(t, filepath.Join(e.home, "Documents/Dev"), dev)
 		}
 	}
-	t.Cleanup(func() { executor.TestHook = nil })
 	it := mustApply(t, e, p).Items[0]
 	if it.Outcome != executor.OutcomeSkipped {
 		t.Fatalf("ancestor swapped after the parent was opened: item = %s (%s), want skipped", it.Outcome, it.Reason)
@@ -854,7 +852,7 @@ func TestRedteamFixedPurgeCrashOrder(t *testing.T) {
 	qid := mustApply(t, e, p).Items[0].QuarantineID
 	entry := quarantine.EntryDir(quarantine.Root(e.storePath), qid)
 	seen := false
-	executor.TestHook = func(stage string) {
+	e.cfg.StageHook = func(stage string) {
 		if stage == "purged-payload" {
 			seen = true
 			if !exists(filepath.Join(entry, quarantine.ManifestName)) {
@@ -865,7 +863,6 @@ func TestRedteamFixedPurgeCrashOrder(t *testing.T) {
 			}
 		}
 	}
-	t.Cleanup(func() { executor.TestHook = nil })
 	if _, err := executor.Purge(context.Background(), e.cfg, []string{qid}); err != nil {
 		t.Fatal(err)
 	}

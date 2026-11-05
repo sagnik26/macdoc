@@ -291,7 +291,7 @@ Estimates assume part-time work (~15–20 h/week).
 - Bubbletea cleanup picker: a checklist with SAFE items pre-checked, a live total, then the same plan → confirm → apply flow.
 - `slow --tips`: suggestions such as "Quit Docker Desktop when you're not using containers (−3 GB RAM)" or "Use a smaller quantized model". Still no process actions.
 
-> **Note (2026-11-02):** the dashboard already has most of the cleanup picker: marking with `space`, a plan from the marks, and confirmed removal with Enter. Phase 10's picker work is what's left of that list (SAFE pre-checked, a live total).
+> **Built (checked 2026-11-05):** the cleanup picker is complete. `space` marks items, a plan comes from the marks, SAFE items are pre-marked on each new scan (`preMarkSafe`), a live total shows the marked count and bytes (`markedTotal`), and confirmed removal is Enter.
 
 ### Phase 11: Open-source readiness (later)
 - Recipe contribution guide, more generic thresholds, Homebrew tap, signing and notarization, and a privacy statement (no network).

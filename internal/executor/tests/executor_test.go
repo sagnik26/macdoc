@@ -427,13 +427,12 @@ func TestSwapDuringMove(t *testing.T) {
 	target := e.folder(t, "Library/Logs/A")
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
 	victim := e.folder(t, "Documents/Thesis", "chapter1.md")
-	executor.TestHook = func(stage string) {
+	e.cfg.StageHook = func(stage string) {
 		if stage == "pending" {
 			mustRename(t, target, target+".moved")
 			mustSymlink(t, victim, target)
 		}
 	}
-	t.Cleanup(func() { executor.TestHook = nil })
 	rep := mustApply(t, e, p)
 	if rep.Items[0].Outcome != executor.OutcomeSkipped {
 		t.Fatalf("item = %+v", rep.Items[0])

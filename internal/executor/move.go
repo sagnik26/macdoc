@@ -26,13 +26,11 @@ import (
 // more entries is skipped: macdoc can't vouch for what it didn't look at.
 const MaxCheckEntries = 500_000
 
-// TestHook, when set by tests, is called at each step of a move so a crash
-// can be simulated there.
-var TestHook func(stage string)
-
-func hook(stage string) {
-	if TestHook != nil {
-		TestHook(stage)
+// callHook runs the test seam Config.StageHook, if set, at one step of a move
+// or purge, so a crash or a swap can be simulated there. Production leaves it nil.
+func callHook(h func(stage string), stage string) {
+	if h != nil {
+		h(stage)
 	}
 }
 
@@ -270,7 +268,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 	if err := writeManifest(entry, m, true); err != nil {
 		return cancel(err)
 	}
-	hook("pending")
+	callHook(p.cfg.StageHook, "pending")
 
 	parent, base := filepath.Dir(target), filepath.Base(target)
 	pfd, err := openDirStrict(parent)
@@ -278,7 +276,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 		return cancel(skipf("its folder can't be opened: %v", err))
 	}
 	defer func() { _ = unix.Close(pfd) }()
-	hook("opened")
+	callHook(p.cfg.StageHook, "opened")
 	// Before the move too: the folder we hold must still be the canonical
 	// parent path (P6-R1 F5).
 	if err := sameDir(pfd, parent); err != nil {
@@ -295,7 +293,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 	if err := unix.RenameatxNp(pfd, base, qfd, base, unix.RENAME_EXCL); err != nil {
 		return cancel(fmt.Errorf("the move failed: %w", err))
 	}
-	hook("moved")
+	callHook(p.cfg.StageHook, "moved")
 	// What arrived must be the planned folder, and the folder it left must
 	// still be the one at the canonical parent path. Otherwise put it back.
 	if err := sameEntry(qfd, base, fp); err != nil {
@@ -309,7 +307,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: moved, but its manifest couldn't be updated: %v (it is still restorable)", id, err))
 		return id, nil
 	}
-	hook("done")
+	callHook(p.cfg.StageHook, "done")
 	if err := st.SetQuarantineStatus(id, store.QuarantinePending, store.QuarantineDone); err != nil {
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: moved, but macdoc's record couldn't be updated: %v (it is still restorable)", id, err))
 	}

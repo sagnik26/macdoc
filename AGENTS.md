@@ -8,7 +8,7 @@ macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac'
 
 ## Current status
 
-**In development.** Phases 0–6 are complete; Phase 7 (`slow`, `trend`, frozen JSON schemas in `schema/`, `config`, completions) is built and in its dogfood week. Phase 8 is built: `macdoc mcp` (`internal/mcp`) serves 11 read and propose-only tools to Claude; the tool list is pinned by a test. Phase 10 is built: `macdoc schedule enable|disable` writes or removes the daily read-only scan agent (the person runs the printed `launchctl` line in Terminal); `slow --tips` suggests what to do about measured memory users; the dashboard pre-marks SAFE suggestions on each new scan. Phase 9 is built: Claude plans are capped (5 open, 10 per 10 minutes), `apply` shows when Claude proposed a plan, and the server warns when a scan from the Claude app saw less. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `slow`, `trend`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only (`slow` and the overview store a small memory sample in macdoc's own state). `macdoc config` edits macdoc's settings file: timings and extra protected folders, which can only add protection. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, and Enter on a dashboard suggestion removes it after one more Enter (typed code for RISKY), both through `internal/executor`: native commands, or a checked move into quarantine that is deleted right away so the space is freed, all audited. `macdoc quarantine` handles anything left there, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+**In development.** Phases 0–6 are complete; Phase 7 (`slow`, `trend`, frozen JSON schemas in `schema/`, `config`, completions) is built. Its dogfood week ran 2026-10-28 to 2026-11-04; the reclaim target (≥ 10 GB through macdoc) isn't met (0.88 GB), so Phase 7 is not signed off. Phase 8 is built: `macdoc mcp` (`internal/mcp`) serves 11 read and propose-only tools to Claude; the tool list is pinned by a test. Phase 10 is built: `macdoc schedule enable|disable` writes or removes the daily read-only scan agent (the person runs the printed `launchctl` line in Terminal); `slow --tips` suggests what to do about measured memory users; the dashboard pre-marks SAFE suggestions on each new scan. Phase 9 is built: Claude plans are capped (5 open, 10 per 10 minutes), `apply` shows when Claude proposed a plan, and the server warns when a scan from the Claude app saw less. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `slow`, `trend`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only (`slow` and the overview store a small memory sample in macdoc's own state). `macdoc config` edits macdoc's settings file: timings and extra protected folders, which can only add protection. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, and Enter on a dashboard suggestion removes it after one more Enter (typed code for RISKY), both through `internal/executor`: native commands, or a checked move into quarantine that is deleted right away so the space is freed, all audited. `macdoc quarantine` handles anything left there, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
 
 ## Source of truth
 
@@ -55,12 +55,15 @@ Never weaken these, even if a task seems to require it. Ask the user instead.
 ```
 make build        # build ./bin/macdoc
 make test         # go test ./... (race on)
+make cover        # coverage across packages (needed because tests live in tests/)
 make lint         # golangci-lint
 make importcheck  # fails if mcp/engine import executor
 make forbidcheck  # fails on delete/exec/shell calls outside the executor
 make check        # test + lint + importcheck + forbidcheck
 make fuzz         # fuzz safety/canonicalization
 ```
+
+- **Tests live in `internal/<pkg>/tests/`** (package `tests`, external). Export only the names the tests need. Two exceptions: `scripts/importcheck.sh` allows `internal/cli/tests` to import the executor, and the `forbidcheck` logic lives in `tools/forbidcheck/check`. Plain `go test -cover` reports 0% under this layout; use `make cover`.
 
 ## Before finishing any change
 

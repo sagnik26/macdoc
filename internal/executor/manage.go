@@ -203,7 +203,7 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 			}
 			// A purge that was interrupted after the payload went leaves
 			// the manifest behind; clear it (nothing of the item is left).
-			removeLeftoverEntry(root, quarantine.EntryDir(root, id))
+			removeLeftoverEntry(root, quarantine.EntryDir(root, id), cfg.StageHook)
 			res.Outcome, res.Reason = OutcomeDone, "its folder was already gone"
 			return res
 		}
@@ -224,7 +224,7 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 		res.Reason = "the audit log can't be written, so nothing was changed: " + err.Error()
 		return res
 	}
-	if err := removeEntry(entry); err != nil {
+	if err := removeEntry(entry, cfg.StageHook); err != nil {
 		res.Outcome, res.Reason = OutcomeFailed, err.Error()
 		return res
 	}
@@ -289,11 +289,11 @@ func checkNoOtherVolume(entry string) error {
 // last. A crash part-way then leaves a folder macdoc can still account for
 // (the manifest, or only its record), never a payload without its record.
 // os.RemoveAll doesn't follow symlinks.
-func removeEntry(entry string) error {
+func removeEntry(entry string, stage func(string)) error {
 	if err := removeTree(filepath.Join(entry, quarantine.PayloadDir)); err != nil {
 		return err
 	}
-	hook("purged-payload")
+	callHook(stage, "purged-payload")
 	if err := os.Remove(filepath.Join(entry, quarantine.ManifestName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("couldn't delete its manifest: %w", err)
 	}
@@ -321,14 +321,14 @@ func removeTree(p string) error {
 
 // removeLeftoverEntry removes an entry folder that is left with no payload,
 // only if it is a real folder directly inside the quarantine root.
-func removeLeftoverEntry(root, entry string) {
+func removeLeftoverEntry(root, entry string, stage func(string)) {
 	if filepath.Dir(entry) != root {
 		return
 	}
 	if fi, err := os.Lstat(entry); err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
 		return
 	}
-	_ = removeEntry(entry)
+	_ = removeEntry(entry, nil)
 }
 
 // LockQuarantine takes an exclusive lock on macdoc's quarantine, so a purge
