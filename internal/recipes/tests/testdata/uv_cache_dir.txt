@@ -1,1 +1,1 @@
-/Users/sagnikghosh/.cache/uv
+/Users/example/.cache/uv

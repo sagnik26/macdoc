@@ -182,7 +182,7 @@
  74496 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Aperitif).app/Contents/MacOS/Google Chrome Helper (Aperitif)
  15648 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Aperitif).app/Contents/MacOS/Google Chrome Helper (Aperitif)
  23328 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Aperitif Renderer).app/Contents/MacOS/Google Chrome Helper (Aperitif Renderer)
- 18560 /Users/sagnikghosh/.local/share/claude/versions/2.1.226
+ 18560 /Users/example/.local/share/claude/versions/2.1.226
   2000 /usr/sbin/distnoted
   2000 /usr/sbin/distnoted
  11264 /Applications/Postman Agent.app/Contents/Frameworks/Postman Agent Helper (GPU).app/Contents/MacOS/Postman Agent Helper (GPU)

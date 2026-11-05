@@ -1,1 +1,1 @@
-/Users/sagnikghosh/Library/Caches/pip
+/Users/example/Library/Caches/pip

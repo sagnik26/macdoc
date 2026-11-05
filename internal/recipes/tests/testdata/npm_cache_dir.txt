@@ -1,1 +1,1 @@
-/Users/sagnikghosh/.npm
+/Users/example/.npm
