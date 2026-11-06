@@ -82,59 +82,91 @@ func Copy[T any](v T, clean func(string) string) T {
 	return dst.Interface().(T)
 }
 
-func clone(dst, src reflect.Value, clean func(string) string) { //nolint:gocognit,gocyclo // Pre-existing: it walks every kind of value in a decoded JSON tree, one case each.
+// clone copies src into dst, one kind of value at a time.
+func clone(dst, src reflect.Value, clean func(string) string) {
 	switch src.Kind() {
 	case reflect.String:
 		dst.SetString(clean(src.String()))
 	case reflect.Struct:
-		dst.Set(src)
-		for i := 0; i < src.NumField(); i++ {
-			if dst.Type().Field(i).IsExported() {
-				clone(dst.Field(i), src.Field(i), clean)
-			}
-		}
+		cloneStruct(dst, src, clean)
 	case reflect.Slice:
-		if src.IsNil() {
-			return
-		}
-		s := reflect.MakeSlice(src.Type(), src.Len(), src.Len())
-		for i := 0; i < src.Len(); i++ {
-			clone(s.Index(i), src.Index(i), clean)
-		}
-		dst.Set(s)
+		cloneSlice(dst, src, clean)
 	case reflect.Array:
-		for i := 0; i < src.Len(); i++ {
-			clone(dst.Index(i), src.Index(i), clean)
-		}
+		cloneArray(dst, src, clean)
 	case reflect.Map:
-		if src.IsNil() {
-			return
-		}
-		m := reflect.MakeMapWithSize(src.Type(), src.Len())
-		it := src.MapRange()
-		for it.Next() {
-			k := reflect.New(src.Type().Key()).Elem()
-			clone(k, it.Key(), clean)
-			e := reflect.New(src.Type().Elem()).Elem()
-			clone(e, it.Value(), clean)
-			m.SetMapIndex(k, e)
-		}
-		dst.Set(m)
+		cloneMap(dst, src, clean)
 	case reflect.Pointer:
-		if src.IsNil() {
-			return
-		}
-		p := reflect.New(src.Type().Elem())
-		clone(p.Elem(), src.Elem(), clean)
-		dst.Set(p)
+		clonePointer(dst, src, clean)
 	case reflect.Interface:
-		if src.IsNil() {
-			return
-		}
-		e := reflect.New(src.Elem().Type()).Elem()
-		clone(e, src.Elem(), clean)
-		dst.Set(e)
+		cloneInterface(dst, src, clean)
 	default:
 		dst.Set(src)
 	}
+}
+
+// cloneStruct copies the exported fields deeply and the rest as they are.
+func cloneStruct(dst, src reflect.Value, clean func(string) string) {
+	dst.Set(src)
+	for i := 0; i < src.NumField(); i++ {
+		if dst.Type().Field(i).IsExported() {
+			clone(dst.Field(i), src.Field(i), clean)
+		}
+	}
+}
+
+// cloneSlice copies a slice element by element; a nil slice stays nil.
+func cloneSlice(dst, src reflect.Value, clean func(string) string) {
+	if src.IsNil() {
+		return
+	}
+	s := reflect.MakeSlice(src.Type(), src.Len(), src.Len())
+	for i := 0; i < src.Len(); i++ {
+		clone(s.Index(i), src.Index(i), clean)
+	}
+	dst.Set(s)
+}
+
+// cloneArray copies an array element by element.
+func cloneArray(dst, src reflect.Value, clean func(string) string) {
+	for i := 0; i < src.Len(); i++ {
+		clone(dst.Index(i), src.Index(i), clean)
+	}
+}
+
+// cloneMap copies keys and values, so a name used as a key is cleaned too; a
+// nil map stays nil.
+func cloneMap(dst, src reflect.Value, clean func(string) string) {
+	if src.IsNil() {
+		return
+	}
+	m := reflect.MakeMapWithSize(src.Type(), src.Len())
+	it := src.MapRange()
+	for it.Next() {
+		k := reflect.New(src.Type().Key()).Elem()
+		clone(k, it.Key(), clean)
+		e := reflect.New(src.Type().Elem()).Elem()
+		clone(e, it.Value(), clean)
+		m.SetMapIndex(k, e)
+	}
+	dst.Set(m)
+}
+
+// clonePointer copies what a pointer points to; a nil pointer stays nil.
+func clonePointer(dst, src reflect.Value, clean func(string) string) {
+	if src.IsNil() {
+		return
+	}
+	p := reflect.New(src.Type().Elem())
+	clone(p.Elem(), src.Elem(), clean)
+	dst.Set(p)
+}
+
+// cloneInterface copies the value inside an interface; a nil one stays nil.
+func cloneInterface(dst, src reflect.Value, clean func(string) string) {
+	if src.IsNil() {
+		return
+	}
+	e := reflect.New(src.Elem().Type()).Elem()
+	clone(e, src.Elem(), clean)
+	dst.Set(e)
 }
