@@ -1,0 +1,41 @@
+# Releasing macdoc
+
+## Cutting a release
+
+1. `main` is green: `make check` passes locally and CI is green on the commit.
+2. Tag the commit and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
+3. `.github/workflows/release.yml` runs on a macOS runner (the purgeable-space shim uses cgo, so this cannot be built on Linux). It repeats the tests and guards, runs `govulncheck`, builds with GoReleaser, attests the build provenance, and creates a **draft** GitHub release.
+4. Review the draft: the changelog, the two archives (`darwin_arm64`, `darwin_amd64`) and `checksums.txt`. Publish it by hand.
+
+Nothing is published automatically. The workflow needs no secrets beyond the built-in `GITHUB_TOKEN`.
+
+## Dry run
+
+```sh
+goreleaser check
+goreleaser release --snapshot --clean --skip=publish   # writes dist/, publishes nothing
+```
+
+## Checking that a release is what the source says
+
+Each archive is built with `-trimpath` and file times fixed to the commit, and one archive is made per architecture. On this repository, two local builds of the same commit produced byte-identical archives (checked 2026-11-06 with `shasum -a 256`), so anyone can rebuild a tag and compare:
+
+```sh
+git checkout v0.1.0
+goreleaser release --clean --skip=publish,validate
+shasum -a 256 dist/*.tar.gz        # compare with checksums.txt in the release
+```
+
+Also available: `gh attestation verify <archive> --repo sagnik26/macdoc` checks the provenance recorded by the workflow.
+
+What has **not** been verified: that a build on GitHub's runner matches a build on a laptop. The Go version and Xcode command-line tools differ between machines and can change the output, so a mismatch there is possible and would not by itself mean tampering. Compare against a build with the same Go version (`go version` is in the release notes of the workflow run) before drawing a conclusion.
+
+## Why not a universal binary
+
+A universal (arm64 + x86_64) binary was tried first. Its two slices were byte-identical across builds, but GoReleaser's fat-file wrapper was not, so the universal file could not be verified by hash. Per-architecture archives can, so that is what ships.
+
+## Not done yet
+
+- Developer ID signing and notarization. Without them, a downloaded binary is blocked by Gatekeeper until the person clears the quarantine attribute (`xattr -d com.apple.quarantine macdoc`). This needs an Apple Developer account and is the owner's decision.
+- A Homebrew tap.
+- A tagged release: there are no tags yet.

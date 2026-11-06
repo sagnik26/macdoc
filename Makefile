@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # print a stack trace.
 LDFLAGS := -s -w -X github.com/sagnik26/macdoc/internal/cli.version=$(VERSION)
 
-.PHONY: build install uninstall test cover lint importcheck forbidcheck threatcheck fuzz check clean
+.PHONY: build install uninstall test cover lint importcheck forbidcheck threatcheck vulncheck fuzz check clean
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/macdoc ./cmd/macdoc
@@ -41,6 +41,10 @@ forbidcheck:
 # Every test that docs/THREAT_MODEL.md names must still exist.
 threatcheck:
 	./scripts/threatcheck.sh
+
+# Known vulnerabilities in what the module actually calls (pinned version).
+vulncheck:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 fuzz:
 	$(GO) test -run='^$$' -fuzz=FuzzCanonicalize -fuzztime=30s ./internal/safety

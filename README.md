@@ -376,6 +376,7 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 | File | What's in it |
 |---|---|
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Architecture, phases, tasks, acceptance criteria, testing, risks, carry-overs |
+| [docs/RELEASING.md](docs/RELEASING.md) | Cutting a release, a dry run, and how to rebuild a tag and compare hashes |
 | [docs/adr/](docs/adr/README.md) | Decision records: why approval is terminal-only, IDs not paths, one mutating package, delete-after-move, sizing by blocks, the test layout |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, adversaries, trust boundaries and, for each defense, the tests that fail without it (checked by `make threatcheck`) |
 | [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) | Risk classes, protected paths, the plan → confirm → apply → verify lifecycle, quarantine, audit, threat model |
