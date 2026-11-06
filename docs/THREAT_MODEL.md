@@ -56,6 +56,7 @@ disk ──(1)──▶ scanner ──▶ store ──▶ engine ──(2)──
 | T14 | A restore overwrites newer data, or a forged quarantine entry is restored | Restore refuses when anything exists at the destination; entries are validated | `internal/executor/tests.TestRestoreNeverOverwrites`, `internal/executor/tests.TestRedteamHeldForgedQuarantineEntries` |
 | T15 | A project with uncommitted changes is cleaned | A `git_clean` precondition is checked immediately before acting | `internal/precond/tests.TestGitClean` |
 | T16 | A configured protected folder is dropped | The settings file can only add protection; an unreadable file stops planning and apply | `internal/executor/tests.TestConfigProtectAtApply` |
+| T17 | A symlink at the launch-agent path redirects macdoc's one permitted write to another file | The path is inspected without following links and opened with `O_NOFOLLOW`, so a link is refused even if it appears after the check; removal leaves a link alone | `internal/executor/tests.TestScheduleRefusesALinkToNothing`, `internal/executor/tests.TestScheduleRefusesALinkToAnotherAgent` |
 
 ## 5. Known gaps
 
