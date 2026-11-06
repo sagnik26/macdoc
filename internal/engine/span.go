@@ -47,7 +47,7 @@ func Suspected(n model.Node) bool {
 // folder from the scan, its files do not look shared, the walk found files
 // the kernel gave no private size for, or the folder is gone. It walks only
 // op.Target and only when a stored node of op.ScanID has that exact path, so
-// a path the scan never recorded is never read. Cancelling ctx stops the
+// a path the scan never recorded is never read. Canceling ctx stops the
 // walk and returns its error.
 func Measure(ctx context.Context, o OpportunityOptions, op model.Opportunity) (*Span, error) {
 	if op.Method != model.MethodQuarantine || op.Bytes.Source != model.SourceMeasured || op.Target == "" {

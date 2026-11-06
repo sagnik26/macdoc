@@ -1,6 +1,6 @@
 # 0005: Sizes come from allocated blocks (`st_blocks`)
 
-**Status:** **Accepted for change, in stages** (owner decision, 2026-11-06). The evidence below shows the current method is wrong for APFS clones. Stage 1 adds a private-size column filled from the bulk read and leaves `bytes` as it is; stage 2 shows reclaimable as private size and costs plans with it (built, see below); stage 3 gives sets with clone groups a range. **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
+**Status:** **Accepted for change, in stages** (owner decision, 2026-11-06). The evidence below shows the current method is wrong for APFS clones. Stage 1 adds a private-size column filled from the bulk read and leaves `bytes` as it is; stage 2 shows reclaimable as private size and costs plans with it (built, see below); stage 3 shows a range for a suggestion whose files share space (built, see below). **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
 
 ## Context
 
@@ -46,7 +46,30 @@ A suggestion made from a scan node is sized by `model.Node.Reclaimable()`: the n
 
 **JSON.** No field was renamed or removed. `bytes` of an opportunity changes meaning, as above. `doctor projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (artifacts and DerivedData, omitted when unknown; projects, always). `macdoc scan`, `doctor storage` and the other views of what is on disk still show allocated bytes.
 
-**Still open.** Stage 3 (a range for sets that hold a whole clone group, using clone IDs) is not built; a folder with such a group shows a low number, not a range. The apply report's new sentences have no test, because the report function takes a measured free-space change that the test harness does not script.
+**Still open.** The apply report's new sentences have no test, because the report function takes a measured free-space change that the test harness does not script.
+
+## Stage 3 as built
+
+`doctor explain` can say what removing a suggestion frees as a range: "at least X and at most Y". The size shown in lists, totals and plans is still the lower bound (`wins`, the dashboard and plan costing are unchanged); only the explanation adds the upper end.
+
+**On demand, not in the scan.** Holding clone IDs for every file of a disk would break the scanner's memory budget, and asking for them costs the scan 5 to 8%, so the full scan is unchanged. `engine.Measure` (in `internal/engine/span.go`) walks the one folder being explained with `scanner.Measure`, which reads the same getattrlistbulk records through the scan's own walker (same rules: no symlinks followed, no other device, hard links once) and additionally asks for the clone ID and clone reference count. It runs only when all of these hold: the suggestion is a measured quarantine folder; a node of the suggestion's own scan has exactly that path (so a path the scan never stored is never read, and nothing takes a path from a flag or a tool); the node's size is the suggestion's size; and its allocated bytes exceed its private size by more than 1% and more than 1 MB (`engine.ShareFloor`), because otherwise the two ends cannot differ by enough to matter. It has a 3 minute limit and stops on cancel. A walk that fails costs the range, not the explanation (a warning says so).
+
+**What the two ends are.** *Lower* is the folders' own blocks plus the sum of the files' private sizes, a file with several links counting 0. It equals the scan's private size for the folder to the byte (checked on `/Applications`, `/opt/homebrew` and a 101 GB home folder). *Upper* is the smaller of two bounds, both of which hold for any pattern of sharing:
+
+1. Files with the same clone ID hold the same data (a file that is rewritten gets a new ID; measured). A group whose members are all inside the folder (members seen reach the reference count) counts as one copy, the largest member. A group with a member outside the folder counts only its members' private sizes, since the outside member keeps the data.
+2. The total allocation less half of the shared space (allocated less private, over files with one link). Every block that frees with two or more holders inside the folder appears in the shared part of at least two files. This covers chains of rewritten clones, whose blocks are shared across different IDs, which rule 1 alone counts more than once.
+
+Hard-linked inodes count once in the upper end, whether or not every link is inside.
+
+**What it promises.** The true freed amount lies between the ends, apart from space that snapshots or open files still hold. It does not promise the ends are close: a chain of rewritten clones can leave the upper end well above the truth (12 MB freed, 17 MB upper in the test), and a hard link whose other link is outside leaves it at the inode's full size (the lower end is exact there). The upper end can be below the allocated bytes by a lot: on `/Applications` 1.6 GB is shared with files outside the folder, and the range is 0.45 MB wide.
+
+**When there is no upper end.** More clone groups than `scanner.CloneLimit` (250,000, about 15 MB; the cap was chosen against the 64 MB budget, not the 1,000,000 first suggested), any folder that could not be read (its files are missing from both ends), or a file the kernel reported no private size for (then no range is shown at all). With no upper end the text says "at least X" and JSON carries `bytes_lower` alone. Unknown is never written as a number.
+
+**Wording and JSON.** With a range: "Removing this frees at least 1.2 GB and at most 1.9 GB. The difference is space shared with copies of its files." Without an upper end: "Removing this frees at least 1.2 GB. The most it could free could not be worked out." When the ends are equal or no walk was made, the stage 2 sentence stays. `explain --json` gains the optional `bytes_lower` and `bytes_upper` (omitted, never null, when not measured; additive, `schema/explain.json` regenerated). The MCP server and the dashboard's explain pane do not walk, and show the stage 2 text.
+
+**Verified against the kernel.** `TestTruth` (opt-in, `MACDOC_ORACLE_VOLUME`) builds each scenario on a throwaway APFS volume, deletes it and compares the free-space change with the range. All ten fell inside, MB freed with [lower, upper]: unique 8 [8, 8]; unique plus clone of an outside file 8 [8, 8]; clone group inside 8 [0, 8]; two clones of an outside file 0 [0, 0]; mix 8 [4, 8]; hard links all inside 8 [0, 8]; hard link to a file outside 0 [0, 8]; rewritten clone beside its source 10 [4, 10]; chain of rewritten clones 12 [2, 17]; rewritten clone of an outside file 3 [3, 5.5].
+
+**Cost (2026-11-06, APFS, 12 cores).** The walk costs the same as a scan of the folder (the clone attributes were free next to the private size): `/Applications` 0.21 s (48k files, 12 MB resident), `/opt/homebrew` 2.3 s (322k files, 12 MB), `~/Documents` 5.6 s (725k files, 101 GB, 17 MB).
 
 ## Consequences of leaving it as is
 

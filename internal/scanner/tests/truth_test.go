@@ -2,9 +2,7 @@ package tests
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,13 +18,19 @@ import (
 //
 //	hdiutil create -size 1g -type SPARSE -fs APFS -volname macdocoracle oracle
 //	hdiutil attach -nobrowse -mountpoint "$PWD/mnt" oracle.sparseimage
+//	touch "$PWD/mnt/.macdoc-oracle"
 //	MACDOC_ORACLE_VOLUME="$PWD/mnt" go test ./internal/scanner/tests -run TestTruth -v
 //
 // The test deletes only trees it has just built under that mount point, and
-// refuses any path that is not a separate APFS volume named macdocoracle.
+// refuses any path that is not the mount point of a separate APFS volume
+// holding the marker file you created.
 
-// slack is the metadata noise a free-space reading may carry.
-const slack = 256 << 10
+const (
+	// slack is the metadata noise a free-space reading may carry.
+	slack = 256 << 10
+	// marker is the file whose presence says the volume is meant to be deleted from.
+	marker = ".macdoc-oracle"
+)
 
 // volume returns the checked mount point or skips the test.
 func volume(t *testing.T) string {
@@ -49,12 +53,16 @@ func volume(t *testing.T) string {
 	if here.Dev == up.Dev {
 		t.Fatalf("%s is not a separate volume; refusing to delete anything there", v)
 	}
-	out, err := exec.Command("diskutil", "info", v).Output()
-	if err != nil {
-		t.Fatalf("diskutil: %v", err)
+	var fsys unix.Statfs_t
+	if err := unix.Statfs(v, &fsys); err != nil {
+		t.Fatal(err)
 	}
-	if text := string(out); !strings.Contains(text, "APFS") || !strings.Contains(text, "macdocoracle") {
-		t.Fatalf("%s is not an APFS volume named macdocoracle; refusing to delete anything there", v)
+	if got := unix.ByteSliceToString(fsys.Mntonname[:]); got != v || unix.ByteSliceToString(fsys.Fstypename[:]) != "apfs" {
+		t.Fatalf("%s is not the mount point of an APFS volume (mounted on %q); refusing to delete anything there", v, got)
+	}
+	var mk unix.Stat_t
+	if err := unix.Stat(v+"/"+marker, &mk); err != nil {
+		t.Fatalf("%s has no %s file; refusing to delete anything there", v, marker)
 	}
 	return v
 }
@@ -77,6 +85,10 @@ func TestTruth(t *testing.T) {
 	v := volume(t)
 	// Files for scenarios to clone from; they stay on the volume throughout.
 	outside := filepath.Join(v, "outside")
+	if err := os.RemoveAll(outside); err != nil { // left by an earlier run
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(outside) })
 	ft.Build(t, outside, ft.File("x.bin", 8*mb), ft.File("y.bin", 8*mb))
 	cases := []struct {
 		name  string

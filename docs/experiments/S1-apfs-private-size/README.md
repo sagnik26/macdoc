@@ -57,6 +57,10 @@ A directory reports a private size of its own (`dirattr.c`), but that is only th
 
 Timing: on a real tree (`/opt/homebrew`, 322,511 files) reading with `getattrlistbulk` took about 2.3 s against 4.0 s for one `fstatat` per entry, in 12 alternating runs, with identical results.
 
+## Rewritten clones and the range (2026-11-06, stage 3)
+
+A clone that is written to gets a new clone ID: after `cp -c a b` and rewriting 2 MB of `b`, `b` gets a new ID and no longer shares one with `a`, though they still share the unchanged blocks. So files with one ID hold the same data, but blocks can be shared across IDs, and a chain of rewritten clones is where counting each ID once overstates. The range macdoc shows therefore takes the smaller of that bound and the total allocation less half the shared space (ADR 0005, "Stage 3 as built"). `internal/scanner/tests/truth_test.go` repeats the directory method on a throwaway volume for ten scenarios, the four above plus hard links, a rewritten clone beside its source, a chain of rewritten clones and a rewritten clone of an outside file; the freed space was inside the range in all ten. Run it with `MACDOC_ORACLE_VOLUME` set to the mounted volume (the test refuses anything that is not the mount point of a separate APFS volume holding a `.macdoc-oracle` marker file you create).
+
 ## Limits
 
 One 1 GB image, 64 MB files, one macOS version, files only. Not tested: directories, snapshots, purgeable space, compressed files, Intel. Do not treat this as a final model of reclaimable space; it is the evidence needed to decide whether to build one.

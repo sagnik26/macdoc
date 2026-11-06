@@ -204,33 +204,9 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	return walk(ctx, opts, nil)
 }
 
-// walk is Scan, optionally feeding every counted file to tr (see Measure).
-func walk(ctx context.Context, opts Options, tr *tracker) (Result, error) {
-	start := time.Now()
-	root := opts.Root
-	if root == "" {
-		root = DataVolume
-	}
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return Result{}, fmt.Errorf("scanner: root %q: %w", opts.Root, err)
-	}
-	prefix := opts.MapPrefix
-	if prefix == "" && root == DataVolume {
-		prefix = DataVolume
-	}
-	if prefix != "" {
-		prefix = filepath.Clean(prefix)
-	}
-
-	var st unix.Stat_t
-	if err := unix.Lstat(root, &st); err != nil {
-		return Result{}, fmt.Errorf("scanner: root %s: %w", root, err)
-	}
-	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
-		return Result{}, fmt.Errorf("scanner: root %s: not a directory", root)
-	}
-
+// newScanner sets up the scan of root (lstat'd as st) with its root directory
+// on the stack. tr, if not nil, also sees every counted file.
+func newScanner(root, prefix string, st *unix.Stat_t, opts Options, tr *tracker) *Scanner {
 	s := &Scanner{
 		threshold: opts.KeepThreshold,
 		keep:      opts.Keep,
@@ -265,6 +241,45 @@ func walk(ctx context.Context, opts Options, tr *tracker) (Result, error) {
 	rd.opaque = s.opaque[pathfold.Fold(root)]
 	rd.watch = s.watchDirs[pathfold.Fold(root)]
 	s.stack = append(s.stack, rd)
+	return s
+}
+
+// resolve turns the options' root into an absolute path, its mapping prefix
+// and its lstat, and checks that it is a directory.
+func resolve(opts Options) (root, prefix string, st unix.Stat_t, err error) {
+	root = opts.Root
+	if root == "" {
+		root = DataVolume
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return "", "", st, fmt.Errorf("scanner: root %q: %w", opts.Root, err)
+	}
+	prefix = opts.MapPrefix
+	if prefix == "" && root == DataVolume {
+		prefix = DataVolume
+	}
+	if prefix != "" {
+		prefix = filepath.Clean(prefix)
+	}
+	if err := unix.Lstat(root, &st); err != nil {
+		return "", "", st, fmt.Errorf("scanner: root %s: %w", root, err)
+	}
+	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
+		return "", "", st, fmt.Errorf("scanner: root %s: not a directory", root)
+	}
+	return root, prefix, st, nil
+}
+
+// walk is Scan, optionally feeding every counted file to tr (see Measure).
+func walk(ctx context.Context, opts Options, tr *tracker) (Result, error) {
+	start := time.Now()
+	root, prefix, st, err := resolve(opts)
+	if err != nil {
+		return Result{}, err
+	}
+
+	s := newScanner(root, prefix, &st, opts, tr)
 
 	workers := opts.Workers
 	if workers <= 0 {
