@@ -123,6 +123,32 @@ func results(cmds []tea.Cmd) <-chan cli.SpanMsg {
 	return out
 }
 
+// next waits for one walk result and fails the test, instead of hanging, when
+// none arrives.
+func next(t *testing.T, ch <-chan cli.SpanMsg, what string) cli.SpanMsg {
+	t.Helper()
+	select {
+	case msg, ok := <-ch:
+		if !ok {
+			t.Fatalf("%s: no result was produced", what)
+		}
+		return msg
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s: no result within 5 s", what)
+	}
+	return cli.SpanMsg{}
+}
+
+// release lets one waiting walk finish, and fails the test when none is waiting.
+func release(t *testing.T, wk *walker) {
+	t.Helper()
+	select {
+	case wk.gate <- struct{}{}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no walk was waiting to be released")
+	}
+}
+
 // only returns the one SpanMsg a set of commands produces, or fails.
 func only(t *testing.T, cmds []tea.Cmd) cli.SpanMsg {
 	t.Helper()
@@ -243,7 +269,7 @@ func TestDashboardIgnoresAStaleResultAndCancelsOnMove(t *testing.T) {
 	m, second := send(t, m, keys("down")[0]) // the selection moves to another suggestion
 	eventually(t, "the first walk to be canceled", func() bool { return wk.canceled.Load() == 1 })
 	secondOut := results(second)
-	stale := <-firstOut // the canceled walk reports back
+	stale := next(t, firstOut, "the canceled walk") // it reports back
 	if stale.ID != idFirst || !errors.Is(stale.Err, context.Canceled) {
 		t.Fatalf("first walk result = %+v, want canceled for %s", stale, idFirst)
 	}
@@ -257,8 +283,8 @@ func TestDashboardIgnoresAStaleResultAndCancelsOnMove(t *testing.T) {
 		t.Errorf("a stale result changed the pane:\n%s", out)
 	}
 
-	wk.gate <- struct{}{}
-	live := <-secondOut
+	release(t, wk)
+	live := next(t, secondOut, "the second walk")
 	if live.ID != idSecond {
 		t.Fatalf("second walk is for %s, want %s", live.ID, idSecond)
 	}
@@ -275,7 +301,12 @@ func TestDashboardIgnoresAStaleResultAndCancelsOnMove(t *testing.T) {
 
 	// The stale result was not cached: going back walks the first one again.
 	_, back := send(t, m, keys("up")[0])
-	go func() { wk.gate <- struct{}{} }()
+	go func() {
+		select {
+		case wk.gate <- struct{}{}:
+		case <-time.After(5 * time.Second):
+		}
+	}()
 	if only(t, back).ID != idFirst || wk.calls.Load() != 3 {
 		t.Errorf("walks = %d, want a third for %s", wk.calls.Load(), idFirst)
 	}
@@ -298,7 +329,7 @@ func TestDashboardCancelsOnTabChangeRescanAndLeaving(t *testing.T) {
 		eventually(t, c.name+": the walk to start", func() bool { return wk.calls.Load() == 1 })
 		_, _ = send(t, m, c.msg)
 		eventually(t, c.name+": the walk to be canceled", func() bool { return wk.canceled.Load() == 1 })
-		if msg := <-out; !errors.Is(msg.Err, context.Canceled) {
+		if msg := next(t, out, c.name); !errors.Is(msg.Err, context.Canceled) {
 			t.Errorf("%s: result = %+v, want canceled", c.name, msg)
 		}
 	}
