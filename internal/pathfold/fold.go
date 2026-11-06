@@ -24,7 +24,12 @@ func Fold(s string) string {
 		// Case folding of ASCII is lower-casing, and ASCII is already NFC.
 		return strings.ToLower(s)
 	}
-	return norm.NFC.String(cases.Fold().String(norm.NFC.String(s)))
+	// Full case folding does not settle on one spelling for every script:
+	// Cherokee letters fold between two forms, so folding twice gives a
+	// different answer from folding once, and the two spellings of one name
+	// compare as different. Lower-casing the result picks one of them. The
+	// fuzz target FuzzFoldIsIdempotent found this.
+	return norm.NFC.String(strings.ToLower(cases.Fold().String(norm.NFC.String(s))))
 }
 
 func ascii(s string) bool {

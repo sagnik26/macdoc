@@ -20,6 +20,7 @@ func TestSameNameSpellings(t *testing.T) {
 		{"STRASSE", "straße"}, // sharp s folds to ss
 		{"file", "ﬁle"},       // the fi ligature folds to fi
 		{"İstanbul", "i̇stanbul"},
+		{"\u13a3", "\uab73"}, // Cherokee: the case folding library cycles between the two forms
 	} {
 		if pathfold.Fold(tt.a) != pathfold.Fold(tt.b) {
 			t.Errorf("Fold(%q) = %q, Fold(%q) = %q; want equal", tt.a, pathfold.Fold(tt.a), tt.b, pathfold.Fold(tt.b))
@@ -67,7 +68,7 @@ func TestASCIIFastPathMatchesTheFullFold(t *testing.T) {
 }
 
 func FuzzFoldIsIdempotent(f *testing.F) {
-	for _, s := range []string{"", "Documents", "Café", "Café", "STRASSE", "İ", "ﬁ", "ΣΣ", "a/B/ß"} {
+	for _, s := range []string{"\u13a3", "\uab73", "", "Documents", "Café", "Café", "STRASSE", "İ", "ﬁ", "ΣΣ", "a/B/ß"} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) {
