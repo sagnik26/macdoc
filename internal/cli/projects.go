@@ -49,7 +49,7 @@ func newProjectsCmd(g *GlobalFlags) *cobra.Command {
 func FilterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
 	out := []projects.Project{}
 	for _, p := range res.Projects {
-		if p.ArtifactBytes < minProjectBytes || (idle > 0 && p.IdleDays < idle) {
+		if p.ReclaimableBytes < minProjectBytes || (idle > 0 && p.IdleDays < idle) {
 			continue
 		}
 		out = append(out, p)
@@ -68,7 +68,7 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 
 	var total int64
 	for _, p := range res.Projects {
-		total += p.ArtifactBytes
+		total += p.ReclaimableBytes
 	}
 	b.WriteString(t.section(t.accent, "Projects", fmt.Sprintf("%s in %d", engine.DecimalBytes(total), len(res.Projects))))
 	if len(res.Projects) == 0 {
@@ -84,10 +84,10 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 			head += t.muted.Render(" · " + strings.Join(p.Kinds, ", "))
 		}
 		fmt.Fprintf(&b, "  %s\n", head)
-		fmt.Fprintf(&b, "    %s · %s · %s\n", idleText(t, p), t.size.Render(engine.DecimalBytes(p.ArtifactBytes)), gitText(t, p))
+		fmt.Fprintf(&b, "    %s · %s · %s\n", idleText(t, p), t.size.Render(engine.DecimalBytes(p.ReclaimableBytes)), gitText(t, p))
 		parts := make([]string, len(p.Artifacts))
 		for i, a := range p.Artifacts {
-			parts[i] = a.Rel + " " + engine.DecimalBytes(a.Bytes)
+			parts[i] = a.Rel + " " + engine.DecimalBytes(a.Reclaimable())
 		}
 		fmt.Fprintf(&b, "    %s\n", t.Wrap(t.muted.Render(strings.Join(parts, " · ")), 4))
 		if p.Protected {
@@ -105,11 +105,11 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 	if len(gone) > 0 {
 		var sum int64
 		for _, d := range gone {
-			sum += d.Bytes
+			sum += d.Reclaimable()
 		}
 		b.WriteString(t.section(t.warn, "DerivedData of deleted projects", engine.DecimalBytes(sum)))
 		for _, d := range gone {
-			fmt.Fprintf(&b, "  %s  %s\n", t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(d.Bytes))), TildePath(home, d.Workspace))
+			fmt.Fprintf(&b, "  %s  %s\n", t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(d.Reclaimable()))), TildePath(home, d.Workspace))
 		}
 		b.WriteString("\n")
 	}

@@ -79,22 +79,38 @@ const (
 type Artifact struct {
 	Rel      string `json:"rel"` // e.g. "node_modules", "ios/Pods", "DerivedData"
 	Path     string `json:"path"`
-	Bytes    int64  `json:"bytes"`
+	Bytes    int64  `json:"bytes"`     // allocated bytes: what the folder occupies
 	MtimeMax int64  `json:"mtime_max"` // newest mtime inside, unix seconds
+	// Private is the bytes removing the folder is certain to free (see
+	// model.Node.Private); nil when the scan could not tell. In JSON it is
+	// omitted when unknown, never written as 0.
+	Private *int64 `json:"reclaimable_bytes,omitempty"`
+}
+
+// Reclaimable is what removing the artifact is certain to free: Private when
+// known, else Bytes. It is never above Bytes.
+func (a Artifact) Reclaimable() int64 {
+	if a.Private == nil {
+		return a.Bytes
+	}
+	return min(*a.Private, a.Bytes)
 }
 
 // Project is one project root with its artifacts and activity.
 type Project struct {
-	Root           string     `json:"root"`
-	Name           string     `json:"name"`
-	Kinds          []string   `json:"kinds"` // node, react-native, ios, android, python
-	Artifacts      []Artifact `json:"artifacts"`
-	ArtifactBytes  int64      `json:"artifact_bytes"`
-	LastActive     time.Time  `json:"last_active,omitzero"` // zero if unknown
-	ActivitySource string     `json:"activity_source,omitempty"`
-	IdleDays       int        `json:"idle_days"` // -1 if unknown
-	Git            GitState   `json:"git"`
-	GitNote        string     `json:"git_note,omitempty"` // why the state is unknown
+	Root          string     `json:"root"`
+	Name          string     `json:"name"`
+	Kinds         []string   `json:"kinds"` // node, react-native, ios, android, python
+	Artifacts     []Artifact `json:"artifacts"`
+	ArtifactBytes int64      `json:"artifact_bytes"` // allocated bytes of all artifacts
+	// ReclaimableBytes is the sum of the artifacts' Reclaimable: what
+	// removing them all is certain to free.
+	ReclaimableBytes int64     `json:"reclaimable_bytes"`
+	LastActive       time.Time `json:"last_active,omitzero"` // zero if unknown
+	ActivitySource   string    `json:"activity_source,omitempty"`
+	IdleDays         int       `json:"idle_days"` // -1 if unknown
+	Git              GitState  `json:"git"`
+	GitNote          string    `json:"git_note,omitempty"` // why the state is unknown
 	// Protected projects (e.g. in ~/Desktop or ~/Documents) are listed but
 	// macdoc never suggests moving anything inside them.
 	Protected bool `json:"protected"`
@@ -103,12 +119,23 @@ type Project struct {
 // DerivedData is one Xcode DerivedData folder and the workspace it was
 // built from.
 type DerivedData struct {
-	Path      string `json:"path"`
-	Bytes     int64  `json:"bytes"`
-	MtimeMax  int64  `json:"mtime_max"`
+	Path     string `json:"path"`
+	Bytes    int64  `json:"bytes"` // allocated bytes
+	MtimeMax int64  `json:"mtime_max"`
+	// Private is what removing the folder is certain to free; nil if unknown.
+	Private   *int64 `json:"reclaimable_bytes,omitempty"`
 	Workspace string `json:"workspace,omitempty"` // from info.plist WorkspacePath; "" if unreadable
 	Project   string `json:"project,omitempty"`   // project root, if the workspace still exists
 	Missing   bool   `json:"missing"`             // the workspace no longer exists
+}
+
+// Reclaimable is what removing the folder is certain to free: Private when
+// known, else Bytes.
+func (d DerivedData) Reclaimable() int64 {
+	if d.Private == nil {
+		return d.Bytes
+	}
+	return min(*d.Private, d.Bytes)
 }
 
 // Result is everything discovery found.
@@ -192,6 +219,7 @@ func Discover(ctx context.Context, env Env, o Options) (Result, error) {
 		}
 		p.Artifacts = append(p.Artifacts, a)
 		p.ArtifactBytes += a.Bytes
+		p.ReclaimableBytes += a.Reclaimable()
 	}
 	keep := Keep(env.Home)
 	for _, n := range nodes {
@@ -199,7 +227,7 @@ func Discover(ctx context.Context, env Env, o Options) (Result, error) {
 			continue
 		}
 		if root, rel, ok := classify(n.Path); ok && within(env.Home, root) {
-			add(root, Artifact{Rel: rel, Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax})
+			add(root, Artifact{Rel: rel, Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax, Private: n.Private})
 		}
 	}
 
@@ -215,7 +243,7 @@ func Discover(ctx context.Context, env Env, o Options) (Result, error) {
 			dd[i].Project = ""
 			continue
 		}
-		add(d.Project, Artifact{Rel: "DerivedData", Path: d.Path, Bytes: d.Bytes, MtimeMax: d.MtimeMax})
+		add(d.Project, Artifact{Rel: "DerivedData", Path: d.Path, Bytes: d.Bytes, MtimeMax: d.MtimeMax, Private: d.Private})
 	}
 	res.DerivedData = append(res.DerivedData, dd...)
 
@@ -229,7 +257,7 @@ func Discover(ctx context.Context, env Env, o Options) (Result, error) {
 		} else {
 			p.Protected = true
 		}
-		sort.Slice(p.Artifacts, func(i, j int) bool { return p.Artifacts[i].Bytes > p.Artifacts[j].Bytes })
+		sort.Slice(p.Artifacts, func(i, j int) bool { return p.Artifacts[i].Reclaimable() > p.Artifacts[j].Reclaimable() })
 		p.Git, p.GitNote = GitUnknown, "not checked: artifacts under "+mb(o.GitMinBytes)
 		var commit time.Time
 		if p.ArtifactBytes >= o.GitMinBytes {
@@ -240,8 +268,8 @@ func Discover(ctx context.Context, env Env, o Options) (Result, error) {
 	}
 	sort.Slice(res.Projects, func(i, j int) bool {
 		a, b := res.Projects[i], res.Projects[j]
-		if a.ArtifactBytes != b.ArtifactBytes {
-			return a.ArtifactBytes > b.ArtifactBytes
+		if a.ReclaimableBytes != b.ReclaimableBytes {
+			return a.ReclaimableBytes > b.ReclaimableBytes
 		}
 		return a.Root < b.Root
 	})

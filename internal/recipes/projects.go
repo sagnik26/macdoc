@@ -76,7 +76,7 @@ func DetectProjectArtifact(_ context.Context, env Env, r Recipe) ([]Finding, err
 			f := Finding{
 				Target: a.Path,
 				Title:  a.Rel + " in " + p.Name,
-				Bytes:  model.Bytes{Value: a.Bytes, Source: model.SourceMeasured},
+				Bytes:  model.Bytes{Value: a.Reclaimable(), Source: model.SourceMeasured},
 				Note:   projectNote(p),
 			}
 			if p.IdleDays >= 0 {

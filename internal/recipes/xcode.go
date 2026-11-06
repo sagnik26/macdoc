@@ -284,7 +284,7 @@ func detectSimctlUnavailable(ctx context.Context, env Env, _ Recipe) ([]Finding,
 		case err != nil:
 			return nil, err
 		case found:
-			size = n.Bytes
+			size = n.Reclaimable()
 		case d.DataPathSize > 0:
 			size = d.DataPathSize
 			fromTool++

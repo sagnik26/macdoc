@@ -237,7 +237,7 @@ func (s *Server) projects(ctx context.Context, _ *sdk.CallToolRequest, in projec
 	}
 	kept := []projects.Project{}
 	for _, p := range res.Projects {
-		if p.ArtifactBytes < 1_000_000 || (in.IdleDays > 0 && p.IdleDays < in.IdleDays) {
+		if p.ReclaimableBytes < 1_000_000 || (in.IdleDays > 0 && p.IdleDays < in.IdleDays) {
 			continue
 		}
 		kept = append(kept, p)

@@ -50,7 +50,7 @@ func TestFilterProjects(t *testing.T) {
 	if got := cli.FilterProjects(res, 200).Projects; len(got) != 0 || got == nil {
 		t.Errorf("--idle 200: %+v", got)
 	}
-	res.Projects[1].ArtifactBytes = 999_999
+	res.Projects[1].ArtifactBytes, res.Projects[1].ReclaimableBytes = 999_999, 999_999
 	if got := cli.FilterProjects(res, 0).Projects; len(got) != 1 {
 		t.Errorf("projects under 1 MB must be hidden: %+v", got)
 	}

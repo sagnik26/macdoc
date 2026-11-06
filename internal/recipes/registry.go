@@ -170,9 +170,11 @@ func DetectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 	return nil, nil
 }
 
-// nodeFinding converts a scan node into a finding sized by the scan.
+// nodeFinding converts a scan node into a finding sized by the scan. The size
+// is what removing the node is certain to free (Node.Reclaimable), which is
+// less than the folder's total when its files share space with copies.
 func nodeFinding(n model.Node) Finding {
-	f := Finding{Target: n.Path, Bytes: model.Bytes{Value: n.Bytes, Source: model.SourceMeasured}}
+	f := Finding{Target: n.Path, Bytes: model.Bytes{Value: n.Reclaimable(), Source: model.SourceMeasured}}
 	if n.MtimeMax > 0 {
 		f.LastUsed = unixTime(n.MtimeMax)
 	}

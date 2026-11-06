@@ -5,7 +5,9 @@
 // freed by deleting a file that shares blocks with a clone
 // (docs/adr/0005-size-by-allocated-blocks.md). Each kept node also carries a
 // private size, a lower bound of what deleting it frees: the sum of its
-// files' ATTR_CMNEXT_PRIVATESIZE plus its folders' own blocks. Only the
+// files' ATTR_CMNEXT_PRIVATESIZE plus its folders' own blocks. A file with
+// several links adds a known 0, because the kernel reports its full size for
+// every link and the tree may hold only some of them. Only the
 // getattrlistbulk reader can read it. When any file below a node was
 // measured without one (the fstatat reader, or a volume that does not report
 // it) the node's private size is nil, meaning unknown; it is never zero.
@@ -142,8 +144,8 @@ type privacy struct {
 
 // note adds e's private size, or marks the sum unknown if e has none.
 func (p *privacy) note(e *entry) {
-	if e.known {
-		p.sum += e.private
+	if v, ok := e.freed(); ok {
+		p.sum += v
 	} else {
 		p.unknown = true
 	}
@@ -609,7 +611,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		acc.bytes += n
 		acc.files++
 		acc.mtime = max(acc.mtime, e.mtime)
-		acc.private.note(e) // counted exactly when its bytes are, hard links included
+		acc.private.note(e) // counted when its bytes are; a multi-link file adds a known 0
 		w.bytes += n
 		w.files++
 		if n >= s.threshold && !d.opaque && !d.hidden {

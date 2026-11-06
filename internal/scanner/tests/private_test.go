@@ -184,14 +184,45 @@ func TestPrivateMixedTreeSumsUpTheTree(t *testing.T) {
 	}
 }
 
-func TestPrivateHardlinkCountsOnceWhenItsBytesDo(t *testing.T) {
+// A file with several links is counted once in bytes, and contributes a known
+// 0 to the private sum: the kernel reports its full size for every link, so
+// the tree cannot tell what a delete would free.
+func TestPrivateHardlinkCountsOnceInBytesAndZeroInPrivate(t *testing.T) {
 	root := t.TempDir()
 	ft.Build(t, root, ft.File("h/orig", 1*mb), ft.Hardlink("h/sub/link", "h/orig"), ft.Hardlink("link2", "h/orig"))
 	flush(t)
 	res := withReader(t, true, everything(root))
 	r := need(t, res, "/")
-	if r.Files != 1 || priv(t, r) != r.Bytes {
-		t.Errorf("root: files %d private %d bytes %d; the inode counts once in both", r.Files, priv(t, r), r.Bytes)
+	if r.Files != 1 || r.Bytes < 1*mb {
+		t.Errorf("root: files %d bytes %d; the inode counts once in bytes", r.Files, r.Bytes)
+	}
+	if want := folders(t, root, res); priv(t, r) != want {
+		t.Errorf("root private %d; want the folders' own %d (the file has 3 links)", priv(t, r), want)
+	}
+}
+
+// The other link lives outside the scanned tree: a delete of the tree frees
+// nothing for the file, so a private size equal to its bytes would overstate.
+func TestPrivateHardlinkWithLinkOutsideTreeIsKnownZero(t *testing.T) {
+	outside := t.TempDir()
+	ft.Build(t, outside, ft.File("keep.bin", 2*mb))
+	root := t.TempDir()
+	ft.Build(t, root, ft.Dir("d"))
+	if err := os.Link(filepath.Join(outside, "keep.bin"), filepath.Join(root, "d", "link.bin")); err != nil {
+		t.Skipf("no hard links here: %v", err)
+	}
+	flush(t)
+	res := withReader(t, true, everything(root))
+	l := need(t, res, "/d/link.bin")
+	if l.Bytes < 2*mb || l.Private == nil || *l.Private != 0 {
+		t.Errorf("link: bytes %d private %v; want bytes >= 2 MB and a known 0", l.Bytes, l.Private)
+	}
+	r := need(t, res, "/")
+	if want := folders(t, root, res); priv(t, r) != want {
+		t.Errorf("root private %d; want only the folders' own %d", priv(t, r), want)
+	}
+	if st := withReader(t, false, everything(root)); need(t, st, "/d/link.bin").Private != nil {
+		t.Error("link read with fstatat: private known; an unreported size stays unknown")
 	}
 }
 
@@ -207,8 +238,11 @@ func TestPrivateIsKnownOnAPlainMixedTree(t *testing.T) {
 	if r.Private == nil {
 		t.Fatalf("root private unknown on a tree the bulk reader fully measured; unmeasured: %+v", res.Unmeasured)
 	}
-	if *r.Private != r.Bytes {
-		t.Errorf("root private %d bytes %d; a tree with no clones has them equal", *r.Private, r.Bytes)
+	// No clones, so the only gap is the two inodes that have several links,
+	// each counted once in bytes and as a known 0 in private.
+	linked := alloc(t, filepath.Join(root, "h", "orig")) + alloc(t, filepath.Join(root, "h", "other"))
+	if want := r.Bytes - linked; *r.Private != want {
+		t.Errorf("root private %d bytes %d; want bytes minus the hard-linked files' %d = %d", *r.Private, r.Bytes, linked, want)
 	}
 }
 

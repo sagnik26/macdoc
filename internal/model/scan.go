@@ -26,11 +26,25 @@ type Node struct {
 	// to free on APFS: the sum of its files' private sizes
 	// (ATTR_CMNEXT_PRIVATESIZE) plus the allocation of its folders. It is a
 	// lower bound, never above Bytes: files that share blocks only with each
-	// other inside the node count 0. Nil means unknown, because some file
-	// below was measured without a private size, and unknown is never zero.
-	// Stage 1 of docs/adr/0005-size-by-allocated-blocks.md stores it and
-	// shows it nowhere.
+	// other inside the node count 0, and so does a file with several links
+	// (the kernel reports its full size for each link). Nil means unknown,
+	// because some file below was measured without a private size, and
+	// unknown is never zero. Since stage 2 of
+	// docs/adr/0005-size-by-allocated-blocks.md a suggestion's size is this
+	// value when it is known; see Reclaimable.
 	Private *int64 `json:"-"`
+}
+
+// Reclaimable is the size a suggestion for this node shows: the bytes that
+// removing it is certain to free. It is Private when that is known, and the
+// allocated Bytes when it is not (a volume or reader that cannot report a
+// private size, where unshared allocation is all there is to go on). It never
+// exceeds Bytes, and an unknown Private is never read as zero.
+func (n Node) Reclaimable() int64 {
+	if n.Private == nil {
+		return n.Bytes
+	}
+	return min(*n.Private, n.Bytes)
 }
 
 // Unmeasured is a path the scanner could not read.

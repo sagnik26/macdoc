@@ -73,12 +73,27 @@ type entry struct {
 	known   bool  // the kernel reported private
 }
 
-// value returns the private size, or nil when the kernel did not report one.
-func (e *entry) value() *int64 {
+// freed returns what deleting this entry is certain to free, and whether
+// that is known. A file with several links is certain to free nothing: the
+// kernel reports its full size for every link, and a tree that holds only
+// some of them would overstate (S1 scenario 5). That is a known zero, not an
+// unknown, so long as the kernel reported a private size at all.
+func (e *entry) freed() (int64, bool) {
 	if !e.known {
+		return 0, false
+	}
+	if e.nlink > 1 {
+		return 0, true
+	}
+	return e.private, true
+}
+
+// value returns freed as a pointer, nil when unknown.
+func (e *entry) value() *int64 {
+	v, ok := e.freed()
+	if !ok {
 		return nil
 	}
-	v := e.private
 	return &v
 }
 

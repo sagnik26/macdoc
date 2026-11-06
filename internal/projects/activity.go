@@ -181,7 +181,7 @@ func derivedData(env Env) ([]DerivedData, error) {
 		if n.Path == dir || filepath.Dir(n.Path) != dir || strings.EqualFold(filepath.Base(n.Path), "ModuleCache.noindex") {
 			continue
 		}
-		d := DerivedData{Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax}
+		d := DerivedData{Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax, Private: n.Private}
 		if b, err := fsread.Small(filepath.Join(n.Path, "info.plist"), fsread.MaxSmallFile); err == nil {
 			if m := workspacePathRe.FindSubmatch(b); m != nil {
 				d.Workspace = html.UnescapeString(strings.TrimSpace(string(m[1])))

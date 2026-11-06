@@ -677,7 +677,7 @@ func (m TuiModel) projectTables() string {
 	var rows [][]string
 	var total int64
 	for _, p := range pr.Projects {
-		total += p.ArtifactBytes
+		total += p.ReclaimableBytes
 		name := TildePath(m.Deps.Home, p.Root)
 		if p.Protected {
 			name += " (protected)"
@@ -688,12 +688,12 @@ func (m TuiModel) projectTables() string {
 		}
 		parts := make([]string, 0, 3)
 		for _, a := range p.Artifacts[:min(3, len(p.Artifacts))] {
-			parts = append(parts, strings.ReplaceAll(a.Rel+" "+engine.DecimalBytes(a.Bytes), " ", "\u00a0")) // wrap between folders, not inside one
+			parts = append(parts, strings.ReplaceAll(a.Rel+" "+engine.DecimalBytes(a.Reclaimable()), " ", "\u00a0")) // wrap between folders, not inside one
 		}
 		if extra := len(p.Artifacts) - 3; extra > 0 {
 			parts = append(parts, fmt.Sprintf("+%d more", extra))
 		}
-		rows = append(rows, []string{name, idle, engine.DecimalBytes(p.ArtifactBytes), gitLabel(p.Git), strings.Join(parts, " · ")})
+		rows = append(rows, []string{name, idle, engine.DecimalBytes(p.ReclaimableBytes), gitLabel(p.Git), strings.Join(parts, " · ")})
 	}
 	git := func(r int) *lipgloss.Style {
 		switch pr.Projects[r].Git {
@@ -730,7 +730,7 @@ func (m TuiModel) projectTables() string {
 	var gone [][]string
 	for _, d := range pr.DerivedData {
 		if d.Missing {
-			gone = append(gone, []string{TildePath(m.Deps.Home, d.Workspace), engine.DecimalBytes(d.Bytes)})
+			gone = append(gone, []string{TildePath(m.Deps.Home, d.Workspace), engine.DecimalBytes(d.Reclaimable())})
 		}
 	}
 	if len(gone) > 0 {
