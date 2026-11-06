@@ -25,6 +25,14 @@ const (
 	// with FSOPT_ATTR_CMN_EXTENDED.
 	attrPrivateSize = 0x00000008
 
+	// attrCloneID is ATTR_CMNEXT_CLONEID: files that share it are clones of
+	// each other and hold the same data. attrCloneRefs is
+	// ATTR_CMNEXT_CLONE_REFCNT: how many files share it. Both travel in
+	// forkattr after the private size, in bit order. A full scan does not ask
+	// for them (they cost 5 to 8%); only Measure does.
+	attrCloneID   = 0x00000100
+	attrCloneRefs = 0x00001000
+
 	// fsobj_type_t values from <sys/vnode.h>, which is not a public header.
 	vreg = 1
 	vdir = 2
@@ -49,6 +57,14 @@ var bulkAttrs = unix.Attrlist{
 	Forkattr: attrPrivateSize,
 }
 
+// cloneAttrs is bulkAttrs plus the clone ID and its reference count, for the
+// on-demand walk of one folder (see Measure).
+var cloneAttrs = func() unix.Attrlist {
+	a := bulkAttrs
+	a.Forkattr |= attrCloneID | attrCloneRefs
+	return a
+}()
+
 // Entry kinds. Anything that is neither a directory nor a regular file
 // (symlink, socket, fifo, device) counts its own blocks only.
 const (
@@ -69,8 +85,10 @@ type entry struct {
 	bytes int64 // allocated bytes (st_blocks * 512)
 	mtime int64 // seconds
 
-	private int64 // bytes freed by deleting this file; meaningful only if known
-	known   bool  // the kernel reported private
+	private int64  // bytes freed by deleting this file; meaningful only if known
+	known   bool   // the kernel reported private
+	clone   uint64 // clone ID; meaningful only if refs > 0
+	refs    uint32 // files that share the clone ID; 0 when the kernel did not say
 }
 
 // freed returns what deleting this entry is certain to free, and whether
@@ -115,12 +133,12 @@ func (e *entry) fromStat(name string, st *unix.Stat_t) {
 	}
 }
 
-// getattrlistbulk calls getattrlistbulk(2) on a directory descriptor and
-// returns the number of entries written to buf (0 at the end).
-func getattrlistbulk(fd int, buf []byte) (int, error) {
+// getattrlistbulk calls getattrlistbulk(2) on a directory descriptor with the
+// requested attributes and returns the number of entries written to buf (0 at the end).
+func getattrlistbulk(fd int, buf []byte, attrs *unix.Attrlist) (int, error) {
 	for {
-		// The attrlist is a global and buf is a live heap slice for the whole call.
-		r, _, errno := unix.Syscall6(unix.SYS_GETATTRLISTBULK, uintptr(fd), uintptr(unsafe.Pointer(&bulkAttrs)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), unix.FSOPT_NOFOLLOW|unix.FSOPT_ATTR_CMN_EXTENDED, 0) //nolint:staticcheck,gosec // SA1019, G103: raw syscall is the only cgo-free route
+		// attrs is never freed and buf is a live heap slice for the whole call.
+		r, _, errno := unix.Syscall6(unix.SYS_GETATTRLISTBULK, uintptr(fd), uintptr(unsafe.Pointer(attrs)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), unix.FSOPT_NOFOLLOW|unix.FSOPT_ATTR_CMN_EXTENDED, 0) //nolint:staticcheck,gosec // SA1019, G103: raw syscall is the only cgo-free route
 		if errno == syscall.EINTR {
 			continue
 		}
@@ -271,9 +289,7 @@ func dirSize(c *cursor, e *entry, dirattr, forkattr uint32) bool {
 	}
 	e.bytes = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
 	e.kind = kindDir
-	if forkattr&attrPrivateSize != 0 {
-		_ = c.u64() // a folder's private size is its own blocks, already known
-	}
+	_ = forkValues(c, forkattr) // a folder's private size is its own blocks, already known
 	return !c.bad
 }
 
@@ -291,14 +307,37 @@ func fileSize(c *cursor, e *entry, objtype, fileattr, forkattr uint32) bool {
 	}
 	e.bytes = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
 	e.nlink = uint16(nlink & 0xffff)
-	if forkattr&attrPrivateSize != 0 {
-		e.private = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
-		e.known = !c.bad
-	}
+	fv := forkValues(c, forkattr)
+	e.private, e.known = fv.private, fv.have && !c.bad
+	e.clone, e.refs = fv.clone, fv.refs
 	if objtype == vreg {
 		e.kind = kindFile
 	}
 	return !c.bad
+}
+
+// fork is the common-extension attributes of one record.
+type fork struct {
+	private int64
+	have    bool // the private size was returned
+	clone   uint64
+	refs    uint32
+}
+
+// forkValues reads the extension attributes the record says it carries, in
+// the order the kernel writes them (ascending bit).
+func forkValues(c *cursor, forkattr uint32) (f fork) {
+	if forkattr&attrPrivateSize != 0 {
+		f.private = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
+		f.have = true
+	}
+	if forkattr&attrCloneID != 0 {
+		f.clone = c.u64()
+	}
+	if forkattr&attrCloneRefs != 0 {
+		f.refs = c.u32()
+	}
+	return f
 }
 
 func nul(b []byte) int {
@@ -327,7 +366,7 @@ func (s *Scanner) bulk(w *worker, d *dir, rc syscall.RawConn, wn *watchNames, ac
 		fd := int(fdu)
 		first := true
 		for !s.stop.Load() {
-			n, err := getattrlistbulk(fd, w.buf)
+			n, err := getattrlistbulk(fd, w.buf, s.attrs)
 			if err != nil {
 				if first && unsupported(err) {
 					s.nobulk.Store(true)

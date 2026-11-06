@@ -184,6 +184,8 @@ type Scanner struct {
 	cur    atomic.Pointer[dir]
 
 	links LinkSet
+	attrs *unix.Attrlist // what getattrlistbulk is asked for
+	share *tracker       // sees every counted file; nil in a full scan
 
 	mu         sync.Mutex
 	cond       *sync.Cond
@@ -199,6 +201,11 @@ type Scanner struct {
 // unreadable subdirectories become Unmeasured entries. On ctx cancellation it
 // returns the partial Result with Incomplete set and a nil error.
 func Scan(ctx context.Context, opts Options) (Result, error) {
+	return walk(ctx, opts, nil)
+}
+
+// walk is Scan, optionally feeding every counted file to tr (see Measure).
+func walk(ctx context.Context, opts Options, tr *tracker) (Result, error) {
 	start := time.Now()
 	root := opts.Root
 	if root == "" {
@@ -232,6 +239,11 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		skip:      folded(opts.Skip),
 		opaque:    folded(opts.Opaque),
 		links:     LinkSet{Limit: opts.HardlinkLimit},
+		attrs:     &bulkAttrs,
+		share:     tr,
+	}
+	if tr != nil {
+		s.attrs = &cloneAttrs
 	}
 	if s.threshold <= 0 {
 		s.threshold = defaultKeepThreshold
@@ -612,6 +624,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		acc.files++
 		acc.mtime = max(acc.mtime, e.mtime)
 		acc.private.note(e) // counted when its bytes are; a multi-link file adds a known 0
+		s.share.note(e)     // nil in a full scan: a no-op
 		w.bytes += n
 		w.files++
 		if n >= s.threshold && !d.opaque && !d.hidden {
@@ -629,6 +642,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		acc.bytes += n
 		acc.mtime = max(acc.mtime, e.mtime)
 		acc.private.note(e)
+		s.share.note(e) // nil in a full scan: a no-op
 		w.bytes += n
 	}
 }
