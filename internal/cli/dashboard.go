@@ -267,9 +267,6 @@ func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 
 // runTUI starts the dashboard on the terminal.
 func runTUI(home string, cat *recipes.Catalog) error {
-	if err := scanner.SetBackgroundPriority(); err != nil {
-		fmt.Fprintln(os.Stderr, "macdoc: could not lower priority:", err)
-	}
 	t := newTheme(os.Stdout)
 	if !t.on {
 		// NO_COLOR or a monochrome terminal: keep the layout, drop colors.
@@ -299,10 +296,17 @@ func PlainLayoutTheme() *Theme {
 }
 
 // engineLoad is the real loader: overview, then space and toolchains.
+// background is the step callback that lowers priority when the dashboard's
+// load starts a scan. Its warnings would draw over the screen, so it stays quiet.
+var background = Background(scanner.SetBackgroundPriority, io.Discard)
+
 func engineLoad(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error) {
 	res, err := engine.Overview(ctx, engine.OverviewOptions{
 		Home: d.Home, Runner: Runner, Version: version, Rescan: rescan, Catalog: d.cat, ScanRoot: ScanRoot,
-		Step:     func(s engine.OverviewStep) { d.post(StepMsg(s)) },
+		Step: func(s engine.OverviewStep) {
+			background(s) // only a scan is slowed down on purpose
+			d.post(StepMsg(s))
+		},
 		Progress: func(p scanner.Progress) { d.post(ProgressMsg(p)) },
 	})
 	if err != nil {
