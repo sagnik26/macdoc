@@ -30,6 +30,8 @@ Option 2, in three stages. Measured since this record was opened: directories be
 
 **Unknown.** A file is unknown when the kernel did not report the attribute (the fstatat reader, or a volume that does not return it; HFS+ and exFAT were checked and return nothing, while the bulk read itself still works there). A node is unknown if any file below it is, and it stays unknown all the way to the root; a folder with no unknown file below it stays known. Unknown is stored as NULL and read back as nil, never as 0, and rows from scans made before the column existed are NULL. Nothing prints or costs from this value yet.
 
+**Cost (measured 2026-11-06, APFS, 12 cores).** Asking for the private size is not free, and it blows the 5% budget. On `/opt/homebrew` (322,511 files) a scan went from 1.52 s to 2.27 s wall (+49%) and from 2.2 s to 4.7 s CPU; on a synthetic tree of 100,000 small files from about 100 ms to 290 ms. The cost is about 2 microseconds of wall time per file whatever its size, and it sits in the kernel's private-size attribute: `FSOPT_ATTR_CMN_EXTENDED` alone is free (1.50 s), and clone ID plus clone reference count cost +5 to 8% (1.58 s). Peak memory is unchanged (about 14 MB resident, 4.3 MB heap). Bytes, files and kept nodes are identical to before on `/opt/homebrew` (10,852,208,640 bytes, 322,511 files, 3,434 nodes).
+
 **Known gap.** For a file with several links, the kernel reports the full size for each link, so a tree that holds only some of the links of an inode counts bytes the delete would not free (S1 scenario 5). Bytes has the same flaw today. The lower-bound claim holds for clones; it does not yet hold for partly-contained hard links. Stage 2 has to settle that before it shows the number.
 
 ## Consequences of leaving it as is

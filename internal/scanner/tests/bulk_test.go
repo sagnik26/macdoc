@@ -309,6 +309,7 @@ func TestReadersAgreeOnRealTree(t *testing.T) {
 		t.Errorf("kept nodes differ:\n%s", firstDiff(stat, bulk))
 	}
 	t.Logf("%s: %d bytes, %d files, %d kept nodes, %d unmeasured", root, bulk.TotalBytes, bulk.TotalFiles, len(bulk.Nodes), len(bulk.Unmeasured))
+	checkPrivate(t, bulk)
 }
 
 // kept lists kept files with their sizes and kept directories by path.

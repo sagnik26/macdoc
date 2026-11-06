@@ -64,6 +64,27 @@ func priv(t *testing.T, n model.Node) int64 {
 	return *n.Private
 }
 
+// checkPrivate requires that no node's private size exceeds its bytes (a
+// lower bound never overstates) and logs how many are unknown and how much
+// the root's private size differs from its bytes.
+func checkPrivate(t *testing.T, res scanner.Result) {
+	t.Helper()
+	unknown := 0
+	for _, n := range res.Nodes {
+		switch {
+		case n.Private == nil:
+			unknown++
+		case *n.Private < 0 || *n.Private > n.Bytes:
+			t.Errorf("%s: private %d outside 0..bytes %d", n.Path, *n.Private, n.Bytes)
+		}
+	}
+	if r, ok := node(res, "/"); ok && r.Private != nil {
+		t.Logf("root: bytes %d private %d (%d less); %d of %d kept nodes unknown", r.Bytes, *r.Private, r.Bytes-*r.Private, unknown, len(res.Nodes))
+	} else {
+		t.Logf("root private unknown; %d of %d kept nodes unknown", unknown, len(res.Nodes))
+	}
+}
+
 // folders is the own allocation of every folder in res, lstat'd under root:
 // what a tree with no files in it would hold.
 func folders(t *testing.T, root string, res scanner.Result) int64 {
