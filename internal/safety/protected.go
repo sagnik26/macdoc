@@ -73,8 +73,8 @@ type protectedRoot struct {
 	system bool
 }
 
-func newRoot(path string, system bool) protectedRoot {
-	return protectedRoot{path: path, comps: foldedComponents(path), system: system}
+func root(path string, system bool) protectedRoot {
+	return protectedRoot{path: path, comps: parts(path), system: system}
 }
 
 // isProtected implements IsProtected with the Containers locations resolved
@@ -88,17 +88,17 @@ func (p *Policy) isProtected(path string) (bool, string) {
 // a symlink after the policy was built. Used by CheckTarget, which already
 // touches the filesystem; IsProtected stays lexical.
 func (p *Policy) currentContainers() []protectedRoot {
-	r, err := resolveFull(p.containers[0].path)
+	r, err := follow(p.containers[0].path)
 	if err != nil {
 		return p.containers // e.g. a symlink loop: the lexical rule still applies
 	}
-	rc := foldedComponents(r)
+	rc := parts(r)
 	for _, c := range p.containers {
-		if len(c.comps) == len(rc) && hasPrefixComps(c.comps, rc) {
+		if len(c.comps) == len(rc) && under(c.comps, rc) {
 			return p.containers
 		}
 	}
-	return append(append([]protectedRoot(nil), p.containers...), newRoot(r, false))
+	return append(append([]protectedRoot(nil), p.containers...), root(r, false))
 }
 
 // probe is the path being judged: its folded Components (never empty), whether
@@ -131,11 +131,11 @@ func (p *Policy) isProtectedWith(path string, containers []protectedRoot) (bool,
 	if !filepath.IsAbs(path) {
 		return true, "not an absolute path"
 	}
-	pc := foldedComponents(path)
+	pc := parts(path)
 	if len(pc) == 0 {
 		return true, "/"
 	}
-	s := probe{pc: pc, inHome: hasPrefixComps(p.homeComps, pc), containers: containers}
+	s := probe{pc: pc, inHome: under(p.homeComps, pc), containers: containers}
 	for _, check := range protectedRules {
 		if reason, ok := check(p, s); ok {
 			return true, reason
@@ -148,7 +148,7 @@ func (p *Policy) isProtectedWith(path string, containers []protectedRoot) (bool,
 // targets. Checked first so the reported root is the most specific one.
 func (p *Policy) sibling(s probe) (string, bool) {
 	parent := p.homeComps[:len(p.homeComps)-1]
-	if !s.inHome && len(s.pc) > len(parent) && hasPrefixComps(parent, s.pc) {
+	if !s.inHome && len(s.pc) > len(parent) && under(parent, s.pc) {
 		return "outside home: " + filepath.Dir(p.home), true
 	}
 	return "", false
@@ -158,10 +158,10 @@ func (p *Policy) sibling(s probe) (string, bool) {
 // is an ancestor of $HOME (the home containment exception).
 func (p *Policy) root(s probe) (string, bool) {
 	for _, r := range p.roots {
-		if !hasPrefixComps(r.comps, s.pc) {
+		if !under(r.comps, s.pc) {
 			continue
 		}
-		if r.system && s.inHome && hasPrefixComps(r.comps, p.homeComps) {
+		if r.system && s.inHome && under(r.comps, p.homeComps) {
 			continue
 		}
 		return r.path, true
@@ -171,7 +171,7 @@ func (p *Policy) root(s probe) (string, bool) {
 
 // ancestor: strict ancestors of $HOME (e.g. /Users) are never targets.
 func (p *Policy) ancestor(s probe) (string, bool) {
-	if len(s.pc) < len(p.homeComps) && hasPrefixComps(s.pc, p.homeComps) {
+	if len(s.pc) < len(p.homeComps) && under(s.pc, p.homeComps) {
 		return "ancestor of " + p.home, true
 	}
 	return "", false
@@ -181,17 +181,17 @@ func (p *Policy) ancestor(s probe) (string, bool) {
 // acting on one takes the protected subtree with it. $HOME itself is left to
 // the depth rule; its ancestors were handled above.
 func (p *Policy) enclosing(s probe) (string, bool) {
-	if hasPrefixComps(s.pc, p.homeComps) {
+	if under(s.pc, p.homeComps) {
 		return "", false
 	}
 	for _, r := range p.roots {
-		if !r.system && len(s.pc) < len(r.comps) && hasPrefixComps(s.pc, r.comps) {
+		if !r.system && len(s.pc) < len(r.comps) && under(s.pc, r.comps) {
 			return ContainsProtected + r.path, true
 		}
 	}
 	// Containers itself is a strict ancestor of the com.apple.* entries.
 	for _, c := range s.containers {
-		if len(s.pc) <= len(c.comps) && hasPrefixComps(s.pc, c.comps) {
+		if len(s.pc) <= len(c.comps) && under(s.pc, c.comps) {
 			return ContainsProtected + filepath.Join(c.path, "com.apple.*"), true
 		}
 	}
@@ -209,7 +209,7 @@ func (p *Policy) repo(s probe) (string, bool) {
 // apple: every ~/Library/Containers/com.apple.* entry.
 func (p *Policy) apple(s probe) (string, bool) {
 	for _, c := range s.containers {
-		if hasPrefixComps(c.comps, s.pc) && len(s.pc) > len(c.comps) &&
+		if under(c.comps, s.pc) && len(s.pc) > len(c.comps) &&
 			strings.HasPrefix(s.pc[len(c.comps)], "com.apple.") {
 			return filepath.Join(c.path, "com.apple.*"), true
 		}

@@ -137,7 +137,7 @@ func checkContents(root string, measure bool) (int64, error) {
 		if vendored(rel) {
 			return nil
 		}
-		name := safety.FoldName(d.Name()) // case-insensitive volumes (P6-R1 F2)
+		name := safety.Fold(d.Name()) // case-insensitive volumes (P6-R1 F2)
 		switch {
 		case name == ".git":
 			return skipf("it contains a git repository (%s)", rel)

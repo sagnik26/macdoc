@@ -342,13 +342,13 @@ func TestMapPath(t *testing.T) {
 		"/elsewhere":                      "/elsewhere",
 		"/System/Volumes/Data/.fseventsd": "/.fseventsd",
 	} {
-		if got := s.MapPath(in); got != want {
+		if got := s.Map(in); got != want {
 			t.Errorf("MapPath(%q) = %q; want %q", in, got, want)
 		}
 	}
 	for _, p := range []string{"", "/"} {
 		s := &scanner.Scanner{Prefix: p}
-		if got := s.MapPath("/a/b"); got != "/a/b" {
+		if got := s.Map("/a/b"); got != "/a/b" {
 			t.Errorf("prefix %q: %q", p, got)
 		}
 	}

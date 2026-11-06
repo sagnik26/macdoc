@@ -7,8 +7,8 @@ type ActionKind string
 
 // The kinds of action a plan item carries.
 const (
-	ActionNative     ActionKind = "native"     // run the tool's own command
-	ActionQuarantine ActionKind = "quarantine" // move the folder into macdoc's quarantine
+	Native     ActionKind = "native"     // run the tool's own command
+	Quarantine ActionKind = "quarantine" // move the folder into macdoc's quarantine
 )
 
 // Action is one step of a plan, in the order apply performs them. The
@@ -17,8 +17,8 @@ const (
 type Action struct {
 	Item   model.PlanItem
 	Kind   ActionKind
-	Argv   []string // ActionNative
-	Target string   // ActionQuarantine
+	Argv   []string // Native
+	Target string   // Quarantine
 }
 
 // Actions lists a plan's steps in plan order.
@@ -27,9 +27,9 @@ func Actions(p model.Plan) []Action {
 	for _, it := range p.Items {
 		switch it.Method {
 		case model.MethodNative:
-			out = append(out, Action{Item: it, Kind: ActionNative, Argv: append([]string(nil), it.Argv...)})
+			out = append(out, Action{Item: it, Kind: Native, Argv: append([]string(nil), it.Argv...)})
 		case model.MethodQuarantine:
-			out = append(out, Action{Item: it, Kind: ActionQuarantine, Target: it.Target})
+			out = append(out, Action{Item: it, Kind: Quarantine, Target: it.Target})
 		}
 	}
 	return out
@@ -56,9 +56,9 @@ func Perform(plan model.Plan, p Performer) []Result {
 	for i, a := range acts {
 		var err error
 		switch a.Kind {
-		case ActionNative:
+		case Native:
 			err = p.RunNative(a.Item, a.Argv)
-		case ActionQuarantine:
+		case Quarantine:
 			err = p.Quarantine(a.Item, a.Target)
 		}
 		out[i] = Result{Action: a, Err: err}

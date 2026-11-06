@@ -72,7 +72,7 @@ It needs a real Terminal: piped input is refused, and there is no --yes.`,
 func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
-	if !planner.ValidID(id) {
+	if !planner.Valid(id) {
 		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K; see macdoc plan list)", arg)
 	}
 	if !RealTTY(in, out) {
@@ -91,11 +91,11 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 		return err
 	}
 	switch res.Status {
-	case planner.StatusExpired:
+	case planner.Expired:
 		return errors.New("this plan has expired; make a new one with macdoc plan")
-	case planner.StatusApplied:
+	case planner.Applied:
 		return errors.New("this plan was already applied; see macdoc log")
-	case planner.StatusInvalid:
+	case planner.Invalid:
 		return errors.New("this plan doesn't verify, so it can't be applied")
 	}
 
@@ -136,7 +136,7 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 
 // renderApplyPlan shows the dry run again, without the "to apply" footer.
 func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
-	if res.Status == planner.StatusPending {
+	if res.Status == planner.Pending {
 		res.Status = "" // RenderPlan prints the apply hint only for pending plans
 	}
 	return RenderPlan(w, res, home, now)

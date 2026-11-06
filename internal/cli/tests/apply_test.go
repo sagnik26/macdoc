@@ -88,7 +88,7 @@ func (e *applyEnv) item(t *testing.T, id, recipe string, risk model.Risk, target
 
 func (e *applyEnv) Plan(t *testing.T, origin model.Origin, items ...model.PlanItem) model.Plan {
 	t.Helper()
-	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: applyNow, ExpiresAt: applyNow.Add(planner.DefaultTTL),
+	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: applyNow, ExpiresAt: applyNow.Add(planner.TTL),
 		Origin: origin, ScanID: "S-1", Request: "--safe", Items: items}
 	if err := planner.Save(e.st, planner.Dir(store.DefaultPath(e.Home)), &p); err != nil {
 		t.Fatal(err)

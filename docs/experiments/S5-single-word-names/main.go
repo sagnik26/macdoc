@@ -75,6 +75,14 @@ func main() {
 				if tn, ok := p.Types.Scope().Lookup(parts[0]).(*types.TypeName); ok {
 					o, _, _ := types.LookupFieldOrMethod(tn.Type(), true, p.Types, parts[1])
 					obj = o
+					// A field with no json or yaml tag is serialized under its Go name,
+					// so renaming it would change a file or wire format.
+					if v, ok := o.(*types.Var); ok && v.IsField() {
+						if st, ok := tn.Type().Underlying().(*types.Struct); ok && !tagged(st, v) {
+							skipped[key(r)] = "field has no json or yaml tag"
+							obj = nil
+						}
+					}
 					// a collision with an existing member of the type
 					if o2, _, _ := types.LookupFieldOrMethod(tn.Type(), true, p.Types, r.New); o2 != nil {
 						skipped[key(r)] = "collides with member " + r.New
@@ -216,6 +224,17 @@ func isSelectorName(p *packages.Package, id *ast.Ident) bool {
 			return !found
 		})
 		return found
+	}
+	return false
+}
+
+// tagged reports whether field v of st carries a json or yaml tag.
+func tagged(st *types.Struct, v *types.Var) bool {
+	for i := 0; i < st.NumFields(); i++ {
+		if st.Field(i) == v {
+			t := st.Tag(i)
+			return strings.Contains(t, `json:"`) || strings.Contains(t, `yaml:"`)
+		}
 	}
 	return false
 }

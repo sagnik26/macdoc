@@ -50,7 +50,7 @@ func TestRedteamFixedApplyPromptEscapes(t *testing.T) {
 // same hole for titles and targets.
 func TestRedteamFixedPlanRenderEscapes(t *testing.T) {
 	var out bytes.Buffer
-	res := engine.PlanResult{Plan: hostilePlan(), Status: planner.StatusPending, Refused: []planner.Refusal{}}
+	res := engine.PlanResult{Plan: hostilePlan(), Status: planner.Pending, Refused: []planner.Refusal{}}
 	if err := cli.RenderPlan(&out, res, "/Users/me", time.Now()); err != nil {
 		t.Fatal(err)
 	}

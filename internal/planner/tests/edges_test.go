@@ -50,13 +50,13 @@ func TestNormalizeID(t *testing.T) {
 		{"ab23cé", "", false},
 		{"", "", false},
 	} {
-		got, ok := planner.NormalizeID(tt.in)
+		got, ok := planner.Normalize(tt.in)
 		if got != tt.want || ok != tt.ok {
 			t.Errorf("NormalizeID(%q) = %q, %v; want %q, %v", tt.in, got, ok, tt.want, tt.ok)
 		}
 	}
-	// ParseIDs trims before it looks for path characters, so a padded ID is one ID.
-	if got, err := planner.ParseIDs([]string{" ab23cd ", "AB23CD"}); err != nil || !slices.Equal(got, []string{"O-ab23cd"}) {
+	// Parse trims before it looks for path characters, so a padded ID is one ID.
+	if got, err := planner.Parse([]string{" ab23cd ", "AB23CD"}); err != nil || !slices.Equal(got, []string{"O-ab23cd"}) {
 		t.Errorf("ParseIDs padded = %v, %v", got, err)
 	}
 }
@@ -114,10 +114,10 @@ func TestSelectorByTierAndRecipe(t *testing.T) {
 }
 
 func TestStatusOfApplied(t *testing.T) {
-	if got := planner.StatusOf(planner.ErrApplied); got != planner.StatusApplied {
+	if got := planner.Classify(planner.ErrApplied); got != planner.Applied {
 		t.Errorf("StatusOf(ErrApplied) = %q", got)
 	}
-	if got := planner.StatusOf(planner.ErrInvalid); got != planner.StatusInvalid {
+	if got := planner.Classify(planner.ErrInvalid); got != planner.Invalid {
 		t.Errorf("StatusOf(ErrInvalid) = %q", got)
 	}
 }

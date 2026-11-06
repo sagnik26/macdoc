@@ -24,9 +24,9 @@ const (
 	vreg = 1
 	vdir = 2
 
-	// bulkBufSize is each worker's reply buffer. One call returns as many
+	// buffer is each worker's reply buffer. One call returns as many
 	// entries as fit, so a typical directory takes one or two calls.
-	bulkBufSize = 128 << 10
+	buffer = 128 << 10
 )
 
 // bulkAttrs is the fixed request. Besides what the walk needs (name, device,
@@ -178,7 +178,7 @@ func entryName(c *cursor, rec []byte, common uint32) (name string, ok bool) {
 		return "", false
 	}
 	nameBytes := rec[start : start+n]
-	if i := indexNUL(nameBytes); i >= 0 {
+	if i := nul(nameBytes); i >= 0 {
 		nameBytes = nameBytes[:i]
 	}
 	if len(nameBytes) == 0 {
@@ -260,7 +260,7 @@ func fileSize(c *cursor, e *entry, objtype, fileattr uint32) bool {
 	return !c.bad
 }
 
-func indexNUL(b []byte) int {
+func nul(b []byte) int {
 	for i, x := range b {
 		if x == 0 {
 			return i
@@ -274,12 +274,12 @@ func unsupported(err error) bool {
 	return errors.Is(err, syscall.ENOTSUP) || errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOSYS)
 }
 
-// listBulk reads d with getattrlistbulk. It returns false only when the call
+// bulk reads d with getattrlistbulk. It returns false only when the call
 // is unsupported on this volume and nothing was read, so the caller can fall
 // back to the fstatat path for the same open directory.
-func (s *Scanner) listBulk(w *worker, d *dir, rc syscall.RawConn, wn *watchNames, acc *totals) bool {
+func (s *Scanner) bulk(w *worker, d *dir, rc syscall.RawConn, wn *watchNames, acc *totals) bool {
 	if w.buf == nil {
-		w.buf = make([]byte, bulkBufSize)
+		w.buf = make([]byte, buffer)
 	}
 	done := true
 	cerr := rc.Control(func(fdu uintptr) {
@@ -341,7 +341,7 @@ func (s *Scanner) decodeBatch(w *worker, d *dir, fd, n int, wn *watchNames, acc 
 			// Measure just this entry the old way, with the same handling
 			// of vanished, unreadable and mount-point entries.
 			name := e.name
-			ok, abort := s.statEntry(d, fd, name, &st)
+			ok, abort := s.stat(d, fd, name, &st)
 			if abort {
 				return true
 			}

@@ -480,7 +480,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.Overlay != OverlayNone {
-		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.StatusPending {
+		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
 			return m.startApply(m.Plan.Plan.ID)
 		}
 		switch k {
@@ -901,7 +901,7 @@ func (m TuiModel) footerView() string {
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
 	case m.Overlay == OverlayRemove:
 		keys = nil
-	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.StatusPending:
+	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
 	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}

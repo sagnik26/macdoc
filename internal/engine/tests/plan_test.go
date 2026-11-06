@@ -46,7 +46,7 @@ func TestCreateAndShowPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := res.Plan
-	if !planner.ValidID(p.ID) || res.Status != planner.StatusPending || len(p.Items) != 1 || p.Items[0].RecipeID != "t.native" ||
+	if !planner.Valid(p.ID) || res.Status != planner.Pending || len(p.Items) != 1 || p.Items[0].RecipeID != "t.native" ||
 		p.ScanID != f.scanID || p.Request != "--safe" {
 		t.Fatalf("plan = %+v", res)
 	}
@@ -64,10 +64,10 @@ func TestCreateAndShowPlan(t *testing.T) {
 		}
 		return r
 	}
-	if r := show(f.now.Add(time.Minute)); r.Status != planner.StatusPending || r.Plan.SHA256 != p.SHA256 {
+	if r := show(f.now.Add(time.Minute)); r.Status != planner.Pending || r.Plan.SHA256 != p.SHA256 {
 		t.Errorf("show = %s", r.Status)
 	}
-	if r := show(f.now.Add(31 * time.Minute)); r.Status != planner.StatusExpired {
+	if r := show(f.now.Add(31 * time.Minute)); r.Status != planner.Expired {
 		t.Errorf("after 31 min: %s", r.Status)
 	}
 	path := filepath.Join(planner.Dir(f.storePath), p.ID+".json")
@@ -75,7 +75,7 @@ func TestCreateAndShowPlan(t *testing.T) {
 	if err := os.WriteFile(path, append(b[:len(b)-2], []byte(", \"x\": 1}\n")...), 0o600); err != nil { //nolint:gosec // G703: test fixture in a temp dir
 		t.Fatal(err)
 	}
-	if r := show(f.now.Add(time.Minute)); r.Status != planner.StatusInvalid || len(r.Warnings) == 0 {
+	if r := show(f.now.Add(time.Minute)); r.Status != planner.Invalid || len(r.Warnings) == 0 {
 		t.Errorf("edited: %s %v", r.Status, r.Warnings)
 	}
 	if _, err := engine.ShowPlan(context.Background(), o.OpportunityOptions, "P-ZZZZ"); !errors.Is(err, planner.ErrUnknown) {

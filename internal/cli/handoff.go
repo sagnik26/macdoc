@@ -73,7 +73,7 @@ func (m TuiModel) startApply(id string) (tea.Model, tea.Cmd) {
 		m.Flash = "Usage: /apply <P-id>, or seal a plan first (mark suggestions with space, then p)."
 		return m, nil
 	}
-	if !planner.ValidID(id) {
+	if !planner.Valid(id) {
 		m.Flash = fmt.Sprintf("%q isn't a plan ID (they look like P-7F3K).", id)
 		return m, nil
 	}

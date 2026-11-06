@@ -88,7 +88,7 @@ type Result struct {
 const (
 	defaultKeepThreshold = 100 << 20
 	defaultWorkers       = 4
-	maxWorkers           = 16
+	widest               = 16
 	defaultHardlinkLimit = 1_000_000
 	defaultProgressEvery = 250 * time.Millisecond
 
@@ -188,8 +188,8 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		keep:      opts.Keep,
 		Prefix:    prefix,
 		rootDev:   st.Dev,
-		skip:      lowerSet(opts.Skip),
-		opaque:    lowerSet(opts.Opaque),
+		skip:      folded(opts.Skip),
+		opaque:    folded(opts.Opaque),
 		links:     LinkSet{Limit: opts.HardlinkLimit},
 	}
 	if s.threshold <= 0 {
@@ -216,7 +216,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	if workers <= 0 {
 		workers = defaultWorkers
 	}
-	workers = min(max(workers, 1), maxWorkers)
+	workers = min(max(workers, 1), widest)
 
 	if ctx.Err() != nil {
 		// Already canceled: don't let a worker start listing first.
@@ -270,7 +270,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		return a.Path < b.Path
 	})
 	return Result{
-		Root:             s.MapPath(root),
+		Root:             s.Map(root),
 		TotalBytes:       s.root.bytes,
 		TotalFiles:       s.root.files,
 		Nodes:            s.nodes,
@@ -281,7 +281,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	}, nil
 }
 
-func lowerSet(paths []string) map[string]bool {
+func folded(paths []string) map[string]bool {
 	m := make(map[string]bool, len(paths))
 	for _, p := range paths {
 		if p != "" {
@@ -291,8 +291,8 @@ func lowerSet(paths []string) map[string]bool {
 	return m
 }
 
-// MapPath applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
-func (s *Scanner) MapPath(p string) string {
+// Map applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
+func (s *Scanner) Map(p string) string {
 	if s.Prefix == "" || s.Prefix == "/" {
 		return p
 	}
@@ -323,7 +323,7 @@ func (s *Scanner) progress(fn func(Progress), every time.Duration, start time.Ti
 		case <-t.C:
 			p := Progress{Files: s.files.Load(), Bytes: s.bytes.Load(), Elapsed: time.Since(start)}
 			if d := s.cur.Load(); d != nil {
-				p.CurrentDir = s.MapPath(d.path)
+				p.CurrentDir = s.Map(d.path)
 			}
 			fn(p)
 		}
@@ -459,9 +459,9 @@ func (s *Scanner) list(w *worker, d *dir) {
 	defer f.Close() //nolint:errcheck // read-only directory handle
 	var wn *watchNames
 	if d.watch {
-		wn = s.watchFor(d)
+		wn = s.watch(d)
 	}
-	if Bulk && !s.nobulk.Load() && s.listBulk(w, d, rc, wn, &acc) {
+	if Bulk && !s.nobulk.Load() && s.bulk(w, d, rc, wn, &acc) {
 		return
 	}
 	for !s.stop.Load() {
@@ -485,10 +485,10 @@ func (s *Scanner) list(w *worker, d *dir) {
 	}
 }
 
-// statEntry lstats name relative to the open directory fd. ok is false if the
+// stat lstats name relative to the open directory fd. ok is false if the
 // entry must be skipped; abort is true if the directory can't be read further
 // (no search permission, recorded once for the directory).
-func (s *Scanner) statEntry(d *dir, fd int, name string, st *unix.Stat_t) (ok, abort bool) {
+func (s *Scanner) stat(d *dir, fd int, name string, st *unix.Stat_t) (ok, abort bool) {
 	err := Fstatat(fd, name, st, unix.AT_SYMLINK_NOFOLLOW)
 	if err == nil {
 		return true, false
@@ -512,7 +512,7 @@ func (s *Scanner) batch(w *worker, d *dir, fd int, names []string, wn *watchName
 	var st unix.Stat_t // reused: it escapes through the Fstatat hook
 	var e entry
 	for _, name := range names {
-		ok, abort := s.statEntry(d, fd, name, &st)
+		ok, abort := s.stat(d, fd, name, &st)
 		if abort {
 			return true
 		}
@@ -570,7 +570,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		w.files++
 		if n >= s.threshold && !d.opaque && !d.hidden {
 			w.nodes = append(w.nodes, model.Node{
-				Path:     s.MapPath(Join(d.path, e.name)),
+				Path:     s.Map(Join(d.path, e.name)),
 				Kind:     model.NodeFile,
 				Bytes:    n,
 				Files:    1,
@@ -599,10 +599,10 @@ type watchNames struct {
 	skip, opaque []string
 }
 
-// watchFor builds the watch list of d, a directory with a Skip or Opaque
+// watch builds the watch list of d, a directory with a Skip or Opaque
 // child. A child matches when lower(d.path)/lower(name) is a configured path,
 // the same rule as the lowercased full-path lookup it replaces.
-func (s *Scanner) watchFor(d *dir) *watchNames {
+func (s *Scanner) watch(d *dir) *watchNames {
 	dl := pathfold.Fold(d.path)
 	wn := &watchNames{}
 	collect := func(set map[string]bool) []string {
@@ -631,10 +631,10 @@ func (wn *watchNames) match(name string) int {
 		}
 	}
 	if ascii {
-		if foldIn(wn.skip, name) {
+		if among(wn.skip, name) {
 			return matchSkip
 		}
-		if foldIn(wn.opaque, name) {
+		if among(wn.opaque, name) {
 			return matchOpaque
 		}
 		return matchNone
@@ -653,9 +653,9 @@ func (wn *watchNames) match(name string) int {
 	return matchNone
 }
 
-// foldIn reports whether the ASCII name, lowercased, equals one of cands
+// among reports whether the ASCII name, lowercased, equals one of cands
 // (already lowercase). It allocates nothing.
-func foldIn(cands []string, name string) bool {
+func among(cands []string, name string) bool {
 	for _, c := range cands {
 		if len(c) != len(name) {
 			continue
@@ -686,9 +686,9 @@ func (s *Scanner) release(d *dir) {
 		if d.pending > 0 {
 			return
 		}
-		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.MapPath(d.path))))) {
+		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.Map(d.path))))) {
 			s.nodes = append(s.nodes, model.Node{
-				Path:     s.MapPath(d.path),
+				Path:     s.Map(d.path),
 				Kind:     model.NodeDir,
 				Bytes:    d.bytes,
 				Files:    d.files,
@@ -727,7 +727,7 @@ func (s *Scanner) Fail(p string, err error) {
 		reason = pe.Err.Error() // the path is already in Unmeasured.Path
 	}
 	s.mu.Lock()
-	s.Unmeasured = append(s.Unmeasured, model.Unmeasured{Path: s.MapPath(p), Reason: reason})
+	s.Unmeasured = append(s.Unmeasured, model.Unmeasured{Path: s.Map(p), Reason: reason})
 	s.mu.Unlock()
 }
 

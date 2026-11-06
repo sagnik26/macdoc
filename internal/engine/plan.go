@@ -105,7 +105,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 	if err := planner.Save(st, planner.Dir(o.StorePath), &out.Plan); err != nil {
 		return out, err
 	}
-	out.Status = planner.StatusPending
+	out.Status = planner.Pending
 	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.Planned, Plan: out.Plan.ID,
 		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), Expected: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
 		out.Warnings = append(out.Warnings, "couldn't record the plan in the audit log: "+err.Error())
@@ -139,7 +139,7 @@ func ShowPlan(ctx context.Context, o OpportunityOptions, id string) (PlanResult,
 	}
 	out := PlanResult{Plan: p, Refused: []planner.Refusal{}, Snapshot: snapshotNote(ctx, o.Runner)}
 	if err != nil {
-		out.Status, out.Warnings = planner.StatusInvalid, []string{err.Error()}
+		out.Status, out.Warnings = planner.Invalid, []string{err.Error()}
 		return out, nil
 	}
 	st, err := store.Open(o.StorePath)
@@ -149,15 +149,15 @@ func ShowPlan(ctx context.Context, o OpportunityOptions, id string) (PlanResult,
 	defer func() { _ = st.Close() }()
 	rec, err := st.Plan(id)
 	if errors.Is(err, store.ErrNoPlan) {
-		out.Status, out.Warnings = planner.StatusInvalid, []string{"macdoc has no record of this plan"}
+		out.Status, out.Warnings = planner.Invalid, []string{"macdoc has no record of this plan"}
 		return out, nil
 	}
 	if err != nil {
 		return PlanResult{}, err
 	}
 	verr := planner.Verify(p, rec, o.Catalog, pol, o.Now)
-	out.Status = planner.StatusOf(verr)
-	if out.Status == planner.StatusInvalid {
+	out.Status = planner.Classify(verr)
+	if out.Status == planner.Invalid {
 		out.Warnings = []string{verr.Error()}
 	}
 	return out, nil

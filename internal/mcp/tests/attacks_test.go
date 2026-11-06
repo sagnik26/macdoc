@@ -198,7 +198,7 @@ func TestRedteamHeldExtraFields(t *testing.T) {
 			if r.Origin != model.OriginClaude {
 				t.Errorf("extra field changed the origin: %+v", r)
 			}
-			if r.ExpiresAt.Sub(r.CreatedAt) > planner.DefaultTTL {
+			if r.ExpiresAt.Sub(r.CreatedAt) > planner.TTL {
 				t.Errorf("extra field changed the TTL: %+v", r)
 			}
 		}
@@ -332,7 +332,7 @@ func TestRedteamFixedDuplicateIDs(t *testing.T) {
 	if errText != "" {
 		t.Fatal(errText)
 	}
-	if st := got["data"].(map[string]any)["status"]; st != string(planner.StatusPending) {
+	if st := got["data"].(map[string]any)["status"]; st != string(planner.Pending) {
 		t.Errorf("the plan Claude just handed the user is %v, so macdoc apply %s will refuse it: %v", st, pid, got["warnings"])
 	}
 }
@@ -470,7 +470,7 @@ func TestRedteamHeldRefusedCallsWriteNothing(t *testing.T) {
 		}
 	}
 	// Stale scan.
-	c.advance(planner.MaxScanAge + time.Minute)
+	c.advance(planner.Oldest + time.Minute)
 	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{f.nmIDAt(t)}}); errText == "" {
 		t.Error("stale scan planned")
 	}

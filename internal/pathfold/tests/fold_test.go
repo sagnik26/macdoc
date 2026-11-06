@@ -50,7 +50,7 @@ func TestPublicFoldsAgree(t *testing.T) {
 		if got := store.Fold(s); got != want {
 			t.Errorf("store.Fold(%q) = %q, pathfold.Fold = %q", s, got, want)
 		}
-		if got := safety.FoldName(s); got != want {
+		if got := safety.Fold(s); got != want {
 			t.Errorf("safety.FoldName(%q) = %q, pathfold.Fold = %q", s, got, want)
 		}
 	}

@@ -34,6 +34,19 @@ Left alone on purpose: struct fields are renamed only when every field has an ex
 | `quarantine.StateHeld`, `StateMissing`, `LoadManifest` | `quarantine.Held`, `Missing`, `Load` |
 | `Config.PlanTTL`, `Config.NativeTimeout` | `Config.TTL`, `Config.Timeout` |
 
+## Wave 2 (`planner`, `safety`, `scanner`)
+
+45 renames, 210 edits in 31 files. The collision checker refused three that would have captured an existing local variable (`commonAttrs` to `common`, `defaultWorkers` to `workers`, `defaultProgressEvery` to `every`), which is the kind of silent rebinding a text replace would have introduced. `make check` passes.
+
+**What this wave shows about the rule.** A name often carries a verb and a noun, and a single word keeps only one of them. Some results read worse than the original:
+
+- `buildItem` is now `item`: "`item` checks one opportunity and turns it into a plan item".
+- `checkTarget` is now `target`, `selectOps` is now `choose`, `validateItems` is now `vet`, `tierRank` is now `rank`.
+- `StatusOf` is now `Classify`: "Classify classifies a Verify result".
+- `resolveParents` and `resolveFull` could not both be `resolve`, so they became `resolve` and `follow`, which says less about the difference.
+
+Constants and types shorten well (`Pending`, `Expired`, `TTL`, `Normalize`, `Parse`). Functions that are verbs plus an object tend to get worse. The rule allows an exception when a single word is not possible "due to collision or any other issues"; for functions, loss of meaning is that other issue, and the sensible default is to keep the two-word name. In `store` (85 multi-word names) and `probe` (91) most would collide or lose meaning, so I did not rename them.
+
 ## What does not reduce to one word
 
 The renamer refused one (`Config.AddProtect` would clash with the `Protect` field), and I took `Config.RemoveProtect` off the list to keep the pair together. I also left these alone because no honest single word exists:

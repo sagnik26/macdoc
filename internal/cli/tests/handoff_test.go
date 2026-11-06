@@ -48,7 +48,7 @@ func TestTUIApplyKeyHandsOff(t *testing.T) {
 
 func TestTUIApplyOnlyPendingPlans(t *testing.T) {
 	m := sealed(t)
-	m.Plan.Status = planner.StatusExpired
+	m.Plan.Status = planner.Expired
 	next, cmd := m.Update(keys("a")[0])
 	if cmd != nil || next.(cli.TuiModel).Overlay != cli.OverlayPlan {
 		t.Error("a on an expired plan should do nothing")

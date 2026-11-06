@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	// DefaultTTL is how long a plan stays valid.
-	DefaultTTL = 30 * time.Minute
-	// MaxScanAge is the oldest scan a plan may be built from.
-	MaxScanAge = 6 * time.Hour
+	// TTL is how long a plan stays valid.
+	TTL = 30 * time.Minute
+	// Oldest is the oldest scan a plan may be built from.
+	Oldest = 6 * time.Hour
 )
 
 // Selector says which opportunities to plan. Exactly one of IDs, Tier or
@@ -48,29 +48,29 @@ func (s Selector) Request() string {
 	return "--recipe " + s.Recipe
 }
 
-// idRe is an opportunity ID as users type it.
-var idRe = regexp.MustCompile(`(?i)^(o-)?[a-z2-7]{6,26}$`)
+// pattern is an opportunity ID as users type it.
+var pattern = regexp.MustCompile(`(?i)^(o-)?[a-z2-7]{6,26}$`)
 
-// NormalizeID turns an opportunity ID as typed (any case, "O-" optional,
+// Normalize turns an opportunity ID as typed (any case, "O-" optional,
 // surrounding whitespace) into its canonical form "O-abcdef". It reports false
 // for anything else, including non-ASCII look-alikes that case folding would
 // let through (U+017F "ſ", the Kelvin sign).
-func NormalizeID(a string) (string, bool) {
+func Normalize(a string) (string, bool) {
 	a = strings.TrimSpace(a)
 	for i := 0; i < len(a); i++ {
 		if a[i] >= 0x80 {
 			return "", false
 		}
 	}
-	if !idRe.MatchString(a) {
+	if !pattern.MatchString(a) {
 		return "", false
 	}
 	return "O-" + strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(a, "O-"), "o-")), true
 }
 
-// ParseIDs normalizes opportunity IDs, drops duplicates and rejects anything
+// Parse normalizes opportunity IDs, drops duplicates and rejects anything
 // else, paths in particular: plans take IDs, never paths (docs/adr/0002-ids-not-paths.md).
-func ParseIDs(args []string) ([]string, error) {
+func Parse(args []string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	for _, a := range args {
@@ -78,7 +78,7 @@ func ParseIDs(args []string) ([]string, error) {
 		if strings.ContainsAny(a, `/\~.`) {
 			return nil, fmt.Errorf("%q looks like a path: plans take suggestion IDs (O-…), never paths", a)
 		}
-		id, ok := NormalizeID(a)
+		id, ok := Normalize(a)
 		if !ok {
 			return nil, fmt.Errorf("%q isn't a suggestion ID (they look like O-ab12cd; see macdoc doctor wins)", a)
 		}
@@ -128,15 +128,15 @@ var (
 // Save assigns both.
 func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 	if in.TTL <= 0 {
-		in.TTL = DefaultTTL
+		in.TTL = TTL
 	}
 	if in.Origin == "" {
 		in.Origin = model.OriginCLI
 	}
-	if age := in.Now.Sub(in.ScanFinished); age > MaxScanAge {
+	if age := in.Now.Sub(in.ScanFinished); age > Oldest {
 		return model.Plan{}, nil, fmt.Errorf(`%w (%d hours); run "macdoc doctor scan" first`, ErrStaleScan, int(age.Hours()))
 	}
-	picked, refused := selectOps(in.Opportunities, sel)
+	picked, refused := choose(in.Opportunities, sel)
 
 	plan := model.Plan{
 		SchemaVersion: model.SchemaVersion,
@@ -148,7 +148,7 @@ func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 		Items:         []model.PlanItem{},
 	}
 	for _, op := range picked {
-		item, reason := buildItem(in, op)
+		item, reason := item(in, op)
 		if reason != "" {
 			refused = append(refused, Refusal{ID: op.ID, Title: op.Title, Reason: reason})
 			continue
@@ -158,16 +158,16 @@ func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 			plan.TotalBytes += item.ExpectedBytes
 		}
 	}
-	sortItems(plan.Items)
+	order(plan.Items)
 	if len(plan.Items) == 0 {
 		return plan, refused, ErrNothing
 	}
 	return plan, refused, nil
 }
 
-// selectOps applies the selector. IDs keep the order given; unknown IDs and
+// choose applies the selector. IDs keep the order given; unknown IDs and
 // advice-only items are refused.
-func selectOps(ops []model.Opportunity, sel Selector) ([]model.Opportunity, []Refusal) {
+func choose(ops []model.Opportunity, sel Selector) ([]model.Opportunity, []Refusal) {
 	var picked []model.Opportunity
 	var refused []Refusal
 	consider := func(op model.Opportunity) {
@@ -203,9 +203,9 @@ func selectOps(ops []model.Opportunity, sel Selector) ([]model.Opportunity, []Re
 	return picked, refused
 }
 
-// buildItem checks one opportunity and turns it into a plan item, or
+// item checks one opportunity and turns it into a plan item, or
 // returns why it can't be planned.
-func buildItem(in Input, op model.Opportunity) (model.PlanItem, string) {
+func item(in Input, op model.Opportunity) (model.PlanItem, string) {
 	r, ok := in.Catalog.Get(op.RecipeID)
 	if !ok {
 		return model.PlanItem{}, "its recipe isn't in this version of macdoc"
@@ -239,7 +239,7 @@ func buildItem(in Input, op model.Opportunity) (model.PlanItem, string) {
 		}
 		item.Argv = append([]string(nil), op.Command...)
 	case model.MethodQuarantine:
-		fp, reason := checkTarget(in.Policy, op.Target, r.Allow)
+		fp, reason := target(in.Policy, op.Target, r.Allow)
 		if reason != "" {
 			return item, reason
 		}
@@ -250,8 +250,8 @@ func buildItem(in Input, op model.Opportunity) (model.PlanItem, string) {
 	return item, ""
 }
 
-// checkTarget re-checks a quarantine target now and fingerprints it.
-func checkTarget(pol *safety.Policy, target string, allow []string) (model.Fingerprint, string) {
+// target re-checks a quarantine target now and fingerprints it.
+func target(pol *safety.Policy, target string, allow []string) (model.Fingerprint, string) {
 	fi, err := os.Lstat(target)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -283,8 +283,8 @@ func Fingerprint(fi os.FileInfo) model.Fingerprint {
 	return fp
 }
 
-// tierRank orders plan items: SAFE, CAUTION, RISKY.
-func tierRank(r model.Risk) int {
+// rank orders plan items: SAFE, CAUTION, RISKY.
+func rank(r model.Risk) int {
 	switch r {
 	case model.RiskSafe:
 		return 0
@@ -294,11 +294,11 @@ func tierRank(r model.Risk) int {
 	return 2
 }
 
-// sortItems groups items by tier, biggest first, then by ID.
-func sortItems(items []model.PlanItem) {
+// order groups items by tier, biggest first, then by ID.
+func order(items []model.PlanItem) {
 	sort.SliceStable(items, func(i, j int) bool {
 		a, b := items[i], items[j]
-		if ta, tb := tierRank(a.Risk), tierRank(b.Risk); ta != tb {
+		if ta, tb := rank(a.Risk), rank(b.Risk); ta != tb {
 			return ta < tb
 		}
 		if a.ExpectedBytes != b.ExpectedBytes {

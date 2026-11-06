@@ -222,7 +222,7 @@ func TestApplyDefaultsToTheRealClock(t *testing.T) {
 	now := time.Now()
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
 	// Re-seal the plan around the real time, so it hasn't expired.
-	p.CreatedAt, p.ExpiresAt, p.SHA256 = now, now.Add(planner.DefaultTTL), ""
+	p.CreatedAt, p.ExpiresAt, p.SHA256 = now, now.Add(planner.TTL), ""
 	if err := planner.Save(e.st, planner.Dir(e.storePath), &p); err != nil {
 		t.Fatal(err)
 	}

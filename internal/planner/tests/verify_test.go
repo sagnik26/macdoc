@@ -124,8 +124,8 @@ func TestVerifyRefusesItemsThePlannerCouldNotHaveMade(t *testing.T) {
 }
 
 func TestBuildTimeBoundaries(t *testing.T) {
-	if planner.DefaultTTL != 30*time.Minute || planner.MaxScanAge != 6*time.Hour {
-		t.Fatalf("DefaultTTL = %v, MaxScanAge = %v; want 30m and 6h", planner.DefaultTTL, planner.MaxScanAge)
+	if planner.TTL != 30*time.Minute || planner.Oldest != 6*time.Hour {
+		t.Fatalf("DefaultTTL = %v, MaxScanAge = %v; want 30m and 6h", planner.TTL, planner.Oldest)
 	}
 	w := newWorld(t)
 	sel := planner.Selector{IDs: []string{"O-brewaa"}}
@@ -135,7 +135,7 @@ func TestBuildTimeBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !p.CreatedAt.Equal(now) || !p.ExpiresAt.Equal(now.Add(planner.DefaultTTL)) {
+	if !p.CreatedAt.Equal(now) || !p.ExpiresAt.Equal(now.Add(planner.TTL)) {
 		t.Errorf("default TTL: created %v expires %v", p.CreatedAt, p.ExpiresAt)
 	}
 
@@ -145,13 +145,13 @@ func TestBuildTimeBoundaries(t *testing.T) {
 		t.Errorf("1ns TTL: expires %v, err %v", p.ExpiresAt, err)
 	}
 
-	// A scan exactly MaxScanAge old is allowed; one nanosecond older is not.
+	// A scan exactly Oldest old is allowed; one nanosecond older is not.
 	in = w.input()
-	in.ScanFinished = now.Add(-planner.MaxScanAge)
+	in.ScanFinished = now.Add(-planner.Oldest)
 	if _, _, err := planner.Build(in, sel); err != nil {
 		t.Errorf("scan exactly MaxScanAge old: %v", err)
 	}
-	in.ScanFinished = now.Add(-planner.MaxScanAge - time.Nanosecond)
+	in.ScanFinished = now.Add(-planner.Oldest - time.Nanosecond)
 	if _, _, err := planner.Build(in, sel); !errors.Is(err, planner.ErrStaleScan) {
 		t.Errorf("scan just over MaxScanAge old: %v, want ErrStaleScan", err)
 	}

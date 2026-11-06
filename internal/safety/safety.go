@@ -62,30 +62,30 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 	if !filepath.IsAbs(home) {
 		return nil, fmt.Errorf("safety: home %q is not absolute", home)
 	}
-	h, err := resolveFull(cleanRoot(home))
+	h, err := follow(tidy(home))
 	if err != nil {
 		return nil, fmt.Errorf("safety: home: %w", err)
 	}
-	hc := foldedComponents(h)
+	hc := parts(h)
 	if len(hc) < 2 {
 		return nil, fmt.Errorf("safety: home %q must have at least 2 Components", h)
 	}
-	if err := checkHomeLocation(h, hc); err != nil {
+	if err := location(h, hc); err != nil {
 		return nil, err
 	}
 
 	p := &Policy{home: h, homeComps: hc}
 	containers := filepath.Join(h, "Library", "Containers")
-	p.containers = append(p.containers, newRoot(containers, false))
-	rc, err := resolveFull(containers)
+	p.containers = append(p.containers, root(containers, false))
+	rc, err := follow(containers)
 	if err != nil {
 		return nil, fmt.Errorf("safety: home: %w", err)
 	}
 	if rc != containers {
-		p.containers = append(p.containers, newRoot(rc, false))
+		p.containers = append(p.containers, root(rc, false))
 	}
 	for _, r := range systemRoots {
-		p.roots = append(p.roots, newRoot(r, true))
+		p.roots = append(p.roots, root(r, true))
 	}
 	for _, rel := range homeProtected {
 		if err := p.addRoot(filepath.Join(h, rel)); err != nil {
@@ -93,7 +93,7 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 		}
 	}
 	for _, e := range extraProtected {
-		e = cleanRoot(homeRelative(h, e))
+		e = tidy(expand(h, e))
 		if !filepath.IsAbs(e) {
 			return nil, fmt.Errorf("safety: protected path %q is not absolute", e)
 		}
@@ -108,27 +108,27 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 	return p, nil
 }
 
-// checkHomeLocation rejects a resolved home inside a system root, apart from
+// location rejects a resolved home inside a system root, apart from
 // the homeAllowedUnder exceptions.
-func checkHomeLocation(h string, hc []string) error {
+func location(h string, hc []string) error {
 	for _, a := range homeAllowedUnder {
-		ac := foldedComponents(a)
-		if len(hc) > len(ac) && hasPrefixComps(ac, hc) {
+		ac := parts(a)
+		if len(hc) > len(ac) && under(ac, hc) {
 			return nil
 		}
 	}
 	for _, r := range systemRoots {
-		if hasPrefixComps(foldedComponents(r), hc) {
+		if under(parts(r), hc) {
 			return fmt.Errorf("safety: home %q is inside system path %s", h, r)
 		}
 	}
 	return nil
 }
 
-// cleanRoot lexically cleans a policy root (home or extra protected path) so
+// tidy lexically cleans a policy root (home or extra protected path) so
 // a trailing "/" is accepted there. Input with a ".." component is returned
 // unchanged so that Canonicalize still rejects it.
-func cleanRoot(s string) string {
+func tidy(s string) string {
 	if HasDotDot(s) {
 		return s
 	}
@@ -142,13 +142,13 @@ func (p *Policy) addRoot(path string) error {
 	if err != nil {
 		return fmt.Errorf("safety: protected path: %w", err)
 	}
-	p.roots = append(p.roots, newRoot(c, false))
-	r, err := resolveFull(c)
+	p.roots = append(p.roots, root(c, false))
+	r, err := follow(c)
 	if err != nil {
 		return fmt.Errorf("safety: protected path: %w", err)
 	}
 	if r != c {
-		p.roots = append(p.roots, newRoot(r, false))
+		p.roots = append(p.roots, root(r, false))
 	}
 	return nil
 }
@@ -187,7 +187,7 @@ func Canonicalize(path string) (string, error) {
 	if clean == "/" {
 		return clean, nil
 	}
-	parent, err := resolveParents(filepath.Dir(clean))
+	parent, err := resolve(filepath.Dir(clean))
 	if err != nil {
 		return "", &Violation{Path: path, Rule: RuleInvalid, Detail: "cannot resolve parent: " + err.Error()}
 	}
@@ -201,7 +201,7 @@ func Within(root, path string) bool {
 	if !filepath.IsAbs(root) || !filepath.IsAbs(path) {
 		return false
 	}
-	return hasPrefixComps(foldedComponents(root), foldedComponents(path))
+	return under(parts(root), parts(path))
 }
 
 // CheckTarget canonicalizes path and returns nil only if it may be a cleanup
@@ -237,14 +237,14 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 		}
 		return &Violation{Path: c, Rule: RuleProtected, Detail: detail}
 	}
-	pc := foldedComponents(c)
-	if !hasPrefixComps(p.homeComps, pc) {
+	pc := parts(c)
+	if !under(p.homeComps, pc) {
 		return &Violation{Path: c, Rule: RuleOutsideHome, Detail: "not within " + p.home}
 	}
-	if !p.depthOK(pc) {
+	if !p.deep(pc) {
 		return &Violation{Path: c, Rule: RuleTooShallow, Detail: "must be at least 2 Components below " + p.home}
 	}
-	if !p.matchAllow(pc, allow) {
+	if !p.allowed(pc, allow) {
 		return &Violation{Path: c, Rule: RuleNotAllowed, Detail: "matches no allow pattern"}
 	}
 	return nil

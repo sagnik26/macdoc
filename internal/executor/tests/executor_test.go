@@ -159,7 +159,7 @@ func (e *env) native(t *testing.T, id, recipe string, risk model.Risk, argv ...s
 // plan seals and saves a plan of items.
 func (e *env) plan(t *testing.T, items ...model.PlanItem) model.Plan {
 	t.Helper()
-	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: t0, ExpiresAt: t0.Add(planner.DefaultTTL),
+	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: t0, ExpiresAt: t0.Add(planner.TTL),
 		Origin: model.OriginCLI, ScanID: "S-1", Request: "test", Items: items}
 	for _, it := range items {
 		p.TotalBytes += it.ExpectedBytes

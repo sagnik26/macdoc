@@ -288,7 +288,7 @@ func TestCreatePlan(t *testing.T) {
 	}
 	data := out["data"].(map[string]any)
 	id, _ := data["plan_id"].(string)
-	if !planner.ValidID(id) || data["user_action"] != "Run in Terminal:  macdoc apply "+id ||
+	if !planner.Valid(id) || data["user_action"] != "Run in Terminal:  macdoc apply "+id ||
 		data["summary"].(map[string]any)["items"].(float64) != 2 || !strings.Contains(data["note"].(string), "cannot apply") {
 		t.Fatalf("plan result = %v", data)
 	}
@@ -301,7 +301,7 @@ func TestCreatePlan(t *testing.T) {
 	}
 
 	out, errText = f.call(t, "get_plan", map[string]any{"id": strings.ToLower(id)})
-	if errText != "" || out["data"].(map[string]any)["status"] != string(planner.StatusPending) {
+	if errText != "" || out["data"].(map[string]any)["status"] != string(planner.Pending) {
 		t.Errorf("get_plan: %v %s", out, errText)
 	}
 
@@ -489,7 +489,7 @@ func TestPlanScanGuidance(t *testing.T) {
 	if !strings.Contains(errText, "call list_opportunities again") || strings.Contains(errText, "doctor wins") {
 		t.Errorf("unknown ID: %q", errText)
 	}
-	c.advance(planner.MaxScanAge)
+	c.advance(planner.Oldest)
 	_, errText = f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
 	for _, want := range []string{"the latest scan is from 7h ago, older than the 6 hours", "max_age", "refresh_scan", "IDs change with every scan"} {
 		if !strings.Contains(errText, want) {

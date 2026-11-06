@@ -143,7 +143,7 @@ func PlanSelector(args []string, safe bool, tier, recipe string) (planner.Select
 	case n > 1:
 		return planner.Selector{}, errors.New("use one of: suggestion IDs, --safe, --tier, --recipe")
 	case len(args) > 0:
-		ids, err := planner.ParseIDs(args)
+		ids, err := planner.Parse(args)
 		return planner.Selector{IDs: ids}, err
 	case safe:
 		return planner.Selector{Tier: model.RiskSafe}, nil
@@ -224,7 +224,7 @@ func RenderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 	writeRefused(&b, t, res.Refused)
 	writeNotes(&b, t, res.Warnings)
 	b.WriteString(" " + t.done("Nothing has been changed.") + "\n")
-	if res.Status == planner.StatusPending {
+	if res.Status == planner.Pending {
 		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it:"), t.Command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
 	}
 	_, err := io.WriteString(w, b.String())
@@ -250,11 +250,11 @@ func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 		out = line + "\n\n"
 	}
 	switch res.Status {
-	case planner.StatusExpired:
+	case planner.Expired:
 		out += " " + t.warn.Render("This plan has expired. Make a new one with macdoc plan.") + "\n\n"
-	case planner.StatusApplied:
+	case planner.Applied:
 		out += " " + t.muted.Render("This plan was already applied.") + "\n\n"
-	case planner.StatusInvalid:
+	case planner.Invalid:
 		out += " " + t.bad.Render("This plan doesn't verify and can't be applied.") + "\n\n"
 	}
 	return out
@@ -268,10 +268,10 @@ func writeAction(b *strings.Builder, t *Theme, a planner.Action, home string) {
 	fmt.Fprintf(b, "  %s  %s %s\n", t.ID.Render(it.OpportunityID), t.text.Render(padRight(truncateANSI(it.Title, 44), 44)), t.size.Render(fmt.Sprintf("%9s", size)))
 	const indent = "            "
 	switch a.Kind {
-	case planner.ActionNative:
+	case planner.Native:
 		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ runs"), t.Command(a.Argv))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
-	case planner.ActionQuarantine:
+	case planner.Quarantine:
 		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(TildePath(home, a.Target)))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
 	}

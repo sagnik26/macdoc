@@ -13,7 +13,7 @@ import (
 // planWithOrigin seals a plan with the given origin (env.plan uses the CLI).
 func (e *env) planWithOrigin(t *testing.T, origin model.Origin, items ...model.PlanItem) model.Plan {
 	t.Helper()
-	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: t0, ExpiresAt: t0.Add(planner.DefaultTTL),
+	p := model.Plan{SchemaVersion: model.SchemaVersion, CreatedAt: t0, ExpiresAt: t0.Add(planner.TTL),
 		Origin: origin, ScanID: "S-1", Request: "test", Items: items}
 	for _, it := range items {
 		p.TotalBytes += it.ExpectedBytes
