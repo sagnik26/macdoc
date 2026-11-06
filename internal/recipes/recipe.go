@@ -134,6 +134,10 @@ type Env struct {
 	// Projects returns the projects found in the latest scan (computed once
 	// and shared by all detectors). Nil if unavailable.
 	Projects func() (projects.Result, error)
+	// Cache, when set, lets the slow Homebrew dry runs reuse a recent
+	// result (RunCachedDryRun). Display only: leave it nil anywhere that
+	// decides or acts (executor, planner.Verify, listers).
+	Cache DryRunCache
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

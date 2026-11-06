@@ -34,6 +34,9 @@ type OpportunityOptions struct {
 	// MinBytes hides items of known size below it (0: 1 MB; negative: show
 	// everything).
 	MinBytes int64
+	// Live skips the short-lived cache of Homebrew dry runs, so every
+	// command is run now. Plans built from a fresh computation set it.
+	Live bool
 }
 
 // OpportunityResult is the data behind `macdoc wins`, `dev` and `explain`.
@@ -117,6 +120,9 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 
 	nodes := NewScanNodes(st, info.ID)
 	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
+	if !o.Live {
+		env.Cache = dryRuns{st}
+	}
 	env.Projects = sync.OnceValues(func() (projects.Result, error) {
 		return discoverProjects(ctx, o, nodes, info.ID)
 	})

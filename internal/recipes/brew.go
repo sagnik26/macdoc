@@ -22,13 +22,17 @@ const BrewTimeout = 60 * time.Second
 // "==> This operation would free approximately 377MB of disk space."
 var brewFreeRe = regexp.MustCompile(`would free approximately ([0-9.,]+\s*[KMGT]?B) of disk space`)
 
+// Both detectors read Env.Cache (RunCachedDryRun), which only display
+// commands set. The executor re-runs them with no cache, so apply always asks
+// brew itself.
+
 // DetectBrewCleanup runs `brew cleanup -n --prune=all` and reports how much
 // brew says it would free (SourceTool) and how many items it would remove.
 func DetectBrewCleanup(ctx context.Context, env Env, r Recipe) ([]Finding, error) {
 	if env.Runner == nil || !ToolInstalled("brew") {
 		return nil, nil
 	}
-	res, err := RunDryRun(ctx, env, r, BrewTimeout)
+	res, err := RunCachedDryRun(ctx, env, r, BrewTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +76,7 @@ func DetectBrewAutoremove(ctx context.Context, env Env, r Recipe) ([]Finding, er
 	if env.Runner == nil || !ToolInstalled("brew") {
 		return nil, nil
 	}
-	res, err := RunDryRun(ctx, env, r, BrewTimeout)
+	res, err := RunCachedDryRun(ctx, env, r, BrewTimeout)
 	if err != nil {
 		return nil, err
 	}

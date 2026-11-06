@@ -127,6 +127,8 @@ These read the latest scan and don't rescan.
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 
+Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
+
 Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 1). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
 
 ### `macdoc plan`: a sealed dry run

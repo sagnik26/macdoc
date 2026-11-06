@@ -85,7 +85,9 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 
 	ops := o.Precomputed
 	if ops == nil || ops.Scan.ID != info.ID {
-		res, err := Opportunities(ctx, o.OpportunityOptions)
+		live := o.OpportunityOptions
+		live.Live = true // a plan is built from what the tools say now
+		res, err := Opportunities(ctx, live)
 		if err != nil {
 			return PlanResult{}, err
 		}

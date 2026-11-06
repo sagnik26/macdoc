@@ -95,7 +95,7 @@ func TestPrivateUpgradeKeepsOldRowsUnknown(t *testing.T) {
 	saved := store.Migrations
 	t.Cleanup(func() { store.Migrations = saved })
 	path := filepath.Join(t.TempDir(), "state.db")
-	id := writeOldDatabase(t, path, saved[:len(saved)-1]) // the schema before private_bytes
+	id := writeOldDatabase(t, path, saved[:4]) // the schema before private_bytes (migration 5)
 
 	store.Migrations = saved
 	s, err := store.Open(path)

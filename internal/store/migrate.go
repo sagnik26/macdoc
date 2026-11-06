@@ -88,6 +88,17 @@ var Migrations = []string{
 	// size (docs/adr/0005-size-by-allocated-blocks.md, stage 1). NULL means
 	// unknown, and rows from older scans stay NULL: unknown is never zero.
 	`ALTER TABLE nodes ADD COLUMN private_bytes INTEGER;`,
+	// v6: the last Homebrew dry runs, kept for a few minutes so a repeat
+	// `doctor` command need not run brew again (display only; apply always
+	// asks brew). fingerprint is a digest of Homebrew's own state.
+	`CREATE TABLE dryruns (
+		key         TEXT PRIMARY KEY,
+		fingerprint TEXT NOT NULL,
+		at          INTEGER NOT NULL,
+		exit_code   INTEGER NOT NULL,
+		stdout      BLOB NOT NULL,
+		stderr      BLOB NOT NULL
+	);`,
 }
 
 // migrate brings the schema up to len(Migrations). Each migration runs in its

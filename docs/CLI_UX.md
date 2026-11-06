@@ -156,6 +156,8 @@ Nothing has been changed. macdoc is read-only unless you run `apply`.
  macdoc explain <id> · macdoc plan --safe   (creates a dry-run; nothing is deleted)
 ```
 
+- Homebrew suggestions (`brew cleanup -n`, `brew autoremove -n`) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run (kept in macdoc's own database) while Homebrew's folders are unchanged. `apply` always re-checks with brew, and `macdoc plan` asks brew itself.
+
 ### `macdoc plan --safe`
 ```
 Plan P-7F3K · 3 items · 31.4 GB · expires in 30 min · made by you (macdoc plan --safe)
