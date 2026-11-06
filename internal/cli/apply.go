@@ -134,6 +134,12 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	return renderApplyReport(out, t, rep, res.Snapshot.Count)
 }
 
+// RenderApply writes the summary of an apply in the human format.
+// snapshots is how many local Time Machine snapshots existed.
+func RenderApply(w io.Writer, rep executor.Report, snapshots int) error {
+	return renderApplyReport(w, themeFor(w), rep, snapshots)
+}
+
 // renderApplyPlan shows the dry run again, without the "to apply" footer.
 func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
 	if res.Status == planner.Pending {
