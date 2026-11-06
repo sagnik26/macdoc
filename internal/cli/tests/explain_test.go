@@ -88,3 +88,25 @@ func TestRenderExplain(t *testing.T) {
 		}
 	}
 }
+
+// A measured size is explained once, in plain words; a tool-reported or
+// unknown size is not, because the sentence is about scan measurements.
+func TestExplainSaysWhatAMeasuredSizeMeans(t *testing.T) {
+	render := func(b model.Bytes) string {
+		var sb strings.Builder
+		ex := cli.ExplainResult{Opportunity: model.Opportunity{ID: "O-eeeeee", Title: "x", Method: model.MethodQuarantine, Bytes: b}}
+		if err := cli.RenderExplain(&sb, ex); err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(strings.Fields(sb.String()), " ") // undo line wrapping
+	}
+	note := strings.Join(strings.Fields(cli.SizeNote), " ")
+	if out := render(model.Bytes{Value: 5, Source: model.SourceMeasured}); !strings.Contains(out, note) {
+		t.Errorf("measured size lacks the explanation:\n%s", out)
+	}
+	for _, b := range []model.Bytes{{Value: 5, Source: model.SourceTool}, {Source: model.SourceUnknown}} {
+		if out := render(b); strings.Contains(out, note) {
+			t.Errorf("%s size got the scan-size explanation:\n%s", b.Source, out)
+		}
+	}
+}
