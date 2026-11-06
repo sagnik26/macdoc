@@ -1,5 +1,5 @@
 # Xcode, iOS simulators and CocoaPods. Schema: internal/recipes/recipe.go.
-# Detectors: internal/recipes/detect_xcode.go and the generic children/path.
+# Detectors: internal/recipes/xcode.go and the generic children/path.
 
 - id: xcode.derived_data
   title: Xcode DerivedData

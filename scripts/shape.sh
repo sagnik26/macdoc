@@ -6,8 +6,8 @@
 # matters on a real Mac. It is safe to paste into an issue: it prints counts
 # and sizes only, never a path or a name.
 #
-#   scripts/scanshape.sh                 # uses the default state database
-#   scripts/scanshape.sh path/to/state.db
+#   scripts/shape.sh                 # uses the default state database
+#   scripts/shape.sh path/to/state.db
 #
 # It works on a COPY of the database (and its WAL files) in a temporary
 # folder, so it never writes to macdoc's state.

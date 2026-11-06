@@ -33,14 +33,14 @@ lint:
 	golangci-lint run ./...
 
 importcheck:
-	./scripts/importcheck.sh
+	./scripts/imports.sh
 
 forbidcheck:
-	./scripts/forbidcheck.sh
+	./scripts/forbidden.sh
 
 # Every test that docs/THREAT_MODEL.md names must still exist.
 threatcheck:
-	./scripts/threatcheck.sh
+	./scripts/threats.sh
 
 # Known vulnerabilities in what the module actually calls (pinned version).
 vulncheck:

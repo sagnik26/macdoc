@@ -25,7 +25,7 @@ That is about **1,100 times faster** per lookup, and a detector pass over many f
 
 ## Guards
 
-`internal/store/tests/nodes_prefix_test.go`:
+`internal/store/tests/prefix_test.go`:
 
 - `TestNodesPrefixIsComponentWise` uses names on both sides of the range edges (`/a/bc`, `/a/b0`, `/a/b.x`, `/a/b+x`, `/a/b_x`, `/a/b%x`, upper case, a trailing slash) and asserts exactly what is included. It passes on the old and the new query, which is the evidence that behavior is unchanged.
 - `TestNodesPrefixDoesNotReadTheWholeScan` runs 100 prefix queries on 60,000 nodes and fails above 1.5 s. Negative control: with the old query it fails at 7.7 s; with the new one the whole test, including building the data, takes about 0.4 s.

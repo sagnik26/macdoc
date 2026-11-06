@@ -8,7 +8,7 @@ The project chose to keep tests apart from the code they test, as black-box test
 
 ## Decision
 
-Tests go in `internal/<pkg>/tests/*_test.go`, `package tests`. Plain `go test -cover ./internal/x` therefore reports 0% for the package under test, so `make cover` uses `-coverpkg` across packages. `scripts/importcheck.sh` lets `internal/cli/tests` import the executor, and the forbidden-call logic lives in `tools/forbidcheck/check` so its tests can import it.
+Tests go in `internal/<pkg>/tests/*_test.go`, `package tests`. Plain `go test -cover ./internal/x` therefore reports 0% for the package under test, so `make cover` uses `-coverpkg` across packages. `scripts/imports.sh` lets `internal/cli/tests` import the executor, and the forbidden-call logic lives in `tools/forbidcheck/check` so its tests can import it.
 
 ## What it costs (measured)
 

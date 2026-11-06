@@ -56,13 +56,13 @@ Each brief contains:
 - the definition of done
 - the reporting format: the worker writes `.task/REPORT.md` in its worktree (what was done, test output, open questions) and commits
 
-### Worker runtime: `scripts/orchestration/run-worker.sh`
+### Worker runtime: `scripts/orchestration/worker.sh`
 - Workers run headless: `claude -p "<prompt>" --output-format stream-json --verbose --permission-mode acceptEdits` with explicit `--allowedTools` (Read/Glob/Grep — Edit/Write are deliberately not allowlisted so `acceptEdits` limits writes to the worktree, `go`, `gofmt`, `make`, `golangci-lint`, `git status|diff|add|commit|log|show`, `mkdir`, `ls`) and `--disallowedTools` (`git push|checkout|merge|worktree|reset`, `rm`, `sudo`, `curl`, `wget`, WebFetch, WebSearch, Agent).
-- The JSON stream is saved to `.task/stream.jsonl` and rendered in the pane by `scripts/orchestration/format-stream.jq` (messages, tool calls, errors, and a final summary line).
+- The JSON stream is saved to `.task/stream.jsonl` and rendered in the pane by `scripts/orchestration/stream.jq` (messages, tool calls, errors, and a final summary line).
 - Workers can't ask questions mid-task. They record questions in `.task/REPORT.md`.
-- `run-worker.sh` starts `caffeinate -i -w <its PID>`, which stops the Mac from idle-sleeping while a worker runs and ends with it. A manual sleep or closing the lid still works. Added after workers stalled for hours while the Mac slept.
-- Workers must run everything in the **foreground**. In headless mode, ending a turn ends the session, so a worker that backgrounds a job and "waits" just stops (this happened in P2-W1). `run-worker.sh` appends this rule to every prompt.
-- **Feedback loop:** the tech lead resumes the same session with `run-worker.sh <task> --continue "<review feedback>"`. Nobody types into a worker pane.
+- `worker.sh` starts `caffeinate -i -w <its PID>`, which stops the Mac from idle-sleeping while a worker runs and ends with it. A manual sleep or closing the lid still works. Added after workers stalled for hours while the Mac slept.
+- Workers must run everything in the **foreground**. In headless mode, ending a turn ends the session, so a worker that backgrounds a job and "waits" just stops (this happened in P2-W1). `worker.sh` appends this rule to every prompt.
+- **Feedback loop:** the tech lead resumes the same session with `worker.sh <task> --continue "<review feedback>"`. Nobody types into a worker pane.
 
 ### tmux layout (`tmux attach -t macdoc-build`)
 ```

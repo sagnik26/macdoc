@@ -6,8 +6,8 @@
 # what the executor runs, so it must not reach the executor either).
 #
 # Usage:
-#   scripts/importcheck.sh              check the module containing this script
-#   scripts/importcheck.sh --self-test  prove the check fails on a violation
+#   scripts/imports.sh              check the module containing this script
+#   scripts/imports.sh --self-test  prove the check fails on a violation
 set -euo pipefail
 
 GO=${GO:-go}

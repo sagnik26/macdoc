@@ -11,7 +11,7 @@ go-mutesting --exec="$PWD/../exec.sh" --exec-timeout=120 --verbose ./internal/sa
 python3 -I survivors.py <log> safety          # list survivors with file:line and the change
 ```
 
-`exec_wide.sh` also runs the engine, MCP, CLI and executor tests, to separate "no test anywhere" from "no test in this package". In `go-mutesting` output `PASS` means the mutant was **killed** and `FAIL` means it **survived**.
+`wide.sh` also runs the engine, MCP, CLI and executor tests, to separate "no test anywhere" from "no test in this package". In `go-mutesting` output `PASS` means the mutant was **killed** and `FAIL` means it **survived**.
 
 ## Results (2026-11-06, `60a0165` plus the module rename)
 

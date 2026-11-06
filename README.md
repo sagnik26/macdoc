@@ -353,7 +353,7 @@ macdoc (one Go binary)
   internal/mcp          MCP server (`macdoc mcp`): read + propose plans; may never import the executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
-  scripts/              import, forbidden-call and threat-model guards; scanshape.sh (the shape of a scan, no paths)
+  scripts/              import, forbidden-call and threat-model guards; shape.sh (the shape of a scan, no paths)
   schema/*.json         frozen JSON Schema for every --json command (contract-tested)
 ```
 

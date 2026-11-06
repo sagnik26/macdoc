@@ -2,8 +2,8 @@
 # Run a headless worker Claude session in a task worktree, rendering its
 # progress for a tmux pane. Set EXTRA_ALLOW to a ";"-separated list of
 # extra read-only tool rules, e.g. "Bash(sysctl:*);Bash(diskutil info:*)". Usage:
-#   run-worker.sh <task-id> <prompt>             start a new session
-#   run-worker.sh <task-id> --continue <prompt>  resume the task's session
+#   worker.sh <task-id> <prompt>             start a new session
+#   worker.sh <task-id> --continue <prompt>  resume the task's session
 set -uo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 task="$1"; shift
@@ -34,6 +34,6 @@ claude -p ${cont[@]+"${cont[@]}"} "$prompt" \
     "Bash(git worktree:*)" "Bash(git reset:*)" "Bash(rm:*)" "Bash(sudo:*)" \
     "Bash(curl:*)" "Bash(wget:*)" "WebFetch" "WebSearch" "Agent" \
   | tee -a .task/stream.jsonl \
-  | jq -r --unbuffered -f "$root/scripts/orchestration/format-stream.jq"
+  | jq -r --unbuffered -f "$root/scripts/orchestration/stream.jq"
 echo "▶▶ worker $task exited ($(date '+%H:%M:%S')) — tech lead will review"
 exec bash   # keep the pane open for inspection

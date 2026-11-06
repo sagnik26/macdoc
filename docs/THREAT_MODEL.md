@@ -1,6 +1,6 @@
 # macdoc: threat model
 
-This extends the short table in [SAFETY_MODEL.md](SAFETY_MODEL.md) §5. It names what is protected, who could attack it, where trust changes, and, for every defense, a test that fails if the defense is removed. `scripts/threatcheck.sh` (run by `make check`) fails if a test named here no longer exists, so this document cannot quietly drift from the code.
+This extends the short table in [SAFETY_MODEL.md](SAFETY_MODEL.md) §5. It names what is protected, who could attack it, where trust changes, and, for every defense, a test that fails if the defense is removed. `scripts/threats.sh` (run by `make check`) fails if a test named here no longer exists, so this document cannot quietly drift from the code.
 
 A reference like `internal/mcp/tests.TestToolList` means the function `TestToolList` in `internal/mcp/tests/`.
 
@@ -40,7 +40,7 @@ disk ──(1)──▶ scanner ──▶ store ──▶ engine ──(2)──
 
 | # | Threat | Defense | Tests that fail without it |
 |---|---|---|---|
-| T1 | Claude asks to delete an arbitrary path | No MCP tool executes, moves, deletes or takes a path; the executor cannot be imported by `mcp` or `engine` | `internal/mcp/tests.TestToolList`, `scripts/importcheck.sh` (self-test in `tools/forbidcheck/check/tests.TestForbidcheckScript`) |
+| T1 | Claude asks to delete an arbitrary path | No MCP tool executes, moves, deletes or takes a path; the executor cannot be imported by `mcp` or `engine` | `internal/mcp/tests.TestToolList`, `scripts/imports.sh` (self-test in `tools/forbidcheck/check/tests.TestForbidcheckScript`) |
 | T2 | A file name contains instructions aimed at Claude | Every string returned over MCP is cleaned and capped, and marked as untrusted data | `internal/textsafe/tests.TestForModelAndTerminal`, `internal/mcp/tests.TestToolDescriptionsWarnUntrusted` |
 | T3 | A file name carries terminal escapes that redraw what the user confirms | Human output prints a cleaned display copy; planning and the executor use the data as found | `internal/cli/tests.TestRedteamFixedApplyPromptEscapes`, `internal/cli/tests.TestRedteamFixedPlanRenderEscapes` |
 | T4 | A plan file is edited, or forged along with the store row | A SHA-256 seal in the file is checked against a second copy in the store; every item is re-derived from the catalog | `internal/planner/tests.TestEditedPlanIsRejected`, `internal/planner/tests.TestForgedPlans`, `internal/planner/tests.TestVerifyChecksEveryTieBetweenFileAndStore`, `internal/planner/tests.TestVerifyRefusesItemsThePlannerCouldNotHaveMade`, `internal/executor/tests.TestRedteamHeldForgedPlans` |

@@ -8,7 +8,7 @@ A deletion bug is worst where it is hardest to notice. If any package can call `
 
 ## Decision
 
-Calls that delete, move, truncate or run commands are allowed only in `internal/executor`. `internal/mcp`, `internal/engine` and `internal/planner` must never import it. Two checks enforce this in CI: `scripts/importcheck.sh` (the import graph) and `tools/forbidcheck` (a source scan for forbidden calls, with an explicit allow-list). Commands are never run through a shell, with `sudo`, or with strings assembled at run time: argv comes from a recipe.
+Calls that delete, move, truncate or run commands are allowed only in `internal/executor`. `internal/mcp`, `internal/engine` and `internal/planner` must never import it. Two checks enforce this in CI: `scripts/imports.sh` (the import graph) and `tools/forbidcheck` (a source scan for forbidden calls, with an explicit allow-list). Commands are never run through a shell, with `sudo`, or with strings assembled at run time: argv comes from a recipe.
 
 ## Consequences
 

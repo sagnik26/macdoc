@@ -27,8 +27,8 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 
 ### 1a. The dashboard and colors (implemented 2026-10-28)
 
-- **Bare `macdoc` in an interactive terminal opens the dashboard** (`internal/cli/tui.go`, Bubble Tea). `macdoc doctor` always prints. Bare `macdoc` prints too when stdin or stdout isn't a TTY, with `--json`/`--quiet`, or on `TERM=dumb`.
-- **Welcome screen first** (`internal/cli/tui_intro.go`). Nothing runs until the user chooses.
+- **Bare `macdoc` in an interactive terminal opens the dashboard** (`internal/cli/dashboard.go`, Bubble Tea). `macdoc doctor` always prints. Bare `macdoc` prints too when stdin or stdout isn't a TTY, with `--json`/`--quiet`, or on `TERM=dumb`.
+- **Welcome screen first** (`internal/cli/intro.go`). Nothing runs until the user chooses.
   - It shows:
     - A gradient ANSI-Shadow logo, or `◆ macdoc` when the window is under 34 rows.
     - The tagline.
@@ -47,7 +47,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `e` swaps the list for it.
 - **`/` palette:** `/overview /scan /plan [safe|caution|risky] /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` shows how to connect Claude (`claude mcp add macdoc -- macdoc mcp`).
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
-- **Accessible tables** (`internal/cli/tui_tables.go`). Every list in every view is a table:
+- **Accessible tables** (`internal/cli/tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
   - Right-aligned sizes and counts.
   - Text labels for risk and severity, so color is never the only signal.

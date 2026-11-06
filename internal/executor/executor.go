@@ -1,6 +1,6 @@
 // Package executor is the ONLY package allowed to delete, move, or run
 // mutating commands (docs/adr/0003-executor-is-the-only-mutator.md). Only
-// internal/cli and cmd/macdoc may import it (scripts/importcheck.sh), and it
+// internal/cli and cmd/macdoc may import it (scripts/imports.sh), and it
 // acts only on plans that pass planner.Verify (docs/SAFETY_MODEL.md §4).
 //
 // Invariants:
