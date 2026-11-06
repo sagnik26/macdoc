@@ -40,6 +40,23 @@ MiB. "freed" is the measured truth.
 - `PRIVATESIZE` fails for a set that holds a whole clone group (10): each member reports 0 because the blocks are shared among them. The shared blocks belong to nobody individually, so a plan needs clone-group logic, or an honest range: low = sum of private sizes, high = sum of allocation with each clone group counted once.
 - `CLONEID` and `CLONE_REFCNT` come back in the same call as the size, so detecting clones is not expensive. The speed question (bulk vs one syscall per entry) is separate; see H5 in `plan.md`.
 
+## Directories (2026-11-06)
+
+The first run covered files only. `dirtest.py` repeats the method for whole directories: build a tree, delete it, compare the freed space with two predictions. A directory contained a unique file, clones of a file that stays outside it, or a clone group that lives entirely inside it.
+
+| Directory contents | Actually freed | `st_blocks` sum | Sum of private sizes |
+|---|---:|---:|---:|
+| unique file + clone of a file outside | 32 MB | 64 | **32** |
+| a clone group entirely inside | 32 MB | 96 | 0 |
+| two clones of a file outside | 0 | 64 | **0** |
+| mix of the three | 32 MB | 80 | 16 |
+
+`st_blocks` overstates in every case. The sum of private sizes never overstates, so it is a safe **lower bound**; it undercounts only when a clone group sits wholly inside the directory. Counting each clone group once, by clone ID, gives an upper bound (48 for the mix), and the true value was inside the range in all four cases.
+
+A directory reports a private size of its own (`dirattr.c`), but that is only the directory's own blocks (0 for a directory holding a 5 MB file), not a recursive total. A scan therefore has to sum the files' private sizes up the tree, as it already does for allocated bytes.
+
+Timing: on a real tree (`/opt/homebrew`, 322,511 files) reading with `getattrlistbulk` took about 2.3 s against 4.0 s for one `fstatat` per entry, in 12 alternating runs, with identical results.
+
 ## Limits
 
 One 1 GB image, 64 MB files, one macOS version, files only. Not tested: directories, snapshots, purgeable space, compressed files, Intel. Do not treat this as a final model of reclaimable space; it is the evidence needed to decide whether to build one.

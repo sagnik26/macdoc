@@ -1,6 +1,6 @@
 # 0005: Sizes come from allocated blocks (`st_blocks`)
 
-**Status:** **Under review.** The evidence below shows the current method is wrong for APFS clones. No replacement has been chosen. **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
+**Status:** **Accepted for change, in stages** (owner decision, 2026-11-06). The evidence below shows the current method is wrong for APFS clones. Stage 1 adds a private-size column filled from the bulk read and leaves `bytes` as it is; stage 2 shows reclaimable as private size and costs plans with it; stage 3 gives sets with clone groups a range. **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
 
 ## Context
 
@@ -22,7 +22,7 @@ On a throwaway APFS volume (`docs/experiments/S1-apfs-private-size`), comparing 
 
 ## Decision
 
-Not made. This record becomes Accepted or Superseded when the owner chooses.
+Option 2, in three stages. Measured since this record was opened: directories behave the same way (the sum of the files' private sizes never overstates and is a lower bound; counting each clone group once is an upper bound; the true value was inside the range in all four tested cases), and reading with `getattrlistbulk` is faster than one `fstatat` per entry on a real tree (2.3 s against 4.0 s). A directory's own private size is only its own blocks, so the scan must sum files up the tree.
 
 ## Consequences of leaving it as is
 
