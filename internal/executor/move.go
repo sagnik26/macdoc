@@ -62,7 +62,9 @@ func (p *performer) quarantine(item model.PlanItem, target string) (ItemResult, 
 	if err := p.pol.CheckTarget(target, r.Allow); err != nil {
 		return res, skipf("the safety rules refuse it: %v", err)
 	}
-	// Caches change on their own; anything else that changed is skipped.
+	// Caches change on their own; anything else that changed is skipped. A size
+	// taken again here counts allocated blocks, which overstate files that share
+	// space, so it is recorded as an estimate, never as the planned lower bound.
 	measure := fp.MtimeNS != item.Fingerprint.MtimeNS
 	if measure && item.Risk != model.RiskSafe {
 		return res, skip{"it changed since the plan; make a new plan to include it"}
@@ -74,10 +76,10 @@ func (p *performer) quarantine(item model.PlanItem, target string) (ItemResult, 
 			return res, err
 		}
 		if measure {
-			bytes, src = n, model.SourceMeasured
+			bytes, src = n, model.SourceEstimated
 		}
 	} else if measure {
-		bytes, src = allocBytes(fi), model.SourceMeasured
+		bytes, src = allocBytes(fi), model.SourceEstimated
 	}
 
 	root := p.cfg.quarantineRoot()

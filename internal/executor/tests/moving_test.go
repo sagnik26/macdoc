@@ -60,7 +60,7 @@ func TestMovedBytesAreMeasuredOverTheWholeTree(t *testing.T) {
 		t.Fatalf("record = %+v, %v", rec, err)
 	}
 	m, err := quarantine.Load(quarantine.Root(e.storePath), it.QuarantineID)
-	if err != nil || m.Bytes != want || m.Source != model.SourceMeasured {
+	if err != nil || m.Bytes != want || m.Source != model.SourceEstimated {
 		t.Fatalf("manifest = %+v, %v", m, err)
 	}
 }
@@ -93,6 +93,13 @@ func TestMovedFileBytes(t *testing.T) {
 		}
 		if exists(target) || !exists(filepath.Join(quarantine.Root(e.storePath), it.QuarantineID, "payload", "one.log")) {
 			t.Fatalf("changed=%v: the file wasn't moved into quarantine", changed)
+		}
+		wantSrc := model.SourceMeasured // the planned size, as planned
+		if changed {
+			wantSrc = model.SourceEstimated // allocated blocks, taken again
+		}
+		if m, err := quarantine.Load(quarantine.Root(e.storePath), it.QuarantineID); err != nil || m.Source != wantSrc {
+			t.Fatalf("changed=%v: manifest source = %v, %v; want %s", changed, m.Source, err, wantSrc)
 		}
 	}
 }

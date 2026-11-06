@@ -163,3 +163,42 @@ func TestRestoreRefusals(t *testing.T) {
 		refused(t, e, qid, target, payload, "nothing was changed", false)
 	})
 }
+
+// A folder above the original can stop being writable. Restore must fail,
+// say so, and leave the quarantined copy where it was.
+func TestRestoreFailsWhenTheOriginalFolderCannotBeWritten(t *testing.T) {
+	e := newEnv(t)
+	target, qid, payload := quarantined(t, e, "Library/Logs/A")
+	parent := filepath.Dir(target)
+	if err := os.Chmod(parent, 0o500); err != nil { //nolint:gosec // G302: a fixture folder made read-only on purpose.
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) //nolint:gosec // G302: lets the temp folder be removed.
+
+	res, err := executor.Restore(context.Background(), e.cfg, qid)
+	if err == nil || res.Outcome == executor.OutcomeDone {
+		t.Fatalf("Restore = %+v, %v; want a failure", res, err)
+	}
+	if !exists(payload) || exists(target) {
+		t.Errorf("after a failed restore: payload present %v, target present %v", exists(payload), exists(target))
+	}
+	if rec, rerr := e.st.Quarantine(qid); rerr != nil || rec.Status == store.QuarantineRestored {
+		t.Errorf("record = %+v, %v; a failed restore must not be recorded as restored", rec, rerr)
+	}
+}
+
+// If the record can't be closed after the folder is back, the folder stays
+// restored and the error says the record is what failed.
+func TestRestoreRecordUpdateFails(t *testing.T) {
+	e := newEnv(t)
+	target, qid, _ := quarantined(t, e, "Library/Logs/A")
+	refuseRecordUpdates(t, e)
+
+	_, err := executor.Restore(context.Background(), e.cfg, qid)
+	if err == nil || !strings.Contains(err.Error(), "restored, but macdoc's record couldn't be updated") {
+		t.Fatalf("err = %v", err)
+	}
+	if !exists(filepath.Join(target, "a.log")) {
+		t.Error("the folder was not left restored")
+	}
+}
