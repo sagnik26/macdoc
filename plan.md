@@ -336,4 +336,4 @@ Workstream 0 on real data (needs one populated scan; none exists on this machine
 1. Replace `st_blocks` sizing with private size plus clone-group ranges, behind a schema migration? (S1 says the accuracy case is proven.)
 2. Keep the `tests/` layout (default) or move to white-box in-package tests (§4)?
 3. *(Resolved for live files.)* Code comments, scripts, `README.md` and `CONTRIBUTING.md` now point at `docs/adr/` and `docs/SAFETY_MODEL.md`. Still open: archived task briefs, checkpoints and old plans cite `AGENTS.md` as history. Leave them, or restore a rules file for AI agents (the project had one that told them not to run `apply` or native cleanup commands)?
-4. Share one populated scan's aggregates (counts per depth, size histogram) so H1-H4 can be decided on real data.
+4. Run `macdoc doctor scan` once on a real Mac, then `scripts/scanshape.sh` (it works on a copy of the database and prints counts and sizes only, never a path), and share its output so H1, H3, H4 and H6 can be decided on real data.
