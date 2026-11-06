@@ -281,7 +281,7 @@ These are real and probably worth doing, but depth on the six claims comes first
 - **`macdoc reset`** to remove state and the launch agent. It is a new mutating command: it needs your approval, an `internal/executor` implementation, and an update to the invariant-1 list in `AGENTS.md` and `SAFETY_MODEL.md`.
 - **`log/slog` file logging** and a path-free diagnostic bundle for issue reports.
 - **Audit-log rotation** (no rotation exists today) and migration/corruption tests for `state.db`.
-- **Phase 7 sign-off.** The ≥ 10 GB reclaim criterion is 0.88 GB. It needs a decision on whether the criterion stays as written or becomes measurable on a fresh machine; without it `v0.1.0` has no definition of done.
+- **Phase 7 sign-off (decided 2026-11-06).** The "reclaim at least 10 GB" criterion is retired: it measures the machine, not the product (the development Mac has 0.88 GB). `v0.1.0` is done when: (1) `make check` and CI are green on the commit to be tagged; (2) every number shown is labelled measured, tool-reported, estimated or unknown, and a stage-3 range contains the kernel's free-space change in the throwaway-image check (10 of 10 scenarios today); (3) the two release archives build identically twice; (4) no open item in the PR's Known gaps touches the executor or the safety rules. The tag is pushed only after PR #1 merges, because the tag starts the release workflow. No signing or notarization for v0.1.0.
 
 ---
 
@@ -329,6 +329,7 @@ Updated 2026-11-06. Nothing is committed; all changes are in the working tree. `
 | **H5 bulk vs per-entry (partial)** | On `/opt/homebrew` (387k files, 40k dirs): `getattrlistbulk` totals match `fstatat` totals to the byte (11,988,164,608) with 5.3x fewer syscalls (80k vs 428k); CPU time about equal (4.2-4.8 s vs 4.7-5.0 s). Wall times were taken at load 22 and are not trustworthy. | `docs/experiments/S1-apfs-private-size/walk.c`; rerun on a quiet machine before relying on the timings |
 | **Dashboard range** | The suggestion detail pane in the dashboard now walks in the background and shows "at least X, at most Y" (`internal/cli/measure.go`): one walk at a time, cancelled when the selection, tab, overlay, rescan or quit changes, stale results ignored by sequence number, results (and failures) cached per ID until a rescan. Not visually checked in a real terminal; tests drive the model. The MCP server deliberately does not walk (an AI request must not start a directory walk). The tests wait with a 5 s limit, so a regression fails instead of hanging until the 10-minute test timeout. | `internal/cli/tests/measure_test.go` |
 | **Apply report tests** | The "Less than expected" (with and without snapshots), "more can be freed", exact-match and unmeasured cases are now asserted through a new exported `cli.RenderApply` (`report_test.go`). An unmeasured change is asserted to say so rather than show zero. | `internal/cli/tests/report_test.go` |
+| **Decisions closed** | Renames: types and constants only, wave 3 applied (11 types in 7 packages, `wave3.json`). Tests stay in `tests/` (ADR 0006). Phase 7 sign-off defined in section 10. A re-measured size is now recorded as `estimated`, not `measured` (it is allocated blocks). Restore write failures are tested (unwritable original folder, failing record). | `docs/experiments/S5-single-word-names/` |
 
 ### Findings that change the plan
 

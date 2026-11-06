@@ -165,7 +165,7 @@ func TestHardlinkLimit(t *testing.T) {
 }
 
 func TestLinkSet(t *testing.T) {
-	l := scanner.LinkSet{Limit: 1}
+	l := scanner.Links{Limit: 1}
 	steps := []struct {
 		ino   uint64
 		nlink uint16

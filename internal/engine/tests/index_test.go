@@ -100,8 +100,8 @@ func idxMutate(r *rand.Rand, p string) string {
 	return p
 }
 
-func idxQuery(r *rand.Rand, nodes []model.Node) store.NodeQuery {
-	var q store.NodeQuery
+func idxQuery(r *rand.Rand, nodes []model.Node) store.Query {
+	var q store.Query
 	switch r.Intn(12) {
 	case 0:
 		q.Prefix = ""
@@ -157,7 +157,7 @@ func idxCompare(t *testing.T, seed int64, perTree int) (ran, nonEmpty int) {
 	r := idxRand(seed)
 	nodes := idxTree(r)
 	st, id := idxStore(t, nodes)
-	qs := make([]store.NodeQuery, perTree)
+	qs := make([]store.Query, perTree)
 	want := make([][]model.Node, perTree)
 	for i := range qs {
 		qs[i] = idxQuery(r, nodes)
@@ -216,7 +216,7 @@ func TestIndexNodesAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := st.Nodes(id, store.NodeQuery{Prefix: q.Prefix, MaxDepth: q.MaxDepth})
+		want, err := st.Nodes(id, store.Query{Prefix: q.Prefix, MaxDepth: q.MaxDepth})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -273,7 +273,7 @@ func TestIndexConcurrentReads(t *testing.T) {
 	r := idxRand(7)
 	nodes := idxTree(r)
 	st, id := idxStore(t, nodes)
-	qs := make([]store.NodeQuery, 64)
+	qs := make([]store.Query, 64)
 	want := make([][]model.Node, len(qs))
 	for i := range qs {
 		qs[i] = idxQuery(r, nodes)

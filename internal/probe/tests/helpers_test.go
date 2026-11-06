@@ -23,7 +23,7 @@ func w1Fixture(t *testing.T, name string) []byte {
 func w1OK(stdout []byte) platform.Result { return platform.Result{Stdout: stdout} }
 
 // w1AssertCalls checks that exactly want ran, in order.
-func w1AssertCalls(t *testing.T, f *platform.FakeRunner, want ...platform.Command) {
+func w1AssertCalls(t *testing.T, f *platform.Fake, want ...platform.Command) {
 	t.Helper()
 	got := make([]string, len(f.Calls))
 	for i, c := range f.Calls {

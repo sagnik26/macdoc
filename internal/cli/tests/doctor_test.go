@@ -69,7 +69,7 @@ func TestRenderDoctorUnmeasured(t *testing.T) {
 
 func TestDoctorHealthJSON(t *testing.T) {
 	old := cli.Runner
-	cli.Runner = &platform.FakeRunner{} // every command errors -> warnings, never a failure
+	cli.Runner = &platform.Fake{} // every command errors -> warnings, never a failure
 	t.Cleanup(func() { cli.Runner = old })
 
 	for _, args := range [][]string{{"doctor", "health", "--json"}} {

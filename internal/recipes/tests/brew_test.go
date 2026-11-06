@@ -60,7 +60,7 @@ func TestBrewCleanupCases(t *testing.T) {
 	if _, err := run(platform.Result{ExitCode: 1, Stderr: []byte("Error: boom")}); err == nil {
 		t.Error("non-zero exit accepted")
 	}
-	if _, err := w2Run(t, "brew.cleanup", recipes.Env{Runner: &platform.FakeRunner{Errors: map[string]error{brewCleanupKey: errors.New("timeout")}}}); err == nil {
+	if _, err := w2Run(t, "brew.cleanup", recipes.Env{Runner: &platform.Fake{Errors: map[string]error{brewCleanupKey: errors.New("timeout")}}}); err == nil {
 		t.Error("runner error swallowed")
 	}
 	if _, err := recipes.DetectBrewCleanup(t.Context(), recipes.Env{Runner: w2Fake(nil)}, recipes.Recipe{ID: "x.y"}); err == nil {

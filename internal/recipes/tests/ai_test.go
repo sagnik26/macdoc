@@ -80,7 +80,7 @@ func TestOllamaMissingOrDown(t *testing.T) {
 	if _, err := w2Run(t, "ollama.model", recipes.Env{Runner: w2Fake(map[string]platform.Result{ollamaKey: {ExitCode: 2, Stderr: []byte("Error: unknown")}})}); err == nil {
 		t.Error("other failure accepted")
 	}
-	if _, err := w2Run(t, "ollama.model", recipes.Env{Runner: &platform.FakeRunner{Errors: map[string]error{ollamaKey: errors.New("timeout")}}}); err == nil {
+	if _, err := w2Run(t, "ollama.model", recipes.Env{Runner: &platform.Fake{Errors: map[string]error{ollamaKey: errors.New("timeout")}}}); err == nil {
 		t.Error("runner error swallowed")
 	}
 }

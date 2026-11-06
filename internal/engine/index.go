@@ -54,11 +54,11 @@ func (x *nodeIndex) load() {
 	if row.Scan(&n) != nil || n > MaxIndexedNodes {
 		return
 	}
-	ns, err := x.st.Nodes(x.id, store.NodeQuery{})
+	ns, err := x.st.Nodes(x.id, store.Query{})
 	if err != nil {
 		return
 	}
-	kinds := map[model.NodeKind]model.NodeKind{} // one string per kind, not one per node
+	kinds := map[model.Kind]model.Kind{} // one string per kind, not one per node
 	es := make([]entry, len(ns))
 	for i, nd := range ns {
 		k, seen := kinds[nd.Kind]
@@ -75,7 +75,7 @@ func (x *nodeIndex) load() {
 
 // query answers q exactly as store.Nodes does. ok is false when the index is
 // not available and the caller must ask the store.
-func (x *nodeIndex) query(q store.NodeQuery) (out []model.Node, ok bool) {
+func (x *nodeIndex) query(q store.Query) (out []model.Node, ok bool) {
 	x.once.Do(x.load)
 	if !x.ok {
 		return nil, false

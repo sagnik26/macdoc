@@ -107,7 +107,7 @@ func TestCondaPkgs(t *testing.T) {
 	if _, err := run(platform.Result{Stdout: []byte("Will remove 3 (1.2.3 MB) package(s).\n")}); err == nil {
 		t.Error("bad size accepted")
 	}
-	if _, err := w2Run(t, "conda.pkgs", recipes.Env{Runner: &platform.FakeRunner{Errors: map[string]error{condaKey: errors.New("timeout")}}}); err == nil {
+	if _, err := w2Run(t, "conda.pkgs", recipes.Env{Runner: &platform.Fake{Errors: map[string]error{condaKey: errors.New("timeout")}}}); err == nil {
 		t.Error("runner error swallowed")
 	}
 	if _, err := recipes.DetectCondaPkgs(t.Context(), recipes.Env{Runner: w2Fake(nil)}, recipes.Recipe{ID: "x.y"}); err == nil {

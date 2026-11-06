@@ -94,7 +94,7 @@ func TestProjectArtifactNegatives(t *testing.T) {
 func TestProjectArtifactGitAndIdle(t *testing.T) {
 	cases := []struct {
 		id     string
-		git    projects.GitState
+		git    projects.Git
 		risk   model.Risk
 		reason string
 	}{

@@ -129,7 +129,7 @@ type TuiDeps struct {
 	// apply replaces RunApply in tests.
 	apply func(cmd *cobra.Command, d ApplyDeps, id string) error
 	// remove replaces executorRemove in tests.
-	Remove func(d *TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error)
+	Remove func(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (executor.Report, error)
 	// Measure walks one suggestion's folder for the range it frees; the
 	// dashboard starts no walk while it is nil. Tests replace it.
 	Measure func(ctx context.Context, d *TuiDeps, op model.Opportunity) (*engine.Span, error)

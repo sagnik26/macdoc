@@ -170,7 +170,7 @@ func Trend(o TrendOptions) (TrendResult, error) {
 
 // nodeSizes maps each stored node's folded path to its node.
 func nodeSizes(st *store.Store, scanID string) (map[string]model.Node, error) {
-	nodes, err := st.Nodes(scanID, store.NodeQuery{})
+	nodes, err := st.Nodes(scanID, store.Query{})
 	if err != nil {
 		return nil, err
 	}

@@ -30,7 +30,7 @@ type removeReadyMsg struct {
 }
 
 // removeProgressMsg is an item starting or finishing.
-type removeProgressMsg executor.ItemEvent
+type removeProgressMsg executor.Event
 
 // removedMsg is the end of a removal.
 type removedMsg struct {
@@ -76,7 +76,7 @@ func (r *removeState) nextRisky() (model.PlanItem, bool) {
 
 // executorRemove is the real removal: the executor, with every check, and
 // each item deleted right after it's moved.
-func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error) {
+func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (executor.Report, error) {
 	if !RealTTY(os.Stdin, os.Stdout) {
 		return executor.Report{}, errors.New("removing needs you at a Terminal")
 	}
@@ -201,13 +201,13 @@ func (m TuiModel) runRemove() (tea.Model, tea.Cmd) {
 	}
 	deps, plan := m.Deps, r.Res.Plan
 	return m, func() tea.Msg {
-		rep, err := run(deps, plan, func(ev executor.ItemEvent) { deps.post(removeProgressMsg(ev)) })
+		rep, err := run(deps, plan, func(ev executor.Event) { deps.post(removeProgressMsg(ev)) })
 		return removedMsg{rep: rep, Err: err}
 	}
 }
 
 func (m TuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
-	ev := display(executor.ItemEvent(msg))
+	ev := display(executor.Event(msg))
 	r := m.removing
 	if r == nil {
 		return m, nil

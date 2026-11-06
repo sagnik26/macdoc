@@ -127,7 +127,7 @@ func newFixtureAt(t *testing.T, now func() time.Time) *fixture {
 		fixMu.Unlock()
 	})
 
-	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.FakeRunner{}, Catalog: cat, Version: "test", ScanRoot: filepath.Join(home, "code"), Now: now})
+	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.Fake{}, Catalog: cat, Version: "test", ScanRoot: filepath.Join(home, "code"), Now: now})
 	ct, st2 := sdk.NewInMemoryTransports()
 	ctx := context.Background()
 	ss, err := srv.Connect(ctx, st2, nil)

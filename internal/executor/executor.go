@@ -44,7 +44,7 @@ const DefaultNativeTimeout = 15 * time.Minute
 
 // NativeExec runs a fixed argv (no shell) and returns its combined output and
 // exit code. err means it couldn't run or timed out.
-type NativeExec func(ctx context.Context, argv []string, timeout time.Duration) (out []byte, exit int, err error)
+type Native func(ctx context.Context, argv []string, timeout time.Duration) (out []byte, exit int, err error)
 
 // Config is what the executor needs. Store and StorePath are required.
 type Config struct {
@@ -57,14 +57,14 @@ type Config struct {
 	Runner platform.Runner
 	// Exec runs native cleanup commands. Nil means the real one, which is
 	// refused in sandbox mode.
-	Exec          NativeExec
+	Exec          Native
 	Now           func() time.Time
 	QuarantineTTL time.Duration // default quarantine.DefaultTTL
 	NativeTimeout time.Duration // default DefaultNativeTimeout
 	// FreeSpace measures free space for the before/after report. Optional.
 	FreeSpace func(ctx context.Context) (int64, error)
 	// OnItem, if set, is told when an item starts and when it ends.
-	OnItem func(ev ItemEvent)
+	OnItem func(ev Event)
 	// StageHook is a test seam: it is called at each step of a move or purge
 	// (for example "pending", "moved", "purged-payload") so a crash or a swap
 	// can be simulated there. Production leaves it nil.
@@ -99,7 +99,7 @@ type ItemResult struct {
 }
 
 // ItemEvent reports progress: Result is nil when the item starts.
-type ItemEvent struct {
+type Event struct {
 	Index, Total int
 	Item         model.PlanItem
 	Result       *ItemResult

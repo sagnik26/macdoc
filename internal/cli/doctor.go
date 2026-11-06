@@ -13,7 +13,7 @@ import (
 )
 
 // Runner is the command Runner used by read-only commands; tests replace it.
-var Runner platform.Runner = platform.ExecRunner{}
+var Runner platform.Runner = platform.Exec{}
 
 // newDoctorCmd builds `macdoc doctor`: the one command that shows everything,
 // with sections underneath it for detail.

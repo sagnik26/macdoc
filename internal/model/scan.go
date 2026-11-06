@@ -3,24 +3,24 @@ package model
 import "time"
 
 // NodeKind distinguishes kept directories from kept individual files.
-type NodeKind string
+type Kind string
 
 // The kinds of node a scan keeps.
 const (
-	NodeDir  NodeKind = "dir"
-	NodeFile NodeKind = "file"
+	NodeDir  Kind = "dir"
+	NodeFile Kind = "file"
 )
 
 // Node is one kept entry from a scan: a directory (with everything below it
 // aggregated) or a single large file. Paths are user-facing (firmlinks mapped
 // back, e.g. /Users/x rather than /System/Volumes/Data/Users/x).
 type Node struct {
-	Path     string   `json:"path"`
-	Kind     NodeKind `json:"kind"`
-	Bytes    int64    `json:"bytes"`     // allocated bytes (st_blocks*512), hard links counted once
-	Files    int64    `json:"files"`     // regular files below (1 for a file node)
-	MtimeMax int64    `json:"mtime_max"` // newest mtime below, unix seconds
-	Depth    int      `json:"depth"`     // components below the scan root
+	Path     string `json:"path"`
+	Kind     Kind   `json:"kind"`
+	Bytes    int64  `json:"bytes"`     // allocated bytes (st_blocks*512), hard links counted once
+	Files    int64  `json:"files"`     // regular files below (1 for a file node)
+	MtimeMax int64  `json:"mtime_max"` // newest mtime below, unix seconds
+	Depth    int    `json:"depth"`     // components below the scan root
 
 	// Private is the bytes that deleting everything below this node is sure
 	// to free on APFS: the sum of its files' private sizes

@@ -12,23 +12,23 @@ import (
 // Homebrew's own state (BrewFingerprint) has not changed either.
 const DryRunTTL = 10 * time.Minute
 
-// CachedRun is one stored dry run: the Homebrew fingerprint and time it was
+// Cached is one stored dry run: the Homebrew fingerprint and time it was
 // taken at, and what the command printed.
-type CachedRun struct {
+type Cached struct {
 	Fingerprint string
 	At          time.Time
 	Result      platform.Result
 }
 
-// DryRunCache stores dry-run results between commands. It is for DISPLAY
+// Cache stores dry-run results between commands. It is for DISPLAY
 // only. The executor, planner.Verify and the listers must never be given one
 // (their Env leaves Env.Cache nil): they have to see what the live tool says
 // at the moment they act. A nil cache means no caching. Load reports false
 // for a missing or unreadable entry, and Save may fail; neither is ever
 // allowed to fail a detector.
-type DryRunCache interface {
-	Load(key string) (CachedRun, bool)
-	Save(key string, run CachedRun) error
+type Cache interface {
+	Load(key string) (Cached, bool)
+	Save(key string, run Cached) error
 }
 
 // RunCachedDryRun is RunDryRun for the slow Homebrew dry runs, reusing a
@@ -60,7 +60,7 @@ func RunCachedDryRun(ctx context.Context, env Env, r Recipe, timeout time.Durati
 	}
 	res, err := RunDryRun(ctx, env, r, timeout)
 	if err == nil && res.ExitCode == 0 {
-		_ = env.Cache.Save(key, CachedRun{Fingerprint: fp, At: now, Result: res}) // best effort
+		_ = env.Cache.Save(key, Cached{Fingerprint: fp, At: now, Result: res}) // best effort
 	}
 	return res, err
 }

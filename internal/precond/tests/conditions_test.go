@@ -16,7 +16,7 @@ const psKey = "ps -axww -o command="
 
 func check(t *testing.T, ps string, extra map[string]platform.Result, item model.PlanItem) error {
 	t.Helper()
-	r := &platform.FakeRunner{Responses: map[string]platform.Result{psKey: {Stdout: []byte(ps)}}}
+	r := &platform.Fake{Responses: map[string]platform.Result{psKey: {Stdout: []byte(ps)}}}
 	for k, v := range extra {
 		r.Responses[k] = v
 	}
@@ -48,7 +48,7 @@ func TestProcessPreconditions(t *testing.T) {
 }
 
 func TestUncheckableFails(t *testing.T) {
-	c := &precond.Checker{Runner: &platform.FakeRunner{Errors: map[string]error{psKey: errors.New("boom")}}}
+	c := &precond.Checker{Runner: &platform.Fake{Errors: map[string]error{psKey: errors.New("boom")}}}
 	if err := c.Check(context.Background(), model.PlanItem{Preconditions: []string{"app_not_running:Xcode"}}); err == nil {
 		t.Error("ps failure passed")
 	}

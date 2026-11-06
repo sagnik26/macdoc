@@ -30,7 +30,7 @@ func overviewHome(t *testing.T) (home, root string) {
 
 func TestOverviewScansWhenNoScanThenReuses(t *testing.T) {
 	home, root := overviewHome(t)
-	o := engine.OverviewOptions{Home: home, Runner: &platform.FakeRunner{}, ScanRoot: root, Catalog: &recipes.Catalog{}}
+	o := engine.OverviewOptions{Home: home, Runner: &platform.Fake{}, ScanRoot: root, Catalog: &recipes.Catalog{}}
 
 	first, err := engine.Overview(context.Background(), o)
 	if err != nil {
@@ -73,19 +73,19 @@ func TestOverviewErrors(t *testing.T) {
 	if err := os.MkdirAll(store.DefaultPath(home), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := engine.Overview(context.Background(), engine.OverviewOptions{Home: home, Runner: &platform.FakeRunner{}, Catalog: &recipes.Catalog{}}); err == nil {
+	if _, err := engine.Overview(context.Background(), engine.OverviewOptions{Home: home, Runner: &platform.Fake{}, Catalog: &recipes.Catalog{}}); err == nil {
 		t.Error("expected an error when the store can't open")
 	}
 	// engine.Scan root missing → the scan fails.
 	home2, _ := overviewHome(t)
-	if _, err := engine.Overview(context.Background(), engine.OverviewOptions{Home: home2, Runner: &platform.FakeRunner{}, ScanRoot: filepath.Join(home2, "nope"), Catalog: &recipes.Catalog{}}); err == nil {
+	if _, err := engine.Overview(context.Background(), engine.OverviewOptions{Home: home2, Runner: &platform.Fake{}, ScanRoot: filepath.Join(home2, "nope"), Catalog: &recipes.Catalog{}}); err == nil {
 		t.Error("expected an error when the scan root is missing")
 	}
 }
 
 func TestStoragePrecomputed(t *testing.T) {
 	home, root := overviewHome(t)
-	o := engine.OverviewOptions{Home: home, Runner: &platform.FakeRunner{}, ScanRoot: root, Catalog: &recipes.Catalog{}}
+	o := engine.OverviewOptions{Home: home, Runner: &platform.Fake{}, ScanRoot: root, Catalog: &recipes.Catalog{}}
 	ov, err := engine.Overview(context.Background(), o)
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestStoragePrecomputed(t *testing.T) {
 	pre := ov.Opportunities
 	pre.Opportunities = []model.Opportunity{{ID: "O-test01", Category: "logs", Risk: model.RiskSafe, Bytes: model.Bytes{Value: 5, Source: model.SourceMeasured}}}
 	res, err := engine.Storage(context.Background(), engine.StorageOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: &platform.FakeRunner{}, Catalog: &recipes.Catalog{}},
+		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: &platform.Fake{}, Catalog: &recipes.Catalog{}},
 		Precomputed:        &pre,
 	})
 	if err != nil {

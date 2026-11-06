@@ -58,14 +58,14 @@ const (
 )
 
 // GitState is what git says about a project's working tree.
-type GitState string
+type Git string
 
 // What is known about a project's git working tree.
 const (
-	GitClean   GitState = "clean"   // no uncommitted changes
-	GitDirty   GitState = "dirty"   // uncommitted or untracked changes
-	GitNone    GitState = "none"    // not inside a git repository
-	GitUnknown GitState = "unknown" // not checked, git missing, or git failed
+	GitClean   Git = "clean"   // no uncommitted changes
+	GitDirty   Git = "dirty"   // uncommitted or untracked changes
+	GitNone    Git = "none"    // not inside a git repository
+	GitUnknown Git = "unknown" // not checked, git missing, or git failed
 )
 
 // Activity sources: what the project's last activity time came from.
@@ -109,7 +109,7 @@ type Project struct {
 	LastActive       time.Time `json:"last_active,omitzero"` // zero if unknown
 	ActivitySource   string    `json:"activity_source,omitempty"`
 	IdleDays         int       `json:"idle_days"` // -1 if unknown
-	Git              GitState  `json:"git"`
+	Git              Git       `json:"git"`
 	GitNote          string    `json:"git_note,omitempty"` // why the state is unknown
 	// Protected projects (e.g. in ~/Desktop or ~/Documents) are listed but
 	// macdoc never suggests moving anything inside them.

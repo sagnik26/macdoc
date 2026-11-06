@@ -194,8 +194,8 @@ func TestArchivesAdviseOnly(t *testing.T) {
 func TestSimctlUnavailable(t *testing.T) {
 	withTools(t, "xcrun")
 	devsJSON := readFixture(t, "w1_simctl_devices.json")
-	runner := func(res platform.Result) *platform.FakeRunner {
-		return &platform.FakeRunner{Responses: map[string]platform.Result{keyDevs: res}}
+	runner := func(res platform.Result) *platform.Fake {
+		return &platform.Fake{Responses: map[string]platform.Result{keyDevs: res}}
 	}
 	ok := platform.Result{Stdout: devsJSON}
 	d1, d2 := devsDir+"0A1B2C3D-0000-4000-8000-000000000001", devsDir+"0A1B2C3D-0000-4000-8000-000000000002"
@@ -244,7 +244,7 @@ func TestSimctlToolMissingAndErrors(t *testing.T) {
 		}
 		nodes := fakeNodes{}
 		withTools(t, "xcrun")
-		missing := map[string]*platform.FakeRunner{
+		missing := map[string]*platform.Fake{
 			"CLT only":  {Responses: map[string]platform.Result{key: simctlMissing(t)}},
 			"not found": {Errors: map[string]error{key: errors.New(`exec: "xcrun": executable file not found in $PATH`)}},
 		}
@@ -253,7 +253,7 @@ func TestSimctlToolMissingAndErrors(t *testing.T) {
 				t.Errorf("%s %s: %+v, %v", id, name, fs, err)
 			}
 		}
-		failing := map[string]*platform.FakeRunner{
+		failing := map[string]*platform.Fake{
 			"timeout":  {Errors: map[string]error{key: context.DeadlineExceeded}},
 			"exit":     {Responses: map[string]platform.Result{key: {ExitCode: 1, Stderr: []byte("CoreSimulatorService connection invalid")}}},
 			"bad json": {Responses: map[string]platform.Result{key: {Stdout: []byte("{")}}},
@@ -264,7 +264,7 @@ func TestSimctlToolMissingAndErrors(t *testing.T) {
 			}
 		}
 		withTools(t)
-		fr := &platform.FakeRunner{}
+		fr := &platform.Fake{}
 		if fs, err := detect(t, id, recipes.Env{Home: me, Runner: fr, Nodes: nodes}); fs != nil || err != nil || len(fr.Calls) != 0 {
 			t.Errorf("%s without xcrun: %+v, %v, calls %v", id, fs, err, fr.Calls)
 		}
@@ -273,7 +273,7 @@ func TestSimctlToolMissingAndErrors(t *testing.T) {
 
 func TestSimctlIdle(t *testing.T) {
 	withTools(t, "xcrun")
-	fr := &platform.FakeRunner{Responses: map[string]platform.Result{keyDevs: {Stdout: readFixture(t, "w1_simctl_devices.json")}}}
+	fr := &platform.Fake{Responses: map[string]platform.Result{keyDevs: {Stdout: readFixture(t, "w1_simctl_devices.json")}}}
 	old, recent := mtime("2024-01-10"), mtime("2026-10-20")
 	d3 := devsDir + "1A1B2C3D-0000-4000-8000-000000000003"
 	env := recipes.Env{Home: me, Runner: fr, Now: w1Now, Nodes: fakeNodes{
@@ -304,7 +304,7 @@ func TestSimctlIdle(t *testing.T) {
 
 func TestSimctlRuntimes(t *testing.T) {
 	withTools(t, "xcrun")
-	fr := &platform.FakeRunner{Responses: map[string]platform.Result{keyRTs: {Stdout: readFixture(t, "w1_simctl_runtime_list.json")}}}
+	fr := &platform.Fake{Responses: map[string]platform.Result{keyRTs: {Stdout: readFixture(t, "w1_simctl_runtime_list.json")}}}
 	fs := mustDetect(t, "xcode.sim_runtimes", recipes.Env{Home: me, Runner: fr})
 	want := []struct {
 		arg, title string
@@ -340,7 +340,7 @@ func TestOrphanedSimRuntimes(t *testing.T) {
 		{Path: dyld, Bytes: 15_200_000_000},
 		{Path: "/Library/Developer/CoreSimulator/Images", Bytes: 0},
 	}
-	missing := &platform.FakeRunner{Responses: map[string]platform.Result{keyFind: simctlMissing(t)}}
+	missing := &platform.Fake{Responses: map[string]platform.Result{keyFind: simctlMissing(t)}}
 
 	withTools(t, "xcrun")
 	fs := mustDetect(t, "xcode.sim_runtimes_orphaned", recipes.Env{Home: me, Runner: missing, Nodes: nodes})
@@ -355,13 +355,13 @@ func TestOrphanedSimRuntimes(t *testing.T) {
 
 	// No xcrun at all: also unavailable.
 	withTools(t)
-	if fs := mustDetect(t, "xcode.sim_runtimes_orphaned", recipes.Env{Home: me, Runner: &platform.FakeRunner{}, Nodes: nodes}); len(fs) != 2 {
+	if fs := mustDetect(t, "xcode.sim_runtimes_orphaned", recipes.Env{Home: me, Runner: &platform.Fake{}, Nodes: nodes}); len(fs) != 2 {
 		t.Errorf("no xcrun = %+v", fs)
 	}
 
 	// simctl works: xcode.sim_runtimes covers it.
 	withTools(t, "xcrun")
-	works := &platform.FakeRunner{Responses: map[string]platform.Result{keyFind: {Stdout: []byte("/Applications/Xcode.app/Contents/Developer/usr/bin/simctl\n")}}}
+	works := &platform.Fake{Responses: map[string]platform.Result{keyFind: {Stdout: []byte("/Applications/Xcode.app/Contents/Developer/usr/bin/simctl\n")}}}
 	if fs := mustDetect(t, "xcode.sim_runtimes_orphaned", recipes.Env{Home: me, Runner: works, Nodes: nodes}); fs != nil {
 		t.Errorf("simctl available = %+v", fs)
 	}
@@ -370,7 +370,7 @@ func TestOrphanedSimRuntimes(t *testing.T) {
 			t.Errorf("no scan / no runner = %+v", fs)
 		}
 	}
-	for name, fr := range map[string]*platform.FakeRunner{
+	for name, fr := range map[string]*platform.Fake{
 		"timeout": {Errors: map[string]error{keyFind: context.DeadlineExceeded}},
 		"exit":    {Responses: map[string]platform.Result{keyFind: {ExitCode: 1, Stderr: []byte("boom")}}},
 	} {
@@ -427,7 +427,7 @@ func TestXcodeHelpers(t *testing.T) {
 		t.Error("success is not a missing tool")
 	}
 	// A failing scan store is an error for every scan-based detector.
-	bad := recipes.Env{Home: me, Nodes: errNodes{}, Runner: &platform.FakeRunner{}}
+	bad := recipes.Env{Home: me, Nodes: errNodes{}, Runner: &platform.Fake{}}
 	if _, _, err := recipes.ScanNode(bad, "/x"); err == nil {
 		t.Error("scanNode error swallowed")
 	}

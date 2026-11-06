@@ -323,7 +323,7 @@ func (s *Store) OldestScan() (model.ScanInfo, error) {
 const nodeCols = `path, kind, bytes, files, mtime_max, rel_depth, private_bytes`
 
 // NodeQuery filters Nodes.
-type NodeQuery struct {
+type Query struct {
 	Prefix   string // only nodes equal to or below this path ("" = all)
 	MinBytes int64
 	MaxDepth int // relative to Prefix's depth; 0 = unlimited
@@ -332,7 +332,7 @@ type NodeQuery struct {
 
 // Nodes returns a scan's kept nodes, Bytes descending (Path ascending on
 // ties). Prefix matching is component-wise and case-insensitive.
-func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
+func (s *Store) Nodes(scanID string, q Query) ([]model.Node, error) {
 	if err := s.scanExists(scanID); err != nil {
 		return nil, err
 	}
@@ -389,7 +389,7 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 		if err := rows.Scan(&n.Path, &kind, &n.Bytes, &n.Files, &n.MtimeMax, &n.Depth, &priv); err != nil {
 			return nil, fmt.Errorf("store: nodes: %w", err)
 		}
-		n.Kind = model.NodeKind(kind)
+		n.Kind = model.Kind(kind)
 		if priv.Valid {
 			n.Private = &priv.Int64
 		}
@@ -440,7 +440,7 @@ func (s *Store) scanExists(scanID string) error {
 
 // History returns (scanID, startedAt, bytes) for the given exact node path
 // across complete scans, oldest first. Used by `trend` later.
-func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
+func (s *Store) History(p string, limit int) ([]Point, error) {
 	if limit <= 0 {
 		limit = -1
 	}
@@ -453,10 +453,10 @@ func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
 		return nil, fmt.Errorf("store: history: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := []HistoryPoint{}
+	out := []Point{}
 	for rows.Next() {
 		var (
-			h       HistoryPoint
+			h       Point
 			started int64
 		)
 		if err := rows.Scan(&h.ScanID, &started, &h.Bytes); err != nil {
@@ -475,7 +475,7 @@ func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
 }
 
 // HistoryPoint is one sample of a path's size over time.
-type HistoryPoint struct {
+type Point struct {
 	ScanID    string    `json:"scan_id"`
 	StartedAt time.Time `json:"started_at"`
 	Bytes     int64     `json:"bytes"`

@@ -23,7 +23,7 @@ func TestInterruptedApplySkipsTheRest(t *testing.T) { //nolint:gocyclo // A line
 		e.item(t, "O-cccccc", "user.logs", model.RiskSafe, c))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	e.cfg.OnItem = func(ev executor.ItemEvent) {
+	e.cfg.OnItem = func(ev executor.Event) {
 		if ev.Result != nil && ev.Index == 1 {
 			cancel()
 		}

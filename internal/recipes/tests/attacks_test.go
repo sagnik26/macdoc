@@ -208,7 +208,7 @@ func TestR1DryRunArgvNotCheckedAndExecutedByDetector(t *testing.T) {
 	}
 
 	r1AllTools(t)
-	runner := &platform.FakeRunner{Responses: map[string]platform.Result{"brew cleanup --prune=all": {}}}
+	runner := &platform.Fake{Responses: map[string]platform.Result{"brew cleanup --prune=all": {}}}
 	// P3-W4 D2: recipes.RunDryRun refuses an argv outside the dry-run allow-list,
 	// so the detector now returns an error instead of running it.
 	if _, err := recipes.DetectBrewCleanup(context.Background(), recipes.Env{Home: w2Home, Runner: runner, Now: w2Now}, r); err == nil {
@@ -869,7 +869,7 @@ func TestR1DetectorSideEffectsHeld(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, withResponses := range []bool{true, false} {
-		runner := &platform.FakeRunner{}
+		runner := &platform.Fake{}
 		if withResponses {
 			runner.Responses = r1Fixtures(t)
 		}

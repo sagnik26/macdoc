@@ -72,8 +72,8 @@ func w2WithTools(t *testing.T, tools ...string) {
 	t.Cleanup(func() { recipes.ToolInstalled = old })
 }
 
-func w2Fake(responses map[string]platform.Result) *platform.FakeRunner {
-	return &platform.FakeRunner{Responses: responses}
+func w2Fake(responses map[string]platform.Result) *platform.Fake {
+	return &platform.Fake{Responses: responses}
 }
 
 func w2Targets(fs []recipes.Finding) []string {
@@ -242,7 +242,7 @@ func TestLocalSnapshots(t *testing.T) {
 	if _, err := w2Run(t, "tm.local_snapshots", recipes.Env{Runner: w2Fake(map[string]platform.Result{key: {ExitCode: 1, Stderr: []byte("boom")}})}); err == nil {
 		t.Error("non-zero exit accepted")
 	}
-	if _, err := w2Run(t, "tm.local_snapshots", recipes.Env{Runner: &platform.FakeRunner{Errors: map[string]error{key: errors.New("timeout")}}}); err == nil {
+	if _, err := w2Run(t, "tm.local_snapshots", recipes.Env{Runner: &platform.Fake{Errors: map[string]error{key: errors.New("timeout")}}}); err == nil {
 		t.Error("runner error swallowed")
 	}
 	fs, err = w2Run(t, "tm.local_snapshots", recipes.Env{})

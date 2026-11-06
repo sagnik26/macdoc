@@ -29,7 +29,7 @@ func repoHome(t *testing.T, rel string) (home, project string) {
 	return home, project
 }
 
-func gitCheck(t *testing.T, home string, r *platform.FakeRunner, target string) error {
+func gitCheck(t *testing.T, home string, r *platform.Fake, target string) error {
 	t.Helper()
 	c := &precond.Checker{Runner: r, Home: home}
 	return c.Check(context.Background(), model.PlanItem{Preconditions: []string{"git_clean"}, Target: target})
@@ -37,8 +37,8 @@ func gitCheck(t *testing.T, home string, r *platform.FakeRunner, target string) 
 
 func TestGitClean(t *testing.T) {
 	home, project := repoHome(t, "work/app")
-	status := func(res platform.Result) *platform.FakeRunner {
-		return &platform.FakeRunner{Responses: map[string]platform.Result{gitStatusKey(project): res}}
+	status := func(res platform.Result) *platform.Fake {
+		return &platform.Fake{Responses: map[string]platform.Result{gitStatusKey(project): res}}
 	}
 	target := filepath.Join(project, "node_modules")
 
@@ -65,7 +65,7 @@ func TestGitClean(t *testing.T) {
 		}
 	})
 	t.Run("git not runnable is not clean", func(t *testing.T) {
-		r := &platform.FakeRunner{Errors: map[string]error{gitStatusKey(project): errors.New("no git")}}
+		r := &platform.Fake{Errors: map[string]error{gitStatusKey(project): errors.New("no git")}}
 		err := gitCheck(t, home, r, target)
 		if err == nil || !strings.Contains(err.Error(), "couldn't check") {
 			t.Errorf("git error = %v, want a could-not-check error", err)
@@ -79,7 +79,7 @@ func TestGitClean(t *testing.T) {
 	})
 	t.Run("outside a repository is not an obstacle", func(t *testing.T) {
 		plain := t.TempDir()
-		if err := gitCheck(t, plain, &platform.FakeRunner{}, filepath.Join(plain, "app", "build")); err != nil {
+		if err := gitCheck(t, plain, &platform.Fake{}, filepath.Join(plain, "app", "build")); err != nil {
 			t.Errorf("no repo = %v", err)
 		}
 	})
@@ -90,14 +90,14 @@ func TestGitClean(t *testing.T) {
 func TestGitCleanPlatformFolders(t *testing.T) {
 	for _, platformDir := range []string{"ios", "android"} {
 		home, project := repoHome(t, "rn")
-		r := &platform.FakeRunner{Responses: map[string]platform.Result{gitStatusKey(project): {Stdout: []byte(" M App.tsx\n")}}}
+		r := &platform.Fake{Responses: map[string]platform.Result{gitStatusKey(project): {Stdout: []byte(" M App.tsx\n")}}}
 		target := filepath.Join(project, platformDir, "build")
 		if err := gitCheck(t, home, r, target); err == nil || !strings.Contains(err.Error(), "uncommitted") {
 			t.Errorf("%s: dirty project above = %v", platformDir, err)
 		}
 		// Clean project: passing proves git was asked about the project; asking
 		// about the platform folder would hit a command with no canned answer.
-		r = &platform.FakeRunner{Responses: map[string]platform.Result{gitStatusKey(project): {}}}
+		r = &platform.Fake{Responses: map[string]platform.Result{gitStatusKey(project): {}}}
 		if err := gitCheck(t, home, r, target); err != nil {
 			t.Errorf("%s: clean project above = %v", platformDir, err)
 		}
@@ -108,7 +108,7 @@ func TestGitCleanPlatformFolders(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(sub, ".git"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	r := &platform.FakeRunner{Responses: map[string]platform.Result{
+	r := &platform.Fake{Responses: map[string]platform.Result{
 		gitStatusKey(sub):     {},
 		gitStatusKey(project): {Stdout: []byte(" M x\n")},
 	}}
@@ -118,7 +118,7 @@ func TestGitCleanPlatformFolders(t *testing.T) {
 }
 
 func TestPsFailureNamesTheExitCode(t *testing.T) {
-	r := &platform.FakeRunner{Responses: map[string]platform.Result{psKey: {ExitCode: 3}}}
+	r := &platform.Fake{Responses: map[string]platform.Result{psKey: {ExitCode: 3}}}
 	c := &precond.Checker{Runner: r}
 	err := c.Check(context.Background(), model.PlanItem{Preconditions: []string{"simulator_not_running"}})
 	if err == nil || !strings.Contains(err.Error(), "ps exited 3") {
@@ -161,7 +161,7 @@ func TestDockerReachableNeedsAVersion(t *testing.T) {
 			t.Errorf("%s: passed", name)
 		}
 	}
-	r := &platform.FakeRunner{Errors: map[string]error{key: errors.New("no docker")}}
+	r := &platform.Fake{Errors: map[string]error{key: errors.New("no docker")}}
 	if err := (&precond.Checker{Runner: r}).Check(context.Background(), item); err == nil {
 		t.Error("docker not runnable: passed")
 	}
@@ -182,7 +182,7 @@ func TestOllamaEdges(t *testing.T) {
 	if err := check(t, "", ps(hdr, 1), item("ollama", "rm", "m")); err == nil || !strings.Contains(err.Error(), "couldn't ask ollama") {
 		t.Errorf("ollama ps exit 1 = %v", err)
 	}
-	r := &platform.FakeRunner{Errors: map[string]error{"ollama ps": errors.New("not installed")}}
+	r := &platform.Fake{Errors: map[string]error{"ollama ps": errors.New("not installed")}}
 	c := &precond.Checker{Runner: r}
 	if err := c.Check(context.Background(), item("ollama", "rm", "m")); err == nil {
 		t.Error("ollama not runnable: passed")

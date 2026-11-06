@@ -41,7 +41,7 @@ func removeTUI(t *testing.T, items ...model.PlanItem) (cli.TuiModel, *[]model.Pl
 		return res, nil
 	}
 	var calls []model.Plan
-	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error) {
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, onItem func(executor.Event)) (executor.Report, error) {
 		calls = append(calls, p)
 		rep := executor.Report{PlanID: p.ID}
 		for _, it := range p.Items {

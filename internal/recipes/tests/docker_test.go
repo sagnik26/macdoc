@@ -107,7 +107,7 @@ func TestDockerMissingAndErrors(t *testing.T) {
 			}
 		}
 	}
-	env := recipes.Env{Runner: &platform.FakeRunner{Errors: map[string]error{dockerDFKey: errors.New("timeout")}}}
+	env := recipes.Env{Runner: &platform.Fake{Errors: map[string]error{dockerDFKey: errors.New("timeout")}}}
 	if _, err := w2Run(t, "docker.build_cache", env); err == nil {
 		t.Error("runner error swallowed")
 	}

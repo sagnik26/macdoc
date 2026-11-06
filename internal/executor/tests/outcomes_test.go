@@ -122,7 +122,7 @@ func TestProgressEvents(t *testing.T) {
 		e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, e.folder(t, "Library/Logs/A")),
 		e.item(t, "O-bbbbbb", "user.logs", model.RiskSafe, e.folder(t, "Library/Logs/B")))
 	var got []string
-	e.cfg.OnItem = func(ev executor.ItemEvent) {
+	e.cfg.OnItem = func(ev executor.Event) {
 		state := "start"
 		if ev.Result != nil {
 			state = "end:" + string(ev.Result.Outcome)

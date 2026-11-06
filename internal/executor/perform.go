@@ -49,7 +49,7 @@ func (p *performer) Quarantine(item model.PlanItem, target string) error {
 func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) error {
 	p.index++
 	if p.cfg.OnItem != nil {
-		p.cfg.OnItem(ItemEvent{Index: p.index, Total: p.total, Item: item})
+		p.cfg.OnItem(Event{Index: p.index, Total: p.total, Item: item})
 	}
 	res := ItemResult{Item: item}
 	var err error
@@ -107,7 +107,7 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 	p.results = append(p.results, res)
 	if p.cfg.OnItem != nil {
 		r := res
-		p.cfg.OnItem(ItemEvent{Index: p.index, Total: p.total, Item: item, Result: &r})
+		p.cfg.OnItem(Event{Index: p.index, Total: p.total, Item: item, Result: &r})
 	}
 	return err
 }

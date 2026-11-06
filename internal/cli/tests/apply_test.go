@@ -54,7 +54,7 @@ func newApplyEnv(t *testing.T) *applyEnv {
 		t.Fatal(err)
 	}
 	old := cli.Runner
-	cli.Runner = &platform.FakeRunner{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
+	cli.Runner = &platform.Fake{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
 	t.Cleanup(func() { cli.Runner = old })
 	tty := cli.RealTTY
 	cli.RealTTY = func(io.Reader, io.Writer) bool { return true }

@@ -34,8 +34,8 @@ var RealTTY = func(r io.Reader, w io.Writer) bool {
 type ApplyDeps struct {
 	Home string
 	Now  func() time.Time
-	exec executor.NativeExec // nil: the real one
-	Keep bool                // tests: leave moved items in quarantine instead of deleting them
+	exec executor.Native // nil: the real one
+	Keep bool            // tests: leave moved items in quarantine instead of deleting them
 }
 
 func newApplyCmd(g *GlobalFlags) *cobra.Command {
@@ -126,7 +126,7 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: cat, Runner: Runner, Exec: d.exec, Now: d.Now,
 		DeleteNow: !d.Keep,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
-		OnItem:    func(ev executor.ItemEvent) { writeProgress(out, t, ev) },
+		OnItem:    func(ev executor.Event) { writeProgress(out, t, ev) },
 	}, res.Plan, approved)
 	if err != nil {
 		return fmt.Errorf("nothing was changed: %w", err)
@@ -212,7 +212,7 @@ func readLine(rd *bufio.Reader) (string, error) {
 	return strings.TrimSpace(s), nil
 }
 
-func writeProgress(w io.Writer, t *Theme, ev executor.ItemEvent) {
+func writeProgress(w io.Writer, t *Theme, ev executor.Event) {
 	ev = display(ev) // disk-sourced text, cleaned for the terminal (display)
 	it := ev.Item
 	if ev.Result == nil {

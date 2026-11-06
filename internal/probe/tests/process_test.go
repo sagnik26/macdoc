@@ -166,7 +166,7 @@ func TestParsePSBad(t *testing.T) {
 }
 
 func TestCollectProcesses(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{
+	f := &platform.Fake{Responses: map[string]platform.Result{
 		"ps -axo rss=,comm=": w1OK(w1Fixture(t, "w1_ps_spaces.txt")),
 	}}
 	got, err := probe.CollectProcesses(context.Background(), f, 2)
@@ -180,7 +180,7 @@ func TestCollectProcesses(t *testing.T) {
 }
 
 func TestCollectProcessesError(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{
+	f := &platform.Fake{Responses: map[string]platform.Result{
 		"ps -axo rss=,comm=": {ExitCode: 1, Stderr: []byte("ps: bad option\n")},
 	}}
 	_, err := probe.CollectProcesses(context.Background(), f, 5)
@@ -188,7 +188,7 @@ func TestCollectProcessesError(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 
-	f = &platform.FakeRunner{Errors: map[string]error{"ps -axo rss=,comm=": context.DeadlineExceeded}}
+	f = &platform.Fake{Errors: map[string]error{"ps -axo rss=,comm=": context.DeadlineExceeded}}
 	_, err = probe.CollectProcesses(context.Background(), f, 5)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v", err)

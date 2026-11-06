@@ -28,12 +28,12 @@ func NewScanNodes(st *store.Store, scanID string) ScanNodes {
 
 // Nodes implements recipes.NodeSource.
 func (s ScanNodes) Nodes(prefix string, maxDepth int) ([]model.Node, error) {
-	return s.Query(store.NodeQuery{Prefix: prefix, MaxDepth: maxDepth})
+	return s.Query(store.Query{Prefix: prefix, MaxDepth: maxDepth})
 }
 
 // Query returns what store.Nodes returns for q, from memory when the scan
 // has an index.
-func (s ScanNodes) Query(q store.NodeQuery) ([]model.Node, error) {
+func (s ScanNodes) Query(q store.Query) ([]model.Node, error) {
 	if s.ix != nil {
 		if ns, ok := s.ix.query(q); ok {
 			return ns, nil

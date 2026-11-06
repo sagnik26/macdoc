@@ -23,7 +23,7 @@ func TestPrivateRoundTripKeepsNullAndZeroApart(t *testing.T) {
 	mustAdd(t, s, id, known, zero, unknown)
 	mustFinish(t, s, id, model.ScanComplete, t0)
 
-	ns, err := s.Nodes(id, store.NodeQuery{})
+	ns, err := s.Nodes(id, store.Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestPrivateIsReplacedOnConflict(t *testing.T) {
 	mustAdd(t, s, id, n)
 	n.Private = nil // the same node written again, now unknown
 	mustAdd(t, s, id, n)
-	ns, err := s.Nodes(id, store.NodeQuery{})
+	ns, err := s.Nodes(id, store.Query{})
 	if err != nil || len(ns) != 1 {
 		t.Fatalf("nodes %v, %v", ns, err)
 	}
@@ -107,7 +107,7 @@ func TestPrivateUpgradeKeepsOldRowsUnknown(t *testing.T) {
 	if err := s.DB.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != len(saved) {
 		t.Fatalf("schema version %d, %v; want %d", version, err, len(saved))
 	}
-	ns, err := s.Nodes(id, store.NodeQuery{})
+	ns, err := s.Nodes(id, store.Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestPrivateUpgradeKeepsOldRowsUnknown(t *testing.T) {
 	n := dir("/new", 10)
 	n.Private = size(10)
 	mustAdd(t, s, id2, n)
-	got, err := s.Nodes(id2, store.NodeQuery{})
+	got, err := s.Nodes(id2, store.Query{})
 	if err != nil || len(got) != 1 || got[0].Private == nil || *got[0].Private != 10 {
 		t.Errorf("new scan after upgrade: %+v, %v", got, err)
 	}

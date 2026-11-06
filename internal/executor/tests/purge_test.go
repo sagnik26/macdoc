@@ -331,7 +331,7 @@ func TestDeleteNowKeepsWhatItCannotPurge(t *testing.T) {
 	target := e.folder(t, "Library/Logs/A")
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
 	log := audit.Path(e.storePath)
-	e.cfg.OnItem = func(ev executor.ItemEvent) {
+	e.cfg.OnItem = func(ev executor.Event) {
 		if ev.Result == nil {
 			_ = os.Chmod(log, 0o400)
 		}

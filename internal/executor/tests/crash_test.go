@@ -50,7 +50,7 @@ func crashChild() {
 			os.Exit(crashCode)
 		}
 	}
-	runner := &platform.FakeRunner{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
+	runner := &platform.Fake{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
 	cfg := executor.Config{Store: st, StorePath: sp, Home: home, Catalog: cat, Now: func() time.Time { return t0.Add(time.Minute) },
 		Runner: runner, Exec: (&fakeExec{}).run, StageHook: stageHook}
 	_, _ = executor.Apply(context.Background(), cfg, p, executor.Approvals{p.Items[0].OpportunityID: {Individually: true}})

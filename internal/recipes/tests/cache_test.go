@@ -14,29 +14,29 @@ import (
 
 // memCache is an in-memory recipes.DryRunCache that can be made to fail.
 type memCache struct {
-	runs     map[string]recipes.CachedRun
+	runs     map[string]recipes.Cached
 	loads    int
 	saves    int
 	saveErr  error
 	loadMiss bool
 }
 
-func (m *memCache) Load(key string) (recipes.CachedRun, bool) {
+func (m *memCache) Load(key string) (recipes.Cached, bool) {
 	m.loads++
 	if m.loadMiss {
-		return recipes.CachedRun{}, false
+		return recipes.Cached{}, false
 	}
 	r, ok := m.runs[key]
 	return r, ok
 }
 
-func (m *memCache) Save(key string, run recipes.CachedRun) error {
+func (m *memCache) Save(key string, run recipes.Cached) error {
 	m.saves++
 	if m.saveErr != nil {
 		return m.saveErr
 	}
 	if m.runs == nil {
-		m.runs = map[string]recipes.CachedRun{}
+		m.runs = map[string]recipes.Cached{}
 	}
 	m.runs[key] = run
 	return nil
@@ -78,13 +78,13 @@ func (f brewFixture) mkdir(t *testing.T, parts ...string) string {
 	return p
 }
 
-func (f brewFixture) env(c recipes.DryRunCache, r platform.Runner, now time.Time) recipes.Env {
+func (f brewFixture) env(c recipes.Cache, r platform.Runner, now time.Time) recipes.Env {
 	return recipes.Env{Home: f.home, Runner: r, Now: now, Cache: c}
 }
 
 const cleanupOut = "Would remove: /x/y (10MB)\n==> This operation would free approximately 10MB of disk space.\n"
 
-func cleanupRunner() *platform.FakeRunner {
+func cleanupRunner() *platform.Fake {
 	return w2Fake(map[string]platform.Result{
 		brewCleanupKey:    {Stdout: []byte(cleanupOut)},
 		brewAutoremoveKey: {Stdout: []byte("==> Would autoremove 1 unneeded formula:\nlibfoo\n")},
@@ -200,7 +200,7 @@ func TestCacheNeverStoresFailures(t *testing.T) {
 	if len(bad.Calls) != 2 || c.saves != 0 {
 		t.Errorf("non-zero exit: %d runs, %d saves; want 2 runs, nothing stored", len(bad.Calls), c.saves)
 	}
-	broken := &platform.FakeRunner{Errors: map[string]error{brewCleanupKey: errors.New("timeout")}}
+	broken := &platform.Fake{Errors: map[string]error{brewCleanupKey: errors.New("timeout")}}
 	for range 2 {
 		if _, err := w2Run(t, "brew.cleanup", f.env(c, broken, w2Now)); err == nil {
 			t.Fatal("a runner error was accepted")
@@ -220,7 +220,7 @@ func TestCacheProblemsFallBackToTheRealCommand(t *testing.T) {
 		{"save fails", func(_ brewFixture, c *memCache) { c.saveErr = errors.New("database is locked") }, 2},
 		{"load misses", func(_ brewFixture, c *memCache) { c.loadMiss = true }, 2},
 		{"stored fingerprint is garbage", func(_ brewFixture, c *memCache) {
-			c.runs = map[string]recipes.CachedRun{brewCleanupKey: {Fingerprint: "garbage", At: w2Now, Result: platform.Result{Stdout: []byte("junk")}}}
+			c.runs = map[string]recipes.Cached{brewCleanupKey: {Fingerprint: "garbage", At: w2Now, Result: platform.Result{Stdout: []byte("junk")}}}
 		}, 1}, // not used, replaced by a good entry, then reused
 		{"brew path unknown", func(_ brewFixture, _ *memCache) {
 			recipes.BrewBinary = func() (string, error) { return "", errors.New("not found") }

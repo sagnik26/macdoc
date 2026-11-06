@@ -146,7 +146,7 @@ func topLevel(storePath string, info model.ScanInfo) ([]model.Node, error) {
 	if root == scanner.DataVolume {
 		root = "/" // the Data volume is reported with firmlinks mapped back to /
 	}
-	nodes, err := st.Nodes(info.ID, store.NodeQuery{Prefix: root, MaxDepth: 1})
+	nodes, err := st.Nodes(info.ID, store.Query{Prefix: root, MaxDepth: 1})
 	if err != nil {
 		return nil, err
 	}

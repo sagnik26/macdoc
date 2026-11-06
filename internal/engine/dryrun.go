@@ -12,17 +12,17 @@ import (
 type dryRuns struct{ st *store.Store }
 
 // Load returns the stored run for key; any read problem is a miss.
-func (d dryRuns) Load(key string) (recipes.CachedRun, bool) {
+func (d dryRuns) Load(key string) (recipes.Cached, bool) {
 	r, ok, err := d.st.DryRun(key)
 	if err != nil || !ok {
-		return recipes.CachedRun{}, false
+		return recipes.Cached{}, false
 	}
-	return recipes.CachedRun{Fingerprint: r.Fingerprint, At: r.At,
+	return recipes.Cached{Fingerprint: r.Fingerprint, At: r.At,
 		Result: platform.Result{ExitCode: r.ExitCode, Stdout: r.Stdout, Stderr: r.Stderr}}, true
 }
 
 // Save stores run under key.
-func (d dryRuns) Save(key string, run recipes.CachedRun) error {
+func (d dryRuns) Save(key string, run recipes.Cached) error {
 	return d.st.SaveDryRun(store.DryRun{Key: key, Fingerprint: run.Fingerprint, At: run.At,
 		ExitCode: run.Result.ExitCode, Stdout: run.Result.Stdout, Stderr: run.Result.Stderr})
 }

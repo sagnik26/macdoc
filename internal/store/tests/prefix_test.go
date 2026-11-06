@@ -49,7 +49,7 @@ func TestNodesPrefixIsComponentWise(t *testing.T) {
 		{"/a/bc", []string{"/a/bc"}},
 		{"/a/zzz", nil},
 	} {
-		ns, err := s.Nodes(id, store.NodeQuery{Prefix: tt.prefix})
+		ns, err := s.Nodes(id, store.Query{Prefix: tt.prefix})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestNodesPrefixIsComponentWise(t *testing.T) {
 func TestNodesPrefixWithDepthSizeAndLimit(t *testing.T) {
 	s, id := loadNodes(t, "/p", "/p/a", "/p/a/b", "/p/a/b/c", "/p/z", "/q/a")
 	// depth is relative to the prefix: 1 is its children only
-	ns, err := s.Nodes(id, store.NodeQuery{Prefix: "/p", MaxDepth: 1})
+	ns, err := s.Nodes(id, store.Query{Prefix: "/p", MaxDepth: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,14 +77,14 @@ func TestNodesPrefixWithDepthSizeAndLimit(t *testing.T) {
 	}
 	// sizes are 1000+index, so MinBytes drops the smaller ones, and the
 	// result stays biggest first
-	ns, err = s.Nodes(id, store.NodeQuery{Prefix: "/p", MinBytes: 1002})
+	ns, err = s.Nodes(id, store.Query{Prefix: "/p", MinBytes: 1002})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := paths(ns); !slices.Equal(got, []string{"/p/z", "/p/a/b/c", "/p/a/b"}) {
 		t.Errorf("min bytes = %v", got)
 	}
-	ns, err = s.Nodes(id, store.NodeQuery{Prefix: "/p", Limit: 2})
+	ns, err = s.Nodes(id, store.Query{Prefix: "/p", Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestNodesPrefixWithDepthSizeAndLimit(t *testing.T) {
 		t.Errorf("limit 2 = %v", got)
 	}
 	// the root prefix means everything
-	ns, err = s.Nodes(id, store.NodeQuery{Prefix: "/"})
+	ns, err = s.Nodes(id, store.Query{Prefix: "/"})
 	if err != nil || len(ns) != 6 {
 		t.Errorf("root prefix = %d nodes, %v; want 6", len(ns), err)
 	}
@@ -130,7 +130,7 @@ func TestNodesPrefixDoesNotReadTheWholeScan(t *testing.T) {
 	const calls = 100
 	start := time.Now()
 	for i := 0; i < calls; i++ {
-		ns, err := s.Nodes(id, store.NodeQuery{Prefix: fmt.Sprintf("/Users/u/work/proj%04d", (i*7)%600), MaxDepth: 2})
+		ns, err := s.Nodes(id, store.Query{Prefix: fmt.Sprintf("/Users/u/work/proj%04d", (i*7)%600), MaxDepth: 2})
 		if err != nil {
 			t.Fatal(err)
 		}

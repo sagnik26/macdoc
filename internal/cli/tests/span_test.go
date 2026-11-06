@@ -155,7 +155,7 @@ func realClones(t *testing.T, shared bool) string {
 	oldHome, oldCat, oldRunner, oldTool := cli.UserHome, cli.LoadCatalog, cli.Runner, recipes.ToolInstalled
 	cli.UserHome = func() (string, error) { return home, nil }
 	cli.LoadCatalog = func() (*recipes.Catalog, error) { return cat, nil }
-	cli.Runner = &platform.FakeRunner{}
+	cli.Runner = &platform.Fake{}
 	recipes.ToolInstalled = func(string) bool { return true }
 	t.Cleanup(func() {
 		cli.UserHome, cli.LoadCatalog, cli.Runner, recipes.ToolInstalled = oldHome, oldCat, oldRunner, oldTool

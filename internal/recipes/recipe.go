@@ -137,7 +137,7 @@ type Env struct {
 	// Cache, when set, lets the slow Homebrew dry runs reuse a recent
 	// result (RunCachedDryRun). Display only: leave it nil anywhere that
 	// decides or acts (executor, planner.Verify, listers).
-	Cache DryRunCache
+	Cache Cache
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

@@ -1,0 +1,57 @@
+[
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/model",
+  "name": "NodeKind",
+  "new": "Kind"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/executor",
+  "name": "ItemEvent",
+  "new": "Event"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/executor",
+  "name": "NativeExec",
+  "new": "Native"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/platform",
+  "name": "ExecRunner",
+  "new": "Exec"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/platform",
+  "name": "FakeRunner",
+  "new": "Fake"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/store",
+  "name": "HistoryPoint",
+  "new": "Point"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/store",
+  "name": "NodeQuery",
+  "new": "Query"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "LinkSet",
+  "new": "Links"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/projects",
+  "name": "GitState",
+  "new": "Git"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/recipes",
+  "name": "DryRunCache",
+  "new": "Cache"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/recipes",
+  "name": "CachedRun",
+  "new": "Cached"
+ }
+]

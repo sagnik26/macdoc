@@ -116,8 +116,8 @@ func TestParseAPFSListErrors(t *testing.T) {
 	}
 }
 
-func diskRunner(t *testing.T) *platform.FakeRunner {
-	return &platform.FakeRunner{Responses: map[string]platform.Result{
+func diskRunner(t *testing.T) *platform.Fake {
+	return &platform.Fake{Responses: map[string]platform.Result{
 		"diskutil info -plist /":    {Stdout: readFixture(t, "diskutil_info_root.plist")},
 		"diskutil apfs list -plist": {Stdout: readFixture(t, "diskutil_apfs_list.plist")},
 	}}
@@ -162,14 +162,14 @@ func TestCollectDiskPurgeableUnknown(t *testing.T) {
 
 func TestCollectDiskAPFSListFailurePartial(t *testing.T) {
 	stubPurgeable(t, 0, false)
-	cases := map[string]func(r *platform.FakeRunner){
-		"run error": func(r *platform.FakeRunner) {
+	cases := map[string]func(r *platform.Fake){
+		"run error": func(r *platform.Fake) {
 			r.Errors = map[string]error{"diskutil apfs list -plist": errors.New("boom")}
 		},
-		"non-zero exit": func(r *platform.FakeRunner) {
+		"non-zero exit": func(r *platform.Fake) {
 			r.Responses["diskutil apfs list -plist"] = platform.Result{ExitCode: 1, Stderr: []byte("  apfs error  \n")}
 		},
-		"unknown container": func(r *platform.FakeRunner) {
+		"unknown container": func(r *platform.Fake) {
 			r.Responses["diskutil apfs list -plist"] = platform.Result{Stdout: readFixture(t, "w2_apfs_list_mount.plist")}
 		},
 	}
@@ -201,7 +201,7 @@ func TestCollectDiskInfoFailure(t *testing.T) {
 	}
 	for name, res := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &platform.FakeRunner{Responses: map[string]platform.Result{"diskutil info -plist /": res}}
+			r := &platform.Fake{Responses: map[string]platform.Result{"diskutil info -plist /": res}}
 			d, err := probe.CollectDisk(context.Background(), r)
 			if err == nil || !reflect.DeepEqual(d, probe.Disk{}) {
 				t.Fatalf("d=%+v err=%v", d, err)
@@ -211,7 +211,7 @@ func TestCollectDiskInfoFailure(t *testing.T) {
 			}
 		})
 	}
-	r := &platform.FakeRunner{Errors: map[string]error{"diskutil info -plist /": context.DeadlineExceeded}}
+	r := &platform.Fake{Errors: map[string]error{"diskutil info -plist /": context.DeadlineExceeded}}
 	if _, err := probe.CollectDisk(context.Background(), r); !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("run error not wrapped: %v", err)
 	}

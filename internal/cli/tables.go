@@ -748,7 +748,7 @@ func (m TuiModel) projectTables() string {
 }
 
 // gitLabel is a project's git state as a word.
-func gitLabel(g projects.GitState) string {
+func gitLabel(g projects.Git) string {
 	switch g {
 	case projects.GitClean:
 		return "clean"

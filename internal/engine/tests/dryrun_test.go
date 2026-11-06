@@ -37,7 +37,7 @@ func TestOpportunitiesReuseBrewDryRun(t *testing.T) {
 	if !ok {
 		t.Fatal("brew.cleanup not in the catalog")
 	}
-	runner := &platform.FakeRunner{Responses: map[string]platform.Result{
+	runner := &platform.Fake{Responses: map[string]platform.Result{
 		"brew cleanup -n --prune=all": {Stdout: []byte("Would remove: /x (10MB)\n==> This operation would free approximately 10MB of disk space.\n")},
 	}}
 	o := f.opts(r)

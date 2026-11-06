@@ -47,6 +47,16 @@ Left alone on purpose: struct fields are renamed only when every field has an ex
 
 Constants and types shorten well (`Pending`, `Expired`, `TTL`, `Normalize`, `Parse`). Functions that are verbs plus an object tend to get worse. The rule allows an exception when a single word is not possible "due to collision or any other issues"; for functions, loss of meaning is that other issue, and the sensible default is to keep the two-word name. In `store` (85 multi-word names) and `probe` (91) most would collide or lose meaning, so I did not rename them.
 
+## Wave 3 (types, owner-approved scope: types and constants only)
+
+11 renames applied in 7 packages (`wave3.json`): for example `platform.ExecRunner` to `Exec`, `platform.FakeRunner` to `Fake`, `store.HistoryPoint` to `Point`, `store.NodeQuery` to `Query`, `recipes.DryRunCache` to `Cache`. Four more were taken out after trying them:
+
+- **JSON schema names.** `model.PlanItem`, `model.ScanInfo` and `executor.EntryResult` appear in `schema/*.json` as `$defs` names, so renaming them changed 11 frozen schemas. That is a contract change (it needs a `schema_version` bump), so they keep their names. The same holds for the `engine.*Result` and `*Options` families, which I did not try.
+- **A gate side effect.** Renaming `executor.ItemResult` edited the signature lines of two executor functions that were already over the complexity limit, and the linter then counted them as new code. Fixing that means refactoring the executor for a rename, so it keeps its name.
+- **Meaning lost.** `store.QuarantineRecord` to `Held`, `PlanStatus` to `Stage` and `ScanStatus` to `Status` were dropped as misleading.
+
+Enum constants (`SeverityCritical`, `StepScan`, ...) keep their type prefix: without it they collide across types in the same package.
+
 ## What does not reduce to one word
 
 The renamer refused one (`Config.AddProtect` would clash with the `Protect` field), and I took `Config.RemoveProtect` off the list to keep the pair together. I also left these alone because no honest single word exists:

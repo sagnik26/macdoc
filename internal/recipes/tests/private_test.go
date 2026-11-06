@@ -88,7 +88,7 @@ func TestPathSuggestionUsesPrivateSize(t *testing.T) {
 func TestSimulatorsUsePrivateSizeAndKeepToolSize(t *testing.T) {
 	withTools(t, "xcrun")
 	devs := readFixture(t, "w1_simctl_devices.json")
-	runner := &platform.FakeRunner{Responses: map[string]platform.Result{keyDevs: {Stdout: devs}}}
+	runner := &platform.Fake{Responses: map[string]platform.Result{keyDevs: {Stdout: devs}}}
 	d1 := devsDir + "0A1B2C3D-0000-4000-8000-000000000001"
 	env := recipes.Env{Home: me, Runner: runner, Nodes: fakeNodes{{Path: d1, Bytes: 5000, Private: ptr(1200)}}}
 	fs := mustDetect(t, "xcode.simulators_unavailable", env)

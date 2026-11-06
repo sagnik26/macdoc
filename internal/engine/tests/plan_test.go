@@ -32,7 +32,7 @@ func planFixture(t *testing.T) (fixture, engine.PlanOptions) {
 	})
 	o := f.opts(rec("t.native", model.RiskSafe, model.MethodNative), rec("t.cache", model.RiskCaution, model.MethodQuarantine),
 		rec("t.advice", model.RiskAdvise, model.MethodAdvise))
-	o.Runner = &platform.FakeRunner{Responses: map[string]platform.Result{
+	o.Runner = &platform.Fake{Responses: map[string]platform.Result{
 		"tmutil listlocalsnapshots /": {Stdout: []byte("Snapshots for disk /:\ncom.apple.TimeMachine.2026-10-27-101500.local\n")},
 	}}
 	return f, engine.PlanOptions{OpportunityOptions: o}

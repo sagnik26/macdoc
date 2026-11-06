@@ -84,7 +84,7 @@ func TestW4DryRunAllowList(t *testing.T) {
 			t.Errorf("%q: %v", d, err)
 		}
 	}
-	runner := &platform.FakeRunner{}
+	runner := &platform.Fake{}
 	r := recipes.Recipe{ID: "x.y", Native: &recipes.Native{DryRunArgv: []string{"brew", "autoremove"}}}
 	if _, err := recipes.RunDryRun(context.Background(), recipes.Env{Runner: runner}, r, time.Second); err == nil || len(runner.Calls) != 0 {
 		t.Errorf("runDryRun ran %v, err %v", runner.Calls, err)

@@ -46,7 +46,7 @@ func testCatalog() *recipes.Catalog {
 // home (a second Claude client, or a restarted server).
 func connect(t *testing.T, home string, now func() time.Time) *fixture {
 	t.Helper()
-	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.FakeRunner{}, Catalog: testCatalog(), Version: "test",
+	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.Fake{}, Catalog: testCatalog(), Version: "test",
 		ScanRoot: filepath.Join(home, "code"), Now: now})
 	ct, st := sdk.NewInMemoryTransports()
 	ctx := context.Background()

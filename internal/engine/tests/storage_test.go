@@ -31,8 +31,8 @@ const (
 	fakeSnapshots = "Snapshots for disk /:\ncom.apple.TimeMachine.2026-10-27-101500.local\ncom.apple.TimeMachine.2026-10-27-111500.local\n"
 )
 
-func fakeSystemRunner() *platform.FakeRunner {
-	return &platform.FakeRunner{Responses: map[string]platform.Result{
+func fakeSystemRunner() *platform.Fake {
+	return &platform.Fake{Responses: map[string]platform.Result{
 		"diskutil info -plist /":      {Stdout: []byte(fakeDiskInfo)},
 		"diskutil apfs list -plist":   {Stdout: []byte(fakeAPFSList)},
 		"tmutil listlocalsnapshots /": {Stdout: []byte(fakeSnapshots)},
@@ -147,7 +147,7 @@ func TestStorageUnknownsWithoutRunner(t *testing.T) {
 
 	// A failing runner: same unknowns, with the errors as warnings.
 	o := f.opts()
-	o.Runner = &platform.FakeRunner{Errors: map[string]error{"tmutil listlocalsnapshots /": errors.New("denied")}}
+	o.Runner = &platform.Fake{Errors: map[string]error{"tmutil listlocalsnapshots /": errors.New("denied")}}
 	res, err = engine.Storage(context.Background(), engine.StorageOptions{OpportunityOptions: o})
 	if err != nil {
 		t.Fatal(err)

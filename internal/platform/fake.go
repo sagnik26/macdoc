@@ -9,7 +9,7 @@ import (
 
 // FakeRunner returns canned results keyed by "name arg1 arg2 ...". It records
 // every call so tests can assert exactly what would have been run.
-type FakeRunner struct {
+type Fake struct {
 	mu        sync.Mutex
 	Responses map[string]Result
 	Errors    map[string]error
@@ -22,7 +22,7 @@ func Key(cmd Command) string {
 }
 
 // Run implements Runner.
-func (f *FakeRunner) Run(_ context.Context, cmd Command) (Result, error) {
+func (f *Fake) Run(_ context.Context, cmd Command) (Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Calls = append(f.Calls, cmd)

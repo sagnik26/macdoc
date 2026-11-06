@@ -68,7 +68,7 @@ func Measure(ctx context.Context, o OpportunityOptions, op model.Opportunity) (*
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := NewScanNodes(st, op.ScanID).Query(store.NodeQuery{Prefix: op.Target, Limit: 1})
+	nodes, err := NewScanNodes(st, op.ScanID).Query(store.Query{Prefix: op.Target, Limit: 1})
 	_ = st.Close()
 	if err != nil {
 		return nil, err

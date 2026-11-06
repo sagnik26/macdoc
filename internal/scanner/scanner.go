@@ -183,7 +183,7 @@ type Scanner struct {
 	bytes  atomic.Int64
 	cur    atomic.Pointer[dir]
 
-	links LinkSet
+	links Links
 	attrs *unix.Attrlist // what getattrlistbulk is asked for
 	share *tracker       // sees every counted file; nil in a full scan
 
@@ -214,7 +214,7 @@ func newScanner(root, prefix string, st *unix.Stat_t, opts Options, tr *tracker)
 		rootDev:   st.Dev,
 		skip:      folded(opts.Skip),
 		opaque:    folded(opts.Opaque),
-		links:     LinkSet{Limit: opts.HardlinkLimit},
+		links:     Links{Limit: opts.HardlinkLimit},
 		attrs:     &bulkAttrs,
 		share:     tr,
 	}
@@ -812,7 +812,7 @@ func (s *Scanner) Fail(p string, err error) {
 
 // LinkSet de-duplicates hard links by (dev, ino). An entry is dropped once
 // all of its links have been seen, so only partially seen inodes use memory.
-type LinkSet struct {
+type Links struct {
 	mu    sync.Mutex
 	Limit int
 	M     map[linkKey]uint16 // remaining links not yet seen
@@ -825,7 +825,7 @@ type linkKey struct {
 }
 
 // Count reports whether this link's blocks should be counted.
-func (l *LinkSet) Count(dev int32, ino uint64, nlink uint16) bool {
+func (l *Links) Count(dev int32, ino uint64, nlink uint16) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	k := linkKey{dev, ino}

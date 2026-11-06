@@ -60,7 +60,7 @@ type env struct {
 	home, storePath string
 	st              *store.Store
 	cfg             executor.Config
-	runner          *platform.FakeRunner
+	runner          *platform.Fake
 	exec            *fakeExec
 }
 
@@ -100,7 +100,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{home: home, storePath: sp, st: st, exec: &fakeExec{},
-		runner: &platform.FakeRunner{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}}
+		runner: &platform.Fake{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}}
 	e.cfg = executor.Config{Store: st, StorePath: sp, Home: home, Catalog: cat, Runner: e.runner, Exec: e.exec.run,
 		Now: func() time.Time { return t0.Add(time.Minute) }}
 	return e

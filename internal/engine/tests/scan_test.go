@@ -145,11 +145,11 @@ func TestScanCarriesPrivateSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = st.Close() }()
-	fromStore, err := st.Nodes(sum.Info.ID, store.NodeQuery{})
+	fromStore, err := st.Nodes(sum.Info.ID, store.Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromIndex, err := engine.NewScanNodes(st, sum.Info.ID).Query(store.NodeQuery{})
+	fromIndex, err := engine.NewScanNodes(st, sum.Info.ID).Query(store.Query{})
 	if err != nil || len(fromStore) == 0 {
 		t.Fatalf("nodes = %v, %v", fromStore, err)
 	}

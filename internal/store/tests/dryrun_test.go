@@ -65,7 +65,7 @@ func TestDryRunUpgradeAddsTable(t *testing.T) {
 	if err := s.SaveDryRun(store.DryRun{Key: "k", At: t0}); err != nil {
 		t.Fatalf("table missing after upgrade: %v", err)
 	}
-	if ns, err := s.Nodes(id, store.NodeQuery{}); err != nil || len(ns) != 2 {
+	if ns, err := s.Nodes(id, store.Query{}); err != nil || len(ns) != 2 {
 		t.Errorf("old rows after upgrade: %v, %v", ns, err)
 	}
 	var version int
