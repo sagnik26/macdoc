@@ -17,6 +17,13 @@ type ExplainResult struct {
 	Scan        model.ScanInfo    `json:"scan"`
 	Opportunity model.Opportunity `json:"opportunity"`
 	BaseRisk    model.Risk        `json:"base_risk"` // the recipe's risk before context raised it
+	// BytesLower and BytesUpper are the least and the most that removing the
+	// item frees, measured when the explanation was made. They are set only
+	// when the item's files looked shared with copies (ADR 0005, stage 3).
+	// BytesLower alone means the most could not be worked out; neither means
+	// the size above is the whole answer. Unknown is absent, never zero.
+	BytesLower *int64 `json:"bytes_lower,omitempty"`
+	BytesUpper *int64 `json:"bytes_upper,omitempty"`
 }
 
 func newExplainCmd(g *GlobalFlags) *cobra.Command {
@@ -37,12 +44,36 @@ func newExplainCmd(g *GlobalFlags) *cobra.Command {
 			if base, raised := engine.RaisedFrom(op, cat); raised {
 				ex.BaseRisk = base
 			}
+			if warn := withSpan(cmd.Context(), &ex); warn != "" {
+				res.Warnings = append(res.Warnings, warn)
+			}
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "explain", ex, res.Warnings)
 			}
 			return RenderExplain(cmd.OutOrStdout(), ex)
 		},
 	}
+}
+
+// withSpan adds the measured range to ex when the item's files look shared. A
+// walk that fails or runs out of time costs the range, never the explanation;
+// the returned text says so, or is empty.
+func withSpan(ctx context.Context, ex *ExplainResult) string {
+	home, err := UserHome()
+	if err != nil {
+		return ""
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sp, err := engine.Measure(ctx, engine.OpportunityOptions{Home: home}, ex.Opportunity)
+	if err != nil {
+		return "could not measure how much of this is shared with copies: " + err.Error()
+	}
+	if sp != nil {
+		ex.BytesLower, ex.BytesUpper = &sp.Lower, sp.Upper
+	}
+	return ""
 }
 
 // RenderExplain writes one suggestion in detail in the human format.
@@ -66,7 +97,7 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 	}
 	row("Size", t.size.Render(sizeWithSource(op.Bytes)))
 	if op.Bytes.Source == model.SourceMeasured {
-		row("", t.muted.Render(SizeNote))
+		row("", t.muted.Render(sizeNote(ex)))
 	}
 	risk := t.riskStyle(op.Risk).Render(string(op.Risk))
 	if ex.BaseRisk != "" && ex.BaseRisk != op.Risk {
@@ -136,6 +167,23 @@ func stepText(t *Theme, s string) string {
 // is certain to free, which can be less than the folder's total when files in
 // it share space with copies (APFS clones).
 const SizeNote = "This is the space removing it is certain to free. It can be less than the folder's total when its files share space with copies."
+
+// sizeNote explains the size: the range when one was measured and the two
+// ends differ, else the plain note. With no upper end it gives the lower end
+// only, so an unknown is never shown as a number.
+func sizeNote(ex ExplainResult) string {
+	lo, hi := ex.BytesLower, ex.BytesUpper
+	switch {
+	case lo == nil:
+		return SizeNote
+	case hi == nil:
+		return "Removing this frees at least " + engine.DecimalBytes(*lo) + ". The most it could free could not be worked out."
+	case *hi <= *lo:
+		return SizeNote
+	}
+	return "Removing this frees at least " + engine.DecimalBytes(*lo) + " and at most " + engine.DecimalBytes(*hi) +
+		". The difference is space shared with copies of its files."
+}
 
 // sizeWithSource shows a size and where it came from; unknown is never 0.
 func sizeWithSource(v model.Bytes) string {

@@ -5,6 +5,26 @@
         "base_risk": {
           "type": "string"
         },
+        "bytes_lower": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bytes_upper": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "opportunity": {
           "$ref": "#/$defs/model.Opportunity"
         },
