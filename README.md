@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built; its dogfood week ended 2026-11-04 and it isn't signed off yet (0.88 of the 10 GB reclaim target); Phases 8–9 (Claude via MCP, with its limits and hardening) are built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 are complete; Phases 7–10 are built (Phase 7's dogfood week ended 2026-11-04 and it isn't signed off yet: 0.88 of the 10 GB reclaim target); Phase 11, open-source readiness, is in progress** (see [plan.md](plan.md)). It isn't released: there are no tags or binaries yet, so you build it from source. Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -194,7 +194,7 @@ Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude
 Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew install go`). Optional: `golangci-lint` for `make lint`.
 
 ```bash
-git clone <this repo> macdoc && cd macdoc
+git clone https://github.com/sagnik26/macdoc.git macdoc && cd macdoc
 make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
 macdoc                     # interactive dashboard (scans automatically the first time)
@@ -202,7 +202,7 @@ macdoc doctor              # the short summary, printed
 macdoc doctor scan         # fresh scan + the full report
 macdoc doctor explain <id> # details for one suggestion
 ```
-After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
+There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
 Tab completion for zsh (bash and fish work the same way with `macdoc completion bash|fish`):
 ```bash
@@ -215,6 +215,10 @@ Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` make
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 
 Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The 10 newest scans are kept, plus one per week for 13 weeks (for `trend`).
+
+### Known limitation: sizes can overstate what you get back
+
+macdoc measures allocated blocks, the same thing `du` reports. On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size. In an experiment on a throwaway APFS volume (`docs/experiments/S1-apfs-private-size`), a suggestion's size was up to three times the space actually freed when clones were involved. macdoc already labels each number as measured, reported by a tool, estimated or unknown; making "reclaimable" exact for clones is a design change that is not made yet ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)). This affects what you decide to remove, not whether removal is safe.
 
 ---
 
@@ -284,8 +288,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week ended 2026-11-04, not signed off (0.88 of 10 GB reclaimed) |
 | 8 | MCP server for Claude: 11 read and propose-only tools, `macdoc mcp` | ✅ built |
 | 9 | Claude handoff and hardening: proposal time in `apply`, at most 5 open Claude plans and 10 per 10 minutes, rescan guidance, Claude-app permission warnings | ✅ built |
-| 10 | Optional daily read-only scans, TUI picker, slowness tips | |
-| 11 | Open-source readiness | later |
+| 10 | Optional daily read-only scans (`macdoc schedule enable\|disable`), pre-marked SAFE suggestions in the dashboard, slowness tips (`slow --tips`) | ✅ built |
+| 11 | Open-source readiness: Google Go style and complexity gates, tests found missing by mutation testing, a threat model and decision records, a release pipeline with reproducible archives, experiments that measured the design | 🟡 in progress: [plan.md](plan.md) has the plan and what is done; nothing is tagged or signed yet |
 
 Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/), with real-Mac measurements, the tasks run, and the safety findings.
 
@@ -339,6 +343,7 @@ macdoc (one Go binary)
   internal/quarantine   quarantine manifests and entry states (read-only)
   internal/config       settings file: timings and extra protected folders (add-only)
   internal/safety       canonicalization + protected-path policy
+  internal/pathfold     the one definition of "the same name" (case and Unicode folding) used by every path comparison
   internal/fsread       capped, non-blocking regular-file reader for detectors
   internal/textsafe     cleans names from the disk before you or Claude see them (escapes, invisible characters)
   internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
@@ -348,6 +353,7 @@ macdoc (one Go binary)
   internal/mcp          MCP server (`macdoc mcp`): read + propose plans; may never import the executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
+  scripts/              import, forbidden-call and threat-model guards; scanshape.sh (the shape of a scan, no paths)
   schema/*.json         frozen JSON Schema for every --json command (contract-tested)
 ```
 
@@ -359,12 +365,17 @@ The CLI and the MCP server are two front doors over the same engine. See [docs/B
 make build        # ./bin/macdoc
 make install      # build + copy to ~/.local/bin (BINDIR=… to change)
 make test         # go test -race ./...
+make cover        # coverage across packages (tests live in internal/<pkg>/tests/)
 make lint         # golangci-lint (0 issues required)
 make importcheck  # MCP/engine must not reach the executor
 make forbidcheck  # no delete/exec/shell outside internal/executor
-make check        # all of the above
+make threatcheck  # every test the threat model and decision records name still exists
+make vulncheck    # govulncheck (known vulnerabilities in what the module calls)
+make check        # test, lint, importcheck, forbidcheck and threatcheck
 make fuzz         # fuzz the path-safety layer
 ```
+
+New code is held to Google Go style (doc comments on exported names, naming) and to complexity limits (cognitive 25, cyclomatic 15). The older code is checked only where a change touches it, relative to `origin/main`, while the backlog is cleared. CI also runs `make vulncheck`; a tag builds the release archives (see [docs/RELEASING.md](docs/RELEASING.md)).
 
 Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). The safety rules are in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and the decision records in [docs/adr/](docs/adr/README.md).
 
@@ -385,6 +396,8 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | Phase 8–9: MCP tools, the Claude-to-terminal handoff, prompt-injection hardening |
 | [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md) | One engine with two front doors, and the safety-first build order |
 | [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) | Tech lead + worker agents, permissions, verification, checkpoints |
+| [plan.md](plan.md) | The engineering plan for open-source readiness, with a progress log of what is done and what is not |
+| [docs/experiments/](docs/experiments/) | Reproducible experiments with their code and results: APFS sizing, mutation testing, test-only exports, the node-prefix query |
 | [docs/checkpoints/](docs/checkpoints/) | Per-phase results measured on the real Mac |
 | [docs/tasks/](docs/tasks/), [docs/tasks/reports/](docs/tasks/reports/) | Task briefs and archived worker/reviewer reports |
 
