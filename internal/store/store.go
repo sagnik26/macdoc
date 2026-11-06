@@ -323,14 +323,14 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 	if err := s.scanExists(scanID); err != nil {
 		return nil, err
 	}
-	// Unused filters are disabled through their parameters (an empty prefix,
-	// maxDepth -1, LIMIT -1) so the SQL text stays fixed.
-	prefix, like, prefixDepth := "", "", 0
+	prefix, prefixDepth := "", 0
 	if q.Prefix != "" {
 		if p := Fold(path.Clean(q.Prefix)); p != "/" {
-			prefix, like, prefixDepth = p, EscapeLike(p)+"/%", DepthOf(p)
+			prefix, prefixDepth = p, DepthOf(p)
 		}
 	}
+	// Unused filters are disabled through their parameters (maxDepth -1,
+	// LIMIT -1) so the SQL text stays fixed for each of the two shapes.
 	maxDepth := -1
 	if q.MaxDepth > 0 {
 		maxDepth = prefixDepth + q.MaxDepth
@@ -339,12 +339,29 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 	if q.Limit > 0 {
 		limit = q.Limit
 	}
-	rows, err := s.DB.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
-		WHERE scan_id = ? AND bytes >= ?
-			AND (? = '' OR path_fold = ? OR path_fold LIKE ? ESCAPE '\')
-			AND (? < 0 OR depth <= ?)
-		ORDER BY bytes DESC, path ASC LIMIT ?`,
-		scanID, q.MinBytes, prefix, prefix, like, maxDepth, maxDepth, limit)
+	var rows *sql.Rows
+	var err error
+	if prefix == "" {
+		// bytes stays indexable here: (scan_id, bytes DESC) serves this shape.
+		rows, err = s.DB.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
+			WHERE scan_id = ? AND bytes >= ?
+				AND (? < 0 OR depth <= ?)
+			ORDER BY bytes DESC, path ASC LIMIT ?`,
+			scanID, q.MinBytes, maxDepth, maxDepth, limit)
+	} else {
+		// A prefix is a range on the primary key (scan_id, path_fold): the
+		// folded prefix itself, or anything from "prefix/" up to (not
+		// including) "prefix0", since "0" is the character after "/". "+bytes"
+		// keeps the planner from choosing the (scan_id, bytes) index instead,
+		// which would read every node of the scan and filter on the path row
+		// by row (measured: 237 ms against 0.2 ms with 300,000 nodes).
+		rows, err = s.DB.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
+			WHERE scan_id = ? AND +bytes >= ?
+				AND (path_fold = ? OR (path_fold >= ? AND path_fold < ?))
+				AND (? < 0 OR depth <= ?)
+			ORDER BY bytes DESC, path ASC LIMIT ?`,
+			scanID, q.MinBytes, prefix, prefix+"/", prefix+"0", maxDepth, maxDepth, limit)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("store: nodes: %w", err)
 	}
