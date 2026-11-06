@@ -14,7 +14,7 @@ Calls that delete, move, truncate or run commands are allowed only in `internal/
 
 - Reviewing a change that can delete means reviewing `internal/executor`.
 - Code elsewhere that needs to run a read-only tool goes through `platform.Runner`, which is limited to read-only use.
-- The guard is a convention enforced by tools, not by types. `executor.Apply` takes a plain `model.Plan` and re-verifies it, so a compile-time guarantee that only verified plans reach it does not exist. Making `Verify` return a token that `Apply` requires is an open improvement (`plan.md`, claim 2).
+- The import and forbidden-call guards are enforced by tools, not by types. `executor.Apply` takes a plain `model.Plan`, but it calls `planner.Verify` itself, unconditionally, against its own store, catalog and a freshly built policy (`executor.go`), so a caller cannot skip verification. A `Verified` token returned by `Verify` and required by `Apply` was considered (plan.md, claim 2) and not adopted: it would give compile-time evidence but no protection the code lacks, and would change `Apply`'s signature for 2 production and 23 test callers. `internal/executor/tests.TestRedteamHeldForgedPlans` and `internal/planner/tests.TestForgedPlans` show forged plans being refused.
 
 ## Tests
 
