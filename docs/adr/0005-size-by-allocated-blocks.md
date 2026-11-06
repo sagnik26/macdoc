@@ -24,6 +24,14 @@ On a throwaway APFS volume (`docs/experiments/S1-apfs-private-size`), comparing 
 
 Option 2, in three stages. Measured since this record was opened: directories behave the same way (the sum of the files' private sizes never overstates and is a lower bound; counting each clone group once is an upper bound; the true value was inside the range in all four tested cases), and reading with `getattrlistbulk` is faster than one `fstatat` per entry on a real tree (2.3 s against 4.0 s). A directory's own private size is only its own blocks, so the scan must sum files up the tree.
 
+## Stage 1 as built
+
+`nodes.private_bytes` (migration 5) and `model.Node.Private` (`*int64`, not in any JSON) hold the lower bound for each kept node. The bulk read asks for `ATTR_CMNEXT_PRIVATESIZE` through `forkattr` with `FSOPT_ATTR_CMN_EXTENDED`. Files add their private size, counted exactly when their bytes are (a hard link once); a folder adds its own allocation, so a tree with no clones has private equal to bytes.
+
+**Unknown.** A file is unknown when the kernel did not report the attribute (the fstatat reader, or a volume that does not return it; HFS+ and exFAT were checked and return nothing, while the bulk read itself still works there). A node is unknown if any file below it is, and it stays unknown all the way to the root; a folder with no unknown file below it stays known. Unknown is stored as NULL and read back as nil, never as 0, and rows from scans made before the column existed are NULL. Nothing prints or costs from this value yet.
+
+**Known gap.** For a file with several links, the kernel reports the full size for each link, so a tree that holds only some of the links of an inode counts bytes the delete would not free (S1 scenario 5). Bytes has the same flaw today. The lower-bound claim holds for clones; it does not yet hold for partly-contained hard links. Stage 2 has to settle that before it shows the number.
+
 ## Consequences of leaving it as is
 
 Reclaimable totals can be several times too high on a machine full of clones (Xcode and simulator folders are the common case). That affects the person's decision, not the safety of the deletion.

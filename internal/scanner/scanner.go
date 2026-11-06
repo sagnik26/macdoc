@@ -3,7 +3,12 @@
 //
 // Sizes are allocated blocks (st_blocks * 512), which over-states the space
 // freed by deleting a file that shares blocks with a clone
-// (docs/adr/0005-size-by-allocated-blocks.md).
+// (docs/adr/0005-size-by-allocated-blocks.md). Each kept node also carries a
+// private size, a lower bound of what deleting it frees: the sum of its
+// files' ATTR_CMNEXT_PRIVATESIZE plus its folders' own blocks. Only the
+// getattrlistbulk reader can read it. When any file below a node was
+// measured without one (the fstatat reader, or a volume that does not report
+// it) the node's private size is nil, meaning unknown; it is never zero.
 package scanner
 
 import (
@@ -123,6 +128,40 @@ type dir struct {
 	bytes   int64
 	files   int64
 	mtime   int64
+	private privacy // bytes a delete certainly frees, as far as known
+}
+
+// privacy is a running sum of private sizes that remembers whether every term
+// was known. Once one term is unknown the sum is unknown and stays so as it
+// is folded up the tree; the bytes added before and after are never shown as
+// the answer, so unknown can't turn into zero.
+type privacy struct {
+	sum     int64
+	unknown bool
+}
+
+// note adds e's private size, or marks the sum unknown if e has none.
+func (p *privacy) note(e *entry) {
+	if e.known {
+		p.sum += e.private
+	} else {
+		p.unknown = true
+	}
+}
+
+// merge folds in another sum.
+func (p *privacy) merge(o privacy) {
+	p.sum += o.sum
+	p.unknown = p.unknown || o.unknown
+}
+
+// value returns the sum for a node, or nil when any term was unknown.
+func (p privacy) value() *int64 {
+	if p.unknown {
+		return nil
+	}
+	v := p.sum
+	return &v
 }
 
 // Scanner holds the state of one scan: the directories still to list, the
@@ -207,7 +246,8 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	}
 	s.cond = sync.NewCond(&s.mu)
 
-	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec}
+	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec,
+		private: privacy{sum: st.Blocks * 512}}
 	rd.opaque = s.opaque[pathfold.Fold(root)]
 	rd.watch = s.watchDirs[pathfold.Fold(root)]
 	s.stack = append(s.stack, rd)
@@ -396,6 +436,7 @@ func (s *Scanner) next() *dir {
 // totals accumulates one directory's direct entries before they are merged.
 type totals struct {
 	bytes, files, mtime int64
+	private             privacy
 }
 
 // merge adds what a worker counted for d to d and the scan, and releases d's
@@ -405,6 +446,7 @@ func (s *Scanner) merge(w *worker, d *dir, acc *totals) {
 	d.bytes += acc.bytes
 	d.files += acc.files
 	d.mtime = max(d.mtime, acc.mtime)
+	d.private.merge(acc.private)
 	s.nodes = append(s.nodes, w.nodes...)
 	s.release(d)
 	s.mu.Unlock()
@@ -553,6 +595,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 			pending: 1,
 			bytes:   n,
 			mtime:   e.mtime,
+			private: privacy{sum: n}, // a folder is not clone-shared: its blocks are its own
 		}
 		if len(s.watchDirs) > 0 {
 			c.watch = s.watchDirs[pathfold.Fold(c.path)]
@@ -566,6 +609,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		acc.bytes += n
 		acc.files++
 		acc.mtime = max(acc.mtime, e.mtime)
+		acc.private.note(e) // counted exactly when its bytes are, hard links included
 		w.bytes += n
 		w.files++
 		if n >= s.threshold && !d.opaque && !d.hidden {
@@ -576,11 +620,13 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 				Files:    1,
 				MtimeMax: e.mtime,
 				Depth:    d.depth + 1,
+				Private:  e.value(),
 			})
 		}
 	default: // symlinks (never followed), sockets, fifos: own blocks only
 		acc.bytes += n
 		acc.mtime = max(acc.mtime, e.mtime)
+		acc.private.note(e)
 		w.bytes += n
 	}
 }
@@ -694,6 +740,7 @@ func (s *Scanner) release(d *dir) {
 				Files:    d.files,
 				MtimeMax: d.mtime,
 				Depth:    d.depth,
+				Private:  d.private.value(),
 			})
 		}
 		p := d.parent
@@ -704,6 +751,7 @@ func (s *Scanner) release(d *dir) {
 		p.bytes += d.bytes
 		p.files += d.files
 		p.mtime = max(p.mtime, d.mtime)
+		p.private.merge(d.private)
 		d = p
 	}
 }

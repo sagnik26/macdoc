@@ -44,10 +44,17 @@ func idxTree(r *rand.Rand) []model.Node {
 			kind = model.NodeFile
 		}
 		// few distinct sizes, so equal sizes (the path tie-break) are common
-		out = append(out, model.Node{
+		nd := model.Node{
 			Path: p, Kind: kind, Bytes: int64(r.Intn(6)) * 1000, Files: int64(r.Intn(9)),
 			MtimeMax: int64(r.Intn(1000)), Depth: strings.Count(p, "/"),
-		})
+		}
+		// The private size must reach the index as the store holds it:
+		// unknown stays unknown, and a known zero stays zero.
+		if r.Intn(3) != 0 {
+			v := int64(r.Intn(3)) * 500
+			nd.Private = &v
+		}
+		out = append(out, nd)
 	}
 	if r.Intn(4) == 0 {
 		add("/")

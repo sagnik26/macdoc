@@ -20,6 +20,11 @@ const (
 	attrDirMountStatus = 0x00000004 // ATTR_DIR_MOUNTSTATUS
 	attrDirAllocSize   = 0x00000008 // ATTR_DIR_ALLOCSIZE
 
+	// attrPrivateSize is ATTR_CMNEXT_PRIVATESIZE: the bytes freed if this
+	// file were deleted. It travels in the forkattr field and is honored only
+	// with FSOPT_ATTR_CMN_EXTENDED.
+	attrPrivateSize = 0x00000008
+
 	// fsobj_type_t values from <sys/vnode.h>, which is not a public header.
 	vreg = 1
 	vdir = 2
@@ -30,7 +35,7 @@ const (
 )
 
 // bulkAttrs is the fixed request. Besides what the walk needs (name, device,
-// type, inode, mtime, link count, allocated size) it asks for the per-entry
+// type, inode, mtime, link count, allocated and private size) it asks for the per-entry
 // error, file flags (SF_FIRMLINK) and the directory mount status, so that
 // every case where the kernel's answer could differ from lstat's is sent to
 // the fstatat path for that one entry instead of being guessed.
@@ -41,6 +46,7 @@ var bulkAttrs = unix.Attrlist{
 		unix.ATTR_CMN_FLAGS | unix.ATTR_CMN_FILEID,
 	Dirattr:  attrDirMountStatus | attrDirAllocSize,
 	Fileattr: unix.ATTR_FILE_LINKCOUNT | unix.ATTR_FILE_ALLOCSIZE,
+	Forkattr: attrPrivateSize,
 }
 
 // Entry kinds. Anything that is neither a directory nor a regular file
@@ -51,9 +57,9 @@ const (
 	kindFile
 )
 
-// entry is one measured directory entry, whichever reader produced it. A
-// per-file private size (S1) would be one more field here, filled by the bulk
-// reader from ATTR_CMNEXT_PRIVATESIZE and left unknown by the fstatat one.
+// entry is one measured directory entry, whichever reader produced it. Only
+// the bulk reader learns a private size (S1); the fstatat one leaves known
+// false, and an entry that is not known is never read as zero.
 type entry struct {
 	name  string // valid only until the reader's next call; copy to keep
 	kind  uint8
@@ -62,6 +68,18 @@ type entry struct {
 	nlink uint16
 	bytes int64 // allocated bytes (st_blocks * 512)
 	mtime int64 // seconds
+
+	private int64 // bytes freed by deleting this file; meaningful only if known
+	known   bool  // the kernel reported private
+}
+
+// value returns the private size, or nil when the kernel did not report one.
+func (e *entry) value() *int64 {
+	if !e.known {
+		return nil
+	}
+	v := e.private
+	return &v
 }
 
 // fromStat fills e from an lstat result.
@@ -87,7 +105,7 @@ func (e *entry) fromStat(name string, st *unix.Stat_t) {
 func getattrlistbulk(fd int, buf []byte) (int, error) {
 	for {
 		// The attrlist is a global and buf is a live heap slice for the whole call.
-		r, _, errno := unix.Syscall6(unix.SYS_GETATTRLISTBULK, uintptr(fd), uintptr(unsafe.Pointer(&bulkAttrs)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), unix.FSOPT_NOFOLLOW, 0) //nolint:staticcheck,gosec // SA1019, G103: raw syscall is the only cgo-free route
+		r, _, errno := unix.Syscall6(unix.SYS_GETATTRLISTBULK, uintptr(fd), uintptr(unsafe.Pointer(&bulkAttrs)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), unix.FSOPT_NOFOLLOW|unix.FSOPT_ATTR_CMN_EXTENDED, 0) //nolint:staticcheck,gosec // SA1019, G103: raw syscall is the only cgo-free route
 		if errno == syscall.EINTR {
 			continue
 		}
@@ -137,7 +155,7 @@ func decode(rec []byte, e *entry) (full, ok bool) {
 	_ = c.u32() // volume attributes: never requested
 	dirattr := c.u32()
 	fileattr := c.u32()
-	_ = c.u32() // fork attributes: not requested
+	forkattr := c.u32() // with FSOPT_ATTR_CMN_EXTENDED: the common-extension bits
 	var errno uint32
 	if common&unix.ATTR_CMN_ERROR != 0 {
 		errno = c.u32()
@@ -158,9 +176,9 @@ func decode(rec []byte, e *entry) (full, ok bool) {
 	e.ino = m.ino
 	e.mtime = int64(m.mtime) //nolint:gosec // G115: seconds since the epoch fit in int64
 	if m.objtype == vdir {
-		return dirSize(&c, e, dirattr), true
+		return dirSize(&c, e, dirattr, forkattr), true
 	}
-	return fileSize(&c, e, m.objtype, fileattr), true
+	return fileSize(&c, e, m.objtype, fileattr, forkattr), true
 }
 
 // entryName reads the name of a record. ok is false if it is missing,
@@ -229,7 +247,7 @@ func commonAttrs(c *cursor, common uint32) (m meta, have bool) {
 // dirSize reads a directory's own allocation. It returns false when lstat
 // should answer instead: a mount point or automount trigger, or an attribute
 // that was not returned.
-func dirSize(c *cursor, e *entry, dirattr uint32) bool {
+func dirSize(c *cursor, e *entry, dirattr, forkattr uint32) bool {
 	if dirattr&attrDirMountStatus == 0 || dirattr&attrDirAllocSize == 0 {
 		return false
 	}
@@ -238,11 +256,15 @@ func dirSize(c *cursor, e *entry, dirattr uint32) bool {
 	}
 	e.bytes = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
 	e.kind = kindDir
+	if forkattr&attrPrivateSize != 0 {
+		_ = c.u64() // a folder's private size is its own blocks, already known
+	}
 	return !c.bad
 }
 
-// fileSize reads a non-directory's allocation and link count.
-func fileSize(c *cursor, e *entry, objtype, fileattr uint32) bool {
+// fileSize reads a non-directory's allocation, link count and private size.
+// A private size the kernel did not return leaves e.known false.
+func fileSize(c *cursor, e *entry, objtype, fileattr, forkattr uint32) bool {
 	if fileattr&unix.ATTR_FILE_ALLOCSIZE == 0 {
 		return false
 	}
@@ -254,6 +276,10 @@ func fileSize(c *cursor, e *entry, objtype, fileattr uint32) bool {
 	}
 	e.bytes = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
 	e.nlink = uint16(nlink & 0xffff)
+	if forkattr&attrPrivateSize != 0 {
+		e.private = int64(c.u64()) //nolint:gosec // G115: allocated bytes fit in int64
+		e.known = !c.bad
+	}
 	if objtype == vreg {
 		e.kind = kindFile
 	}

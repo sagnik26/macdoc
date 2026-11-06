@@ -29,15 +29,26 @@ func withReader(t *testing.T, bulk bool, opts scanner.Options) scanner.Result {
 	return res
 }
 
+// noPrivate clears the private size of every node. Only the bulk reader
+// knows it, so the comparison between the readers ignores it; private_test.go
+// checks it on its own.
+func noPrivate(r scanner.Result) scanner.Result {
+	for i := range r.Nodes {
+		r.Nodes[i].Private = nil
+	}
+	return r
+}
+
 // requireSame scans opts with both readers (and several worker counts) and
-// requires deeply equal results. It returns the fstatat result.
+// requires deeply equal results, except for private sizes. It returns the
+// fstatat result.
 func requireSame(t *testing.T, opts scanner.Options) scanner.Result {
 	t.Helper()
 	var first scanner.Result
 	for i, w := range []int{1, 4, 16} {
 		opts.Workers = w
-		stat := withReader(t, false, opts)
-		bulk := withReader(t, true, opts)
+		stat := noPrivate(withReader(t, false, opts))
+		bulk := noPrivate(withReader(t, true, opts))
 		if !reflect.DeepEqual(stat, bulk) {
 			t.Fatalf("workers=%d: readers differ\nfstatat: bytes=%d files=%d nodes=%d unmeasured=%+v\nbulk:    bytes=%d files=%d nodes=%d unmeasured=%+v\n%s",
 				w, stat.TotalBytes, stat.TotalFiles, len(stat.Nodes), stat.Unmeasured,
