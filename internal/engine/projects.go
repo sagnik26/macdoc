@@ -45,7 +45,7 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 	if err != nil {
 		return ProjectsResult{}, err
 	}
-	r, err := discoverProjects(ctx, o, ScanNodes{St: st, ScanID: info.ID}, info.ID)
+	r, err := discoverProjects(ctx, o, NewScanNodes(st, info.ID), info.ID)
 	if err != nil {
 		return ProjectsResult{}, err
 	}

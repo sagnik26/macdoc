@@ -115,7 +115,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor scan" to refresh`, int(age.Hours())))
 	}
 
-	nodes := ScanNodes{St: st, ScanID: info.ID}
+	nodes := NewScanNodes(st, info.ID)
 	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
 	env.Projects = sync.OnceValues(func() (projects.Result, error) {
 		return discoverProjects(ctx, o, nodes, info.ID)
