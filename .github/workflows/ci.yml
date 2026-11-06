@@ -37,6 +37,10 @@ jobs:
       - name: Forbidden-call guard
         run: make forbidcheck
 
+      # Every test the threat model names must still exist.
+      - name: Threat-model guard
+        run: make threatcheck
+
       - name: Build
         run: make build
 

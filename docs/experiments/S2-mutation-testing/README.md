@@ -21,10 +21,10 @@ Kill rate = killed / (killed + survived). Mutants that do not compile are skippe
 |---|---:|---:|---|
 | `internal/precond` | 39 / 65 = 60.0% | 62 / 65 = **95.4%** | 3, all equivalent |
 | `internal/safety` | 145 / 177 = 81.9% | 158 / 177 = **89.3%** | 19, mostly equivalent or fail-closed |
-| `internal/planner` | 84 / 178 = 47.2% | not yet addressed | 94 (a wider test set killed about 10 more of the 67 re-run so far) |
+| `internal/planner` | 84 / 178 = 47.2% | 139 / 178 = **78.1%** | 39: mostly equivalent (`Round(0)` vs `Round(1)`, tie-break `<` vs `<=`) or filesystem write-failure paths in `Save` that need a failing filesystem |
 | `internal/executor` | 32 / 123 = 26% at 157 of an estimated ~300 mutants (run not finished) | accounting tests added, not yet re-measured | not yet known |
 
-New tests: `internal/safety/tests/reasons_test.go`, `internal/precond/tests/branches_test.go`, `internal/executor/tests/report_test.go`.
+New tests: `internal/safety/tests/reasons_test.go`, `internal/precond/tests/branches_test.go`, `internal/executor/tests/report_test.go`, `internal/planner/tests/verify_test.go`, `internal/planner/tests/edges_test.go`.
 
 ## What the survivors showed
 
@@ -37,6 +37,6 @@ New tests: `internal/safety/tests/reasons_test.go`, `internal/precond/tests/bran
 ## Not done
 
 - Executor survivors, mostly `Restore` and `Purge` error branches (`manage.go:65-127`) and `Apply` early returns (`executor.go:193-221`). Each needs a fixture that triggers that failure.
-- Planner survivors (`seal.go`, `planner.go`, `actions.go`).
-- The pre-registered targets (safety and planner at least 90%, executor at least 85%) are met only for precond.
+- Planner write-failure paths in `Save` (`seal.go:60-96`); they need a filesystem that fails on demand.
+- The pre-registered targets (safety and planner at least 90%, executor at least 85%) are met only for precond. Safety (89.3%) is close and its remaining survivors are mostly equivalent; planner is at 78.1%.
 - Equivalent-mutant classification is by reading the code and is not machine-checked.

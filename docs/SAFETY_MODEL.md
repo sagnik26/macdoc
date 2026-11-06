@@ -140,6 +140,8 @@ Events: `plan_created`, `apply_started`, `item_skipped` (with reason), `item_don
 
 ## 5. Threat model
 
+The fuller version, with assets, adversaries, trust boundaries and the test behind each defense, is [THREAT_MODEL.md](THREAT_MODEL.md).
+
 | Threat | Defense |
 |---|---|
 | Claude (or a prompt-injected Claude) tries to delete arbitrary paths | `internal/mcp` can't import the executor (CI import guard), and no tool applies, deletes, moves, restores, runs a command or takes a path; a test pins the tool list and input fields. Tools accept only opportunity IDs. Apply needs a human TTY and asks per item for Claude-origin plans |

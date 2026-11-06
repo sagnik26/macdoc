@@ -305,9 +305,11 @@ Updated 2026-11-06. Nothing is committed; all changes are in the working tree. `
 | Import grouping | The rename put the module's imports between standard-library ones. Fixed with the `goimports` formatter and a local prefix. | `golangci-lint fmt` |
 | A1 style and complexity gates | `revive` (exported, package-comments, var-naming, unexported-return, error-strings, context-as-argument, indent-error-flow), `gocognit` 25, `gocyclo` 15, `goimports`; gated to new code with `issues.new-from-rev: origin/main`; default exclusion presets removed so the doc-comment rule is not silenced; CI checks out full history. Verified by adding a bad function and watching both gates fail it. | `.golangci.yml`, `.github/workflows/ci.yml` |
 | A2 naming | `Id`→`ID` (3 sites), `CheckSource`→`Source`, package comment of `forbidcheck/check` fixed. The touched `Source` function is annotated with its pre-existing complexity (62) for the later refactor. | `make check` |
+| A3/A4 exports and docs | Every exported identifier has a doc comment (85 findings -> 0 in revive across the tree); `Theme` and `AVD` exported where exported functions returned them unexported; comments written from reading the code (one inferred claim was caught and corrected). | revive scratch config reports 0 |
 | **S1 APFS truth** | **Accuracy half: go.** `PRIVATESIZE` is exact for every single-file case except hardlinks; `st_blocks` overstates clones by up to 3x; clone groups need a range. Speed half: see H5. | `docs/experiments/S1-apfs-private-size/` |
 | **S3 test-only exports** | 263 of 627 exports (42%) are used outside their package only by tests. Premise of the original rule corrected (see §4). | `docs/experiments/S3-test-only-exports/` |
-| **S2 mutation testing (partial)** | precond 60% → 95.4%, safety 81.9% → 89.3% killed; planner 47.2%, executor ~26% measured; new tests for `git_clean`, exact protection reasons, error causes and Report totals. | `docs/experiments/S2-mutation-testing/` |
+| **S2 mutation testing (partial)** | precond 60% → 95.4%, safety 81.9% → 89.3%, planner 47.2% → 78.1% killed; executor ~26% measured on an unfinished run. New tests for `git_clean`, exact protection reasons, error causes, `Verify` clause by clause, `Build` boundaries and Report totals. | `docs/experiments/S2-mutation-testing/` |
+| **Threat model + ADRs** | `docs/THREAT_MODEL.md` (assets, adversaries, boundaries, 16 threats each tied to tests) and `docs/adr/` (6 records, one marked Under review). `scripts/threatcheck.sh`, run by `make check` and CI, fails if any test they name stops existing (42 today; verified to fail on a missing one). | `make threatcheck` |
 | **H5 bulk vs per-entry (partial)** | On `/opt/homebrew` (387k files, 40k dirs): `getattrlistbulk` totals match `fstatat` totals to the byte (11,988,164,608) with 5.3x fewer syscalls (80k vs 428k); CPU time about equal (4.2-4.8 s vs 4.7-5.0 s). Wall times were taken at load 22 and are not trustworthy. | `docs/experiments/S1-apfs-private-size/walk.c`; rerun on a quiet machine before relying on the timings |
 
 ### Findings that change the plan
@@ -320,7 +322,7 @@ Updated 2026-11-06. Nothing is committed; all changes are in the working tree. `
 
 ### Not started
 
-Workstream 0 on real data (needs one populated scan; none exists on this machine), H1-H4 and H6 measurements, the `Verified` plan type, mutation-score work on `planner` and `executor`, fold unification, the threat model, ADRs, package docs and the 80 missing doc comments, reproducible-build and release pipeline, the `tests/` layout decision, and the appendix.
+Workstream 0 on real data (needs one populated scan; none exists on this machine), H1-H4 and H6 measurements, the `Verified` plan type, mutation-score work on `executor` (and the planner write-failure paths), fold unification, package `doc.go` files with invariants, reproducible-build and release pipeline, the `tests/` layout decision, and the appendix.
 
 ### Open questions for the owner
 
