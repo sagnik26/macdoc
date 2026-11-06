@@ -8,8 +8,9 @@ import (
 	"strings"
 	"syscall"
 
-	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // resolveParents resolves symlinks in dir and every ancestor of it. It walks
@@ -75,10 +76,9 @@ func resolveFull(p string) (string, error) {
 	return norm.NFC.String(r), nil
 }
 
-// fold returns the comparison key for one path component: NFC, Unicode case
-// folded, NFC again (folding can produce non-composed sequences).
+// fold returns the comparison key for one path component (see pathfold).
 func fold(s string) string {
-	return norm.NFC.String(cases.Fold().String(norm.NFC.String(s)))
+	return pathfold.Fold(s)
 }
 
 // FoldName returns the comparison key for one name on disk: the same folding

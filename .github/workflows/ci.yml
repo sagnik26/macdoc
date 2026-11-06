@@ -52,3 +52,4 @@ jobs:
         run: |
           go test -run='^$' -fuzz=FuzzCanonicalize -fuzztime=10s ./internal/safety
           go test -run='^$' -fuzz=FuzzCheckTarget -fuzztime=10s ./internal/safety
+          go test -run='^$' -fuzz=FuzzFoldIsIdempotent -fuzztime=10s ./internal/pathfold/tests

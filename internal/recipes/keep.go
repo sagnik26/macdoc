@@ -2,7 +2,8 @@ package recipes
 
 import (
 	"path/filepath"
-	"strings"
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // KeepFunc returns a scanner Keep callback built from the catalog: it keeps
@@ -15,17 +16,17 @@ func KeepFunc(c *Catalog, home string) func(path string) bool {
 	names := map[string]bool{}
 	for _, r := range c.Recipes {
 		for _, d := range r.KeepChildrenOf {
-			parents[strings.ToLower(filepath.Clean(ExpandHome(home, d)))] = true
+			parents[pathfold.Fold(filepath.Clean(ExpandHome(home, d)))] = true
 		}
 		for _, n := range r.KeepNames {
-			names[strings.ToLower(n)] = true
+			names[pathfold.Fold(n)] = true
 		}
 	}
 	if len(parents) == 0 && len(names) == 0 {
 		return nil
 	}
 	return func(path string) bool {
-		lp := strings.ToLower(path)
+		lp := pathfold.Fold(path)
 		return parents[filepath.Dir(lp)] || parents[lp] || names[filepath.Base(lp)]
 	}
 }

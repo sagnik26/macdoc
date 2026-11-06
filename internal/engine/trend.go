@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
 	"github.com/sagnik26/macdoc/internal/store"
 )
 
@@ -172,14 +173,14 @@ func nodeSizes(st *store.Store, scanID string) (map[string]model.Node, error) {
 	}
 	m := make(map[string]model.Node, len(nodes))
 	for _, n := range nodes {
-		m[strings.ToLower(n.Path)] = n
+		m[pathfold.Fold(n.Path)] = n
 	}
 	return m, nil
 }
 
 // sizeIn is p's size in a scan: exact if stored, else 0 up to KeptFloor.
 func sizeIn(nodes map[string]model.Node, p string) Range {
-	if n, ok := nodes[strings.ToLower(p)]; ok {
+	if n, ok := nodes[pathfold.Fold(p)]; ok {
 		return Range{n.Bytes, n.Bytes}
 	}
 	return Range{0, KeptFloor}
@@ -210,7 +211,7 @@ func growing(before, after map[string]model.Node) []TrendFolder {
 		// Space that moved rather than grew (an app update replacing its
 		// Versions/155 with Versions/156) shows as growth of the new folder
 		// only: its parent didn't grow.
-		if p, ok := after[strings.ToLower(filepath.Dir(n.Path))]; ok && p.Path != n.Path {
+		if p, ok := after[pathfold.Fold(filepath.Dir(n.Path))]; ok && p.Path != n.Path {
 			pb := sizeIn(before, p.Path)
 			if (p.Bytes-pb.High)*2 < ch.Low {
 				continue
@@ -277,7 +278,7 @@ func nestedIn(kept []string, j int, dir string) bool {
 
 // isUnder reports whether p is strictly below dir, case-insensitively.
 func isUnder(p, dir string) bool {
-	p, dir = strings.ToLower(p), strings.ToLower(dir)
+	p, dir = pathfold.Fold(p), pathfold.Fold(dir)
 	if dir == "/" {
 		return p != "/"
 	}

@@ -63,6 +63,6 @@ Stated so nobody assumes more than is true.
 
 - **Sizes can be wrong on APFS.** `st_blocks * 512` overstates reclaimable space when files are clones of each other (measured up to 3x in `docs/experiments/S1-apfs-private-size`). The risk is a wrong decision, not data loss. The fix needs a design decision and is not made yet.
 - **Not every defense is equally well tested.** Mutation testing (`docs/experiments/S2-mutation-testing`) found tests missing in `precond` and `safety`, which are fixed; `planner` and `executor` still have surviving mutants, mostly in error paths of `Restore`, `Purge` and `Apply`. A surviving mutant there means a failure branch has no test asserting its behavior.
-- **Path comparison is by string.** Protected paths are matched by folded components. APFS decides what "the same folder" means, and its folding may differ from the Go library's for some Unicode versions. Comparing device and inode identities would remove the assumption; this is planned, not done.
+- **Path comparison is by string.** Protected paths are matched by folded components, and every part of macdoc now uses the one definition in `internal/pathfold`. APFS decides what "the same folder" means, and its folding may differ from the Go library's for some Unicode versions (not tested). Comparing device and inode identities would remove the assumption; this is planned, not done.
 - **No outside review of this version.** The earlier red-team passes are recorded in `docs/checkpoints/`; the current tree has had none.
 - **Intel and macOS versions other than 26 are untested.**

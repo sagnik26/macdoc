@@ -13,10 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/sagnik26/macdoc/internal/config"
 	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
 	"github.com/sagnik26/macdoc/internal/platform"
 	"github.com/sagnik26/macdoc/internal/projects"
 	"github.com/sagnik26/macdoc/internal/recipes"
@@ -436,7 +435,7 @@ func actionable(op model.Opportunity) bool {
 	return op.Target != "" && (op.Method == model.MethodNative || op.Method == model.MethodQuarantine)
 }
 
-func foldPath(p string) string { return strings.ToLower(norm.NFC.String(filepath.Clean(p))) }
+func foldPath(p string) string { return pathfold.Fold(filepath.Clean(p)) }
 
 // mergeOverlaps drops actionable opportunities whose target is strictly
 // below another actionable opportunity's target. Advise items never absorb

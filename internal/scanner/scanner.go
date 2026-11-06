@@ -24,6 +24,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // DataVolume is the default scan root on macOS.
@@ -207,7 +208,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 
 	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec}
 	rd.opaque = s.opaque[strings.ToLower(root)]
-	rd.watch = s.watchDirs[strings.ToLower(root)]
+	rd.watch = s.watchDirs[pathfold.Fold(root)]
 	s.stack = append(s.stack, rd)
 
 	workers := opts.Workers
@@ -283,7 +284,7 @@ func lowerSet(paths []string) map[string]bool {
 	m := make(map[string]bool, len(paths))
 	for _, p := range paths {
 		if p != "" {
-			m[strings.ToLower(filepath.Clean(p))] = true
+			m[pathfold.Fold(filepath.Clean(p))] = true
 		}
 	}
 	return m
@@ -459,7 +460,7 @@ func (s *Scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 		}
 		var isOpaque bool
 		if d.watch {
-			lp := strings.ToLower(Join(d.path, name))
+			lp := pathfold.Fold(Join(d.path, name))
 			if s.skip[lp] {
 				continue
 			}
@@ -483,7 +484,7 @@ func (s *Scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
 				mtime:   st.Mtim.Sec,
 			}
 			if len(s.watchDirs) > 0 {
-				c.watch = s.watchDirs[strings.ToLower(c.path)]
+				c.watch = s.watchDirs[pathfold.Fold(c.path)]
 			}
 			children = append(children, c)
 			nbytes += n

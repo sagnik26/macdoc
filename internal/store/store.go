@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/sagnik26/macdoc/internal/model"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // ErrNoScan is returned when no scan matches a query.
@@ -510,10 +510,11 @@ func (s *Store) prune(keep, weeks int, now time.Time) error {
 	return tx.Commit()
 }
 
-// Fold is the case- and normalization-insensitive form of a path: NFC, then
-// lower case.
+// Fold is the case- and normalization-insensitive form of a path, the key the
+// nodes table is indexed by. It is pathfold.Fold, so the store agrees with the
+// protected-path rules about what counts as the same name.
 func Fold(p string) string {
-	return strings.ToLower(norm.NFC.String(p))
+	return pathfold.Fold(p)
 }
 
 // DepthOf counts the non-empty components of p; "/" has depth 0.

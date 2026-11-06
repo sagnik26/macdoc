@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
 	"github.com/sagnik26/macdoc/internal/safety"
 )
 
@@ -49,7 +50,7 @@ func AndroidSDKRoot(env Env) (root string, ok bool) {
 
 // underHome reports whether p is strictly below home (case-insensitive, like APFS).
 func underHome(home, p string) bool {
-	return strings.HasPrefix(strings.ToLower(p), strings.ToLower(filepath.Clean(home))+"/")
+	return strings.HasPrefix(pathfold.Fold(p), pathfold.Fold(filepath.Clean(home))+"/")
 }
 
 // AvdHome returns where the emulator keeps AVDs: $ANDROID_AVD_HOME, else
