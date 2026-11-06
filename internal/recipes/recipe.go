@@ -4,8 +4,8 @@
 // instances of it. Recipes are data (embedded YAML in catalog/); detectors are
 // small read-only Go functions registered by name.
 //
-// CONTRACT (tech lead): exported types and functions in recipe.go, registry.go
-// and load.go are fixed for Phase 3 workers.
+// Every action macdoc can take comes from a recipe. An item that no recipe
+// covers is advice-only (docs/adr/0002-ids-not-paths.md).
 package recipes
 
 import (

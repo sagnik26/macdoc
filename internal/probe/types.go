@@ -3,10 +3,6 @@
 //
 // Parsers are pure functions over captured command output so they can be
 // golden-tested; Collect* functions run the commands and call the parsers.
-//
-// CONTRACT (tech lead): the types and function signatures in this file are
-// fixed. Implementation: P1-W1 (hardware, memory, swap, processes) and P1-W2
-// (disk, APFS, snapshots, purgeable).
 package probe
 
 import "github.com/sagnik26/macdoc/internal/model"

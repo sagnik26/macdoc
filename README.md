@@ -366,7 +366,7 @@ make check        # all of the above
 make fuzz         # fuzz the path-safety layer
 ```
 
-Rules for contributors (human or AI) are in [AGENTS.md](AGENTS.md), and Claude Code specifics are in [CLAUDE.md](CLAUDE.md).
+Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). The safety rules are in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and the decision records in [docs/adr/](docs/adr/README.md).
 
 ### How it's being built
 A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. This ran for Phases 0–3; from Phase 4 on, the tech-lead session built each phase itself and recorded it in a checkpoint. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md). Every task brief is in [`docs/tasks/`](docs/tasks/), and every report in [`docs/tasks/reports/`](docs/tasks/reports/).

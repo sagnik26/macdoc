@@ -1,8 +1,9 @@
 // Package scanner walks the Data volume and measures allocated space with
 // bounded memory, at background priority. It is strictly read-only.
 //
-// CONTRACT (tech lead): exported names and documented behavior are fixed.
-// Implementation: task P2-W1 (docs/tasks/P2-W1.md).
+// Sizes are allocated blocks (st_blocks * 512), which over-states the space
+// freed by deleting a file that shares blocks with a clone
+// (docs/adr/0005-size-by-allocated-blocks.md).
 package scanner
 
 import (

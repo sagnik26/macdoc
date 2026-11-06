@@ -69,8 +69,7 @@ func NormalizeID(a string) (string, bool) {
 }
 
 // ParseIDs normalizes opportunity IDs, drops duplicates and rejects anything
-// else, paths in particular: plans take IDs, never paths (AGENTS.md
-// invariant 4).
+// else, paths in particular: plans take IDs, never paths (docs/adr/0002-ids-not-paths.md).
 func ParseIDs(args []string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}

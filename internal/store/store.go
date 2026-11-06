@@ -1,8 +1,11 @@
-// Package store persists scans, nodes, unmeasured paths and (later) plans in a
-// local SQLite database (pure-Go modernc.org/sqlite, WAL mode).
+// Package store persists scans, nodes, unmeasured paths, plans, quarantine
+// records and memory samples in a local SQLite database (pure-Go
+// modernc.org/sqlite, WAL mode).
 //
-// CONTRACT (tech lead): exported names and documented behavior are fixed.
-// Implementation: task P2-W2 (docs/tasks/P2-W2.md).
+// A scan is derived data and can be rebuilt by scanning again. A plan record
+// holds the second copy of a plan's seal and a quarantine record is what
+// makes a folder in quarantine one that macdoc created, so neither can be
+// rebuilt.
 package store
 
 import (

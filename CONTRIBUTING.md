@@ -1,9 +1,8 @@
 # Contributing to macdoc
 
 Thanks for helping. macdoc deletes files on people's Macs, so the rules below
-are strict on purpose. Read `AGENTS.md` (the safety invariants) and
-`docs/SAFETY_MODEL.md` before changing anything that removes, moves or runs
-commands.
+are strict on purpose. Read `docs/SAFETY_MODEL.md` and the decision records in `docs/adr/`
+before changing anything that removes, moves or runs commands.
 
 ## Ground rules
 

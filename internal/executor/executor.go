@@ -1,14 +1,20 @@
 // Package executor is the ONLY package allowed to delete, move, or run
-// mutating commands (AGENTS.md invariant 2). It is imported solely by the
-// CLI apply and quarantine commands, and it acts only on plans that pass
-// planner.Verify (docs/SAFETY_MODEL.md §4).
+// mutating commands (docs/adr/0003-executor-is-the-only-mutator.md). Only
+// internal/cli and cmd/macdoc may import it (scripts/importcheck.sh), and it
+// acts only on plans that pass planner.Verify (docs/SAFETY_MODEL.md §4).
 //
-// For each item it re-checks everything immediately before acting (the
-// target's identity, canonical path, allowlist and protected paths with a
-// freshly built policy, preconditions, contents), skips the item on any
-// mismatch, and records every step in the audit log. Folders are moved into
-// macdoc's quarantine, never deleted; the only deletion is a quarantine purge
-// of an entry macdoc itself created.
+// Invariants:
+//   - Every item is re-checked immediately before it is acted on: the
+//     target's identity, canonical path, allowlist and protected paths (with
+//     a freshly built policy), preconditions and contents. Any mismatch skips
+//     the item; the executor never adjusts a target to make it fit.
+//   - Nothing changes unless the audit log can be written.
+//   - A plan runs at most once, even after a crash: it is marked applied
+//     before the first item is touched.
+//   - Folders are moved into macdoc's quarantine, never deleted in place.
+//     The only deletion is a purge of an entry macdoc itself created, which
+//     with DeleteNow follows the move at once (ADR 0004).
+//   - Native commands run from a fixed argv in a recipe, with no shell.
 package executor
 
 import (

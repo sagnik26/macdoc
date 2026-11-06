@@ -2,8 +2,8 @@
 # importcheck: fail if any package other than internal/executor (and its
 # subpackages), internal/cli and cmd/macdoc depends on internal/executor,
 # including through tests. internal/mcp, internal/engine and internal/planner
-# are asserted explicitly (AGENTS.md invariant 3; the planner builds what the
-# executor runs, so it must not reach the executor either).
+# are asserted explicitly (docs/adr/0003-executor-is-the-only-mutator.md; the planner builds
+# what the executor runs, so it must not reach the executor either).
 #
 # Usage:
 #   scripts/importcheck.sh              check the module containing this script
@@ -74,7 +74,7 @@ check() {
 		case "$base" in
 		"$module/internal/mcp" | "$module/internal/mcp"/* | "$module/internal/engine" | "$module/internal/engine"/*)
 			echo "importcheck: INVARIANT 3 VIOLATED: $base depends on $target"
-			echo "  internal/mcp and internal/engine must never import the executor (AGENTS.md invariant 3)."
+			echo "  internal/mcp and internal/engine must never import the executor (see docs/adr/0003-executor-is-the-only-mutator.md)."
 			;;
 		*)
 			echo "importcheck: $base depends on $target"

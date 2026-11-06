@@ -1,9 +1,15 @@
 // Package safety decides whether a filesystem path may ever be a cleanup
 // target. It is the first line of defense described in docs/SAFETY_MODEL.md
-// §3 and is used by the planner and (again, at execution time) the executor.
+// §3 and is used by the planner and, again, at execution time by the
+// executor.
 //
-// CONTRACT (tech lead): the exported API below is fixed. Implementation is
-// task P0-W1 (docs/tasks/P0-W1.md).
+// Invariants:
+//   - A path that cannot be shown to be safe is refused: a relative path is
+//     reported as protected, and a path that cannot be resolved is a
+//     violation, never a pass.
+//   - Paths are compared by component, folded for case and Unicode, because
+//     APFS volumes are case-insensitive by default.
+//   - A violation names the rule that fired, and tests pin which rule it is.
 package safety
 
 import (

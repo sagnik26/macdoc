@@ -1,6 +1,6 @@
 // Package model defines the core data types shared by the engine, the CLI and
-// (in Phase C) the MCP layer. These types are contracts: changes go through
-// the tech lead (see docs/ORCHESTRATION.md).
+// the MCP layer. These types are contracts: they are serialized into plans and
+// JSON output, so a change that is not additive needs a new schema version.
 package model
 
 import "time"

@@ -2,8 +2,8 @@
 // refuse to touch any path outside the sandbox directory. Used for all
 // executor tests and for development (docs/DEVELOPMENT_PLAN.md Phase 0).
 //
-// CONTRACT (tech lead): the exported API below is fixed. Implementation is
-// task P0-W2.
+// The sandbox fails closed: a sandbox that is set but unusable refuses every
+// path, and never falls back to the real filesystem.
 package sandbox
 
 import (
