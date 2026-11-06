@@ -2,8 +2,8 @@ package tests
 
 import (
 	"context"
+	"github.com/sagnik26/macdoc/internal/projects"
 	"io/fs"
-	"macdoc/internal/projects"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)

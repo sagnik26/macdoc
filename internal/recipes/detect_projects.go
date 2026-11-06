@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 func init() {

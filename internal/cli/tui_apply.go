@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // AppliedMsg arrives when the dashboard gets the terminal back after apply.

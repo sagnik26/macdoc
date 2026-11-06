@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 var cmdListSnapshots = platform.Command{Name: "tmutil", Args: []string{"listlocalsnapshots", "/"}}

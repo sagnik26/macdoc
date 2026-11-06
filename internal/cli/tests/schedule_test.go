@@ -2,13 +2,13 @@ package tests
 
 import (
 	"encoding/json"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 )
 
 // scheduleHome points cli.UserHome at a fresh fixture home for one test.

@@ -3,16 +3,16 @@ package tests
 import (
 	"bytes"
 	"errors"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 var planNow = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)

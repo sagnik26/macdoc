@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 // theme styles human output. A plain theme (pipes, files, tests, NO_COLOR,

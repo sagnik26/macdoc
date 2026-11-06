@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"macdoc/internal/model"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // Detectors for Gradle, the Android SDK, emulators and Android Studio

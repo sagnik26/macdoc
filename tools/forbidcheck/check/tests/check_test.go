@@ -3,7 +3,7 @@ package tests
 import (
 	"bytes"
 	"fmt"
-	"macdoc/tools/forbidcheck/check"
+	"github.com/sagnik26/macdoc/tools/forbidcheck/check"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -168,45 +168,45 @@ func TestPlatformCommandShell(t *testing.T) {
 		want []string
 	}{
 		{"keyed", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 var c = platform.Command{Args: []string{"-c", "x"}, Name: "sh"}`,
 			[]string{shell(3, "sh")}},
 		{"positional", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 var c = platform.Command{"bash", []string{"-c"}, 0}`,
 			[]string{shell(3, "bash")}},
 		{"aliased import, path form", `package p
-import pl "macdoc/internal/platform"
+import pl "github.com/sagnik26/macdoc/internal/platform"
 var c = &pl.Command{
 	Name: "/bin/zsh",
 }`,
 			[]string{shell(4, "/bin/zsh")}},
 		{"dot import", `package p
-import . "macdoc/internal/platform"
+import . "github.com/sagnik26/macdoc/internal/platform"
 var c = Command{Name: "sudo"}`,
 			[]string{shell(3, "sudo")}},
 		{"elided in slice and map", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 var cs = []*platform.Command{{Name: "ls"}, &platform.Command{Name: "sh"}, {Name: "/usr/bin/sudo"}}
 var m = map[string]platform.Command{"a": {"zsh", nil, 0}}
 var arr = [2]platform.Command{1: {Name: "bash"}}`,
 			[]string{shell(3, "sh"), shell(3, "/usr/bin/sudo"), shell(4, "zsh"), shell(5, "bash")}},
 		{"non-shell name passes", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 var c = platform.Command{Name: "/usr/bin/du", Args: []string{"sh"}}
 var d = platform.Command{"du", []string{"bash"}, 0}`, nil},
 		{"non-literal name passes", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 func f(n string) platform.Command { return platform.Command{Name: n} }
 const sh = "sh"
 var c = platform.Command{sh, nil, 0}`, nil},
 		{"no name", `package p
-import "macdoc/internal/platform"
+import "github.com/sagnik26/macdoc/internal/platform"
 var c = platform.Command{Args: []string{"sh"}}
 var e = platform.Command{}`, nil},
 		{"other Command types pass", `package p
 import (
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 	other "example.com/other"
 )
 type Command struct{ Name string }
@@ -217,7 +217,7 @@ var d = []string{"sh"}
 var e = map[string]Command{"x": {Name: "sh"}}
 var f = struct{ Name string }{"sh"}`, nil},
 		{"blank import", `package p
-import _ "macdoc/internal/platform"
+import _ "github.com/sagnik26/macdoc/internal/platform"
 type Command struct{ Name string }
 var a = Command{Name: "sh"}`, nil},
 	}
@@ -250,7 +250,7 @@ var d = (*Command)(nil)`)
 
 func TestPlatformCommandNotAllowlistable(t *testing.T) {
 	root := module(t, map[string]string{
-		"a/a.go":                      "package a\nimport \"macdoc/internal/platform\"\nvar c = platform.Command{Name: \"sh\"}\n",
+		"a/a.go":                      "package a\nimport \"github.com/sagnik26/macdoc/internal/platform\"\nvar c = platform.Command{Name: \"sh\"}\n",
 		"tools/forbidcheck/allow.txt": "a/a.go:platform.Command\n",
 	})
 	code, out, _ := runIn(t, root, "./a")

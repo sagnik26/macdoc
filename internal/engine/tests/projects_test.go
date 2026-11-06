@@ -2,17 +2,17 @@ package tests
 
 import (
 	"context"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"io/fs"
-	"macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // The Phase 4 rule end to end, with the real catalog: a project with

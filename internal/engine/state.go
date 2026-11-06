@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // FreeSpace is the boot container's free space (not counting purgeable),

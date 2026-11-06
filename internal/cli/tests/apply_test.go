@@ -2,8 +2,8 @@ package tests
 
 import (
 	"bytes"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"io"
-	"macdoc/internal/cli"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,14 +12,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 var applyNow = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)

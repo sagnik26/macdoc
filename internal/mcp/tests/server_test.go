@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"macdoc/internal/mcp"
+	"github.com/sagnik26/macdoc/internal/mcp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,11 +15,11 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 const gb = 1_000_000_000

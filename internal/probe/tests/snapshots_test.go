@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/probe"
 	"reflect"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseLocalSnapshotsRealFixtureEmpty(t *testing.T) {

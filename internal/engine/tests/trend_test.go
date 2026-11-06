@@ -2,13 +2,13 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 type trendScan struct {

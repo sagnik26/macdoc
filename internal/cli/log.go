@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/engine"
 )
 
 func newLogCmd(g *GlobalFlags) *cobra.Command {

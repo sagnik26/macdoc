@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 const (

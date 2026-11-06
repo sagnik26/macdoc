@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/model"
-	"macdoc/internal/precond"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/precond"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // performer implements planner.Performer: every action the dry run showed,

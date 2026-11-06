@@ -8,7 +8,7 @@ package main
 import (
 	"os"
 
-	"macdoc/tools/forbidcheck/check"
+	"github.com/sagnik26/macdoc/tools/forbidcheck/check"
 )
 
 func main() {

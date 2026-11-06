@@ -3,14 +3,14 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 const (

@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"macdoc/internal/model"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 //go:embed catalog

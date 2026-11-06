@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 	"strings"
 	"testing"
 	"time"

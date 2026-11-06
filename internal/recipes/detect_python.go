@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func init() {

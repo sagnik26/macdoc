@@ -4,7 +4,7 @@ package tests
 // P0-R1 red-team tests do not already cover.
 
 import (
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"

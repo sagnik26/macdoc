@@ -10,11 +10,11 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/projects"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ToolNames are every tool the server offers. A test pins this list: adding

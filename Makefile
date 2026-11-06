@@ -2,7 +2,7 @@ GO      ?= go
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # -s -w drop the symbol and debug tables (about 16 MB → 10 MB); panics still
 # print a stack trace.
-LDFLAGS := -s -w -X macdoc/internal/cli.version=$(VERSION)
+LDFLAGS := -s -w -X github.com/sagnik26/macdoc/internal/cli.version=$(VERSION)
 
 .PHONY: build install uninstall test cover lint importcheck forbidcheck fuzz check clean
 

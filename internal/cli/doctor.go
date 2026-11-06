@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // Runner is the command Runner used by read-only commands; tests replace it.

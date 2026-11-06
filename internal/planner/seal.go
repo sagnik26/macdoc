@@ -15,11 +15,11 @@ import (
 	"regexp"
 	"time"
 
-	"macdoc/internal/fsread"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/fsread"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 const (

@@ -2,11 +2,11 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // planWithOrigin seals a plan with the given origin (env.plan uses the CLI).

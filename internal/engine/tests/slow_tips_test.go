@@ -1,11 +1,11 @@
 package tests
 
 import (
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"strings"
 	"testing"
 
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 // Tips come only for measured groups with a known tip, and name the size.

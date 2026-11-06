@@ -1,6 +1,6 @@
 package planner
 
-import "macdoc/internal/model"
+import "github.com/sagnik26/macdoc/internal/model"
 
 // ActionKind is what apply does for one item.
 type ActionKind string

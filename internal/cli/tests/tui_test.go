@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // tuiFixture is dashboard data built from the shared test samples.

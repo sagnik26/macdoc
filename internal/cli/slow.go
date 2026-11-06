@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 )
 
 func newSlowCmd(g *GlobalFlags) *cobra.Command {

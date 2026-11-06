@@ -3,20 +3,20 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // The crash test re-runs this test binary as a child that applies a plan

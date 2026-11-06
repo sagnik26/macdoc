@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // Config is the settings file. Zero values mean the default.

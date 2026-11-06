@@ -2,7 +2,7 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/safety"
 	"os"
 	"path/filepath"
 	"strings"

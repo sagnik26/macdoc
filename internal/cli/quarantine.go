@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 func newQuarantineCmd(g *GlobalFlags) *cobra.Command {

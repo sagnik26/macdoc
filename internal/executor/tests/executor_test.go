@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/recipes"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // Every executor test runs inside MACDOC_SANDBOX (docs/DEVELOPMENT_PLAN.md

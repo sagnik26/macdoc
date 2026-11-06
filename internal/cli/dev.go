@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // toolchainAliases maps short names users are likely to type.

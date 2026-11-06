@@ -4,7 +4,7 @@ package tests
 // findings (see .task/REPORT.md); the rest document attacks that held.
 
 import (
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"

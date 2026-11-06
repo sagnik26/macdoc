@@ -3,11 +3,11 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/probe"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseVMStatGolden(t *testing.T) {

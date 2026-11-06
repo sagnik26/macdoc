@@ -7,7 +7,7 @@ package tests
 import (
 	"errors"
 	"fmt"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/safety"
 	"os"
 	"path/filepath"
 	"strings"

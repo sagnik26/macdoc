@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/charmbracelet/x/ansi"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // Every dashboard list is a bordered table with a header row. Meaning never

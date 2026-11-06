@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 // MaxString caps every string returned to Claude. Explanations fit; a file

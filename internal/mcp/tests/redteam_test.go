@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"macdoc/internal/mcp"
+	"github.com/sagnik26/macdoc/internal/mcp"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,12 +22,12 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // --- helpers ---------------------------------------------------------------
@@ -124,13 +124,13 @@ func TestRedteamHeldImportGraph(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not on PATH")
 	}
-	out, err := exec.Command("go", "list", "-deps", "macdoc/internal/mcp").Output()
+	out, err := exec.Command("go", "list", "-deps", "github.com/sagnik26/macdoc/internal/mcp").Output()
 	if err != nil {
 		t.Skipf("go list: %v", err)
 	}
 	for _, dep := range strings.Fields(string(out)) {
-		if dep == "macdoc/internal/executor" || strings.HasPrefix(dep, "macdoc/internal/executor/") ||
-			dep == "macdoc/internal/cli" || dep == "macdoc/internal/sandbox" {
+		if dep == "github.com/sagnik26/macdoc/internal/executor" || strings.HasPrefix(dep, "github.com/sagnik26/macdoc/internal/executor/") ||
+			dep == "github.com/sagnik26/macdoc/internal/cli" || dep == "github.com/sagnik26/macdoc/internal/sandbox" {
 			t.Errorf("internal/mcp depends on %s", dep)
 		}
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sagnik26/macdoc/internal/scanner"
 	"io/fs"
-	"macdoc/internal/scanner"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,8 +19,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
-	ft "macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	ft "github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 const mb = 1 << 20

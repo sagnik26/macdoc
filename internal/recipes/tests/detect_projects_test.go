@@ -2,13 +2,13 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // p4Project is an idle, clean React recipes.Native project with every artifact kind.

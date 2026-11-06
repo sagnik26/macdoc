@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func newScanCmd(g *GlobalFlags) *cobra.Command {

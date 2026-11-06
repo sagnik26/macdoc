@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"strings"

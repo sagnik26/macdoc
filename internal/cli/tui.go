@@ -19,13 +19,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // The interactive dashboard behind bare `macdoc` in a terminal. It is

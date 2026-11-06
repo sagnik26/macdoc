@@ -230,7 +230,7 @@ func CheckSource(filename string, src []byte) ([]Finding, error) {
 
 // platformPath is the package whose Command type feeds the Runner. A shell
 // as Command.Name is never allowed (and never allowlistable).
-const platformPath = "macdoc/internal/platform"
+const platformPath = "github.com/sagnik26/macdoc/internal/platform"
 
 // commandNames records how platform.Command can be spelled in one file.
 type commandNames struct {

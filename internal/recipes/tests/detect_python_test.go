@@ -2,13 +2,13 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"strconv"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 const condaKey = "conda clean --all --dry-run"

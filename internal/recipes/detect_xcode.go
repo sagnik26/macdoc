@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // Detectors for Xcode, the iOS simulators and CocoaPods (catalog/xcode.yaml).

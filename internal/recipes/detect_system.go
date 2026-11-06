@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/fsread"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/fsread"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 func init() {

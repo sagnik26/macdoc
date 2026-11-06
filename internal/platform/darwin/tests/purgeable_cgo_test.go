@@ -3,7 +3,7 @@
 package tests
 
 import (
-	"macdoc/internal/platform/darwin"
+	"github.com/sagnik26/macdoc/internal/platform/darwin"
 	"testing"
 )
 

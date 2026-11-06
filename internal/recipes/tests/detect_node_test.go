@@ -2,15 +2,15 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 // w2Project creates dir/package.json (unless pkg is false) and dir/<lock>

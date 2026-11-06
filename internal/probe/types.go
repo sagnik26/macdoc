@@ -9,7 +9,7 @@
 // (disk, APFS, snapshots, purgeable).
 package probe
 
-import "macdoc/internal/model"
+import "github.com/sagnik26/macdoc/internal/model"
 
 // Hardware describes the machine and OS.
 type Hardware struct {

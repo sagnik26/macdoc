@@ -20,17 +20,17 @@ import (
 	"syscall"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/config"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/precond"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/precond"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // DefaultNativeTimeout bounds one native cleanup command.

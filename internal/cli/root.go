@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/model"
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 // version is set at build time via -ldflags.

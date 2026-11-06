@@ -2,15 +2,15 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 func probeFixture(t *testing.T, name string) platform.Result {

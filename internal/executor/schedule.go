@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // ScheduleLabel names macdoc's launch agent, the daily read-only scan.

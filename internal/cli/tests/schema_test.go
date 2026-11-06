@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"maps"
 	"os"
 	"path/filepath"
@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // The JSON contract (CLI_UX §5): every --json output is an envelope whose

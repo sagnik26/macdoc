@@ -3,7 +3,7 @@ package tests
 import (
 	"bytes"
 	"errors"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // sealed is a dashboard showing a freshly sealed plan.

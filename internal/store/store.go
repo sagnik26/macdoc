@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
 )

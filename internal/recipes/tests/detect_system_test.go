@@ -3,15 +3,15 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // Shared helpers for the P3-W2 detector tests.

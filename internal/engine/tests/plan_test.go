@@ -3,16 +3,16 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 func planFixture(t *testing.T) (fixture, engine.PlanOptions) {

@@ -10,11 +10,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // Removing from the dashboard: Enter on a suggestion (or on marked ones)

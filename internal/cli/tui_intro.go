@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 )
 
 // The welcome screen: what macdoc is, how to start, and what it promises.

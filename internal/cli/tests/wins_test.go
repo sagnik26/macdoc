@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // w3test_cli_fixed returns the findings in cliFindings for the recipe ID.

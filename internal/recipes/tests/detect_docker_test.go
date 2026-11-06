@@ -2,11 +2,11 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 const (

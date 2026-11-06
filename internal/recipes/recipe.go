@@ -12,9 +12,9 @@ import (
 	"context"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // Recipe is one entry of the catalog (docs/RECIPE_CATALOG.md §1).

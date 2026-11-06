@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // NowFunc is the clock for plan expiry shown in the dashboard (tests fix it).

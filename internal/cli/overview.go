@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
 )
 
 // overviewTopLevel is how many top-level folders the overview lists.

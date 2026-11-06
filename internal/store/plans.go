@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 // ErrNoPlan is returned when no plan has the requested ID.

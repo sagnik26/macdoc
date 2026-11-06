@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // androidHome builds a temporary home with real directories (the Android

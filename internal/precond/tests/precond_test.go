@@ -3,12 +3,12 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/precond"
+	"github.com/sagnik26/macdoc/internal/precond"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 const psKey = "ps -axww -o command="

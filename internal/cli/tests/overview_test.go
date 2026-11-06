@@ -3,14 +3,14 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/probe"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 func TestOverviewCommand(t *testing.T) {

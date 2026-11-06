@@ -14,12 +14,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/safety"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // MaxCheckEntries bounds the content check of one folder. A folder with

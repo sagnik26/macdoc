@@ -1,13 +1,13 @@
 package tests
 
 import (
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // realDir returns a canonical, symlink-free temp directory (t.TempDir lives

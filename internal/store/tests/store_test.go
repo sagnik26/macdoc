@@ -3,8 +3,8 @@ package tests
 import (
 	"errors"
 	"fmt"
+	"github.com/sagnik26/macdoc/internal/store"
 	"io"
-	"macdoc/internal/store"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 var t0 = time.Date(2026, 10, 1, 12, 0, 0, 123456789, time.UTC)

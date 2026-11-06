@@ -2,7 +2,7 @@ package tests
 
 import (
 	"fmt"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 	"os"
 	"path/filepath"
 	"runtime"

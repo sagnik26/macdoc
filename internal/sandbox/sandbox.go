@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // EnvVar is the environment variable that enables sandbox mode.

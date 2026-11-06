@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // staleOverviewScan is the scan age after which the overview suggests a

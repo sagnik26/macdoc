@@ -2,15 +2,15 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/store"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 func n(path string, bytes int64) model.Node {

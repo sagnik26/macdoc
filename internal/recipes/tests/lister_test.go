@@ -2,11 +2,11 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"slices"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // P6-R1 F8: re-checking a native item must not need scan data. Each lister

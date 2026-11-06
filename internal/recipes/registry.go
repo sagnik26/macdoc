@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 var (

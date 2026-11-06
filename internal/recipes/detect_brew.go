@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func init() {

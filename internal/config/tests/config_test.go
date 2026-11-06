@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/config"
 	"os"
 	"path/filepath"
 	"strings"

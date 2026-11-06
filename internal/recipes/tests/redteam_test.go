@@ -9,8 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"io/fs"
-	"macdoc/internal/recipes"
 	"math"
 	"os"
 	"path/filepath"
@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/safety"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 // ---- helpers ----

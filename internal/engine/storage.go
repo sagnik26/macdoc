@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"macdoc/internal/model"
-	"macdoc/internal/probe"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // StorageOptions configures Storage.

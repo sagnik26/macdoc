@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ProjectsResult is the data behind `macdoc doctor projects`.

@@ -2,12 +2,12 @@ package tests
 
 import (
 	"encoding/json"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"regexp"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func TestExplainCommand(t *testing.T) {

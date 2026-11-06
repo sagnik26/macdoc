@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // Commands used by the hardware collector. Fixed argv, no shell.

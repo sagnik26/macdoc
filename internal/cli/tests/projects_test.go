@@ -2,11 +2,11 @@ package tests
 
 import (
 	"bytes"
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func sampleProjects() engine.ProjectsResult {

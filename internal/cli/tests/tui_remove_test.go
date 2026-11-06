@@ -1,16 +1,16 @@
 package tests
 
 import (
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // press sends one key and runs the command it returns, feeding the

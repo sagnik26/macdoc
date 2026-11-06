@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ScanNodes adapts one stored scan to recipes.NodeSource.

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"sync"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/projects"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // Checker checks preconditions. It lists processes once and reuses the

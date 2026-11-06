@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/mcp"
+	"github.com/sagnik26/macdoc/internal/mcp"
 )
 
 func newMCPCmd() *cobra.Command {

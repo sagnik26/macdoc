@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // CmdSwapUsage reads vm.swapusage. Fixed argv, no shell.

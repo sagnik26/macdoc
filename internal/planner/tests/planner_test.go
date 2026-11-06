@@ -3,7 +3,7 @@ package tests
 import (
 	"encoding/json"
 	"errors"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/planner"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)

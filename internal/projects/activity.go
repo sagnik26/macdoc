@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/fsread"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/fsread"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // walkSkip are folders that never count as source activity: artifacts,

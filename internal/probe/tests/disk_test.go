@@ -3,15 +3,15 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/probe"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func readFixture(t *testing.T, name string) []byte {

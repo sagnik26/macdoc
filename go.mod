@@ -1,4 +1,4 @@
-module macdoc
+module github.com/sagnik26/macdoc
 
 go 1.27.3
 

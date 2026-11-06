@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 // DataVolume is the default scan root on macOS.

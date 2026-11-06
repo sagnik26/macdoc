@@ -15,13 +15,13 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"macdoc/internal/config"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/projects"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // OpportunityOptions configures Opportunities. Zero values use the real

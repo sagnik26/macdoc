@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/audit"
 	"os"
 	"path/filepath"
 	"strings"

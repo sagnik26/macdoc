@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // CmdPS lists resident memory (KB) and command path of every process.

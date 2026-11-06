@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // minProjectBytes hides projects whose artifacts are too small to matter.

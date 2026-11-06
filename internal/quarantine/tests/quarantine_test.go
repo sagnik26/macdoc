@@ -2,14 +2,14 @@ package tests
 
 import (
 	"encoding/json"
-	"macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/quarantine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 func writeEntry(t *testing.T, root string, m quarantine.Manifest, payload bool) {

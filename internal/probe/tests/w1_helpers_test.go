@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // w1Fixture reads a file from testdata.
