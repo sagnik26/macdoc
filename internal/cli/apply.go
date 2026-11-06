@@ -253,8 +253,11 @@ func renderApplyReport(w io.Writer, t *Theme, rep executor.Report, snapshots int
 		if snapshots > 0 {
 			why = append(why, fmt.Sprintf("%d local Time Machine snapshot(s) still reference some of it", snapshots))
 		}
-		why = append(why, "macOS may count freed space as purgeable for a while", "other apps may have written files meanwhile")
+		why = append(why, "files that share space with copies elsewhere free less than their size", "macOS may count freed space as purgeable for a while", "other apps may have written files meanwhile")
 		fmt.Fprintf(&b, " %s\n", t.muted.Render("Less than expected: "+strings.Join(why, "; ")+"."))
+	}
+	if freed, ok := rep.Freed(); ok && expected > 0 && freed > expected {
+		fmt.Fprintf(&b, " %s\n", t.muted.Render("Expected is the space removal was certain to free; more can be freed when the last copy of shared files goes."))
 	}
 	writeNotes(&b, t, rep.Warnings)
 	fmt.Fprintf(&b, " %s\n", t.muted.Render("Every step is in the audit log: macdoc log"))

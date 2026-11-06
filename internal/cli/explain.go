@@ -65,6 +65,9 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 		row("Target", t.text.Render(op.Target))
 	}
 	row("Size", t.size.Render(sizeWithSource(op.Bytes)))
+	if op.Bytes.Source == model.SourceMeasured {
+		row("", t.muted.Render(SizeNote))
+	}
 	risk := t.riskStyle(op.Risk).Render(string(op.Risk))
 	if ex.BaseRisk != "" && ex.BaseRisk != op.Risk {
 		reason := op.RiskReason
@@ -128,6 +131,11 @@ func stepText(t *Theme, s string) string {
 	}
 	return strings.Join(parts, "")
 }
+
+// SizeNote explains a measured suggestion size: the space removing the item
+// is certain to free, which can be less than the folder's total when files in
+// it share space with copies (APFS clones).
+const SizeNote = "This is the space removing it is certain to free. It can be less than the folder's total when its files share space with copies."
 
 // sizeWithSource shows a size and where it came from; unknown is never 0.
 func sizeWithSource(v model.Bytes) string {

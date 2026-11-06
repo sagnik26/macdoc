@@ -100,6 +100,16 @@
         "path": {
           "type": "string"
         },
+        "reclaimable_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rel": {
           "type": "string"
         }
@@ -128,6 +138,16 @@
         },
         "project": {
           "type": "string"
+        },
+        "reclaimable_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "workspace": {
           "type": "string"
@@ -186,6 +206,9 @@
         "protected": {
           "type": "boolean"
         },
+        "reclaimable_bytes": {
+          "type": "integer"
+        },
         "root": {
           "type": "string"
         }
@@ -199,6 +222,7 @@
         "last_active",
         "name",
         "protected",
+        "reclaimable_bytes",
         "root"
       ],
       "type": "object"

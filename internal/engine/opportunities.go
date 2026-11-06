@@ -148,7 +148,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 	}
 	if tiny > 0 {
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) under 1 MB not shown", tiny))
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) that would free under 1 MB not shown", tiny))
 	}
 	if unknownIdleCount > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))
