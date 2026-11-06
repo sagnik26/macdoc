@@ -210,6 +210,12 @@ func mid(r Range) int64 { return r.Low + (r.High-r.Low)/2 }
 // ancestor what the ancestor needs to know, so each decision is constant
 // time once that ancestor is found by one walk up the path.
 func Growing(before, after map[string]model.Node) []TrendFolder {
+	return judge(candidates(before, after))
+}
+
+// candidates lists the folders that grew by at least growMin, before any of
+// them is judged against the folders around it.
+func candidates(before, after map[string]model.Node) []growCand {
 	var cands []growCand
 	for key, n := range after {
 		if n.Kind != model.NodeDir {
@@ -231,6 +237,12 @@ func Growing(before, after map[string]model.Node) []TrendFolder {
 		}
 		cands = append(cands, growCand{TrendFolder{Path: n.Path, Before: b, After: n.Bytes, Change: ch}, key, strings.Count(n.Path, "/")})
 	}
+	return cands
+}
+
+// judge keeps the candidates that are not explained by the ones below them,
+// deepest first, then orders them by growth and applies the cap.
+func judge(cands []growCand) []TrendFolder {
 	// Deepest first, so descendants are judged before their parents.
 	slices.SortFunc(cands, func(a, b growCand) int {
 		if a.depth != b.depth {

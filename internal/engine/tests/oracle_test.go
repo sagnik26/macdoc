@@ -22,7 +22,7 @@ func oracleSizeIn(nodes map[string]model.Node, p string) engine.Range {
 	return engine.Range{Low: 0, High: engine.KeptFloor}
 }
 
-func oracleGrowing(before, after map[string]model.Node) []engine.TrendFolder {
+func oracleGrowing(before, after map[string]model.Node) []engine.TrendFolder { //nolint:gocognit,gocyclo // Verbatim copy of the previous implementation, kept as the reference the new one is compared with.
 	const growMin, growingMax = 500_000_000, 8
 	type cand struct {
 		engine.TrendFolder

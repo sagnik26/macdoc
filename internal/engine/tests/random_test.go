@@ -24,7 +24,7 @@ var growPool = []string{"a", "A", "b", "B", "k", "K", "K", "é", "é", "É", 
 // growCase builds a random pair of scans: a small tree of folders (sometimes
 // including "/" and files), mostly present in "before" at some size, with
 // sizes in 100 MB steps so that equal sizes and the 80% boundary come up.
-func growCase(r *rand.Rand) (before, after map[string]model.Node) {
+func growCase(r *rand.Rand) (before, after map[string]model.Node) { //nolint:gocognit,gocyclo // A random generator: its branches are the cases it produces.
 	const step = int64(100_000_000)
 	pool := growPool[:3+r.IntN(len(growPool)-2)]
 	seg := func() string { return pool[r.IntN(len(pool))] }
