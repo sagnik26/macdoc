@@ -161,7 +161,7 @@ func Trend(o TrendOptions) (TrendResult, error) {
 	}
 	sort.SliceStable(res.Areas, func(i, j int) bool { return mid(res.Areas[i].Change) > mid(res.Areas[j].Change) })
 
-	res.Growing = growing(before, after)
+	res.Growing = Growing(before, after)
 	return res, nil
 }
 
@@ -190,10 +190,12 @@ func (r Range) add(o Range) Range { return Range{r.Low + o.Low, r.High + o.High}
 
 func mid(r Range) int64 { return r.Low + (r.High-r.Low)/2 }
 
-// growing finds the folders that grew by at least growMin, keeping the
+// Growing finds the folders that grew by at least growMin, keeping the
 // deepest one that explains most of a growth: a folder is dropped when one
-// of its Children grew by at least 80% as much.
-func growing(before, after map[string]model.Node) []TrendFolder {
+// of its Children grew by at least 80% as much. The maps are keyed by folded
+// path, as nodeSizes builds them. It is exported so the tests can compare it
+// with a reference and benchmark it.
+func Growing(before, after map[string]model.Node) []TrendFolder {
 	type cand struct {
 		TrendFolder
 		depth int
