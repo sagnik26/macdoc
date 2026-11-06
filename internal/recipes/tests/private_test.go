@@ -84,7 +84,7 @@ func TestPathSuggestionUsesPrivateSize(t *testing.T) {
 }
 
 // Simulators: a device the scan measured counts by what deleting it frees;
-// one the scan lacks keeps simctl's own number, still labelled as the tool's.
+// one the scan lacks keeps simctl's own number, still labeled as the tool's.
 func TestSimulatorsUsePrivateSizeAndKeepToolSize(t *testing.T) {
 	withTools(t, "xcrun")
 	devs := readFixture(t, "w1_simctl_devices.json")

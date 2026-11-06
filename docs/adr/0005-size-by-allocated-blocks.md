@@ -1,6 +1,6 @@
 # 0005: Sizes come from allocated blocks (`st_blocks`)
 
-**Status:** **Accepted for change, in stages** (owner decision, 2026-11-06). The evidence below shows the current method is wrong for APFS clones. Stage 1 adds a private-size column filled from the bulk read and leaves `bytes` as it is; stage 2 shows reclaimable as private size and costs plans with it; stage 3 gives sets with clone groups a range. **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
+**Status:** **Accepted for change, in stages** (owner decision, 2026-11-06). The evidence below shows the current method is wrong for APFS clones. Stage 1 adds a private-size column filled from the bulk read and leaves `bytes` as it is; stage 2 shows reclaimable as private size and costs plans with it (built, see below); stage 3 gives sets with clone groups a range. **Recorded in:** `internal/scanner/scanner.go`; `docs/DEVELOPMENT_PLAN.md` line 155 ("APFS clones: can't be detected cheaply").
 
 ## Context
 
@@ -26,13 +26,27 @@ Option 2, in three stages. Measured since this record was opened: directories be
 
 ## Stage 1 as built
 
-`nodes.private_bytes` (migration 5) and `model.Node.Private` (`*int64`, not in any JSON) hold the lower bound for each kept node. The bulk read asks for `ATTR_CMNEXT_PRIVATESIZE` through `forkattr` with `FSOPT_ATTR_CMN_EXTENDED`. Files add their private size, counted exactly when their bytes are (a hard link once); a folder adds its own allocation, so a tree with no clones has private equal to bytes.
+`nodes.private_bytes` (migration 5) and `model.Node.Private` (`*int64`, not in any JSON) hold the lower bound for each kept node. The bulk read asks for `ATTR_CMNEXT_PRIVATESIZE` through `forkattr` with `FSOPT_ATTR_CMN_EXTENDED`. Files add their private size, counted when their bytes are (a hard link once; stage 2 makes a multi-link file add a known 0); a folder adds its own allocation, so a tree with no clones has private equal to bytes.
 
-**Unknown.** A file is unknown when the kernel did not report the attribute (the fstatat reader, or a volume that does not return it; HFS+ and exFAT were checked and return nothing, while the bulk read itself still works there). A node is unknown if any file below it is, and it stays unknown all the way to the root; a folder with no unknown file below it stays known. Unknown is stored as NULL and read back as nil, never as 0, and rows from scans made before the column existed are NULL. Nothing prints or costs from this value yet.
+**Unknown.** A file is unknown when the kernel did not report the attribute (the fstatat reader, or a volume that does not return it; HFS+ and exFAT were checked and return nothing, while the bulk read itself still works there). A node is unknown if any file below it is, and it stays unknown all the way to the root; a folder with no unknown file below it stays known. Unknown is stored as NULL and read back as nil, never as 0, and rows from scans made before the column existed are NULL. (Stage 1 printed and costed nothing from this value; stage 2 does.)
 
 **Cost (measured 2026-11-06, APFS, 12 cores).** Asking for the private size is not free, and it blows the 5% budget. On `/opt/homebrew` (322,511 files) a scan went from 1.52 s to 2.27 s wall (+49%) and from 2.2 s to 4.7 s CPU; on a synthetic tree of 100,000 small files from about 100 ms to 290 ms. The cost is about 2 microseconds of wall time per file whatever its size, and it sits in the kernel's private-size attribute: `FSOPT_ATTR_CMN_EXTENDED` alone is free (1.50 s), and clone ID plus clone reference count cost +5 to 8% (1.58 s). Peak memory is unchanged (about 14 MB resident, 4.3 MB heap). Bytes, files and kept nodes are identical to before on `/opt/homebrew` (10,852,208,640 bytes, 322,511 files, 3,434 nodes).
 
-**Known gap.** For a file with several links, the kernel reports the full size for each link, so a tree that holds only some of the links of an inode counts bytes the delete would not free (S1 scenario 5). Bytes has the same flaw today. The lower-bound claim holds for clones; it does not yet hold for partly-contained hard links. Stage 2 has to settle that before it shows the number.
+**Known gap.** For a file with several links, the kernel reports the full size for each link, so a tree that holds only some of the links of an inode counts bytes the delete would not free (S1 scenario 5). Bytes has the same flaw today. The lower-bound claim holds for clones; it does not yet hold for partly-contained hard links. Stage 2 settles that before it shows the number (see "Stage 2 as built").
+
+## Stage 2 as built
+
+A suggestion made from a scan node is sized by `model.Node.Reclaimable()`: the node's private size when known, else its allocated bytes (never above bytes). That covers every recipe built on `nodeFinding` (folders, files, caches, DerivedData, device support, Android and node versions), the unavailable-simulators sum, and project artifacts and DerivedData found by project discovery. Sizes a tool reports (Docker, Homebrew, conda, Ollama, simctl's own `dataPathSize`) are untouched. Plans take `expected_bytes` from the opportunity, so they are costed the same way. `min_bytes` thresholds, staleness and the version-control check gate in project discovery still read the allocated size, so which folders a recipe looks at does not change; only the number shown does.
+
+**Hard links.** The kernel reports the full size for every link, so a tree holding some of an inode's links would overstate (scenario 5). The scanner now counts a file with link count above 1 as a known 0 in the private sum (its bytes still count once, as before). A tree that holds every link of an inode therefore understates, which is the safe side. A file the kernel reported no private size for stays unknown even if it has several links.
+
+**A known 0.** A folder whose files are all clones of each other, or of files elsewhere, has a private size of 0 and is shown as 0 B, source measured. The default 1 MB display threshold applies to the number shown, so such a suggestion is hidden and counted in the note "N item(s) that would free under 1 MB not shown"; with the threshold off it is listed last. Totals are sums of the lower bounds.
+
+**Reporting.** The expected size in the apply report is now a floor, so the freed space is normally at or above it; the report says so when it is, and names shared space among the reasons for a shortfall. One gap: for a SAFE item that changed after the plan, the executor re-measures the folder's allocated bytes (`checkContents`), so that item's moved and audited bytes are allocated, not the lower bound, and the audit's "finished" record can mix the two. This was left alone because it is executor code.
+
+**JSON.** No field was renamed or removed. `bytes` of an opportunity changes meaning, as above. `doctor projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (artifacts and DerivedData, omitted when unknown; projects, always). `macdoc scan`, `doctor storage` and the other views of what is on disk still show allocated bytes.
+
+**Still open.** Stage 3 (a range for sets that hold a whole clone group, using clone IDs) is not built; a folder with such a group shows a low number, not a range. The apply report's new sentences have no test, because the report function takes a measured free-space change that the test harness does not script.
 
 ## Consequences of leaving it as is
 

@@ -216,9 +216,9 @@ Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` make
 
 Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The 10 newest scans are kept, plus one per week for 13 weeks (for `trend`).
 
-### Known limitation: sizes can overstate what you get back
+### Known limitation: a suggestion's size is a floor, and the real gain can be higher
 
-macdoc measures allocated blocks, the same thing `du` reports. On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size. In an experiment on a throwaway APFS volume (`docs/experiments/S1-apfs-private-size`), a suggestion's size was up to three times the space actually freed when clones were involved. macdoc already labels each number as measured, reported by a tool, estimated or unknown; making "reclaimable" exact for clones is a design change that is not made yet ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)). This affects what you decide to remove, not whether removal is safe.
+On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size (up to three times less in the experiment in `docs/experiments/S1-apfs-private-size`). For a suggestion made from the scan, macdoc therefore shows the space removing it is certain to free: the sum of the kernel's own per-file figure for the bytes a delete releases. That never overstates, but it can understate. A folder whose files are all clones of each other shows 0 (the space is released only when the last copy goes), and a file with more than one hard link counts as 0 because the kernel reports its full size for every link. Where a volume cannot report that figure (HFS+, exFAT), macdoc falls back to allocated blocks, the same thing `du` reports, as before. Sizes a tool reports (Docker, Homebrew, simctl) are shown as the tool gives them. `macdoc scan` and `doctor storage` still show allocated blocks, since they describe what is on disk. A range for sets of clones is not built yet ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)). This affects what you decide to remove, not whether removal is safe.
 
 ---
 
@@ -265,7 +265,7 @@ Developer tooling quietly eats tens of gigabytes:
 ## Why we're building it this way
 
 1. **Developer-aware.** DerivedData is regenerable, but Archives hold irreplaceable dSYMs. A system image that no AVD uses is dead weight.
-2. **Honest numbers.** Allocated bytes, not logical size. Hard links are counted once. Every number says where it came from, and unknown is never shown as 0.
+2. **Honest numbers.** A suggestion shows the space removing it is certain to free (never more); disk usage shows allocated bytes, not logical size, with hard links counted once. Every number says where it came from, and unknown is never shown as 0.
 3. **Safety is the product.** Read-only by default. Actions come only from a fixed recipe catalog with exact command allow-lists, and never from arbitrary paths. There's a dry-run before anything happens, confirmation by a person at the terminal, a crash-safe quarantine step, and an audit log.
 4. **Built for low-RAM hardware.** Scans run in the macOS background priority band with bounded memory.
 5. **Ready for Claude without handing over control.** CI proves the MCP and engine code can never reach the deletion code.

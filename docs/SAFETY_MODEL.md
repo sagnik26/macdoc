@@ -105,6 +105,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 ### 4.5 Verify
 - Free space before and after (container-level, plus purgeable if known).
 - Report expected vs actual, and explain gaps: still held in quarantine, local snapshot references, APFS clones, or a tool that freed less than it reported.
+- **Sizes are a floor (ADR 0005, stage 2):** the size of a suggestion made from the scan is the space removing it is certain to free (the sum of the files' kernel-reported private sizes), so clones no longer make the measured gain fall short of it. A file with several hard links adds 0, since the kernel reports its full size for each link and a tree may hold only some of them. Where the private size is unknown the allocated bytes are used instead, and then clones can still make the gain smaller than the size. A known 0 is shown as 0; an unknown size is never shown as 0. A tool-reported size is shown as the tool gave it.
 
 - **As built (Phase 6):** free space is the container's free bytes from `diskutil`, measured before and after. The report shows the measured change, the native commands' expected total, what moved to quarantine (still on disk), and possible reasons for a gap. `apply_finished` records the measured change.
 
