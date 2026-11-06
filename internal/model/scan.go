@@ -21,6 +21,16 @@ type Node struct {
 	Files    int64    `json:"files"`     // regular files below (1 for a file node)
 	MtimeMax int64    `json:"mtime_max"` // newest mtime below, unix seconds
 	Depth    int      `json:"depth"`     // components below the scan root
+
+	// Private is the bytes that deleting everything below this node is sure
+	// to free on APFS: the sum of its files' private sizes
+	// (ATTR_CMNEXT_PRIVATESIZE) plus the allocation of its folders. It is a
+	// lower bound, never above Bytes: files that share blocks only with each
+	// other inside the node count 0. Nil means unknown, because some file
+	// below was measured without a private size, and unknown is never zero.
+	// Stage 1 of docs/adr/0005-size-by-allocated-blocks.md stores it and
+	// shows it nowhere.
+	Private *int64 `json:"-"`
 }
 
 // Unmeasured is a path the scanner could not read.

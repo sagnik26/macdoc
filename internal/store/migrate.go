@@ -84,6 +84,10 @@ var Migrations = []string{
 		disk_free     INTEGER NOT NULL
 	);
 	CREATE INDEX vitals_at ON vitals (at);`,
+	// v5: bytes that deleting a node frees on APFS, from the file's private
+	// size (docs/adr/0005-size-by-allocated-blocks.md, stage 1). NULL means
+	// unknown, and rows from older scans stay NULL: unknown is never zero.
+	`ALTER TABLE nodes ADD COLUMN private_bytes INTEGER;`,
 }
 
 // migrate brings the schema up to len(Migrations). Each migration runs in its
