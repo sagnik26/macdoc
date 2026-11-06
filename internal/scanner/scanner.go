@@ -136,10 +136,11 @@ type Scanner struct {
 	opaque    map[string]bool // lowercased unmapped paths
 	watchDirs map[string]bool // lowercased parents of skip and opaque paths
 
-	stop  atomic.Bool  // set on ctx cancel; checked between batches
-	files atomic.Int64 // progress counters
-	bytes atomic.Int64
-	cur   atomic.Pointer[dir]
+	stop   atomic.Bool  // set on ctx cancel; checked between batches
+	nobulk atomic.Bool  // getattrlistbulk is unsupported on this volume
+	files  atomic.Int64 // progress counters
+	bytes  atomic.Int64
+	cur    atomic.Pointer[dir]
 
 	links LinkSet
 
@@ -207,7 +208,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	s.cond = sync.NewCond(&s.mu)
 
 	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec}
-	rd.opaque = s.opaque[strings.ToLower(root)]
+	rd.opaque = s.opaque[pathfold.Fold(root)]
 	rd.watch = s.watchDirs[pathfold.Fold(root)]
 	s.stack = append(s.stack, rd)
 
@@ -245,7 +246,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 
 	var wg sync.WaitGroup
 	for range workers {
-		wg.Go(s.worker)
+		wg.Go(s.run)
 	}
 	wg.Wait()
 	close(done)
@@ -329,13 +330,42 @@ func (s *Scanner) progress(fn func(Progress), every time.Duration, start time.Ti
 	}
 }
 
-func (s *Scanner) worker() {
+// worker is one reader goroutine's private state. Kept nodes and child
+// directories collect here and reach the shared scanner under one lock per
+// batch or directory, not one per file.
+type worker struct {
+	buf      []byte       // getattrlistbulk reply buffer, allocated on first use
+	nodes    []model.Node // kept files of the directory being listed
+	children []*dir       // subdirectories found in the current batch
+	bytes    int64        // progress counters for the current batch
+	files    int64
+}
+
+// flush publishes the current batch: progress counters first, then the new
+// subdirectories become work for other readers.
+func (w *worker) flush(s *Scanner, d *dir) {
+	s.bytes.Add(w.bytes)
+	s.files.Add(w.files)
+	w.bytes, w.files = 0, 0
+	if len(w.children) > 0 {
+		s.mu.Lock()
+		d.pending += len(w.children)
+		s.stack = append(s.stack, w.children...)
+		s.cond.Broadcast()
+		s.mu.Unlock()
+		clear(w.children)
+		w.children = w.children[:0]
+	}
+}
+
+func (s *Scanner) run() {
+	var w worker
 	for {
 		d := s.next()
 		if d == nil {
 			return
 		}
-		s.list(d)
+		s.list(&w, d)
 		s.mu.Lock()
 		s.active--
 		if s.active == 0 && len(s.stack) == 0 {
@@ -368,51 +398,77 @@ type totals struct {
 	bytes, files, mtime int64
 }
 
-// list reads d's entries, counts files and pushes subdirectories. It always
-// ends by releasing d's own pending count, even on error or cancel.
-func (s *Scanner) list(d *dir) {
-	s.cur.Store(d)
-	var acc totals
-	defer func() {
-		s.mu.Lock()
-		d.bytes += acc.bytes
-		d.files += acc.files
-		d.mtime = max(d.mtime, acc.mtime)
-		s.release(d)
-		s.mu.Unlock()
-	}()
-	if s.stop.Load() {
-		return
-	}
+// merge adds what a worker counted for d to d and the scan, and releases d's
+// own pending count.
+func (s *Scanner) merge(w *worker, d *dir, acc *totals) {
+	s.mu.Lock()
+	d.bytes += acc.bytes
+	d.files += acc.files
+	d.mtime = max(d.mtime, acc.mtime)
+	s.nodes = append(s.nodes, w.nodes...)
+	s.release(d)
+	s.mu.Unlock()
+	clear(w.nodes)
+	w.nodes = w.nodes[:0]
+}
+
+// open opens d and checks that it is still the directory its parent saw: the
+// same device and inode. Anything else was swapped mid-scan and is ignored.
+// ok is false when the directory is not to be read; a failure is recorded.
+func (s *Scanner) open(d *dir) (f *os.File, rc syscall.RawConn, ok bool) {
 	f, err := os.OpenFile(d.path, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
-	defer f.Close() //nolint:errcheck // read-only directory handle
-	rc, err := f.SyscallConn()
+	rc, err = f.SyscallConn()
 	if err != nil {
+		_ = f.Close()
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
-	// The directory must still be the one its parent saw: same device and
-	// inode. Anything else was swapped mid-scan and is ignored.
 	var st unix.Stat_t
 	if cerr := rc.Control(func(fd uintptr) { err = unix.Fstat(int(fd), &st) }); cerr != nil {
 		err = cerr
 	}
 	if err != nil {
+		_ = f.Close()
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
 	if st.Dev != s.rootDev || st.Ino != d.ino {
+		_ = f.Close()
+		return nil, nil, false
+	}
+	return f, rc, true
+}
+
+// list reads d's entries, counts files and pushes subdirectories. It always
+// ends by releasing d's own pending count, even on error or cancel.
+func (s *Scanner) list(w *worker, d *dir) {
+	s.cur.Store(d)
+	var acc totals
+	defer s.merge(w, d, &acc)
+	if s.stop.Load() {
+		return
+	}
+	f, rc, ok := s.open(d)
+	if !ok {
+		return
+	}
+	defer f.Close() //nolint:errcheck // read-only directory handle
+	var wn *watchNames
+	if d.watch {
+		wn = s.watchFor(d)
+	}
+	if Bulk && !s.nobulk.Load() && s.listBulk(w, d, rc, wn, &acc) {
 		return
 	}
 	for !s.stop.Load() {
 		names, rerr := f.Readdirnames(batchSize)
 		if len(names) > 0 {
 			var abort bool
-			if cerr := rc.Control(func(fd uintptr) { abort = s.batch(d, int(fd), names, &acc) }); cerr != nil {
+			if cerr := rc.Control(func(fd uintptr) { abort = s.batch(w, d, int(fd), names, wn, &acc) }); cerr != nil {
 				s.Fail(d.path, cerr)
 				return
 			}
@@ -429,90 +485,193 @@ func (s *Scanner) list(d *dir) {
 	}
 }
 
-// batch stats one batch of names relative to the open directory fd. It
-// returns true if the directory should not be read further.
-func (s *Scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
-	var children []*dir
-	var nbytes, nfiles int64
-	defer func() {
-		s.bytes.Add(nbytes)
-		s.files.Add(nfiles)
-		if len(children) > 0 {
-			s.mu.Lock()
-			d.pending += len(children)
-			s.stack = append(s.stack, children...)
-			s.cond.Broadcast()
-			s.mu.Unlock()
-		}
-	}()
+// statEntry lstats name relative to the open directory fd. ok is false if the
+// entry must be skipped; abort is true if the directory can't be read further
+// (no search permission, recorded once for the directory).
+func (s *Scanner) statEntry(d *dir, fd int, name string, st *unix.Stat_t) (ok, abort bool) {
+	err := Fstatat(fd, name, st, unix.AT_SYMLINK_NOFOLLOW)
+	if err == nil {
+		return true, false
+	}
+	if vanished(err) {
+		return false, false
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		s.Fail(d.path, err) // no search permission: one entry for the dir
+		return false, true
+	}
+	s.Fail(Join(d.path, name), err)
+	return false, false
+}
+
+// batch is the fstatat reader: it stats one batch of names relative to the
+// open directory fd. It returns true if the directory should not be read
+// further.
+func (s *Scanner) batch(w *worker, d *dir, fd int, names []string, wn *watchNames, acc *totals) bool {
+	defer w.flush(s, d)
 	var st unix.Stat_t // reused: it escapes through the Fstatat hook
+	var e entry
 	for _, name := range names {
-		if err := Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-			if vanished(err) {
-				continue
-			}
-			if errors.Is(err, fs.ErrPermission) {
-				s.Fail(d.path, err) // no search permission: one entry for the dir
-				return true
-			}
-			s.Fail(Join(d.path, name), err)
+		ok, abort := s.statEntry(d, fd, name, &st)
+		if abort {
+			return true
+		}
+		if !ok {
 			continue
 		}
-		var isOpaque bool
-		if d.watch {
-			lp := pathfold.Fold(Join(d.path, name))
-			if s.skip[lp] {
+		e.fromStat(name, &st)
+		s.visit(w, d, &e, wn, acc)
+	}
+	return false
+}
+
+// visit applies one measured entry of d. Both readers feed it, so they can't
+// disagree about what an entry means. It touches only w and acc: no lock.
+func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals) {
+	var isOpaque bool
+	if wn != nil {
+		switch wn.match(e.name) {
+		case matchSkip:
+			return
+		case matchOpaque:
+			isOpaque = true
+		}
+	}
+	n := e.bytes
+	switch e.kind {
+	case kindDir:
+		if e.dev != s.rootDev {
+			return // mount point: another device is never descended or counted
+		}
+		c := &dir{
+			parent:  d,
+			path:    Join(d.path, e.name),
+			ino:     e.ino,
+			depth:   d.depth + 1,
+			opaque:  isOpaque,
+			hidden:  d.opaque || d.hidden,
+			pending: 1,
+			bytes:   n,
+			mtime:   e.mtime,
+		}
+		if len(s.watchDirs) > 0 {
+			c.watch = s.watchDirs[pathfold.Fold(c.path)]
+		}
+		w.children = append(w.children, c)
+		w.bytes += n
+	case kindFile:
+		if e.nlink > 1 && !s.links.Count(e.dev, e.ino, e.nlink) {
+			return // another link to this inode was already counted
+		}
+		acc.bytes += n
+		acc.files++
+		acc.mtime = max(acc.mtime, e.mtime)
+		w.bytes += n
+		w.files++
+		if n >= s.threshold && !d.opaque && !d.hidden {
+			w.nodes = append(w.nodes, model.Node{
+				Path:     s.MapPath(Join(d.path, e.name)),
+				Kind:     model.NodeFile,
+				Bytes:    n,
+				Files:    1,
+				MtimeMax: e.mtime,
+				Depth:    d.depth + 1,
+			})
+		}
+	default: // symlinks (never followed), sockets, fifos: own blocks only
+		acc.bytes += n
+		acc.mtime = max(acc.mtime, e.mtime)
+		w.bytes += n
+	}
+}
+
+// Results of watchNames.match.
+const (
+	matchNone = iota
+	matchSkip
+	matchOpaque
+)
+
+// watchNames holds, for one directory, the lowercased names of its direct
+// children that are Skip or Opaque paths. Matching an entry needs no
+// allocation for ASCII names, which is nearly all of them.
+type watchNames struct {
+	skip, opaque []string
+}
+
+// watchFor builds the watch list of d, a directory with a Skip or Opaque
+// child. A child matches when lower(d.path)/lower(name) is a configured path,
+// the same rule as the lowercased full-path lookup it replaces.
+func (s *Scanner) watchFor(d *dir) *watchNames {
+	dl := pathfold.Fold(d.path)
+	wn := &watchNames{}
+	collect := func(set map[string]bool) []string {
+		var out []string
+		for p := range set {
+			if p == dl || filepath.Dir(p) != dl {
 				continue
 			}
-			isOpaque = s.opaque[lp]
+			if base := strings.TrimPrefix(p[len(dl):], "/"); base != "" {
+				out = append(out, base)
+			}
 		}
-		n := st.Blocks * 512
-		switch st.Mode & unix.S_IFMT {
-		case unix.S_IFDIR:
-			if st.Dev != s.rootDev {
-				continue // mount point: another device is never descended or counted
+		return out
+	}
+	wn.skip = collect(s.skip)
+	wn.opaque = collect(s.opaque)
+	return wn
+}
+
+func (wn *watchNames) match(name string) int {
+	ascii := true
+	for i := 0; i < len(name); i++ {
+		if name[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		if foldIn(wn.skip, name) {
+			return matchSkip
+		}
+		if foldIn(wn.opaque, name) {
+			return matchOpaque
+		}
+		return matchNone
+	}
+	l := pathfold.Fold(name)
+	for _, c := range wn.skip {
+		if c == l {
+			return matchSkip
+		}
+	}
+	for _, c := range wn.opaque {
+		if c == l {
+			return matchOpaque
+		}
+	}
+	return matchNone
+}
+
+// foldIn reports whether the ASCII name, lowercased, equals one of cands
+// (already lowercase). It allocates nothing.
+func foldIn(cands []string, name string) bool {
+	for _, c := range cands {
+		if len(c) != len(name) {
+			continue
+		}
+		i := 0
+		for ; i < len(name); i++ {
+			b := name[i]
+			if 'A' <= b && b <= 'Z' {
+				b += 'a' - 'A'
 			}
-			c := &dir{
-				parent:  d,
-				path:    Join(d.path, name),
-				ino:     st.Ino,
-				depth:   d.depth + 1,
-				opaque:  isOpaque,
-				hidden:  d.opaque || d.hidden,
-				pending: 1,
-				bytes:   n,
-				mtime:   st.Mtim.Sec,
+			if b != c[i] {
+				break
 			}
-			if len(s.watchDirs) > 0 {
-				c.watch = s.watchDirs[pathfold.Fold(c.path)]
-			}
-			children = append(children, c)
-			nbytes += n
-		case unix.S_IFREG:
-			if st.Nlink > 1 && !s.links.Count(st.Dev, st.Ino, st.Nlink) {
-				continue // another link to this inode was already counted
-			}
-			acc.bytes += n
-			acc.files++
-			acc.mtime = max(acc.mtime, st.Mtim.Sec)
-			nbytes += n
-			nfiles++
-			if n >= s.threshold && !d.opaque && !d.hidden {
-				s.mu.Lock()
-				s.nodes = append(s.nodes, model.Node{
-					Path:     s.MapPath(Join(d.path, name)),
-					Kind:     model.NodeFile,
-					Bytes:    n,
-					Files:    1,
-					MtimeMax: st.Mtim.Sec,
-					Depth:    d.depth + 1,
-				})
-				s.mu.Unlock()
-			}
-		default: // symlinks (never followed), sockets, fifos: own blocks only
-			acc.bytes += n
-			acc.mtime = max(acc.mtime, st.Mtim.Sec)
-			nbytes += n
+		}
+		if i == len(name) {
+			return true
 		}
 	}
 	return false

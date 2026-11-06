@@ -430,7 +430,9 @@ func TestStatErrorBecomesUnmeasured(t *testing.T) {
 	root := t.TempDir()
 	ft.Build(t, root, ft.File("bad", 10), ft.File("good", 10), ft.File("gone", 10))
 	orig := scanner.Fstatat
-	t.Cleanup(func() { scanner.Fstatat = orig })
+	origBulk := scanner.Bulk
+	scanner.Bulk = false // the hook only sees the fstatat reader
+	t.Cleanup(func() { scanner.Fstatat = orig; scanner.Bulk = origBulk })
 	scanner.Fstatat = func(fd int, name string, st *unix.Stat_t, flags int) error {
 		switch name {
 		case "bad":
@@ -455,7 +457,9 @@ func TestCrossDevice(t *testing.T) {
 	root := t.TempDir()
 	ft.Build(t, root, ft.File("mnt/f", 2*mb), ft.File("local/f", 2*mb))
 	orig := scanner.Fstatat
-	t.Cleanup(func() { scanner.Fstatat = orig })
+	origBulk := scanner.Bulk
+	scanner.Bulk = false // the hook only sees the fstatat reader
+	t.Cleanup(func() { scanner.Fstatat = orig; scanner.Bulk = origBulk })
 	scanner.Fstatat = func(fd int, name string, st *unix.Stat_t, flags int) error {
 		err := orig(fd, name, st, flags)
 		if name == "mnt" {
