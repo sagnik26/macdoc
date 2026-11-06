@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability (private)
+    url: https://github.com/sagnik26/macdoc/security/advisories/new
+    about: Anything that lets macdoc touch a protected path, act on a path you did not approve, run a command outside the recipes or skip the typed confirmation. Do not open a public issue for these; see SECURITY.md.

@@ -1,0 +1,30 @@
+# Review is requested automatically from these owners. It is only required to
+# merge if the branch protection rule on main says "Require review from Code
+# Owners" (a repository setting, not a file).
+#
+# The paths are the ones where a mistake can delete someone's files or weaken
+# a guard: see docs/THREAT_MODEL.md.
+
+# The only code allowed to delete, move or run mutating commands
+/internal/executor/    @sagnik26
+
+# What decides whether a path may ever be touched, and what a plan may contain
+/internal/safety/      @sagnik26
+/internal/planner/     @sagnik26
+/internal/precond/     @sagnik26
+/internal/pathfold/    @sagnik26
+
+# What macdoc is allowed to act on, and the commands it may run
+/internal/recipes/catalog/  @sagnik26
+/internal/recipes/load.go   @sagnik26
+
+# The checks that keep the rules above true
+/scripts/              @sagnik26
+/tools/forbidcheck/    @sagnik26
+/.github/              @sagnik26
+/.golangci.yml         @sagnik26
+
+# The rules themselves
+/docs/SAFETY_MODEL.md  @sagnik26
+/docs/THREAT_MODEL.md  @sagnik26
+/docs/adr/             @sagnik26
