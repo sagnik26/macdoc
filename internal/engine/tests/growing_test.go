@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 const (
@@ -22,7 +24,7 @@ const (
 // every folder above a leaf grows by the sum of what is below it. Maps are
 // keyed by lower-cased path, as the engine builds them.
 func growTree(n int, seed uint64) (before, after map[string]model.Node) {
-	r := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+	r := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // G404: a seeded generator makes the trees reproducible
 	paths := []string{"/Users/me"}
 	depth := []int{2}
 	parent := []int{-1}
@@ -66,7 +68,7 @@ func growTree(n int, seed uint64) (before, after map[string]model.Node) {
 	after = make(map[string]model.Node, len(paths))
 	for i, p := range paths {
 		b := 200_000_000 + r.Int64N(5*gB)
-		k := strings.ToLower(p)
+		k := pathfold.Fold(p)
 		if r.IntN(15) != 0 { // some folders are new: under the floor before
 			before[k] = model.Node{Path: p, Kind: model.NodeDir, Bytes: b}
 		} else {
@@ -80,8 +82,11 @@ func growTree(n int, seed uint64) (before, after map[string]model.Node) {
 var growSink []engine.TrendFolder
 
 func benchGrowing(b *testing.B, f func(before, after map[string]model.Node) []engine.TrendFolder) {
-	for _, n := range []int{75, 750, 7500} {
-		before, after := growTree(n, uint64(n))
+	for _, size := range []struct {
+		n    int
+		seed uint64
+	}{{75, 75}, {750, 750}, {7500, 7500}} {
+		before, after := growTree(size.n, size.seed)
 		cands := 0
 		for k, a := range after {
 			if a.Bytes-before[k].Bytes >= 500_000_000 {
