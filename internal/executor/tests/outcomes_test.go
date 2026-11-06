@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/quarantine"
 )
 
 // Why a native item did not run, or did not succeed, in the words a person
@@ -165,7 +165,7 @@ func TestItemAuditBytes(t *testing.T) {
 
 // DeleteNow only purges an item that was moved: a native command or an item
 // whose move was undone has nothing in quarantine to delete.
-func TestDeleteNowOnlyPurgesWhatWasMoved(t *testing.T) {
+func TestDeleteNowOnlyPurgesWhatWasMoved(t *testing.T) { //nolint:gocognit // A linear list of assertions about one scenario.
 	t.Run("native item", func(t *testing.T) {
 		withTools(t, "brew")
 		e := newEnv(t)

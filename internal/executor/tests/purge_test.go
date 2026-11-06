@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // heldItem applies a one-folder plan and returns the quarantine ID, the entry
@@ -99,7 +99,7 @@ func TestPurgeNeedsAStore(t *testing.T) {
 }
 
 // Each id gets its own result, in order, with the reason it was not touched.
-func TestPurgeReportsEachID(t *testing.T) {
+func TestPurgeReportsEachID(t *testing.T) { //nolint:gocyclo // A linear list of assertions about one scenario.
 	e := newEnv(t)
 	qid, entry, _ := heldItem(t, e, "Library/Logs/A")
 	res, err := executor.Purge(context.Background(), e.cfg, []string{"nope", "Q-ZZZZ", qid})
@@ -152,7 +152,7 @@ func TestPurgeSkipsFinishedEntries(t *testing.T) {
 
 // The record is closed, and the leftover manifest tidied, when the moved
 // folder is already gone; and a pending record whose folder is gone is left.
-func TestPurgeWhenTheFolderIsGone(t *testing.T) {
+func TestPurgeWhenTheFolderIsGone(t *testing.T) { //nolint:gocyclo // A linear list of assertions about one scenario.
 	t.Run("payload gone", func(t *testing.T) {
 		e := newEnv(t)
 		qid, entry, _ := heldItem(t, e, "Library/Logs/A")

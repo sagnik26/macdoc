@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/quarantine"
 )
 
 // A swap for a symlink while the move is being prepared is named as such, and

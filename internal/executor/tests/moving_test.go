@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // allocated is what the executor measures: the allocated bytes of every
@@ -98,7 +98,7 @@ func TestMovedFileBytes(t *testing.T) {
 }
 
 // What the manifest and record say about a move.
-func TestManifestContents(t *testing.T) {
+func TestManifestContents(t *testing.T) { //nolint:gocyclo // A linear list of assertions about one scenario.
 	e := newEnv(t)
 	e.cfg.QuarantineTTL = 48 * time.Hour
 	target := e.folder(t, "Library/Logs/A")

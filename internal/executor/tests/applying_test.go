@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/config"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // finished returns the apply_finished record, the last one in the log.
@@ -31,7 +31,7 @@ func finished(t *testing.T, e *env) audit.Record {
 
 // The closing audit record states how many items there were, how much they
 // were expected to free and how it went.
-func TestApplyFinishedRecord(t *testing.T) {
+func TestApplyFinishedRecord(t *testing.T) { //nolint:gocyclo // A linear list of assertions about one scenario.
 	withTools(t, "brew")
 	t.Run("ok", func(t *testing.T) {
 		e := newEnv(t)
@@ -118,7 +118,7 @@ func TestApplyMeasuresFreeSpace(t *testing.T) {
 
 // Every early refusal changes nothing: no move, no audit record, plan still
 // pending.
-func TestApplyEarlyRefusals(t *testing.T) {
+func TestApplyEarlyRefusals(t *testing.T) { //nolint:gocognit,gocyclo // A linear list of assertions about one scenario.
 	t.Run("config incomplete", func(t *testing.T) {
 		for name, mutate := range map[string]func(c *executor.Config){
 			"no store": func(c *executor.Config) { c.Store = nil },

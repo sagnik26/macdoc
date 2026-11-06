@@ -5,14 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 // Once the apply is canceled, the items still to come are skipped and
 // audited; the one already done stays done.
-func TestInterruptedApplySkipsTheRest(t *testing.T) {
+func TestInterruptedApplySkipsTheRest(t *testing.T) { //nolint:gocyclo // A linear list of assertions about one scenario.
 	e := newEnv(t)
 	a := e.folder(t, "Library/Logs/A")
 	b := e.folder(t, "Library/Logs/B")

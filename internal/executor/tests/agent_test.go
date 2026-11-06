@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/executor"
 )
 
 // outsideHome is a home folder outside the sandbox.
@@ -65,7 +65,7 @@ func TestScheduleReinstallReplacesOurs(t *testing.T) {
 	}
 }
 
-func TestScheduleInstallFailures(t *testing.T) {
+func TestScheduleInstallFailures(t *testing.T) { //nolint:gocognit,gocyclo // A linear list of assertions about one scenario.
 	t.Run("LaunchAgents can't be made", func(t *testing.T) {
 		home := newEnv(t).home
 		if err := os.WriteFile(filepath.Join(home, "Library", "LaunchAgents"), []byte("x"), 0o600); err != nil {

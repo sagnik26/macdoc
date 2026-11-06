@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // theEntry returns the one quarantine entry folder that exists while a move is
