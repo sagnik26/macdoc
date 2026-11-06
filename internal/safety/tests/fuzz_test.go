@@ -2,11 +2,12 @@ package tests
 
 import (
 	"errors"
-	"github.com/sagnik26/macdoc/internal/safety"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 func FuzzCanonicalize(f *testing.F) {

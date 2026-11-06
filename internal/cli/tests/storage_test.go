@@ -2,10 +2,11 @@ package tests
 
 import (
 	"encoding/json"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 
 	"github.com/sagnik26/macdoc/internal/audit"
 	"github.com/sagnik26/macdoc/internal/model"

@@ -2,7 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +9,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 func stat(t *testing.T, p string) *syscall.Stat_t {

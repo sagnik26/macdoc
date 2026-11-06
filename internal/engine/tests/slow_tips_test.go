@@ -1,9 +1,10 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/engine"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/engine"
 
 	"github.com/sagnik26/macdoc/internal/probe"
 )

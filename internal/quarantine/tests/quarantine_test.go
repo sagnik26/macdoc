@@ -2,12 +2,13 @@ package tests
 
 import (
 	"encoding/json"
-	"github.com/sagnik26/macdoc/internal/quarantine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/quarantine"
 
 	"github.com/sagnik26/macdoc/internal/store"
 )

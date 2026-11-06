@@ -3,12 +3,13 @@ package tests
 import (
 	"bytes"
 	"fmt"
-	"github.com/sagnik26/macdoc/tools/forbidcheck/check"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/tools/forbidcheck/check"
 )
 
 func findings(t *testing.T, src string) []string {

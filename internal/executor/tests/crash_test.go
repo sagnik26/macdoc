@@ -3,12 +3,13 @@ package tests
 import (
 	"context"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 
 	"github.com/sagnik26/macdoc/internal/audit"
 	"github.com/sagnik26/macdoc/internal/model"

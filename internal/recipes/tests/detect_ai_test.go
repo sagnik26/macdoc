@@ -2,9 +2,10 @@ package tests
 
 import (
 	"errors"
-	"github.com/sagnik26/macdoc/internal/recipes"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/recipes"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/platform"

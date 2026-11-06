@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/mcp"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +18,8 @@ import (
 	"testing"
 	"time"
 	"unicode"
+
+	"github.com/sagnik26/macdoc/internal/mcp"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 

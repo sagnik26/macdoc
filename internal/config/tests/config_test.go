@@ -1,12 +1,13 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/config"
 )
 
 func TestLoadSave(t *testing.T) {

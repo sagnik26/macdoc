@@ -3,12 +3,13 @@ package tests
 import (
 	"context"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/recipes"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/recipes"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/platform"

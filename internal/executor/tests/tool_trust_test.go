@@ -1,10 +1,11 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 )
 
 // writeTool makes an executable file in dir with the given mode.

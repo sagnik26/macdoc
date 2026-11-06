@@ -1,9 +1,10 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	tea "github.com/charmbracelet/bubbletea"
 

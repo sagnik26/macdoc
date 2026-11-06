@@ -6,10 +6,11 @@ package tests
 import (
 	"bufio"
 	"bytes"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"

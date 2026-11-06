@@ -2,11 +2,12 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/recipes"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/recipes"
 
 	"github.com/sagnik26/macdoc/internal/model"
 )

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/mcp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/mcp"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 

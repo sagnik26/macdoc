@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/recipes"
 	"io/fs"
 	"math"
 	"os"
@@ -19,6 +18,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/recipes"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/platform"

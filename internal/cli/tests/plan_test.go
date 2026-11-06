@@ -3,10 +3,11 @@ package tests
 import (
 	"bytes"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	tea "github.com/charmbracelet/bubbletea"
 

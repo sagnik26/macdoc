@@ -2,10 +2,11 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 
 	"github.com/sagnik26/macdoc/internal/config"
 	"github.com/sagnik26/macdoc/internal/model"

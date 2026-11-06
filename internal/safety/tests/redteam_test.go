@@ -7,13 +7,14 @@ package tests
 import (
 	"errors"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/safety"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // rtRule runs CheckTarget and returns the violation rule ("" when accepted).

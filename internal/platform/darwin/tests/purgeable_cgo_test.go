@@ -3,8 +3,9 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/platform/darwin"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/platform/darwin"
 )
 
 func TestPurgeableBytesCgo(t *testing.T) {

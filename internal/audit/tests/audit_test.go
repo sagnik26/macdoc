@@ -1,13 +1,14 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/audit"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/audit"
 )
 
 func TestAppendRead(t *testing.T) {

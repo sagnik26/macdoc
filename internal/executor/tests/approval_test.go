@@ -2,8 +2,9 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/executor"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/planner"

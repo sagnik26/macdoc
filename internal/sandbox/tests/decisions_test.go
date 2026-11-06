@@ -4,11 +4,12 @@ package tests
 // P0-R1 red-team tests do not already cover.
 
 import (
-	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // D8: sandbox.Check refuses non-canonical input even when it would stay inside the

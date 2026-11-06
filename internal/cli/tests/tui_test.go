@@ -2,10 +2,11 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

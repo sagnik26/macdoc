@@ -3,9 +3,10 @@ package tests
 import (
 	"context"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/precond"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/precond"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/platform"

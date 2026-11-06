@@ -3,9 +3,10 @@ package tests
 import (
 	"context"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/probe"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/probe"
 
 	"github.com/sagnik26/macdoc/internal/platform"
 )

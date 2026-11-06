@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/scanner"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/scanner"
 
 	"golang.org/x/sys/unix"
 

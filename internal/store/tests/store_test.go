@@ -3,7 +3,6 @@ package tests
 import (
 	"errors"
 	"fmt"
-	"github.com/sagnik26/macdoc/internal/store"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/store"
 
 	"github.com/sagnik26/macdoc/internal/model"
 )

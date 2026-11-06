@@ -1,10 +1,11 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/textsafe"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 func TestInvisible(t *testing.T) {

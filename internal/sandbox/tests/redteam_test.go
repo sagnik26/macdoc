@@ -4,11 +4,12 @@ package tests
 // findings (see .task/REPORT.md); the rest document attacks that held.
 
 import (
-	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // RT-08: sandbox.Check trusts its caller to pass a canonical path and compares

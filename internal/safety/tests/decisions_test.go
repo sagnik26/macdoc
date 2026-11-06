@@ -5,11 +5,12 @@ package tests
 
 import (
 	"errors"
-	"github.com/sagnik26/macdoc/internal/safety"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // D1: strict ancestors of extra protected roots, lexical and resolved.

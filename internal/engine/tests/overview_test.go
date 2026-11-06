@@ -2,11 +2,12 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/engine"
 
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/platform"

@@ -2,13 +2,14 @@ package tests
 
 import (
 	"bytes"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	"github.com/spf13/cobra"
 

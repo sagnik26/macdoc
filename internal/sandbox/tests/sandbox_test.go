@@ -1,11 +1,12 @@
 package tests
 
 import (
-	"github.com/sagnik26/macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/sandbox"
 
 	"github.com/sagnik26/macdoc/internal/safety"
 )

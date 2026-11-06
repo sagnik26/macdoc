@@ -2,8 +2,9 @@ package tests
 
 import (
 	"bytes"
-	"github.com/sagnik26/macdoc/internal/cli"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"

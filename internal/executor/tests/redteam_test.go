@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/sagnik26/macdoc/internal/executor"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +22,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 
 	"golang.org/x/text/unicode/norm"
 

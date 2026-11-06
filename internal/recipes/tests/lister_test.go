@@ -2,9 +2,10 @@ package tests
 
 import (
 	"context"
-	"github.com/sagnik26/macdoc/internal/recipes"
 	"slices"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/recipes"
 
 	"github.com/sagnik26/macdoc/internal/platform"
 )
