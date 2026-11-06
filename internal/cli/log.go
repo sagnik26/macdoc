@@ -66,33 +66,33 @@ func logLine(t *Theme, r audit.Record, home string) string {
 		reason = " · " + r.Reason
 	}
 	switch r.Event {
-	case audit.PlanCreated:
-		return fmt.Sprintf("%s %s · %d item(s) · %s%s", t.text.Render("plan"), t.ID.Render(r.Plan), r.Items, engine.DecimalBytes(r.ExpectedBytes), t.muted.Render(" ("+r.Origin+")"))
-	case audit.ApplyStarted:
+	case audit.Planned:
+		return fmt.Sprintf("%s %s · %d item(s) · %s%s", t.text.Render("plan"), t.ID.Render(r.Plan), r.Items, engine.DecimalBytes(r.Expected), t.muted.Render(" ("+r.Origin+")"))
+	case audit.Started:
 		return fmt.Sprintf("%s %s · %d item(s)", t.text.Render("apply started"), t.ID.Render(r.Plan), r.Items)
-	case audit.ItemDone:
+	case audit.Done:
 		q := ""
-		if r.QuarantineID != "" {
-			q = " → " + r.QuarantineID
+		if r.Entry != "" {
+			q = " → " + r.Entry
 		}
 		return fmt.Sprintf("  %s %s %s%s", t.Ok.Render("done"), t.ID.Render(r.Item), what, q)
-	case audit.ItemSkipped:
+	case audit.Skipped:
 		return fmt.Sprintf("  %s %s %s%s", t.warn.Render("skipped"), t.ID.Render(r.Item), what, t.muted.Render(reason))
-	case audit.ItemFailed:
+	case audit.Failed:
 		return fmt.Sprintf("  %s %s %s%s", t.bad.Render("failed"), t.ID.Render(r.Item), what, t.muted.Render(reason))
-	case audit.ApplyFinished:
+	case audit.Finished:
 		s := fmt.Sprintf("%s %s · %s", t.text.Render("apply finished"), t.ID.Render(r.Plan), r.Result)
-		if r.ActualBytes != nil {
-			s += " · free space " + signedBytes(*r.ActualBytes)
+		if r.Actual != nil {
+			s += " · free space " + signedBytes(*r.Actual)
 		}
 		return s
-	case audit.QuarantineRestored:
-		return fmt.Sprintf("%s %s to %s", t.text.Render("restored"), t.ID.Render(r.QuarantineID), what)
-	case audit.QuarantinePurged:
+	case audit.Restored:
+		return fmt.Sprintf("%s %s to %s", t.text.Render("restored"), t.ID.Render(r.Entry), what)
+	case audit.Purged:
 		if r.Result == "ok" {
-			return fmt.Sprintf("%s %s %s", t.text.Render("purged"), t.ID.Render(r.QuarantineID), what)
+			return fmt.Sprintf("%s %s %s", t.text.Render("purged"), t.ID.Render(r.Entry), what)
 		}
-		return fmt.Sprintf("%s %s%s", t.warn.Render("purge refused"), t.ID.Render(r.QuarantineID), t.muted.Render(reason))
+		return fmt.Sprintf("%s %s%s", t.warn.Render("purge refused"), t.ID.Render(r.Entry), t.muted.Render(reason))
 	}
 	return r.Event
 }

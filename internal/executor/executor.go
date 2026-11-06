@@ -243,8 +243,8 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 			rep.FreeBefore = &n
 		}
 	}
-	if err := cfg.audit(audit.Record{Event: audit.ApplyStarted, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(plan.Items), ExpectedBytes: plan.TotalBytes}); err != nil {
+	if err := cfg.audit(audit.Record{Event: audit.Started, Plan: plan.ID, Origin: string(plan.Origin),
+		Items: len(plan.Items), Expected: plan.TotalBytes}); err != nil {
 		// Without an audit trail nothing may change.
 		return rep, fmt.Errorf("couldn't write the audit log, nothing was changed: %w", err)
 	}
@@ -260,10 +260,10 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 			rep.FreeAfter = &n
 		}
 	}
-	fin := audit.Record{Event: audit.ApplyFinished, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(rep.Items), ExpectedBytes: rep.NativeExpected() + rep.MovedBytes() + rep.DeletedBytes(), Result: finishResult(rep)}
+	fin := audit.Record{Event: audit.Finished, Plan: plan.ID, Origin: string(plan.Origin),
+		Items: len(rep.Items), Expected: rep.NativeExpected() + rep.MovedBytes() + rep.DeletedBytes(), Result: finishResult(rep)}
 	if n, ok := rep.Freed(); ok {
-		fin.ActualBytes = &n
+		fin.Actual = &n
 	}
 	if err := cfg.audit(fin); err != nil {
 		rep.Warnings = append(rep.Warnings, "couldn't write the final audit record: "+err.Error())
@@ -299,12 +299,12 @@ func (c *Config) defaults() error {
 		c.Now = time.Now
 	}
 	if c.QuarantineTTL <= 0 {
-		c.QuarantineTTL = quarantine.DefaultTTL
+		c.QuarantineTTL = quarantine.TTL
 	}
 	if c.NativeTimeout <= 0 {
 		c.NativeTimeout = DefaultNativeTimeout
 		if s, err := config.Load(c.Home); err == nil {
-			c.NativeTimeout = s.NativeTimeout()
+			c.NativeTimeout = s.Timeout()
 		}
 	}
 	if c.Exec == nil {

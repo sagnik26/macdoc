@@ -20,14 +20,14 @@ import (
 // case folding, then NFC again. Equal keys mean the same name. The key is
 // for comparing only; never use it as a path to act on.
 func Fold(s string) string {
-	if isASCII(s) {
+	if ascii(s) {
 		// Case folding of ASCII is lower-casing, and ASCII is already NFC.
 		return strings.ToLower(s)
 	}
 	return norm.NFC.String(cases.Fold().String(norm.NFC.String(s)))
 }
 
-func isASCII(s string) bool {
+func ascii(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= 0x80 {
 			return false

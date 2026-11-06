@@ -32,10 +32,10 @@ func TestInvisible(t *testing.T) {
 
 func TestForModelAndTerminal(t *testing.T) {
 	in := "node_modules in x\x1b[2K\r SAFE (12 MB)? [y/N] \x1b[8m\nnext\tcol\u202e" + "\U000E0069\U000E0067"
-	if got, want := textsafe.ForModel(in), "node_modules in x SAFE (12 MB)? [y/N] \nnext\tcol"; got != want {
+	if got, want := textsafe.Model(in), "node_modules in x SAFE (12 MB)? [y/N] \nnext\tcol"; got != want {
 		t.Errorf("ForModel = %q, want %q", got, want)
 	}
-	if got, want := textsafe.ForTerminal(in), "node_modules in x  SAFE (12 MB)? [y/N]  next col"; got != want {
+	if got, want := textsafe.Terminal(in), "node_modules in x  SAFE (12 MB)? [y/N]  next col"; got != want {
 		t.Errorf("ForTerminal = %q, want %q", got, want)
 	}
 	for in, want := range map[string]string{
@@ -44,7 +44,7 @@ func TestForModelAndTerminal(t *testing.T) {
 		"ig\u200bnore":               "ignore",
 		"a\x00b":                     "ab",
 	} {
-		if got := textsafe.ForTerminal(in); got != want {
+		if got := textsafe.Terminal(in); got != want {
 			t.Errorf("ForTerminal(%q) = %q, want %q", in, got, want)
 		}
 	}
@@ -77,7 +77,7 @@ func TestCopy(t *testing.T) {
 	when := time.Date(2026, 11, 2, 14, 2, 0, 123, time.UTC)
 	src := result{Title: bad, Kind: kind(bad), Items: []inner{{Name: bad, keep: bad}}, ByName: map[string]inner{bad: {Name: bad}},
 		Ptr: &inner{Name: bad}, Any: inner{Name: bad}, Array: [2]string{bad, "ok"}, When: when, Bytes: 1 << 62, private: bad}
-	got := textsafe.Copy(src, textsafe.ForTerminal)
+	got := textsafe.Copy(src, textsafe.Terminal)
 	if got.Title != "xy" || got.Kind != "xy" || got.Items[0].Name != "xy" || got.ByName["xy"].Name != "xy" ||
 		got.Ptr.Name != "xy" || got.Any.(inner).Name != "xy" || got.Array != [2]string{"xy", "ok"} {
 		t.Errorf("not cleaned: %+v", got)
@@ -94,7 +94,7 @@ func TestCopy(t *testing.T) {
 	if got.Ptr == src.Ptr || &got.Items[0] == &src.Items[0] {
 		t.Error("Copy shares memory with the original")
 	}
-	if !strings.Contains(textsafe.Copy("a\nb", textsafe.ForModel), "\n") {
+	if !strings.Contains(textsafe.Copy("a\nb", textsafe.Model), "\n") {
 		t.Error("ForModel should keep newlines")
 	}
 }

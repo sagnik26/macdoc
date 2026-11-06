@@ -23,10 +23,10 @@ type Config struct {
 	// Protect lists extra folders macdoc must never touch, as absolute or
 	// "~/" paths. They add to the built-in protected paths.
 	Protect []string `json:"protect,omitempty"`
-	// PlanMinutes is how long a sealed plan stays valid.
-	PlanMinutes int `json:"plan_minutes,omitempty"`
-	// NativeTimeoutMinutes bounds a tool's own cleanup command.
-	NativeTimeoutMinutes int `json:"native_timeout_minutes,omitempty"`
+	// Plan is how long a sealed plan stays valid.
+	Plan int `json:"plan_minutes,omitempty"`
+	// Native bounds a tool's own cleanup command.
+	Native int `json:"native_timeout_minutes,omitempty"`
 }
 
 // Setting describes one number setting.
@@ -107,7 +107,7 @@ func (c Config) Validate() error {
 		}
 	}
 	for _, p := range c.Protect {
-		if err := checkProtect(p); err != nil {
+		if err := verify(p); err != nil {
 			return err
 		}
 	}
@@ -118,9 +118,9 @@ func (c Config) Validate() error {
 func (c Config) Get(key string) int {
 	switch key {
 	case "plan_minutes":
-		return c.PlanMinutes
+		return c.Plan
 	case "native_timeout_minutes":
-		return c.NativeTimeoutMinutes
+		return c.Native
 	}
 	return 0
 }
@@ -136,9 +136,9 @@ func (c *Config) Set(key string, v int) error {
 	}
 	switch key {
 	case "plan_minutes":
-		c.PlanMinutes = v
+		c.Plan = v
 	case "native_timeout_minutes":
-		c.NativeTimeoutMinutes = v
+		c.Native = v
 	}
 	return nil
 }
@@ -156,23 +156,23 @@ func (c Config) Effective(key string) int {
 	return 0
 }
 
-// PlanTTL is how long a sealed plan stays valid.
-func (c Config) PlanTTL() time.Duration {
+// TTL is how long a sealed plan stays valid.
+func (c Config) TTL() time.Duration {
 	return time.Duration(c.Effective("plan_minutes")) * time.Minute
 }
 
-// NativeTimeout bounds a tool's own cleanup command.
-func (c Config) NativeTimeout() time.Duration {
+// Timeout bounds a tool's own cleanup command.
+func (c Config) Timeout() time.Duration {
 	return time.Duration(c.Effective("native_timeout_minutes")) * time.Minute
 }
 
 // AddProtect adds a protected folder; adding one twice is a no-op.
 func (c *Config) AddProtect(p string) error {
 	// Checked before cleaning, which would resolve ".." lexically.
-	if err := checkProtect(strings.TrimSpace(p)); err != nil {
+	if err := verify(strings.TrimSpace(p)); err != nil {
 		return err
 	}
-	p = cleanProtect(p)
+	p = tidy(p)
 	if !slices.Contains(c.Protect, p) {
 		c.Protect = append(c.Protect, p)
 	}
@@ -182,7 +182,7 @@ func (c *Config) AddProtect(p string) error {
 // RemoveProtect removes a folder added with AddProtect. Built-in protected
 // paths aren't in the file, so they can't be removed.
 func (c *Config) RemoveProtect(p string) error {
-	p = cleanProtect(p)
+	p = tidy(p)
 	i := slices.Index(c.Protect, p)
 	if i < 0 {
 		return fmt.Errorf("%s isn't in your protected list (built-in protected paths can't be removed)", p)
@@ -191,7 +191,7 @@ func (c *Config) RemoveProtect(p string) error {
 	return nil
 }
 
-func cleanProtect(p string) string {
+func tidy(p string) string {
 	p = strings.TrimSpace(p)
 	if rest, ok := strings.CutPrefix(p, "~/"); ok {
 		return "~/" + filepath.Clean(rest)
@@ -202,7 +202,7 @@ func cleanProtect(p string) string {
 	return p
 }
 
-func checkProtect(p string) error {
+func verify(p string) error {
 	switch {
 	case p == "" || p == "~" || p == "~/":
 		return errors.New("a protected folder can't be empty or your whole home folder")

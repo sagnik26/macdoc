@@ -365,4 +365,4 @@ func (t *Theme) Wrap(s string, indent int) string {
 // characters removed and newlines turned into spaces (textsafe.ForTerminal).
 // Every human renderer starts from it. It is for showing only: never plan or
 // act on the copy.
-func display[T any](v T) T { return textsafe.Copy(v, textsafe.ForTerminal) }
+func display[T any](v T) T { return textsafe.Copy(v, textsafe.Terminal) }

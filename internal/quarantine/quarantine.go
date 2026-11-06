@@ -26,55 +26,55 @@ import (
 )
 
 const (
-	// DirName is the quarantine folder inside the state directory.
-	DirName = "quarantine"
+	// Dir is the quarantine folder inside the state directory.
+	Dir = "quarantine"
 	// ManifestName is the file in an entry that describes it.
 	ManifestName = "manifest.json"
-	// PayloadDir is the folder in an entry that holds the moved item.
-	PayloadDir = "payload"
-	// DefaultTTL is how long an entry stays before it's reported as ready
+	// Payload is the folder in an entry that holds the moved item.
+	Payload = "payload"
+	// TTL is how long an entry stays before it's reported as ready
 	// to purge. Nothing is purged automatically.
-	DefaultTTL = 7 * 24 * time.Hour
-	// SchemaVersion is the manifest format.
-	SchemaVersion = "1"
-	maxManifest   = 1 << 20
+	TTL = 7 * 24 * time.Hour
+	// Schema is the manifest format.
+	Schema = "1"
+	most   = 1 << 20
 )
 
-// idRe is a quarantine ID, the same alphabet as plan IDs.
-var idRe = regexp.MustCompile(`^Q-[A-HJ-NP-Z2-9]{4}$`)
+// pattern is a quarantine ID, the same alphabet as plan IDs.
+var pattern = regexp.MustCompile(`^Q-[A-HJ-NP-Z2-9]{4}$`)
 
 // ValidID reports whether id is a well-formed quarantine ID ("Q-91XZ").
-func ValidID(id string) bool { return idRe.MatchString(id) }
+func ValidID(id string) bool { return pattern.MatchString(id) }
 
 // Root is the quarantine folder next to the store.
 func Root(storePath string) string {
-	return filepath.Join(filepath.Dir(storePath), DirName)
+	return filepath.Join(filepath.Dir(storePath), Dir)
 }
 
 // Status values a manifest may hold. Restored and purged entries have no
 // folder any more.
 const (
-	StatusPending = "pending" // written before the move
-	StatusDone    = "done"    // written after the move
+	Pending = "pending" // written before the move
+	Done    = "done"    // written after the move
 )
 
 // Manifest describes one entry. Apply writes it before moving anything
 // (pending) and again after (done), so a crash leaves a recoverable entry.
 type Manifest struct {
-	SchemaVersion string            `json:"schema_version"`
-	ID            string            `json:"id"`
-	Plan          string            `json:"plan"`
-	Item          string            `json:"item"`
-	Recipe        string            `json:"recipe"`
-	Title         string            `json:"title"`
-	Original      string            `json:"original"` // where it came from, canonical
-	Name          string            `json:"name"`     // payload/<name>
-	Bytes         int64             `json:"bytes"`
-	BytesSource   model.Source      `json:"bytes_source"`
-	Fingerprint   model.Fingerprint `json:"fingerprint"`
-	CreatedAt     time.Time         `json:"created_at"`
-	ExpiresAt     time.Time         `json:"expires_at"`
-	Status        string            `json:"status"`
+	Schema      string            `json:"schema_version"`
+	ID          string            `json:"id"`
+	Plan        string            `json:"plan"`
+	Item        string            `json:"item"`
+	Recipe      string            `json:"recipe"`
+	Title       string            `json:"title"`
+	Original    string            `json:"original"` // where it came from, canonical
+	Name        string            `json:"name"`     // payload/<name>
+	Bytes       int64             `json:"bytes"`
+	Source      model.Source      `json:"bytes_source"`
+	Fingerprint model.Fingerprint `json:"fingerprint"`
+	Created     time.Time         `json:"created_at"`
+	Expires     time.Time         `json:"expires_at"`
+	Status      string            `json:"status"`
 }
 
 // EntryDir is the folder of entry id under the quarantine root.
@@ -85,20 +85,20 @@ func ManifestPath(root, id string) string { return filepath.Join(root, id, Manif
 
 // PayloadPath is where the moved item sits inside its entry.
 func PayloadPath(root string, m Manifest) string {
-	return filepath.Join(root, m.ID, PayloadDir, m.Name)
+	return filepath.Join(root, m.ID, Payload, m.Name)
 }
 
 // ErrBadManifest means a manifest is missing, unreadable or inconsistent.
 var ErrBadManifest = errors.New("quarantine manifest is invalid")
 
-// LoadManifest reads entry id's manifest and checks it names itself and a
+// Load reads entry id's manifest and checks it names itself and a
 // plain file name.
-func LoadManifest(root, id string) (Manifest, error) {
+func Load(root, id string) (Manifest, error) {
 	var m Manifest
 	if !ValidID(id) {
 		return m, fmt.Errorf("%q isn't a quarantine ID (they look like Q-91XZ)", id)
 	}
-	b, err := fsread.SmallFile(ManifestPath(root, id), maxManifest)
+	b, err := fsread.Small(ManifestPath(root, id), most)
 	if err != nil {
 		return m, fmt.Errorf("%w: %s: %w", ErrBadManifest, id, err)
 	}
@@ -111,13 +111,13 @@ func LoadManifest(root, id string) (Manifest, error) {
 		return m, fmt.Errorf("%w: %s has extra data", ErrBadManifest, id)
 	}
 	switch {
-	case m.SchemaVersion != SchemaVersion, m.ID != id:
+	case m.Schema != Schema, m.ID != id:
 		return m, fmt.Errorf("%w: %s doesn't describe itself", ErrBadManifest, id)
 	case !ValidName(m.Name):
 		return m, fmt.Errorf("%w: %s has a bad payload name", ErrBadManifest, id)
 	case !filepath.IsAbs(m.Original) || filepath.Base(m.Original) != m.Name:
 		return m, fmt.Errorf("%w: %s has a bad original path", ErrBadManifest, id)
-	case m.Status != StatusPending && m.Status != StatusDone:
+	case m.Status != Pending && m.Status != Done:
 		return m, fmt.Errorf("%w: %s has an unknown status", ErrBadManifest, id)
 	}
 	return m, nil
@@ -125,21 +125,21 @@ func LoadManifest(root, id string) (Manifest, error) {
 
 // ValidName reports whether name is a single path component.
 func ValidName(name string) bool {
-	return name != "" && name != "." && name != ".." && filepath.Base(name) == name && !containsNUL(name)
+	return name != "" && name != "." && name != ".." && filepath.Base(name) == name && !nul(name)
 }
 
-func containsNUL(s string) bool { return bytes.IndexByte([]byte(s), 0) >= 0 }
+func nul(s string) bool { return bytes.IndexByte([]byte(s), 0) >= 0 }
 
 // State is an entry's condition as found on disk.
 type State string
 
 // The states of a quarantine entry, from what is on disk.
 const (
-	StateHeld        State = "held"        // moved into quarantine; restorable
-	StateInterrupted State = "interrupted" // apply stopped mid-move but the folder is here; restorable
-	StateNotMoved    State = "not-moved"   // apply stopped before the move; the original was never touched
-	StateMissing     State = "missing"     // macdoc's record says it's here but the folder is gone
-	StateDamaged     State = "damaged"     // the manifest can't be trusted; never touched
+	Held        State = "held"        // moved into quarantine; restorable
+	Interrupted State = "interrupted" // apply stopped mid-move but the folder is here; restorable
+	Unmoved     State = "not-moved"   // apply stopped before the move; the original was never touched
+	Missing     State = "missing"     // macdoc's record says it's here but the folder is gone
+	Damaged     State = "damaged"     // the manifest can't be trusted; never touched
 )
 
 // Entry is one quarantine entry with its record and state.
@@ -153,7 +153,7 @@ type Entry struct {
 
 // Restorable reports whether restore can act on the entry.
 func (e Entry) Restorable() bool {
-	return e.State == StateHeld || e.State == StateInterrupted
+	return e.State == Held || e.State == Interrupted
 }
 
 // Listing is every live entry plus folders macdoc has no record of.
@@ -162,8 +162,8 @@ type Listing struct {
 	Unknown []string `json:"unknown"` // folder names in the quarantine root without a store row; never touched
 }
 
-// HeldBytes and ExpiredBytes total the restorable entries.
-func (l Listing) HeldBytes() (n int64) {
+// Held and ExpiredBytes total the restorable entries.
+func (l Listing) Held() (n int64) {
 	for _, e := range l.Entries {
 		if e.Restorable() {
 			n += e.Record.Bytes
@@ -214,42 +214,42 @@ func Inspect(root string, r store.QuarantineRecord, now time.Time) Entry {
 	e := Entry{Record: r, Expired: !now.Before(r.ExpiresAt)}
 	dir := EntryDir(root, r.ID)
 	if fi, err := os.Lstat(dir); err != nil {
-		e.State, e.Problem = StateMissing, "its folder is gone"
+		e.State, e.Problem = Missing, "its folder is gone"
 		if !errors.Is(err, os.ErrNotExist) {
-			e.State, e.Problem = StateDamaged, err.Error()
+			e.State, e.Problem = Damaged, err.Error()
 		}
 		return e
 	} else if !fi.IsDir() {
-		e.State, e.Problem = StateDamaged, "its folder isn't a folder"
+		e.State, e.Problem = Damaged, "its folder isn't a folder"
 		return e
 	}
-	m, err := LoadManifest(root, r.ID)
+	m, err := Load(root, r.ID)
 	if err != nil {
-		e.State, e.Problem = StateDamaged, err.Error()
+		e.State, e.Problem = Damaged, err.Error()
 		return e
 	}
 	e.Manifest = &m
-	if m.Original != r.Original || m.Plan != r.PlanID || !m.ExpiresAt.Equal(r.ExpiresAt) {
-		e.State, e.Problem = StateDamaged, "the manifest doesn't match macdoc's record"
+	if m.Original != r.Original || m.Plan != r.PlanID || !m.Expires.Equal(r.ExpiresAt) {
+		e.State, e.Problem = Damaged, "the manifest doesn't match macdoc's record"
 		return e
 	}
 	payload := PayloadPath(root, m)
 	fi, err := os.Lstat(payload)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		if m.Status == StatusDone || r.Status == store.QuarantineDone {
-			e.State, e.Problem = StateMissing, "the moved folder is gone"
+		if m.Status == Done || r.Status == store.QuarantineDone {
+			e.State, e.Problem = Missing, "the moved folder is gone"
 		} else {
-			e.State = StateNotMoved
+			e.State = Unmoved
 		}
 	case err != nil:
-		e.State, e.Problem = StateDamaged, err.Error()
+		e.State, e.Problem = Damaged, err.Error()
 	case fi.Mode()&os.ModeSymlink != 0:
-		e.State, e.Problem = StateDamaged, "the moved folder is now a symlink"
-	case m.Status == StatusDone && r.Status == store.QuarantineDone:
-		e.State = StateHeld
+		e.State, e.Problem = Damaged, "the moved folder is now a symlink"
+	case m.Status == Done && r.Status == store.QuarantineDone:
+		e.State = Held
 	default:
-		e.State = StateInterrupted
+		e.State = Interrupted
 	}
 	return e
 }

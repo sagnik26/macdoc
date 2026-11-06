@@ -65,7 +65,7 @@ func TestConfigCommand(t *testing.T) {
 	if _, err := run(t, "config", "unprotect", "~/code/a"); err != nil {
 		t.Fatal(err)
 	}
-	if c, err := config.Load(home); err != nil || len(c.Protect) != 0 || c.PlanMinutes != 45 {
+	if c, err := config.Load(home); err != nil || len(c.Protect) != 0 || c.Plan != 45 {
 		t.Errorf("after unprotect: %+v, %v", c, err)
 	}
 	out, _ = run(t, "config", "path")

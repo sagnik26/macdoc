@@ -15,7 +15,7 @@ import (
 
 func writeEntry(t *testing.T, root string, m quarantine.Manifest, payload bool) {
 	t.Helper()
-	dir := filepath.Join(root, m.ID, quarantine.PayloadDir)
+	dir := filepath.Join(root, m.ID, quarantine.Payload)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -33,8 +33,8 @@ func writeEntry(t *testing.T, root string, m quarantine.Manifest, payload bool) 
 var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 
 func manifest() quarantine.Manifest {
-	return quarantine.Manifest{SchemaVersion: quarantine.SchemaVersion, ID: "Q-ABCD", Plan: "P-ABCD", Item: "O-x", Recipe: "user.logs",
-		Original: "/Users/me/Library/Logs/A", Name: "A", CreatedAt: now, ExpiresAt: now.Add(quarantine.DefaultTTL), Status: quarantine.StatusDone}
+	return quarantine.Manifest{Schema: quarantine.Schema, ID: "Q-ABCD", Plan: "P-ABCD", Item: "O-x", Recipe: "user.logs",
+		Original: "/Users/me/Library/Logs/A", Name: "A", Created: now, Expires: now.Add(quarantine.TTL), Status: quarantine.Done}
 }
 
 func TestLoadManifestValidation(t *testing.T) {
@@ -45,7 +45,7 @@ func TestLoadManifestValidation(t *testing.T) {
 		"relative origin": func(m *quarantine.Manifest) { m.Original = "Library/Logs/A" },
 		"name mismatch":   func(m *quarantine.Manifest) { m.Original = "/Users/me/Documents" },
 		"unknown status":  func(m *quarantine.Manifest) { m.Status = "purged" },
-		"schema":          func(m *quarantine.Manifest) { m.SchemaVersion = "9" },
+		"schema":          func(m *quarantine.Manifest) { m.Schema = "9" },
 	}
 	for name, edit := range bad {
 		root := t.TempDir()
@@ -55,22 +55,22 @@ func TestLoadManifestValidation(t *testing.T) {
 		_ = os.MkdirAll(dir, 0o700)
 		b, _ := json.Marshal(m)
 		_ = os.WriteFile(filepath.Join(dir, quarantine.ManifestName), b, 0o600)
-		if _, err := quarantine.LoadManifest(root, "Q-ABCD"); err == nil {
+		if _, err := quarantine.Load(root, "Q-ABCD"); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
 	root := t.TempDir()
 	writeEntry(t, root, manifest(), true)
-	if _, err := quarantine.LoadManifest(root, "Q-ABCD"); err != nil {
+	if _, err := quarantine.Load(root, "Q-ABCD"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := quarantine.LoadManifest(root, "../x"); err == nil || !strings.Contains(err.Error(), "isn't a quarantine ID") {
+	if _, err := quarantine.Load(root, "../x"); err == nil || !strings.Contains(err.Error(), "isn't a quarantine ID") {
 		t.Errorf("path id = %v", err)
 	}
 	if err := os.WriteFile(quarantine.ManifestPath(root, "Q-ABCD"), []byte(`{"schema_version":"1"} {}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := quarantine.LoadManifest(root, "Q-ABCD"); err == nil {
+	if _, err := quarantine.Load(root, "Q-ABCD"); err == nil {
 		t.Error("trailing data accepted")
 	}
 }
@@ -78,7 +78,7 @@ func TestLoadManifestValidation(t *testing.T) {
 func TestInspectStates(t *testing.T) {
 	rec := func(st store.QuarantineStatus) store.QuarantineRecord {
 		m := manifest()
-		return store.QuarantineRecord{ID: m.ID, PlanID: m.Plan, Original: m.Original, ExpiresAt: m.ExpiresAt, Status: st}
+		return store.QuarantineRecord{ID: m.ID, PlanID: m.Plan, Original: m.Original, ExpiresAt: m.Expires, Status: st}
 	}
 	cases := []struct {
 		name    string
@@ -87,28 +87,28 @@ func TestInspectStates(t *testing.T) {
 		want    quarantine.State
 		expired bool
 	}{
-		{"held", func(r string) { writeEntry(t, r, manifest(), true) }, store.QuarantineDone, quarantine.StateHeld, false},
+		{"held", func(r string) { writeEntry(t, r, manifest(), true) }, store.QuarantineDone, quarantine.Held, false},
 		{"interrupted", func(r string) {
 			m := manifest()
-			m.Status = quarantine.StatusPending
+			m.Status = quarantine.Pending
 			writeEntry(t, r, m, true)
-		}, store.QuarantinePending, quarantine.StateInterrupted, false},
+		}, store.QuarantinePending, quarantine.Interrupted, false},
 		{"not moved", func(r string) {
 			m := manifest()
-			m.Status = quarantine.StatusPending
+			m.Status = quarantine.Pending
 			writeEntry(t, r, m, false)
-		}, store.QuarantinePending, quarantine.StateNotMoved, false},
-		{"gone", func(string) {}, store.QuarantineDone, quarantine.StateMissing, false},
-		{"payload gone", func(r string) { writeEntry(t, r, manifest(), false) }, store.QuarantineDone, quarantine.StateMissing, false},
+		}, store.QuarantinePending, quarantine.Unmoved, false},
+		{"gone", func(string) {}, store.QuarantineDone, quarantine.Missing, false},
+		{"payload gone", func(r string) { writeEntry(t, r, manifest(), false) }, store.QuarantineDone, quarantine.Missing, false},
 		{"record mismatch", func(r string) {
 			m := manifest()
 			m.Plan = "P-ZZZZ"
 			writeEntry(t, r, m, true)
-		}, store.QuarantineDone, quarantine.StateDamaged, false},
+		}, store.QuarantineDone, quarantine.Damaged, false},
 		{"payload symlink", func(r string) {
 			writeEntry(t, r, manifest(), false)
-			_ = os.Symlink("/", filepath.Join(r, "Q-ABCD", quarantine.PayloadDir, "A"))
-		}, store.QuarantineDone, quarantine.StateDamaged, false},
+			_ = os.Symlink("/", filepath.Join(r, "Q-ABCD", quarantine.Payload, "A"))
+		}, store.QuarantineDone, quarantine.Damaged, false},
 	}
 	for _, c := range cases {
 		root := t.TempDir()

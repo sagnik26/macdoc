@@ -126,7 +126,7 @@ func TestTargetVanishesBeforeMove(t *testing.T) {
 func TestPayloadSwappedForSymlink(t *testing.T) {
 	var victim string
 	f := newStageFixture(t, "opened", func(f *stageFixture) {
-		payload := filepath.Join(theEntry(t, f.e), quarantine.PayloadDir)
+		payload := filepath.Join(theEntry(t, f.e), quarantine.Payload)
 		if err := os.Remove(payload); err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +148,7 @@ func TestPayloadSwappedForSymlink(t *testing.T) {
 // A name already taken inside the payload is never overwritten.
 func TestMoveNeverOverwritesInThePayload(t *testing.T) {
 	f := newStageFixture(t, "opened", func(f *stageFixture) {
-		squat := filepath.Join(theEntry(t, f.e), quarantine.PayloadDir, "A")
+		squat := filepath.Join(theEntry(t, f.e), quarantine.Payload, "A")
 		if err := os.MkdirAll(squat, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +183,7 @@ func TestParentSwappedAfterMoveIsUndone(t *testing.T) {
 // A move that can't be undone stays in quarantine and says where.
 func TestFailedMoveBackStaysInQuarantine(t *testing.T) {
 	f := newStageFixture(t, "moved", func(f *stageFixture) {
-		payload := filepath.Join(theEntry(t, f.e), quarantine.PayloadDir, "A")
+		payload := filepath.Join(theEntry(t, f.e), quarantine.Payload, "A")
 		mustRename(t, payload, payload+".real")
 		if err := os.Mkdir(payload, 0o700); err != nil {
 			t.Fatal(err)

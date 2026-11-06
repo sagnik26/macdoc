@@ -30,7 +30,7 @@ func TestRedteamCheckNonCanonical(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(sb, "escape")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 
 	for _, tt := range []struct{ path, real string }{
 		{sb + "/escape/victim", filepath.Join(outside, "victim")},
@@ -59,9 +59,9 @@ func TestRedteamRootSystemDirs(t *testing.T) {
 		if _, err := os.Stat(v); err != nil {
 			continue
 		}
-		t.Setenv(sandbox.EnvVar, v)
+		t.Setenv(sandbox.Env, v)
 		if root, _, err := sandbox.Root(); err == nil {
-			t.Errorf("BUG: sandbox.Root() accepted %s=%s (root %q); a sandbox must not cover a system area", sandbox.EnvVar, v, root)
+			t.Errorf("BUG: sandbox.Root() accepted %s=%s (root %q); a sandbox must not cover a system area", sandbox.Env, v, root)
 		}
 	}
 }
@@ -84,7 +84,7 @@ func TestRedteamRootForms(t *testing.T) {
 
 	ok := []string{sb + "/", sb + "//", sb + "/.", "/" + sb, strings.ToUpper(sb)}
 	for _, v := range ok {
-		t.Setenv(sandbox.EnvVar, v)
+		t.Setenv(sandbox.Env, v)
 		root, active, err := sandbox.Root()
 		if err != nil || !active || !strings.EqualFold(root, sb) {
 			t.Errorf("Root() with %q = %q, %v, %v; want %q", v, root, active, err, sb)
@@ -99,7 +99,7 @@ func TestRedteamRootForms(t *testing.T) {
 		"~/sb", "sb",
 	}
 	for _, v := range bad {
-		t.Setenv(sandbox.EnvVar, v)
+		t.Setenv(sandbox.Env, v)
 		root, active, err := sandbox.Root()
 		if err == nil {
 			t.Errorf("Root() with %q accepted as %q", v, root)
@@ -108,7 +108,7 @@ func TestRedteamRootForms(t *testing.T) {
 			t.Errorf("Root() with %q reported inactive alongside the error", v)
 		}
 		if err := sandbox.Check(filepath.Join(sb, "x")); err == nil {
-			t.Errorf("Check with invalid %s=%q = nil; want fail closed", sandbox.EnvVar, v)
+			t.Errorf("Check with invalid %s=%q = nil; want fail closed", sandbox.Env, v)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func TestRedteamRootForms(t *testing.T) {
 func TestRedteamRootRemovedLater(t *testing.T) {
 	base, home := setup(t)
 	sb := mkdir(t, filepath.Join(base, "sb"))
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	if err := sandbox.Check(sb + "/x"); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestRedteamRootRemovedLater(t *testing.T) {
 func TestRedteamRootNoHome(t *testing.T) {
 	base, _ := setup(t)
 	sb := mkdir(t, filepath.Join(base, "sb"))
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	t.Setenv("HOME", "")
 	if _, _, err := sandbox.Root(); err == nil {
 		t.Error("Root() with HOME empty = nil error")
@@ -154,7 +154,7 @@ func TestRedteamRootNoHome(t *testing.T) {
 func TestRedteamCheckPaths(t *testing.T) {
 	base, _ := setup(t)
 	sb := mkdir(t, filepath.Join(base, "sb"))
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	for _, tt := range []struct {
 		path string
 		ok   bool
@@ -178,7 +178,7 @@ func TestRedteamCheckPaths(t *testing.T) {
 // "empty disables" behavior): a set-but-empty variable fails closed.
 func TestRedteamEmptyDisables(t *testing.T) {
 	base, _ := setup(t)
-	t.Setenv(sandbox.EnvVar, "")
+	t.Setenv(sandbox.Env, "")
 	if root, active, err := sandbox.Root(); root != "" || !active || err == nil {
 		t.Errorf("Root() with empty var = %q, %v, %v; want \"\", true, error", root, active, err)
 	}

@@ -49,7 +49,7 @@ func Quarantine(o OpportunityOptions) (QuarantineResult, error) {
 	if err != nil {
 		return QuarantineResult{}, err
 	}
-	out := QuarantineResult{Listing: l, Root: root, HeldBytes: l.HeldBytes()}
+	out := QuarantineResult{Listing: l, Root: root, HeldBytes: l.Held()}
 	for _, e := range l.Expired() {
 		out.ExpiredBytes += e.Record.Bytes
 		out.ExpiredCount++

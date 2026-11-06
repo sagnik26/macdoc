@@ -44,7 +44,7 @@ func TestInterruptedApplySkipsTheRest(t *testing.T) { //nolint:gocyclo // A line
 		t.Fatal("an item was moved after the apply was interrupted")
 	}
 	ev := e.events(t)
-	if ev[2].Event != audit.ItemSkipped || ev[2].Reason != "apply was interrupted" || ev[3].Event != audit.ItemSkipped {
+	if ev[2].Event != audit.Skipped || ev[2].Reason != "apply was interrupted" || ev[3].Event != audit.Skipped {
 		t.Errorf("audit = %v", eventNames(ev))
 	}
 	if fin := ev[len(ev)-1]; fin.Result != "partial" {
@@ -62,7 +62,7 @@ func TestUnknownPreconditionSkips(t *testing.T) {
 	if res.Outcome != executor.OutcomeSkipped || res.Reason != "it has a precondition macdoc can't check" || !exists(target) {
 		t.Fatalf("item = %+v", res)
 	}
-	if ev := e.events(t); ev[1].Event != audit.ItemSkipped || !strings.Contains(ev[1].Reason, "can't check") {
+	if ev := e.events(t); ev[1].Event != audit.Skipped || !strings.Contains(ev[1].Reason, "can't check") {
 		t.Errorf("audit = %+v", ev[1])
 	}
 }

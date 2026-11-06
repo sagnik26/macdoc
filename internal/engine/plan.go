@@ -68,7 +68,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 		return PlanResult{}, err
 	}
 	if o.TTL <= 0 {
-		o.TTL = cfg.PlanTTL()
+		o.TTL = cfg.TTL()
 	}
 	st, err := store.Open(o.StorePath)
 	if err != nil {
@@ -106,8 +106,8 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 		return out, err
 	}
 	out.Status = planner.StatusPending
-	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.PlanCreated, Plan: out.Plan.ID,
-		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), ExpectedBytes: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
+	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.Planned, Plan: out.Plan.ID,
+		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), Expected: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
 		out.Warnings = append(out.Warnings, "couldn't record the plan in the audit log: "+err.Error())
 	}
 	return out, nil

@@ -39,7 +39,7 @@ func newApplyEnv(t *testing.T) *applyEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	home := filepath.Join(sb, "home")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
@@ -385,11 +385,11 @@ func TestPurgeConfirmed(t *testing.T) {
 func TestRenderLog(t *testing.T) {
 	n := int64(-2048)
 	res := engine.AuditResult{Records: []audit.Record{
-		{TS: applyNow, Event: audit.PlanCreated, Plan: "P-7F3K", Origin: "cli", Items: 2, ExpectedBytes: 5000},
-		{TS: applyNow, Event: audit.ApplyStarted, Plan: "P-7F3K", Items: 2},
-		{TS: applyNow, Event: audit.ItemDone, Item: "O-aaaaaa", Target: "/Users/me/Library/Logs/A", QuarantineID: "Q-91XZ"},
-		{TS: applyNow, Event: audit.ItemSkipped, Item: "O-bbbbbb", Argv: []string{"brew", "cleanup"}, Reason: "brew isn't installed any more"},
-		{TS: applyNow, Event: audit.ApplyFinished, Plan: "P-7F3K", Result: "partial", ActualBytes: &n},
+		{TS: applyNow, Event: audit.Planned, Plan: "P-7F3K", Origin: "cli", Items: 2, Expected: 5000},
+		{TS: applyNow, Event: audit.Started, Plan: "P-7F3K", Items: 2},
+		{TS: applyNow, Event: audit.Done, Item: "O-aaaaaa", Target: "/Users/me/Library/Logs/A", Entry: "Q-91XZ"},
+		{TS: applyNow, Event: audit.Skipped, Item: "O-bbbbbb", Argv: []string{"brew", "cleanup"}, Reason: "brew isn't installed any more"},
+		{TS: applyNow, Event: audit.Finished, Plan: "P-7F3K", Result: "partial", Actual: &n},
 	}}
 	var out bytes.Buffer
 	if err := cli.RenderLog(&out, res, "/Users/me"); err != nil {

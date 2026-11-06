@@ -59,8 +59,8 @@ func TestMovedBytesAreMeasuredOverTheWholeTree(t *testing.T) {
 	if err != nil || rec.Bytes != want {
 		t.Fatalf("record = %+v, %v", rec, err)
 	}
-	m, err := quarantine.LoadManifest(quarantine.Root(e.storePath), it.QuarantineID)
-	if err != nil || m.Bytes != want || m.BytesSource != model.SourceMeasured {
+	m, err := quarantine.Load(quarantine.Root(e.storePath), it.QuarantineID)
+	if err != nil || m.Bytes != want || m.Source != model.SourceMeasured {
 		t.Fatalf("manifest = %+v, %v", m, err)
 	}
 }
@@ -105,24 +105,24 @@ func TestManifestContents(t *testing.T) { //nolint:gocyclo // A linear list of a
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
 	it := mustApply(t, e, p).Items[0]
 	root := quarantine.Root(e.storePath)
-	m, err := quarantine.LoadManifest(root, it.QuarantineID)
+	m, err := quarantine.Load(root, it.QuarantineID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := e.cfg.Now()
 	if m.Plan != p.ID || m.Item != "O-aaaaaa" || m.Recipe != "user.logs" || m.Original != target || m.Name != "A" ||
-		m.Status != quarantine.StatusDone || m.Title != p.Items[0].Title || m.Bytes != 8192 || m.BytesSource != model.SourceMeasured {
+		m.Status != quarantine.Done || m.Title != p.Items[0].Title || m.Bytes != 8192 || m.Source != model.SourceMeasured {
 		t.Errorf("manifest = %+v", m)
 	}
-	if !m.CreatedAt.Equal(now) || !m.ExpiresAt.Equal(now.Add(48*time.Hour)) {
-		t.Errorf("times = %v, %v; want %v and 48h later", m.CreatedAt, m.ExpiresAt, now)
+	if !m.Created.Equal(now) || !m.Expires.Equal(now.Add(48*time.Hour)) {
+		t.Errorf("times = %v, %v; want %v and 48h later", m.Created, m.Expires, now)
 	}
 	if m.Fingerprint != p.Items[0].Fingerprint {
 		t.Errorf("fingerprint = %+v, want %+v", m.Fingerprint, p.Items[0].Fingerprint)
 	}
 	rec, _ := e.st.Quarantine(it.QuarantineID)
 	if rec.Status != store.QuarantineDone || rec.PlanID != p.ID || rec.ItemID != "O-aaaaaa" || rec.RecipeID != "user.logs" ||
-		rec.Original != target || !rec.ExpiresAt.Equal(m.ExpiresAt) || !rec.CreatedAt.Equal(m.CreatedAt) {
+		rec.Original != target || !rec.ExpiresAt.Equal(m.Expires) || !rec.CreatedAt.Equal(m.Created) {
 		t.Errorf("record = %+v", rec)
 	}
 	mp := quarantine.ManifestPath(root, it.QuarantineID)
@@ -140,9 +140,9 @@ func TestManifestContents(t *testing.T) { //nolint:gocyclo // A linear list of a
 	e2 := newEnv(t)
 	p2 := e2.plan(t, e2.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, e2.folder(t, "Library/Logs/A")))
 	it2 := mustApply(t, e2, p2).Items[0]
-	m2, err := quarantine.LoadManifest(quarantine.Root(e2.storePath), it2.QuarantineID)
-	if err != nil || !m2.ExpiresAt.Equal(e2.cfg.Now().Add(quarantine.DefaultTTL)) {
-		t.Errorf("default expiry = %v, %v", m2.ExpiresAt, err)
+	m2, err := quarantine.Load(quarantine.Root(e2.storePath), it2.QuarantineID)
+	if err != nil || !m2.Expires.Equal(e2.cfg.Now().Add(quarantine.TTL)) {
+		t.Errorf("default expiry = %v, %v", m2.Expires, err)
 	}
 }
 
@@ -279,7 +279,7 @@ func TestNotMovedEntryExplained(t *testing.T) {
 	}()
 	e.cfg.StageHook = nil
 	l, err := quarantine.List(e.st, quarantine.Root(e.storePath), e.cfg.Now())
-	if err != nil || len(l.Entries) != 1 || l.Entries[0].State != quarantine.StateNotMoved {
+	if err != nil || len(l.Entries) != 1 || l.Entries[0].State != quarantine.Unmoved {
 		t.Fatalf("listing = %+v, %v", l, err)
 	}
 	qid := l.Entries[0].Record.ID

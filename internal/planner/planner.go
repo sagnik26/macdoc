@@ -99,7 +99,7 @@ type Input struct {
 	Catalog       *recipes.Catalog
 	Policy        *safety.Policy
 	Now           time.Time
-	TTL           time.Duration // 0: DefaultTTL
+	TTL           time.Duration // 0: TTL
 	Origin        model.Origin
 }
 

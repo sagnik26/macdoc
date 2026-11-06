@@ -66,7 +66,7 @@ func interactive(cmd *cobra.Command) bool {
 // Execute runs the CLI and returns the process exit code.
 func Execute() int {
 	if err := NewRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "macdoc:", textsafe.ForTerminal(err.Error()))
+		fmt.Fprintln(os.Stderr, "macdoc:", textsafe.Terminal(err.Error()))
 		return 1
 	}
 	return 0

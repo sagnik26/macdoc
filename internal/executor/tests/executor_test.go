@@ -33,14 +33,14 @@ func TestMain(m *testing.M) {
 		return
 	}
 	made := ""
-	if _, set := os.LookupEnv(sandbox.EnvVar); !set {
+	if _, set := os.LookupEnv(sandbox.Env); !set {
 		d, err := os.MkdirTemp("", "macdoc-executor-sandbox-")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}
 		made = d
-		_ = os.Setenv(sandbox.EnvVar, d)
+		_ = os.Setenv(sandbox.Env, d)
 	}
 	if _, active, err := sandbox.Root(); !active || err != nil {
 		fmt.Fprintln(os.Stderr, "executor tests need a valid MACDOC_SANDBOX:", err)
@@ -233,14 +233,14 @@ func TestApplyQuarantineAndRestore(t *testing.T) {
 	if fi, _ := os.Stat(root); fi.Mode().Perm() != 0o700 {
 		t.Errorf("quarantine folder mode %v", fi.Mode().Perm())
 	}
-	if got := eventNames(e.events(t)); !slices.Equal(got, []string{audit.ApplyStarted, audit.ItemDone, audit.ApplyFinished}) {
+	if got := eventNames(e.events(t)); !slices.Equal(got, []string{audit.Started, audit.Done, audit.Finished}) {
 		t.Errorf("audit events = %v", got)
 	}
 	if rec, _ := e.st.Plan(p.ID); rec.Status != store.PlanApplied {
 		t.Errorf("plan status %s", rec.Status)
 	}
 	l, err := quarantine.List(e.st, root, e.cfg.Now())
-	if err != nil || len(l.Entries) != 1 || l.Entries[0].State != quarantine.StateHeld || len(l.Unknown) != 0 {
+	if err != nil || len(l.Entries) != 1 || l.Entries[0].State != quarantine.Held || len(l.Unknown) != 0 {
 		t.Fatalf("listing = %+v, %v", l, err)
 	}
 	if len(e.exec.calls) != 0 {
@@ -257,7 +257,7 @@ func TestApplyQuarantineAndRestore(t *testing.T) {
 	if rec, _ := e.st.Quarantine(qid); rec.Status != store.QuarantineRestored {
 		t.Errorf("entry status %s", rec.Status)
 	}
-	if ev := e.events(t); ev[len(ev)-1].Event != audit.QuarantineRestored {
+	if ev := e.events(t); ev[len(ev)-1].Event != audit.Restored {
 		t.Errorf("last event %s", ev[len(ev)-1].Event)
 	}
 }
@@ -399,7 +399,7 @@ func TestSwapsBetweenPlanAndApply(t *testing.T) {
 				}
 			}
 			ev := e.events(t)
-			if ev[1].Event != audit.ItemSkipped || ev[1].Reason == "" {
+			if ev[1].Event != audit.Skipped || ev[1].Reason == "" {
 				t.Errorf("skip not audited with a reason: %+v", ev[1])
 			}
 			t.Log(ev[1].Reason)
@@ -547,7 +547,7 @@ func TestNativeCommands(t *testing.T) {
 		t.Fatalf("ran %v", e.exec.calls)
 	}
 	ev := e.events(t)[1]
-	if ev.Event != audit.ItemDone || !strings.Contains(ev.Output, "Removing") || len(ev.Argv) != 3 {
+	if ev.Event != audit.Done || !strings.Contains(ev.Output, "Removing") || len(ev.Argv) != 3 {
 		t.Errorf("audit = %+v", ev)
 	}
 }
@@ -561,7 +561,7 @@ func TestNativeFailure(t *testing.T) {
 	if it := rep.Items[0]; it.Outcome != executor.OutcomeFailed || *it.ExitCode != 1 {
 		t.Fatalf("item = %+v", it)
 	}
-	if ev := e.events(t); ev[1].Event != audit.ItemFailed || ev[2].Result != "nothing" {
+	if ev := e.events(t); ev[1].Event != audit.Failed || ev[2].Result != "nothing" {
 		t.Errorf("audit = %v / %s", eventNames(ev), ev[2].Result)
 	}
 }
@@ -644,12 +644,12 @@ func TestSandboxBoundary(t *testing.T) {
 	target := e.folder(t, "Library/Logs/A")
 	p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
 
-	t.Setenv(sandbox.EnvVar, "")
+	t.Setenv(sandbox.Env, "")
 	if _, err := executor.Apply(context.Background(), e.cfg, p, all(p)); err == nil {
 		t.Fatal("apply ran with an empty MACDOC_SANDBOX")
 	}
 	other := t.TempDir()
-	t.Setenv(sandbox.EnvVar, other)
+	t.Setenv(sandbox.Env, other)
 	// The state folder is outside the sandbox, so apply refuses before any
 	// write (P6-R1 F6): an error, or a skipped item, and the target untouched.
 	rep, err := executor.Apply(context.Background(), e.cfg, p, all(p))
@@ -729,7 +729,7 @@ func TestPurge(t *testing.T) {
 		t.Errorf("listing = %+v", l)
 	}
 	ev := e.events(t)
-	if ev[len(ev)-3].Event != audit.QuarantinePurged || ev[len(ev)-3].ActualBytes == nil {
+	if ev[len(ev)-3].Event != audit.Purged || ev[len(ev)-3].Actual == nil {
 		t.Errorf("purge not audited: %+v", ev[len(ev)-3])
 	}
 }
@@ -807,7 +807,7 @@ func TestDeleteNow(t *testing.T) {
 	if rep.DeletedBytes() != it.MovedBytes || rep.MovedBytes() != 0 {
 		t.Errorf("deleted %d, held %d", rep.DeletedBytes(), rep.MovedBytes())
 	}
-	want := []string{audit.ApplyStarted, audit.ItemDone, audit.QuarantinePurged, audit.ItemSkipped, audit.ApplyFinished}
+	want := []string{audit.Started, audit.Done, audit.Purged, audit.Skipped, audit.Finished}
 	if got := eventNames(e.events(t)); !slices.Equal(got, want) {
 		t.Errorf("audit events = %v", got)
 	}

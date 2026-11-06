@@ -125,8 +125,8 @@ func Restore(_ context.Context, cfg Config, id string) (EntryResult, error) {
 	}
 	res.Outcome = OutcomeDone
 	n := rec.Bytes
-	if err := cfg.audit(audit.Record{Event: audit.QuarantineRestored, Plan: rec.PlanID, Item: rec.ItemID, Recipe: rec.RecipeID,
-		Target: rec.Original, QuarantineID: id, ActualBytes: &n, Result: "ok"}); err != nil {
+	if err := cfg.audit(audit.Record{Event: audit.Restored, Plan: rec.PlanID, Item: rec.ItemID, Recipe: rec.RecipeID,
+		Target: rec.Original, Entry: id, Actual: &n, Result: "ok"}); err != nil {
 		res.Reason = "restored, but the audit record couldn't be written: " + err.Error()
 	}
 	return res, nil
@@ -162,10 +162,10 @@ func purgeAudited(cfg Config, root, id string) EntryResult {
 	}
 	r := purgeOne(cfg, root, id)
 	unlock()
-	rec := audit.Record{Event: audit.QuarantinePurged, QuarantineID: id, Target: r.Original, Reason: r.Reason}
+	rec := audit.Record{Event: audit.Purged, Entry: id, Target: r.Original, Reason: r.Reason}
 	if r.Outcome == OutcomeDone {
 		n := r.Bytes
-		rec.ActualBytes, rec.Result = &n, "ok"
+		rec.Actual, rec.Result = &n, "ok"
 	} else {
 		rec.Result = string(r.Outcome)
 	}
@@ -193,7 +193,7 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 	}
 	e := quarantine.Inspect(root, rec, cfg.Now())
 	switch e.State {
-	case quarantine.StateMissing:
+	case quarantine.Missing:
 		// Nothing left to delete; close the record.
 		if rec.Status == store.QuarantineDone {
 			res.Bytes = 0
@@ -209,10 +209,10 @@ func purgeOne(cfg Config, root, id string) EntryResult {
 		}
 		res.Reason = describe(e)
 		return res
-	case quarantine.StateDamaged:
+	case quarantine.Damaged:
 		res.Reason = describe(e) + "; it isn't touched"
 		return res
-	case quarantine.StateNotMoved:
+	case quarantine.Unmoved:
 		res.Bytes = 0
 	}
 	entry := quarantine.EntryDir(root, id)
@@ -248,7 +248,7 @@ func checkEntryDir(root, entry string) error {
 	if err := sandbox.Check(entry); err != nil {
 		return err
 	}
-	for _, p := range []string{entry, filepath.Join(entry, quarantine.PayloadDir)} {
+	for _, p := range []string{entry, filepath.Join(entry, quarantine.Payload)} {
 		fi, err := os.Lstat(p)
 		if err != nil {
 			return err
@@ -290,7 +290,7 @@ func checkNoOtherVolume(entry string) error {
 // (the manifest, or only its record), never a payload without its record.
 // os.RemoveAll doesn't follow symlinks.
 func removeEntry(entry string, stage func(string)) error {
-	if err := removeTree(filepath.Join(entry, quarantine.PayloadDir)); err != nil {
+	if err := removeTree(filepath.Join(entry, quarantine.Payload)); err != nil {
 		return err
 	}
 	callHook(stage, "purged-payload")
@@ -359,11 +359,11 @@ func LockQuarantine(stateDir string) (func(), error) {
 
 func describe(e quarantine.Entry) string {
 	switch e.State {
-	case quarantine.StateNotMoved:
+	case quarantine.Unmoved:
 		return "apply stopped before moving it, so the original was never touched"
-	case quarantine.StateMissing:
+	case quarantine.Missing:
 		return "its folder is gone"
-	case quarantine.StateDamaged:
+	case quarantine.Damaged:
 		return "it looks damaged (" + e.Problem + ")"
 	}
 	return string(e.State)

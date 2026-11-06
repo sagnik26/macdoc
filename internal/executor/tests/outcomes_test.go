@@ -151,14 +151,14 @@ func TestItemAuditBytes(t *testing.T) {
 	ev := e.events(t)
 	for i, want := range []int64{8192, 1, -1} {
 		rec := ev[1+i]
-		if rec.Event != audit.ItemDone {
+		if rec.Event != audit.Done {
 			t.Fatalf("event %d = %s", i, rec.Event)
 		}
 		switch {
-		case want < 0 && rec.ActualBytes != nil:
-			t.Errorf("native item recorded %d actual bytes", *rec.ActualBytes)
-		case want >= 0 && (rec.ActualBytes == nil || *rec.ActualBytes != want || rep.Items[i].MovedBytes != want):
-			t.Errorf("item %d actual bytes = %v, want %d", i, rec.ActualBytes, want)
+		case want < 0 && rec.Actual != nil:
+			t.Errorf("native item recorded %d actual bytes", *rec.Actual)
+		case want >= 0 && (rec.Actual == nil || *rec.Actual != want || rep.Items[i].MovedBytes != want):
+			t.Errorf("item %d actual bytes = %v, want %d", i, rec.Actual, want)
 		}
 	}
 }
@@ -174,7 +174,7 @@ func TestDeleteNowOnlyPurgesWhatWasMoved(t *testing.T) { //nolint:gocognit // A 
 		if it := rep.Items[0]; it.Outcome != executor.OutcomeDone || it.Deleted || len(rep.Warnings) != 0 {
 			t.Fatalf("item = %+v, warnings %v", it, rep.Warnings)
 		}
-		if got := eventNames(e.events(t)); slices.Contains(got, audit.QuarantinePurged) {
+		if got := eventNames(e.events(t)); slices.Contains(got, audit.Purged) {
 			t.Errorf("a purge was attempted: %v", got)
 		}
 	})
@@ -208,7 +208,7 @@ func TestDeleteNowOnlyPurgesWhatWasMoved(t *testing.T) { //nolint:gocognit // A 
 		if len(rep.Warnings) != 0 {
 			t.Errorf("warnings = %v", rep.Warnings)
 		}
-		if got := eventNames(e.events(t)); slices.Contains(got, audit.QuarantinePurged) {
+		if got := eventNames(e.events(t)); slices.Contains(got, audit.Purged) {
 			t.Errorf("a purge was attempted: %v", got)
 		}
 	})

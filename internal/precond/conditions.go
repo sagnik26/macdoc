@@ -46,26 +46,26 @@ func (c *Checker) check(ctx context.Context, pc string, item model.PlanItem) err
 		return errors.New("preconditions can't be checked")
 	}
 	if app, ok := strings.CutPrefix(pc, "app_not_running:"); ok {
-		return c.notRunning(ctx, app+" is open; quit it first", func(cmd string) bool {
+		return c.stopped(ctx, app+" is open; quit it first", func(cmd string) bool {
 			return strings.Contains(cmd, "/"+app+".app/Contents/MacOS/")
 		})
 	}
 	switch pc {
 	case "emulator_not_running":
-		return c.notRunning(ctx, "an Android emulator is running; close it first", func(cmd string) bool {
+		return c.stopped(ctx, "an Android emulator is running; close it first", func(cmd string) bool {
 			b := exe(cmd)
 			return strings.HasPrefix(b, "qemu-system-") || b == "emulator"
 		})
 	case "simulator_not_running":
-		return c.notRunning(ctx, "a Simulator is running; quit Simulator first", func(cmd string) bool {
+		return c.stopped(ctx, "a Simulator is running; quit Simulator first", func(cmd string) bool {
 			return strings.Contains(cmd, "/Simulator.app/Contents/MacOS/Simulator") || exe(cmd) == "launchd_sim"
 		})
 	case "gradle_daemons_stopped":
-		return c.notRunning(ctx, "Gradle daemons are running; stop them with ./gradlew --stop", func(cmd string) bool {
+		return c.stopped(ctx, "Gradle daemons are running; stop them with ./gradlew --stop", func(cmd string) bool {
 			return strings.Contains(cmd, "org.gradle.launcher.daemon.bootstrap.GradleDaemon")
 		})
 	case "metro_not_running":
-		return c.notRunning(ctx, "Metro is running; stop the bundler first", func(cmd string) bool {
+		return c.stopped(ctx, "Metro is running; stop the bundler first", func(cmd string) bool {
 			return strings.Contains(cmd, "node") && (strings.Contains(cmd, "react-native start") || strings.Contains(cmd, "/metro/"))
 		})
 	case "docker_reachable":
@@ -75,15 +75,15 @@ func (c *Checker) check(ctx context.Context, pc string, item model.PlanItem) err
 		}
 		return nil
 	case "ollama_model_not_loaded":
-		return c.ollamaIdle(ctx, item)
+		return c.ollama(ctx, item)
 	case "git_clean":
-		return c.gitClean(ctx, item)
+		return c.git(ctx, item)
 	}
 	return fmt.Errorf("unknown precondition %q", pc)
 }
 
-// notRunning fails with why if any process command line matches.
-func (c *Checker) notRunning(ctx context.Context, why string, match func(string) bool) error {
+// stopped fails with why if any process command line matches.
+func (c *Checker) stopped(ctx context.Context, why string, match func(string) bool) error {
 	procs, err := c.processes(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't list running programs: %w", err)
@@ -122,8 +122,8 @@ func exe(cmd string) string {
 	return filepath.Base(first)
 }
 
-// ollamaIdle fails if the model the item removes is loaded (`ollama ps`).
-func (c *Checker) ollamaIdle(ctx context.Context, item model.PlanItem) error {
+// ollama fails if the model the item removes is loaded (`ollama ps`).
+func (c *Checker) ollama(ctx context.Context, item model.PlanItem) error {
 	if len(item.Argv) == 0 {
 		return errors.New("no model named")
 	}
@@ -144,10 +144,10 @@ func (c *Checker) ollamaIdle(ctx context.Context, item model.PlanItem) error {
 	return nil
 }
 
-// gitClean fails if the project holding the target has uncommitted changes
+// git fails if the project holding the target has uncommitted changes
 // or git can't say. The project folder is the target's parent, or the one
 // above an "ios" folder.
-func (c *Checker) gitClean(ctx context.Context, item model.PlanItem) error {
+func (c *Checker) git(ctx context.Context, item model.PlanItem) error {
 	if item.Target == "" {
 		return errors.New("no project to check")
 	}

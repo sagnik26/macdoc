@@ -23,7 +23,7 @@ func finished(t *testing.T, e *env) audit.Record {
 	t.Helper()
 	ev := e.events(t)
 	last := ev[len(ev)-1]
-	if last.Event != audit.ApplyFinished {
+	if last.Event != audit.Finished {
 		t.Fatalf("last audit event = %s", last.Event)
 	}
 	return last
@@ -43,11 +43,11 @@ func TestApplyFinishedRecord(t *testing.T) { //nolint:gocyclo // A linear list o
 			t.Fatalf("report = %+v", rep.Items)
 		}
 		fin := finished(t, e)
-		if fin.Result != "ok" || fin.Items != 2 || fin.ExpectedBytes != 8192+1<<20 || fin.Plan != p.ID || fin.Origin != string(model.OriginCLI) {
+		if fin.Result != "ok" || fin.Items != 2 || fin.Expected != 8192+1<<20 || fin.Plan != p.ID || fin.Origin != string(model.OriginCLI) {
 			t.Errorf("finish = %+v", fin)
 		}
-		if fin.ActualBytes != nil {
-			t.Errorf("actual bytes %d recorded without a free-space measure", *fin.ActualBytes)
+		if fin.Actual != nil {
+			t.Errorf("actual bytes %d recorded without a free-space measure", *fin.Actual)
 		}
 	})
 	t.Run("partial", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestApplyFinishedRecord(t *testing.T) { //nolint:gocyclo // A linear list o
 		if rep.Items[1].Outcome != executor.OutcomeSkipped || rep.Items[1].Reason != "not approved" || !exists(b) || exists(a) {
 			t.Fatalf("report = %+v", rep.Items)
 		}
-		if fin := finished(t, e); fin.Result != "partial" || fin.Items != 2 || fin.ExpectedBytes != 8192 {
+		if fin := finished(t, e); fin.Result != "partial" || fin.Items != 2 || fin.Expected != 8192 {
 			t.Errorf("finish = %+v", fin)
 		}
 	})
@@ -75,7 +75,7 @@ func TestApplyFinishedRecord(t *testing.T) { //nolint:gocyclo // A linear list o
 		if rep := mustApply(t, e, p); !rep.Items[0].Deleted {
 			t.Fatalf("report = %+v", rep.Items)
 		}
-		if fin := finished(t, e); fin.Result != "ok" || fin.ExpectedBytes != 8192 {
+		if fin := finished(t, e); fin.Result != "ok" || fin.Expected != 8192 {
 			t.Errorf("finish = %+v", fin)
 		}
 	})
@@ -97,7 +97,7 @@ func TestApplyMeasuresFreeSpace(t *testing.T) {
 	if n, ok := rep.Freed(); !ok || n != 1000 {
 		t.Errorf("freed = %d, %v", n, ok)
 	}
-	if fin := finished(t, e); fin.ActualBytes == nil || *fin.ActualBytes != 1000 {
+	if fin := finished(t, e); fin.Actual == nil || *fin.Actual != 1000 {
 		t.Errorf("finish = %+v", fin)
 	}
 
@@ -111,8 +111,8 @@ func TestApplyMeasuresFreeSpace(t *testing.T) {
 	if _, ok := rep2.Freed(); ok {
 		t.Error("freed reported without a measure")
 	}
-	if fin := finished(t, e2); fin.ActualBytes != nil {
-		t.Errorf("unknown actual bytes recorded as %d", *fin.ActualBytes)
+	if fin := finished(t, e2); fin.Actual != nil {
+		t.Errorf("unknown actual bytes recorded as %d", *fin.Actual)
 	}
 }
 
@@ -142,7 +142,7 @@ func TestApplyEarlyRefusals(t *testing.T) { //nolint:gocognit,gocyclo // A linea
 		e := newEnv(t)
 		target := e.folder(t, "Library/Logs/A")
 		p := e.plan(t, e.item(t, "O-aaaaaa", "user.logs", model.RiskSafe, target))
-		t.Setenv(sandbox.EnvVar, t.TempDir())
+		t.Setenv(sandbox.Env, t.TempDir())
 		_, err := executor.Apply(context.Background(), e.cfg, p, all(p))
 		if err == nil || !strings.HasPrefix(err.Error(), "nothing was changed: ") {
 			t.Fatalf("err = %v", err)
@@ -230,12 +230,12 @@ func TestApplyDefaultsToTheRealClock(t *testing.T) {
 	if err != nil || rep.Items[0].Outcome != executor.OutcomeDone {
 		t.Fatalf("Apply = %+v, %v", rep.Items, err)
 	}
-	m, err := quarantine.LoadManifest(quarantine.Root(e.storePath), rep.Items[0].QuarantineID)
+	m, err := quarantine.Load(quarantine.Root(e.storePath), rep.Items[0].QuarantineID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := m.CreatedAt.Sub(now); d < -time.Minute || d > time.Minute {
-		t.Errorf("manifest created %v, want about %v", m.CreatedAt, now)
+	if d := m.Created.Sub(now); d < -time.Minute || d > time.Minute {
+		t.Errorf("manifest created %v, want about %v", m.Created, now)
 	}
 }
 
@@ -268,7 +268,7 @@ func TestApplyRefusesABadStateFolder(t *testing.T) {
 	if !exists(target) {
 		t.Fatal("moved")
 	}
-	if ents, _ := os.ReadDir(filepath.Join(moved, quarantine.DirName)); len(ents) != 0 {
+	if ents, _ := os.ReadDir(filepath.Join(moved, quarantine.Dir)); len(ents) != 0 {
 		t.Fatalf("quarantine written through the symlink: %v", ents)
 	}
 }

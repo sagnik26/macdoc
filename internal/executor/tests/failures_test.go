@@ -117,7 +117,7 @@ func TestPurgeRefusesAnEntryWithoutAPayloadFolder(t *testing.T) {
 	e.cfg.StageHook = nil
 	entry := theEntry(t, e)
 	qid := filepath.Base(entry)
-	if err := os.Remove(filepath.Join(entry, quarantine.PayloadDir)); err != nil {
+	if err := os.Remove(filepath.Join(entry, quarantine.Payload)); err != nil {
 		t.Fatal(err)
 	}
 	r := purgeOne(t, e, qid)

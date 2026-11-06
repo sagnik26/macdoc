@@ -66,9 +66,9 @@ func TestCrashMidApply(t *testing.T) {
 		movedAway  bool
 		restorable bool
 	}{
-		{"pending", quarantine.StateNotMoved, false, false},
-		{"moved", quarantine.StateInterrupted, true, true},
-		{"done", quarantine.StateInterrupted, true, true},
+		{"pending", quarantine.Unmoved, false, false},
+		{"moved", quarantine.Interrupted, true, true},
+		{"done", quarantine.Interrupted, true, true},
 	} {
 		t.Run(c.stage, func(t *testing.T) {
 			e := newEnv(t)
@@ -92,7 +92,7 @@ func TestCrashMidApply(t *testing.T) {
 			e.st, e.cfg.Store = st, st
 
 			// The audit log parses cleanly: started, no finish.
-			if got := eventNames(e.events(t)); len(got) != 1 || got[0] != audit.ApplyStarted {
+			if got := eventNames(e.events(t)); len(got) != 1 || got[0] != audit.Started {
 				t.Errorf("audit after crash = %v", got)
 			}
 			// The plan can't be applied again.

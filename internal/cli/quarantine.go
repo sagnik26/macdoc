@@ -98,9 +98,9 @@ func renderQuarantine(w io.Writer, res engine.QuarantineResult, home string, now
 		state := string(e.State)
 		st := t.Ok
 		switch {
-		case e.State == quarantine.StateHeld && e.Expired:
+		case e.State == quarantine.Held && e.Expired:
 			state, st = "expired", t.warn
-		case e.State == quarantine.StateHeld:
+		case e.State == quarantine.Held:
 			state = "held"
 		case e.Restorable():
 			st = t.warn

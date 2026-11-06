@@ -78,19 +78,19 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 		res.Outcome, res.Reason = OutcomeFailed, err.Error()
 	}
 	rec := audit.Record{Plan: p.plan.ID, Origin: string(p.plan.Origin), Item: item.OpportunityID, Recipe: item.RecipeID,
-		Target: item.Target, Method: string(item.Method), Argv: item.Argv, QuarantineID: res.QuarantineID,
-		ExpectedBytes: item.ExpectedBytes, ExitCode: res.ExitCode, Reason: res.Reason, Output: lastOutput(p, res)}
+		Target: item.Target, Method: string(item.Method), Argv: item.Argv, Entry: res.QuarantineID,
+		Expected: item.ExpectedBytes, Exit: res.ExitCode, Reason: res.Reason, Output: lastOutput(p, res)}
 	switch res.Outcome {
 	case OutcomeDone:
-		rec.Event, rec.Result = audit.ItemDone, "ok"
+		rec.Event, rec.Result = audit.Done, "ok"
 		if res.MovedBytes > 0 {
 			n := res.MovedBytes
-			rec.ActualBytes = &n
+			rec.Actual = &n
 		}
 	case OutcomeSkipped:
-		rec.Event, rec.Result = audit.ItemSkipped, "skipped"
+		rec.Event, rec.Result = audit.Skipped, "skipped"
 	default:
-		rec.Event, rec.Result = audit.ItemFailed, "failed"
+		rec.Event, rec.Result = audit.Failed, "failed"
 	}
 	if aerr := p.cfg.audit(rec); aerr != nil {
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: couldn't write the audit record: %v", item.OpportunityID, aerr))

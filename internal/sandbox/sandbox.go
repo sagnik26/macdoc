@@ -15,8 +15,8 @@ import (
 	"github.com/sagnik26/macdoc/internal/safety"
 )
 
-// EnvVar is the environment variable that enables sandbox mode.
-const EnvVar = "MACDOC_SANDBOX"
+// Env is the environment variable that enables sandbox mode.
+const Env = "MACDOC_SANDBOX"
 
 // Root returns the canonical sandbox directory and true if sandbox mode is
 // active. Sandbox mode is inactive only when the variable is unset. It
@@ -26,14 +26,14 @@ const EnvVar = "MACDOC_SANDBOX"
 // within a system root other than strictly below /private/var/folders or
 // /private/tmp (temp dirs).
 func Root() (string, bool, error) {
-	v, set := os.LookupEnv(EnvVar)
+	v, set := os.LookupEnv(Env)
 	if !set {
 		return "", false, nil
 	}
 	if strings.TrimSpace(v) == "" {
-		return "", true, fmt.Errorf("sandbox: %s is set but empty; unset it to disable sandbox mode", EnvVar)
+		return "", true, fmt.Errorf("sandbox: %s is set but empty; unset it to disable sandbox mode", Env)
 	}
-	root, err := resolveRoot(v)
+	root, err := resolve(v)
 	if err != nil {
 		return "", true, err
 	}
@@ -56,89 +56,89 @@ func Check(path string) error {
 	if err != nil {
 		return fmt.Errorf("sandbox: refusing %q: %w", path, err)
 	}
-	if !samePath(c, path) {
+	if !same(c, path) {
 		return fmt.Errorf("sandbox: refusing non-canonical %q (canonical %q)", path, c)
 	}
-	if !safety.Within(root, c) || samePath(root, c) {
+	if !safety.Within(root, c) || same(root, c) {
 		return fmt.Errorf("sandbox: %q is not inside sandbox root %s", path, root)
 	}
 	return nil
 }
 
-// resolveRoot validates the env var value and returns the canonical,
+// resolve validates the env var value and returns the canonical,
 // fully resolved sandbox directory.
-func resolveRoot(v string) (string, error) {
+func resolve(v string) (string, error) {
 	if !filepath.IsAbs(v) {
-		return "", fmt.Errorf("sandbox: %s=%q must be an absolute path", EnvVar, v)
+		return "", fmt.Errorf("sandbox: %s=%q must be an absolute path", Env, v)
 	}
-	c, err := safety.Canonicalize(cleanRoot(v))
+	c, err := safety.Canonicalize(clean(v))
 	if err != nil {
-		return "", fmt.Errorf("sandbox: %s: %w", EnvVar, err)
+		return "", fmt.Errorf("sandbox: %s: %w", Env, err)
 	}
 	// Canonicalize does not follow a final symlink. The executor compares
 	// canonical targets against the root, so the root must be the real
 	// directory, not a link to it.
 	r, err := filepath.EvalSymlinks(c)
 	if err != nil {
-		return "", fmt.Errorf("sandbox: %s=%q: %w", EnvVar, v, err)
+		return "", fmt.Errorf("sandbox: %s=%q: %w", Env, v, err)
 	}
 	if r, err = safety.Canonicalize(r); err != nil {
-		return "", fmt.Errorf("sandbox: %s: %w", EnvVar, err)
+		return "", fmt.Errorf("sandbox: %s: %w", Env, err)
 	}
 	fi, err := os.Stat(r)
 	if err != nil {
-		return "", fmt.Errorf("sandbox: %s=%q: %w", EnvVar, v, err)
+		return "", fmt.Errorf("sandbox: %s=%q: %w", Env, v, err)
 	}
 	if !fi.IsDir() {
-		return "", fmt.Errorf("sandbox: %s=%q is not a directory", EnvVar, v)
+		return "", fmt.Errorf("sandbox: %s=%q is not a directory", Env, v)
 	}
 	if r == "/" {
-		return "", fmt.Errorf("sandbox: %s must not be the filesystem root", EnvVar)
+		return "", fmt.Errorf("sandbox: %s must not be the filesystem root", Env)
 	}
-	home, err := canonicalHome()
+	home, err := canonical()
 	if err != nil {
 		return "", err
 	}
 	if safety.Within(r, home) {
-		if samePath(r, home) {
-			return "", fmt.Errorf("sandbox: %s must not be the home directory %s", EnvVar, home)
+		if same(r, home) {
+			return "", fmt.Errorf("sandbox: %s must not be the home directory %s", Env, home)
 		}
-		return "", fmt.Errorf("sandbox: %s=%s contains the home directory %s; use a dedicated temporary directory", EnvVar, r, home)
+		return "", fmt.Errorf("sandbox: %s=%s contains the home directory %s; use a dedicated temporary directory", Env, r, home)
 	}
-	if err := CheckSystemRoots(r); err != nil {
+	if err := System(r); err != nil {
 		return "", err
 	}
 	return r, nil
 }
 
-// tempRoots are the only system areas a sandbox may live in.
-var tempRoots = []string{"/private/var/folders", "/private/tmp"}
+// temps are the only system areas a sandbox may live in.
+var temps = []string{"/private/var/folders", "/private/tmp"}
 
-// CheckSystemRoots rejects a resolved sandbox root that equals, contains or
+// System rejects a resolved sandbox root that equals, contains or
 // is within a system root, unless it is strictly below a temp dir.
-func CheckSystemRoots(r string) error {
+func System(r string) error {
 	for _, s := range safety.SystemRoots() {
 		if safety.Within(r, s) {
-			return fmt.Errorf("sandbox: %s=%s covers system path %s; use a dedicated temporary directory", EnvVar, r, s)
+			return fmt.Errorf("sandbox: %s=%s covers system path %s; use a dedicated temporary directory", Env, r, s)
 		}
 	}
-	for _, t := range tempRoots {
-		if safety.Within(t, r) && !samePath(t, r) {
+	for _, t := range temps {
+		if safety.Within(t, r) && !same(t, r) {
 			return nil
 		}
 	}
 	for _, s := range safety.SystemRoots() {
 		if safety.Within(s, r) {
-			return fmt.Errorf("sandbox: %s=%s is inside system path %s; use a dedicated temporary directory", EnvVar, r, s)
+			return fmt.Errorf("sandbox: %s=%s is inside system path %s; use a dedicated temporary directory", Env, r, s)
 		}
 	}
 	return nil
 }
 
-// cleanRoot lexically cleans the env var value so a trailing "/" or "/." is
+// clean lexically cleans the env var value so a trailing "/" or "/." is
 // accepted for the root. A value with a ".." component is returned unchanged
 // so that safety.Canonicalize rejects it.
-func cleanRoot(v string) string {
+func clean(v string) string {
 	for _, c := range strings.Split(v, "/") {
 		if c == ".." {
 			return v
@@ -147,9 +147,9 @@ func cleanRoot(v string) string {
 	return filepath.Clean(v)
 }
 
-// canonicalHome returns the user's home directory, canonicalized and with
+// canonical returns the user's home directory, canonicalized and with
 // any final symlink resolved, so it compares like the sandbox root.
-func canonicalHome() (string, error) {
+func canonical() (string, error) {
 	h, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("sandbox: cannot determine home directory: %w", err)
@@ -157,7 +157,7 @@ func canonicalHome() (string, error) {
 	if !filepath.IsAbs(h) {
 		return "", fmt.Errorf("sandbox: home directory %q is not absolute", h)
 	}
-	c, err := safety.Canonicalize(cleanRoot(h))
+	c, err := safety.Canonicalize(clean(h))
 	if err != nil {
 		return "", fmt.Errorf("sandbox: home: %w", err)
 	}
@@ -171,8 +171,8 @@ func canonicalHome() (string, error) {
 	return c, nil
 }
 
-// samePath reports whether two canonical paths are equal under the same
+// same reports whether two canonical paths are equal under the same
 // comparison rules as safety.Within.
-func samePath(a, b string) bool {
+func same(a, b string) bool {
 	return safety.Within(a, b) && safety.Within(b, a)
 }

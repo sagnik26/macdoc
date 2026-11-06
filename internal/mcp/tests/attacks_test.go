@@ -479,7 +479,7 @@ func TestRedteamHeldRefusedCallsWriteNothing(t *testing.T) {
 	}
 	recs, _, _ := audit.Read(audit.Path(store.DefaultPath(f.home)), 100)
 	for _, r := range recs {
-		if r.Event == audit.PlanCreated {
+		if r.Event == audit.Planned {
 			t.Errorf("audit records a plan: %+v", r)
 		}
 	}

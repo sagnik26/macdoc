@@ -54,8 +54,8 @@ func recordStatus(t *testing.T, e *env, id string) store.QuarantineStatus {
 // outside it, and then nothing is deleted or recorded.
 func TestPurgeRefusesOutsideSandbox(t *testing.T) {
 	for name, setup := range map[string]func(t *testing.T){
-		"empty":   func(t *testing.T) { t.Setenv(sandbox.EnvVar, "") },
-		"another": func(t *testing.T) { t.Setenv(sandbox.EnvVar, t.TempDir()) },
+		"empty":   func(t *testing.T) { t.Setenv(sandbox.Env, "") },
+		"another": func(t *testing.T) { t.Setenv(sandbox.Env, t.TempDir()) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newEnv(t)
@@ -313,12 +313,12 @@ func TestPurgeAuditRecords(t *testing.T) {
 	purgeOne(t, e, qid) // refused: already purged
 	ev := e.events(t)
 	done, skipped := ev[len(ev)-2], ev[len(ev)-1]
-	if done.Event != audit.QuarantinePurged || done.QuarantineID != qid || done.Target != target || done.Result != "ok" ||
-		done.ActualBytes == nil || *done.ActualBytes != rec.Bytes || done.Reason != "" {
+	if done.Event != audit.Purged || done.Entry != qid || done.Target != target || done.Result != "ok" ||
+		done.Actual == nil || *done.Actual != rec.Bytes || done.Reason != "" {
 		t.Errorf("purge record = %+v", done)
 	}
-	if skipped.Event != audit.QuarantinePurged || skipped.QuarantineID != qid || skipped.Result != string(executor.OutcomeSkipped) ||
-		skipped.Reason != "it was already purged" || skipped.ActualBytes != nil || skipped.Target != target {
+	if skipped.Event != audit.Purged || skipped.Entry != qid || skipped.Result != string(executor.OutcomeSkipped) ||
+		skipped.Reason != "it was already purged" || skipped.Actual != nil || skipped.Target != target {
 		t.Errorf("refused record = %+v", skipped)
 	}
 }

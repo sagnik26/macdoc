@@ -10,20 +10,20 @@ import (
 	"syscall"
 )
 
-// MaxSmallFile is the default limit for SmallFile.
+// MaxSmallFile is the default limit for Small.
 const MaxSmallFile int64 = 64 << 10
 
-// SmallFile errors: anything but a regular file, or over the limit.
+// Small errors: anything but a regular file, or over the limit.
 var (
 	ErrNotRegular = errors.New("not a regular file")
 	ErrTooLarge   = errors.New("file too large")
 )
 
-// SmallFile reads a small regular file. It never follows a symlink in the
+// Small reads a small regular file. It never follows a symlink in the
 // final component, never blocks on a FIFO or device (it checks with Lstat,
 // opens non-blocking and checks again), and fails if the file is larger than
 // limit bytes.
-func SmallFile(path string, limit int64) ([]byte, error) {
+func Small(path string, limit int64) ([]byte, error) {
 	fi, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
@@ -52,14 +52,14 @@ func SmallFile(path string, limit int64) ([]byte, error) {
 	return b, nil
 }
 
-// IsRegular reports whether path is a regular file (a symlink doesn't count).
-func IsRegular(path string) bool {
+// Regular reports whether path is a regular file (a symlink doesn't count).
+func Regular(path string) bool {
 	fi, err := os.Lstat(path)
 	return err == nil && fi.Mode().IsRegular()
 }
 
-// IsDir reports whether path is a directory (a symlink doesn't count).
-func IsDir(path string) bool {
+// Dir reports whether path is a directory (a symlink doesn't count).
+func Dir(path string) bool {
 	fi, err := os.Lstat(path)
 	return err == nil && fi.IsDir()
 }

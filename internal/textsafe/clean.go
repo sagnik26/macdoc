@@ -39,10 +39,10 @@ func Invisible(r rune) bool {
 	return false
 }
 
-// ForModel cleans text for an AI model (the MCP server): ANSI sequences and
+// Model cleans text for an AI model (the MCP server): ANSI sequences and
 // invisible characters are dropped, newlines and tabs kept. It doesn't cap
 // the length; the caller does.
-func ForModel(s string) string {
+func Model(s string) string {
 	s = ansi.ReplaceAllString(s, "")
 	return strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\t' {
@@ -55,10 +55,10 @@ func ForModel(s string) string {
 	}, s)
 }
 
-// ForTerminal cleans text for a person at a terminal: ANSI sequences and
+// Terminal cleans text for a person at a terminal: ANSI sequences and
 // invisible characters are dropped, and newlines and tabs become spaces, so a
 // name can't erase, recolor, hide or fake a line.
-func ForTerminal(s string) string {
+func Terminal(s string) string {
 	s = ansi.ReplaceAllString(s, "")
 	return strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\t' || r == '\r' {
@@ -78,11 +78,11 @@ func ForTerminal(s string) string {
 func Copy[T any](v T, clean func(string) string) T {
 	src := reflect.ValueOf(&v).Elem()
 	dst := reflect.New(src.Type()).Elem()
-	copyValue(dst, src, clean)
+	clone(dst, src, clean)
 	return dst.Interface().(T)
 }
 
-func copyValue(dst, src reflect.Value, clean func(string) string) {
+func clone(dst, src reflect.Value, clean func(string) string) { //nolint:gocognit,gocyclo // Pre-existing: it walks every kind of value in a decoded JSON tree, one case each.
 	switch src.Kind() {
 	case reflect.String:
 		dst.SetString(clean(src.String()))
@@ -90,7 +90,7 @@ func copyValue(dst, src reflect.Value, clean func(string) string) {
 		dst.Set(src)
 		for i := 0; i < src.NumField(); i++ {
 			if dst.Type().Field(i).IsExported() {
-				copyValue(dst.Field(i), src.Field(i), clean)
+				clone(dst.Field(i), src.Field(i), clean)
 			}
 		}
 	case reflect.Slice:
@@ -99,12 +99,12 @@ func copyValue(dst, src reflect.Value, clean func(string) string) {
 		}
 		s := reflect.MakeSlice(src.Type(), src.Len(), src.Len())
 		for i := 0; i < src.Len(); i++ {
-			copyValue(s.Index(i), src.Index(i), clean)
+			clone(s.Index(i), src.Index(i), clean)
 		}
 		dst.Set(s)
 	case reflect.Array:
 		for i := 0; i < src.Len(); i++ {
-			copyValue(dst.Index(i), src.Index(i), clean)
+			clone(dst.Index(i), src.Index(i), clean)
 		}
 	case reflect.Map:
 		if src.IsNil() {
@@ -114,9 +114,9 @@ func copyValue(dst, src reflect.Value, clean func(string) string) {
 		it := src.MapRange()
 		for it.Next() {
 			k := reflect.New(src.Type().Key()).Elem()
-			copyValue(k, it.Key(), clean)
+			clone(k, it.Key(), clean)
 			e := reflect.New(src.Type().Elem()).Elem()
-			copyValue(e, it.Value(), clean)
+			clone(e, it.Value(), clean)
 			m.SetMapIndex(k, e)
 		}
 		dst.Set(m)
@@ -125,14 +125,14 @@ func copyValue(dst, src reflect.Value, clean func(string) string) {
 			return
 		}
 		p := reflect.New(src.Type().Elem())
-		copyValue(p.Elem(), src.Elem(), clean)
+		clone(p.Elem(), src.Elem(), clean)
 		dst.Set(p)
 	case reflect.Interface:
 		if src.IsNil() {
 			return
 		}
 		e := reflect.New(src.Elem().Type()).Elem()
-		copyValue(e, src.Elem(), clean)
+		clone(e, src.Elem(), clean)
 		dst.Set(e)
 	default:
 		dst.Set(src)

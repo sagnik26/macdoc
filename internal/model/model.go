@@ -117,7 +117,7 @@ type PlanItem struct {
 	Title         string      `json:"title"`
 	Target        string      `json:"target"` // quarantine: the folder to move; native: informational ("" if none)
 	ExpectedBytes int64       `json:"expected_bytes"`
-	BytesSource   Source      `json:"bytes_source"` // unknown: ExpectedBytes is 0 and must not be shown as 0
+	BytesSource   Source      `json:"bytes_source"` // unknown: Expected is 0 and must not be shown as 0
 	Risk          Risk        `json:"risk"`
 	RiskReason    string      `json:"risk_reason,omitempty"`
 	Method        Method      `json:"method"`

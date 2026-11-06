@@ -223,7 +223,7 @@ var (
 // symlink or blocking on a FIFO (fsread.SmallFile). Every detector file read
 // goes through it.
 func ReadSmallFile(path string, limit int64) ([]byte, error) {
-	return fsread.SmallFile(path, limit)
+	return fsread.Small(path, limit)
 }
 
 // ErrNoDryRun is returned when a native detector's recipe lacks the dry-run

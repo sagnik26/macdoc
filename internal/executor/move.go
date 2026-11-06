@@ -245,18 +245,18 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 		return "", err
 	}
 	entry := quarantine.EntryDir(root, id)
-	payload := filepath.Join(entry, quarantine.PayloadDir)
+	payload := filepath.Join(entry, quarantine.Payload)
 	m := quarantine.Manifest{
-		SchemaVersion: quarantine.SchemaVersion, ID: id, Plan: p.plan.ID, Item: item.OpportunityID, Recipe: item.RecipeID,
-		Title: item.Title, Original: target, Name: filepath.Base(target), Bytes: bytes, BytesSource: src, Fingerprint: fp,
-		CreatedAt: now.UTC().Round(0), ExpiresAt: now.Add(p.cfg.QuarantineTTL).UTC().Round(0), Status: quarantine.StatusPending,
+		Schema: quarantine.Schema, ID: id, Plan: p.plan.ID, Item: item.OpportunityID, Recipe: item.RecipeID,
+		Title: item.Title, Original: target, Name: filepath.Base(target), Bytes: bytes, Source: src, Fingerprint: fp,
+		Created: now.UTC().Round(0), Expires: now.Add(p.cfg.QuarantineTTL).UTC().Round(0), Status: quarantine.Pending,
 	}
 	if err := os.Mkdir(payload, 0o700); err != nil {
 		removeEmptyEntry(entry)
 		return "", err
 	}
 	if err := st.AddQuarantine(store.QuarantineRecord{ID: id, PlanID: m.Plan, ItemID: m.Item, RecipeID: m.Recipe,
-		Original: m.Original, Bytes: m.Bytes, CreatedAt: m.CreatedAt, ExpiresAt: m.ExpiresAt}); err != nil {
+		Original: m.Original, Bytes: m.Bytes, CreatedAt: m.Created, ExpiresAt: m.Expires}); err != nil {
 		removeEmptyEntry(entry)
 		return "", err
 	}
@@ -302,7 +302,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 	if err := sameDir(pfd, parent); err != nil {
 		return id, p.moveBack(qfd, pfd, base, id, entry, err)
 	}
-	m.Status = quarantine.StatusDone
+	m.Status = quarantine.Done
 	if err := writeManifest(entry, m, false); err != nil {
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: moved, but its manifest couldn't be updated: %v (it is still restorable)", id, err))
 		return id, nil
@@ -427,7 +427,7 @@ func writeNew(path string, b []byte) error {
 func removeEmptyEntry(entry string) {
 	_ = os.Remove(filepath.Join(entry, quarantine.ManifestName+".tmp"))
 	_ = os.Remove(filepath.Join(entry, quarantine.ManifestName))
-	_ = os.Remove(filepath.Join(entry, quarantine.PayloadDir))
+	_ = os.Remove(filepath.Join(entry, quarantine.Payload))
 	_ = os.Remove(entry)
 }
 

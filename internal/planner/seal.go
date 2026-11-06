@@ -146,7 +146,7 @@ func Load(dir, id string) (model.Plan, error) {
 	if !ValidID(id) {
 		return p, fmt.Errorf("%q isn't a plan ID (they look like P-7F3K)", id)
 	}
-	b, err := fsread.SmallFile(filepath.Join(dir, id+".json"), maxPlanFile)
+	b, err := fsread.Small(filepath.Join(dir, id+".json"), maxPlanFile)
 	if errors.Is(err, os.ErrNotExist) {
 		return p, fmt.Errorf("%w: %s", ErrUnknown, id)
 	}

@@ -525,7 +525,7 @@ func TestRedteamHeldForgedQuarantineEntries(t *testing.T) {
 	add := func(id string) {
 		t.Helper()
 		if err := e.st.AddQuarantine(store.QuarantineRecord{ID: id, PlanID: "P-AAAA", ItemID: "O-aaaaaa", RecipeID: "user.logs",
-			Original: thesis, Bytes: 1, CreatedAt: t0, ExpiresAt: t0.Add(quarantine.DefaultTTL)}); err != nil {
+			Original: thesis, Bytes: 1, CreatedAt: t0, ExpiresAt: t0.Add(quarantine.TTL)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -638,7 +638,7 @@ func TestRedteamHeldConcurrentPurgeAndApply(t *testing.T) {
 			}
 		}
 		l, _ := quarantine.List(e.st, quarantine.Root(e.storePath), e.cfg.Now())
-		if done != 1 || len(l.Entries) != 1 || l.Entries[0].State != quarantine.StateHeld {
+		if done != 1 || len(l.Entries) != 1 || l.Entries[0].State != quarantine.Held {
 			t.Fatalf("done = %d, entries = %+v", done, l.Entries)
 		}
 	})
@@ -656,7 +656,7 @@ func TestRedteamHeldMalformedSandbox(t *testing.T) {
 			qid := mustApply(t, e, kept).Items[0].QuarantineID
 			n := len(e.events(t))
 
-			t.Setenv(sandbox.EnvVar, v)
+			t.Setenv(sandbox.Env, v)
 			if _, err := executor.Apply(context.Background(), e.cfg, p, all(p)); err == nil {
 				t.Error("apply ran")
 			}
@@ -859,7 +859,7 @@ func TestRedteamFixedPurgeCrashOrder(t *testing.T) {
 			if !exists(filepath.Join(entry, quarantine.ManifestName)) {
 				t.Error("the manifest was removed before the payload was purged")
 			}
-			if exists(filepath.Join(entry, quarantine.PayloadDir)) {
+			if exists(filepath.Join(entry, quarantine.Payload)) {
 				t.Error("the payload still exists at the point of the manifest check")
 			}
 		}

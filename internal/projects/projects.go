@@ -278,19 +278,19 @@ func classify(path string) (root, rel string, ok bool) {
 	pbase := filepath.Base(parent)
 	switch base {
 	case "node_modules":
-		if pbase != "lib" && fsread.IsRegular(filepath.Join(parent, "package.json")) {
+		if pbase != "lib" && fsread.Regular(filepath.Join(parent, "package.json")) {
 			return parent, base, true
 		}
 	case ".next", ".expo":
-		if fsread.IsRegular(filepath.Join(parent, "package.json")) {
+		if fsread.Regular(filepath.Join(parent, "package.json")) {
 			return parent, base, true
 		}
 	case ".venv":
-		if fsread.IsRegular(filepath.Join(path, "pyvenv.cfg")) && isPythonProject(parent) {
+		if fsread.Regular(filepath.Join(path, "pyvenv.cfg")) && isPythonProject(parent) {
 			return parent, base, true
 		}
 	case "Pods":
-		if fsread.IsRegular(filepath.Join(parent, "Podfile")) {
+		if fsread.Regular(filepath.Join(parent, "Podfile")) {
 			if pbase == "ios" {
 				return filepath.Dir(parent), "ios/Pods", true
 			}
@@ -328,7 +328,7 @@ var gradleFiles = []string{"build.gradle", "build.gradle.kts", "settings.gradle"
 
 func isGradleDir(dir string) bool {
 	for _, f := range gradleFiles {
-		if fsread.IsRegular(filepath.Join(dir, f)) {
+		if fsread.Regular(filepath.Join(dir, f)) {
 			return true
 		}
 	}
@@ -337,7 +337,7 @@ func isGradleDir(dir string) bool {
 
 // isAppleDir: a Podfile, or an Xcode project or workspace.
 func isAppleDir(dir string) bool {
-	if fsread.IsRegular(filepath.Join(dir, "Podfile")) {
+	if fsread.Regular(filepath.Join(dir, "Podfile")) {
 		return true
 	}
 	entries, err := os.ReadDir(dir)
@@ -376,7 +376,7 @@ func isPythonProject(dir string) bool {
 // kinds lists what a project is built with, from its marker files.
 func kinds(root string) []string {
 	var out []string
-	node := fsread.IsRegular(filepath.Join(root, "package.json"))
+	node := fsread.Regular(filepath.Join(root, "package.json"))
 	ios := isAppleDir(filepath.Join(root, "ios"))
 	android := isGradleDir(filepath.Join(root, "android"))
 	switch {
