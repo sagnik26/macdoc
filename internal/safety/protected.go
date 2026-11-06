@@ -2,6 +2,7 @@ package safety
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -100,6 +101,30 @@ func (p *Policy) currentContainers() []protectedRoot {
 	return append(append([]protectedRoot(nil), p.containers...), newRoot(r, false))
 }
 
+// probe is the path being judged: its folded Components (never empty), whether
+// it is inside $HOME, and the Containers roots to use.
+type probe struct {
+	pc         []string
+	inHome     bool
+	containers []protectedRoot
+}
+
+// rule reports whether a path is protected and, when it is, why.
+type rule func(p *Policy, s probe) (string, bool)
+
+// protectedRules are checked in order and the first match gives the reported
+// reason, so the order is part of the contract (tests pin the messages).
+var protectedRules = []rule{
+	(*Policy).sibling,
+	(*Policy).root,
+	(*Policy).ancestor,
+	(*Policy).enclosing,
+	(*Policy).repo,
+	(*Policy).apple,
+	(*Policy).dotenv,
+	(*Policy).sqlite,
+}
+
 // isProtectedWith implements isProtected against the given Containers roots.
 // A path that is not absolute is reported as protected (fail closed).
 func (p *Policy) isProtectedWith(path string, containers []protectedRoot) (bool, string) {
@@ -110,71 +135,106 @@ func (p *Policy) isProtectedWith(path string, containers []protectedRoot) (bool,
 	if len(pc) == 0 {
 		return true, "/"
 	}
-
-	inHome := hasPrefixComps(p.homeComps, pc)
-
-	// Siblings of $HOME (other users' homes, /Users/Shared) are never targets.
-	// Checked first so the reported root is the most specific one.
-	parent := p.homeComps[:len(p.homeComps)-1]
-	if !inHome && len(pc) > len(parent) && hasPrefixComps(parent, pc) {
-		return true, "outside home: " + filepath.Dir(p.home)
-	}
-
-	for _, r := range p.roots {
-		if !hasPrefixComps(r.comps, pc) {
-			continue
-		}
-		if r.system && inHome && hasPrefixComps(r.comps, p.homeComps) {
-			continue // home containment exception
-		}
-		return true, r.path
-	}
-
-	// Strict ancestors of $HOME (e.g. /Users) are never targets.
-	if len(pc) < len(p.homeComps) && hasPrefixComps(pc, p.homeComps) {
-		return true, "ancestor of " + p.home
-	}
-
-	// Strict ancestors of named protected roots are never targets: acting on
-	// one takes the protected subtree with it. $HOME itself is left to the
-	// depth rule; its ancestors were handled above.
-	if !hasPrefixComps(pc, p.homeComps) {
-		for _, r := range p.roots {
-			if !r.system && len(pc) < len(r.comps) && hasPrefixComps(pc, r.comps) {
-				return true, ContainsProtected + r.path
-			}
-		}
-		// Containers itself is a strict ancestor of the com.apple.* entries.
-		for _, c := range containers {
-			if len(pc) <= len(c.comps) && hasPrefixComps(pc, c.comps) {
-				return true, ContainsProtected + filepath.Join(c.path, "com.apple.*")
-			}
-		}
-	}
-
-	for _, c := range pc {
-		if c == ".git" {
-			return true, "any .git directory"
-		}
-	}
-
-	for _, c := range containers {
-		if hasPrefixComps(c.comps, pc) && len(pc) > len(c.comps) &&
-			strings.HasPrefix(pc[len(c.comps)], "com.apple.") {
-			return true, filepath.Join(c.path, "com.apple.*")
-		}
-	}
-
-	last := pc[len(pc)-1]
-	if strings.HasPrefix(last, ".env") {
-		return true, ".env* files"
-	}
-	for _, s := range protectedSuffixes {
-		for _, side := range sqliteSidecars {
-			if strings.HasSuffix(last, s+side) {
-				return true, "*" + s + side + " files"
-			}
+	s := probe{pc: pc, inHome: hasPrefixComps(p.homeComps, pc), containers: containers}
+	for _, check := range protectedRules {
+		if reason, ok := check(p, s); ok {
+			return true, reason
 		}
 	}
 	return false, ""
+}
+
+// sibling: siblings of $HOME (other users' homes, /Users/Shared) are never
+// targets. Checked first so the reported root is the most specific one.
+func (p *Policy) sibling(s probe) (string, bool) {
+	parent := p.homeComps[:len(p.homeComps)-1]
+	if !s.inHome && len(s.pc) > len(parent) && hasPrefixComps(parent, s.pc) {
+		return "outside home: " + filepath.Dir(p.home), true
+	}
+	return "", false
+}
+
+// root: a path equal to or below a protected root, except a system root that
+// is an ancestor of $HOME (the home containment exception).
+func (p *Policy) root(s probe) (string, bool) {
+	for _, r := range p.roots {
+		if !hasPrefixComps(r.comps, s.pc) {
+			continue
+		}
+		if r.system && s.inHome && hasPrefixComps(r.comps, p.homeComps) {
+			continue
+		}
+		return r.path, true
+	}
+	return "", false
+}
+
+// ancestor: strict ancestors of $HOME (e.g. /Users) are never targets.
+func (p *Policy) ancestor(s probe) (string, bool) {
+	if len(s.pc) < len(p.homeComps) && hasPrefixComps(s.pc, p.homeComps) {
+		return "ancestor of " + p.home, true
+	}
+	return "", false
+}
+
+// enclosing: strict ancestors of named protected roots are never targets:
+// acting on one takes the protected subtree with it. $HOME itself is left to
+// the depth rule; its ancestors were handled above.
+func (p *Policy) enclosing(s probe) (string, bool) {
+	if hasPrefixComps(s.pc, p.homeComps) {
+		return "", false
+	}
+	for _, r := range p.roots {
+		if !r.system && len(s.pc) < len(r.comps) && hasPrefixComps(s.pc, r.comps) {
+			return ContainsProtected + r.path, true
+		}
+	}
+	// Containers itself is a strict ancestor of the com.apple.* entries.
+	for _, c := range s.containers {
+		if len(s.pc) <= len(c.comps) && hasPrefixComps(s.pc, c.comps) {
+			return ContainsProtected + filepath.Join(c.path, "com.apple.*"), true
+		}
+	}
+	return "", false
+}
+
+// repo: any .git directory, anywhere.
+func (p *Policy) repo(s probe) (string, bool) {
+	if slices.Contains(s.pc, ".git") {
+		return "any .git directory", true
+	}
+	return "", false
+}
+
+// apple: every ~/Library/Containers/com.apple.* entry.
+func (p *Policy) apple(s probe) (string, bool) {
+	for _, c := range s.containers {
+		if hasPrefixComps(c.comps, s.pc) && len(s.pc) > len(c.comps) &&
+			strings.HasPrefix(s.pc[len(c.comps)], "com.apple.") {
+			return filepath.Join(c.path, "com.apple.*"), true
+		}
+	}
+	return "", false
+}
+
+// dotenv: .env* files.
+func (p *Policy) dotenv(s probe) (string, bool) {
+	if strings.HasPrefix(s.pc[len(s.pc)-1], ".env") {
+		return ".env* files", true
+	}
+	return "", false
+}
+
+// sqlite: SQLite databases and their write-ahead log, shared-memory and
+// rollback journal sidecars.
+func (p *Policy) sqlite(s probe) (string, bool) {
+	last := s.pc[len(s.pc)-1]
+	for _, suffix := range protectedSuffixes {
+		for _, side := range sqliteSidecars {
+			if strings.HasSuffix(last, suffix+side) {
+				return "*" + suffix + side + " files", true
+			}
+		}
+	}
+	return "", false
 }
