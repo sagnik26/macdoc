@@ -76,8 +76,21 @@ func withSpan(ctx context.Context, ex *ExplainResult) string {
 	return ""
 }
 
+// setSpan records a measured range; a nil sp leaves the explanation as it was.
+func (ex *ExplainResult) setSpan(sp *engine.Span) {
+	if sp != nil {
+		ex.BytesLower, ex.BytesUpper = &sp.Lower, sp.Upper
+	}
+}
+
 // RenderExplain writes one suggestion in detail in the human format.
 func RenderExplain(w io.Writer, ex ExplainResult) error {
+	return renderExplain(w, ex, "")
+}
+
+// renderExplain is RenderExplain with an optional progress line, already
+// styled, shown under the size note while the range is being measured.
+func renderExplain(w io.Writer, ex ExplainResult, busy string) error {
 	ex = display(ex) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -96,8 +109,8 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 		row("Target", t.text.Render(op.Target))
 	}
 	row("Size", t.size.Render(sizeWithSource(op.Bytes)))
-	if op.Bytes.Source == model.SourceMeasured {
-		row("", t.muted.Render(sizeNote(ex)))
+	for _, line := range sizeLines(t, ex, busy) {
+		row("", line)
 	}
 	risk := t.riskStyle(op.Risk).Render(string(op.Risk))
 	if ex.BaseRisk != "" && ex.BaseRisk != op.Risk {
@@ -108,11 +121,7 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 		risk += t.muted.Render(fmt.Sprintf(" (raised from %s: %s)", ex.BaseRisk, reason))
 	}
 	row("Risk", risk)
-	if op.IdleDays >= 0 {
-		row("Idle", fmt.Sprintf("%d days since last change", op.IdleDays))
-	} else {
-		row("Idle", "unknown")
-	}
+	row("Idle", idleSince(op.IdleDays))
 	switch op.Method {
 	case model.MethodNative:
 		row("Method", "the tool's own command: "+t.Command(op.Command))
@@ -147,6 +156,28 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 	b.WriteString("\n" + t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// idleSince says how long ago the item last changed; a negative count is unknown.
+func idleSince(days int) string {
+	if days < 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("%d days since last change", days)
+}
+
+// sizeLines are the lines under the size of a measured suggestion: the note
+// on what removing it frees, and the progress line while the range is being
+// measured. Other sizes have none.
+func sizeLines(t *Theme, ex ExplainResult, busy string) []string {
+	if ex.Opportunity.Bytes.Source != model.SourceMeasured {
+		return nil
+	}
+	lines := []string{t.muted.Render(sizeNote(ex))}
+	if busy != "" {
+		lines = append(lines, busy)
+	}
+	return lines
 }
 
 // stepText renders a step with each `command` styled as one to copy. The

@@ -130,6 +130,9 @@ type TuiDeps struct {
 	apply func(cmd *cobra.Command, d ApplyDeps, id string) error
 	// remove replaces executorRemove in tests.
 	Remove func(d *TuiDeps, p model.Plan, onItem func(executor.ItemEvent)) (executor.Report, error)
+	// Measure walks one suggestion's folder for the range it frees; the
+	// dashboard starts no walk while it is nil. Tests replace it.
+	Measure func(ctx context.Context, d *TuiDeps, op model.Opportunity) (*engine.Span, error)
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -223,6 +226,7 @@ type TuiModel struct {
 	// plans: marked suggestion IDs (shared by copies of the model, cleared
 	// on every new load), the plan being sealed, and the last one made
 	Marked   map[string]bool
+	span     *spanState // the range walk and its results, shared by copies
 	Planning bool
 	Plan     *engine.PlanResult
 	removing *removeState // the remove confirmation box, while open
@@ -262,7 +266,7 @@ func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 	h.Styles.ShortDesc = t.muted
 	h.Styles.ShortSeparator = t.faint
 	h.ShortSeparator = " • "
-	return TuiModel{Deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, Bar: bar, input: in, w: 100, h: 30, Marked: map[string]bool{}}
+	return TuiModel{Deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, Bar: bar, input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -272,7 +276,7 @@ func runTUI(home string, cat *recipes.Catalog) error {
 		// NO_COLOR or a monochrome terminal: keep the layout, drop colors.
 		t = PlainLayoutTheme()
 	}
-	deps := &TuiDeps{Home: home, cat: cat, Load: engineLoad, MakePlan: enginePlan}
+	deps := &TuiDeps{Home: home, cat: cat, Load: engineLoad, MakePlan: enginePlan, Measure: engineMeasure}
 	m := NewTUIModel(deps, t)
 	// Open on the welcome screen; nothing runs until the user picks.
 	m.Intro, m.IntroStatus = true, loadIntroStatus(home)
@@ -281,6 +285,9 @@ func runTUI(home string, cat *recipes.Catalog) error {
 	final, err := p.Run()
 	if err != nil {
 		return err
+	}
+	if fm, ok := final.(TuiModel); ok {
+		fm.span.stop() // leave no walk running
 	}
 	if fm, ok := final.(TuiModel); ok && fm.Data != nil {
 		fmt.Println(t.done("Nothing has been changed."))
@@ -368,8 +375,21 @@ func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
 	return tea.Batch(run, m.spin.Tick)
 }
 
-// Update implements tea.Model.
+// Update implements tea.Model. After every message it makes the range walk
+// match what the detail pane shows (syncSpan).
 func (m TuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if sm, ok := msg.(SpanMsg); ok {
+		m.spanned(sm)
+		return m, nil
+	}
+	next, cmd := m.update(msg)
+	if nm, ok := next.(TuiModel); ok {
+		return nm.syncSpan(cmd)
+	}
+	return next, cmd
+}
+
+func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
@@ -410,12 +430,7 @@ func (m TuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.removed(msg)
 
 	case spinner.TickMsg:
-		if !m.Loading {
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.spin, cmd = m.spin.Update(msg)
-		return m, cmd
+		return m.tick(msg)
 
 	case tea.KeyMsg:
 		m.Flash = ""
@@ -437,6 +452,7 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 	case msg.Err == nil && !m.Stopping:
 		m.Data, m.note = cleanData(msg.Data), ""
 		clear(m.Marked) // IDs belong to a scan
+		m.span.reset()
 		m.preMarkSafe()
 		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
 	case m.Stopping || errors.Is(msg.Err, context.Canceled):
@@ -1076,7 +1092,8 @@ func (m TuiModel) detailView(op model.Opportunity, w int) string {
 	var buf strings.Builder
 	saved := m.t.width
 	m.t.width = w
-	_ = RenderExplain(&themedWriter{Writer: &buf, t: m.t}, ex)
+	ex.setSpan(m.span.done[op.ID])
+	_ = renderExplain(&themedWriter{Writer: &buf, t: m.t}, ex, m.spanLine(op.ID))
 	m.t.width = saved
 	return "\n" + buf.String()
 }

@@ -42,6 +42,14 @@ func Suspected(n model.Node) bool {
 	return gap > ShareFloor && gap > n.Bytes/sharePercent
 }
 
+// Measurable reports whether a range could apply to op at all: it is a
+// measured quarantine folder with a target. It reads nothing from disk, so a
+// caller can use it to decide whether to start Measure; Measure itself still
+// checks the stored scan before it walks anything.
+func Measurable(op model.Opportunity) bool {
+	return op.Method == model.MethodQuarantine && op.Bytes.Source == model.SourceMeasured && op.Target != ""
+}
+
 // Measure measures, on demand, the range of space removing op frees. It
 // returns nil when there is nothing to add: the suggestion is not a measured
 // folder from the scan, its files do not look shared, the walk found files
@@ -50,7 +58,7 @@ func Suspected(n model.Node) bool {
 // a path the scan never recorded is never read. Canceling ctx stops the
 // walk and returns its error.
 func Measure(ctx context.Context, o OpportunityOptions, op model.Opportunity) (*Span, error) {
-	if op.Method != model.MethodQuarantine || op.Bytes.Source != model.SourceMeasured || op.Target == "" {
+	if !Measurable(op) {
 		return nil, nil
 	}
 	if o.StorePath == "" {
