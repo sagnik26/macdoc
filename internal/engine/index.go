@@ -15,10 +15,12 @@ import (
 // MaxIndexedNodes is the most kept nodes a scan may have for its nodes to be
 // held in memory (a variable so tests can lower it). A node costs about 310
 // bytes once loaded and about 540 while loading (measured with 300,000
-// nodes), so at this bound the index is roughly 155 MB, 270 MB at its peak.
-// A bigger scan is answered from the store instead, query by query. Nodes
-// are kept above 100 MB or for recipe roots, so real scans stay far below it.
-var MaxIndexedNodes = 500_000
+// nodes), so at this bound the index is about 16 MB, 27 MB at its peak. That
+// keeps a read-only command near the project's goal of under 15 MB for
+// commands that use cached state (docs/DEVELOPMENT_PLAN.md). A bigger scan is
+// answered from the store instead, query by query. Nodes are kept above 100 MB
+// or for recipe roots, so real scans are expected to stay far below it.
+var MaxIndexedNodes = 50_000
 
 // nodeIndex answers store.NodeQuery questions for one scan from memory. The
 // scan's kept nodes are read once, on the first question, and sorted by their
