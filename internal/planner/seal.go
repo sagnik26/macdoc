@@ -108,6 +108,8 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 	return errors.New("couldn't find an unused plan ID")
 }
 
+// NewID returns a random plan ID: "P-" and four characters that avoid
+// look-alikes, since the person types them to confirm.
 func NewID() (string, error) {
 	b := make([]byte, idLen)
 	for i := range b {
@@ -229,6 +231,7 @@ func validateItems(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error
 // Status is a plan's state for display.
 type Status string
 
+// The states a plan can be in.
 const (
 	StatusPending Status = "pending"
 	StatusExpired Status = "expired"

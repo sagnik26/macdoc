@@ -550,6 +550,8 @@ func subtractContained(ops []model.Opportunity) {
 	}
 }
 
+// Weaker returns the less trustworthy of two number sources, so a total
+// built from mixed sources never claims more certainty than its weakest part.
 func Weaker(a, b model.Source) model.Source {
 	if slices.Index(sourceStrength, a) < slices.Index(sourceStrength, b) {
 		return a
@@ -557,6 +559,7 @@ func Weaker(a, b model.Source) model.Source {
 	return b
 }
 
+// HasAncestor reports whether any strict ancestor directory of p is in set.
 func HasAncestor(set map[string]bool, p string) bool {
 	if p == "/" {
 		return false

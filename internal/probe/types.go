@@ -24,6 +24,7 @@ type Hardware struct {
 // Pressure is the kernel memory pressure level.
 type Pressure string
 
+// The memory pressure levels macOS reports.
 const (
 	PressureNormal   Pressure = "normal"
 	PressureWarn     Pressure = "warn"

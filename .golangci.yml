@@ -9,7 +9,26 @@ linters:
     - gocritic
     - unconvert
     - nolintlint
+    - revive
+    - gocognit
+    - gocyclo
   settings:
+    revive:
+      # Google Go style (https://google.github.io/styleguide/go/decisions).
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: unexported-return
+        - name: error-strings
+        - name: context-as-argument
+        - name: indent-error-flow
+    # Gates for new code. The backlog is cleared hotspot by hotspot; see
+    # issues.new-from-rev below and plan.md claim 4.
+    gocognit:
+      min-complexity: 25
+    gocyclo:
+      min-complexity: 15
     misspell:
       locale: US
     nolintlint:
@@ -19,6 +38,9 @@ linters:
       require-explanation: true
       allow-unused: false
   exclusions:
+    # No default presets: the "comments" preset would silence the doc-comment
+    # rule that the Google style guide requires.
+    presets: []
     rules:
       # Tests and test helpers build fixtures under t.TempDir() and run
       # fixed tools (bash for the guard-script tests): variable file paths
@@ -29,6 +51,19 @@ linters:
         linters: [gosec]
         text: "^G(204|301|304|306):"
 
+issues:
+  # Style and complexity findings in code that already existed are tracked in
+  # plan.md and fixed over time; only lines changed since main are gated. Drop
+  # this once the backlog is cleared.
+  new-from-rev: origin/main
+
 formatters:
   enable:
     - gofmt
+    - goimports
+  settings:
+    goimports:
+      # Standard library, then other modules, then this module (Google Go
+      # style: group imports).
+      local-prefixes:
+        - github.com/sagnik26/macdoc

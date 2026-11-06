@@ -66,6 +66,9 @@ It needs a real Terminal: piped input is refused, and there is no --yes.`,
 	}
 }
 
+// RunApply carries out plan arg after showing it again, at a real terminal and
+// after the typed confirmation. It is the only path from the CLI to the
+// executor's Apply.
 func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
@@ -141,7 +144,7 @@ func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.T
 
 // ConfirmItems asks y/N for RISKY items, and for every item of a plan
 // Claude proposed. Others are approved here and confirmed by the code.
-func ConfirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (executor.Approvals, error) {
+func ConfirmItems(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan) (executor.Approvals, error) {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	approved := executor.Approvals{}
 	claude := p.Origin == model.OriginClaude
@@ -168,7 +171,7 @@ func ConfirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (execut
 }
 
 // confirmCode asks for the plan's code: the part after "P-".
-func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved executor.Approvals) bool {
+func confirmCode(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan, approved executor.Approvals) bool {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	code := strings.TrimPrefix(p.ID, "P-")
 	var bytes int64
@@ -190,7 +193,7 @@ func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved
 			parts = append(parts, fmt.Sprintf("%s: %d", r, tiers[r]))
 		}
 	}
-	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.Id.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
+	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.ID.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
 	ans, err := readLine(rd)
 	return err == nil && strings.EqualFold(strings.TrimSpace(ans), code)
 }
@@ -203,18 +206,18 @@ func readLine(rd *bufio.Reader) (string, error) {
 	return strings.TrimSpace(s), nil
 }
 
-func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
+func writeProgress(w io.Writer, t *Theme, ev executor.ItemEvent) {
 	ev = display(ev) // disk-sourced text, cleaned for the terminal (display)
 	it := ev.Item
 	if ev.Result == nil {
-		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.Id.Render(it.OpportunityID), it.Title)
+		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.ID.Render(it.OpportunityID), it.Title)
 		return
 	}
 	r := ev.Result
 	switch r.Outcome {
 	case executor.OutcomeDone:
 		if r.QuarantineID != "" && !r.Deleted {
-			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.Id.Render(r.QuarantineID))
+			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.ID.Render(r.QuarantineID))
 		} else {
 			_, _ = fmt.Fprintln(w, t.Ok.Render("done"))
 		}
@@ -227,7 +230,7 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 
 // renderApplyReport summarizes an apply: counts, measured space, anything
 // left in quarantine and why the numbers may differ.
-func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int) error {
+func renderApplyReport(w io.Writer, t *Theme, rep executor.Report, snapshots int) error {
 	rep = display(rep) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n %s\n", t.heading(fmt.Sprintf("Plan %s applied: %d done · %d skipped · %d failed",

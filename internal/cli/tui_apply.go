@@ -15,7 +15,7 @@ import (
 
 // AppliedMsg arrives when the dashboard gets the terminal back after apply.
 type AppliedMsg struct {
-	Id  string
+	ID  string
 	Err error
 }
 
@@ -26,16 +26,22 @@ type AppliedMsg struct {
 // anything.
 type ApplyHandoff struct {
 	Home    string
-	Id      string
+	ID      string
 	in      io.Reader
 	out     io.Writer
 	RunFunc func(cmd *cobra.Command, d ApplyDeps, id string) error // RunApply; tests replace it
 }
 
-func (a *ApplyHandoff) SetStdin(r io.Reader)  { a.in = r }
-func (a *ApplyHandoff) SetStdout(w io.Writer) { a.out = w }
-func (a *ApplyHandoff) SetStderr(io.Writer)   {}
+// SetStdin implements tea.ExecCommand.
+func (a *ApplyHandoff) SetStdin(r io.Reader) { a.in = r }
 
+// SetStdout implements tea.ExecCommand.
+func (a *ApplyHandoff) SetStdout(w io.Writer) { a.out = w }
+
+// SetStderr implements tea.ExecCommand and ignores w.
+func (a *ApplyHandoff) SetStderr(io.Writer) {}
+
+// Run implements tea.ExecCommand: it runs `macdoc apply` on the real terminal.
 func (a *ApplyHandoff) Run() error {
 	if a.in == nil {
 		a.in = os.Stdin
@@ -47,8 +53,8 @@ func (a *ApplyHandoff) Run() error {
 	cmd.SetIn(a.in)
 	cmd.SetOut(a.out)
 	t := themeFor(a.out)
-	_, _ = fmt.Fprintf(a.out, "\n %s\n\n", t.heading("macdoc apply "+a.Id))
-	if err := a.RunFunc(cmd, ApplyDeps{Home: a.Home, Now: NowFunc}, a.Id); err != nil {
+	_, _ = fmt.Fprintf(a.out, "\n %s\n\n", t.heading("macdoc apply "+a.ID))
+	if err := a.RunFunc(cmd, ApplyDeps{Home: a.Home, Now: NowFunc}, a.ID); err != nil {
 		_, _ = fmt.Fprintf(a.out, "\n %s %s\n", t.bad.Render("macdoc:"), err.Error())
 	}
 	_, _ = fmt.Fprint(a.out, "\n "+t.muted.Render("Press Enter to go back to the dashboard."))
@@ -75,20 +81,20 @@ func (m TuiModel) startApply(id string) (tea.Model, tea.Cmd) {
 	if run == nil {
 		run = RunApply
 	}
-	h := &ApplyHandoff{Home: m.Deps.Home, Id: id, RunFunc: run}
-	return m, tea.Exec(h, func(err error) tea.Msg { return AppliedMsg{Id: id, Err: err} })
+	h := &ApplyHandoff{Home: m.Deps.Home, ID: id, RunFunc: run}
+	return m, tea.Exec(h, func(err error) tea.Msg { return AppliedMsg{ID: id, Err: err} })
 }
 
 // applied is the dashboard coming back from apply.
 func (m TuiModel) applied(msg AppliedMsg) (tea.Model, tea.Cmd) {
 	m.Overlay, m.scroll = OverlayNone, 0
-	if m.Plan != nil && m.Plan.Plan.ID == msg.Id {
+	if m.Plan != nil && m.Plan.Plan.ID == msg.ID {
 		m.Plan = nil
 	}
 	if msg.Err != nil {
 		m.Flash = "Couldn't hand the terminal to apply: " + msg.Err.Error()
 		return m, nil
 	}
-	m.Flash = "Back from macdoc apply " + msg.Id + ". What happened is in macdoc log. Press r to rescan for fresh numbers."
+	m.Flash = "Back from macdoc apply " + msg.ID + ". What happened is in macdoc log. Press r to rescan for fresh numbers."
 	return m, nil
 }

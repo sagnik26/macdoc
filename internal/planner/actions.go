@@ -5,6 +5,7 @@ import "github.com/sagnik26/macdoc/internal/model"
 // ActionKind is what apply does for one item.
 type ActionKind string
 
+// The kinds of action a plan item carries.
 const (
 	ActionNative     ActionKind = "native"     // run the tool's own command
 	ActionQuarantine ActionKind = "quarantine" // move the folder into macdoc's quarantine

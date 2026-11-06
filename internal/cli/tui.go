@@ -33,6 +33,7 @@ import (
 
 type tab int
 
+// The dashboard's tabs, in display order.
 const (
 	tabOverview tab = iota
 	TabSuggestions
@@ -49,6 +50,7 @@ type slashCommand struct {
 	Name, args, desc string
 }
 
+// SlashCommands is the / palette, in display order.
 var SlashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
@@ -83,13 +85,18 @@ const (
 	stepProjects engine.OverviewStep = "projects"
 )
 
+// Messages the dashboard's background commands send to Update.
 type (
-	StepMsg     engine.OverviewStep
+	// StepMsg says which stage of loading has started.
+	StepMsg engine.OverviewStep
+	// ProgressMsg is a periodic scan update.
 	ProgressMsg scanner.Progress
-	LoadedMsg   struct {
+	// LoadedMsg carries the loaded data, or the error that stopped loading.
+	LoadedMsg struct {
 		Data *TuiData
 		Err  error
 	}
+	// PlanMsg carries a created plan, or the error that stopped planning.
 	PlanMsg struct {
 		Res engine.PlanResult
 		Err error
@@ -176,6 +183,7 @@ func newKeyMap() keyMap {
 
 type overlay int
 
+// The overlays that can cover the dashboard.
 const (
 	OverlayNone overlay = iota
 	overlayHelp
@@ -184,9 +192,10 @@ const (
 	OverlayRemove
 )
 
+// TuiModel is the dashboard's Bubble Tea model.
 type TuiModel struct {
 	Deps *TuiDeps
-	t    *theme
+	t    *Theme
 	keys keyMap
 	help help.Model
 
@@ -235,7 +244,8 @@ type TuiModel struct {
 	IntroStatus IntroStatus
 }
 
-func NewTUIModel(deps *TuiDeps, t *theme) TuiModel {
+// NewTUIModel returns a dashboard model that has not started loading.
+func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
 		FPS:    time.Second / 10,
@@ -282,7 +292,7 @@ func runTUI(home string, cat *recipes.Catalog) error {
 }
 
 // PlainLayoutTheme draws boxes and badges without color.
-func PlainLayoutTheme() *theme {
+func PlainLayoutTheme() *Theme {
 	t := PlainTheme()
 	t.on = true
 	return t
@@ -331,9 +341,10 @@ func loadTrend(home string) (*engine.TrendResult, string) {
 	return &tr, ""
 }
 
+// Init implements tea.Model.
 func (m TuiModel) Init() tea.Cmd { return m.InitCmd }
 
-// startLoad puts m into the loading state and returns the command that runs
+// StartLoad puts m into the loading state and returns the command that runs
 // the engine. Call it on the model that Update returns (or before the program
 // starts, for the first load).
 func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
@@ -353,6 +364,7 @@ func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
 	return tea.Batch(run, m.spin.Tick)
 }
 
+// Update implements tea.Model.
 func (m TuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -637,6 +649,7 @@ func (m TuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// RunCommand runs one / palette command line.
 func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
@@ -708,7 +721,7 @@ func (m TuiModel) explain(id string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// items are the suggestions, in ranked order.
+// Items are the suggestions, in ranked order.
 func (m TuiModel) Items() []model.Opportunity {
 	if m.Data == nil {
 		return nil
@@ -761,6 +774,7 @@ func (m TuiModel) bodyHeight() int {
 	return max(3, h)
 }
 
+// View implements tea.Model.
 func (m TuiModel) View() string {
 	t := m.t
 	var b strings.Builder
@@ -1063,6 +1077,7 @@ func (m TuiModel) detailView(op model.Opportunity, w int) string {
 	return "\n" + buf.String()
 }
 
+// HelpView renders the key and command help overlay.
 func (m TuiModel) HelpView() string {
 	t := m.t
 	var b strings.Builder
@@ -1124,7 +1139,7 @@ func truncateMiddle(s string, n int) string {
 }
 
 // HighlightJSON colors keys, strings, numbers and literals.
-func HighlightJSON(t *theme, src string) string {
+func HighlightJSON(t *Theme, src string) string { //nolint:gocognit,gocyclo // Pre-existing; split per token kind under plan.md claim 4.
 	var b strings.Builder
 	b.WriteString("\n")
 	for _, line := range strings.Split(src, "\n") {

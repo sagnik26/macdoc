@@ -18,6 +18,7 @@ import (
 // version is set at build time via -ldflags.
 var version = "dev"
 
+// GlobalFlags are the flags every command accepts.
 type GlobalFlags struct {
 	json  bool
 	quiet bool

@@ -41,6 +41,9 @@ var nativeArgRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 // (e.g. `xcrun simctl runtime delete all`) or change what the command does.
 var reservedNativeArgs = []string{"all", "unavailable", "booted", "help", "version"}
 
+// ValidNativeArg reports whether s is safe to pass as a dynamic argument of
+// a native command: short, made of allowed characters, and not a word the
+// tool treats as "everything" (all, booted, ...).
 func ValidNativeArg(s string) bool {
 	return len(s) <= 255 && nativeArgRE.MatchString(s) &&
 		!slices.ContainsFunc(reservedNativeArgs, func(r string) bool { return strings.EqualFold(r, s) })
@@ -182,6 +185,8 @@ func deviceSupportVersion(n model.Node) []int {
 	return nil
 }
 
+// DetectDeviceSupport finds Xcode DeviceSupport folders for every OS version
+// except the newest one in each platform folder.
 func DetectDeviceSupport(_ context.Context, env Env, _ Recipe) ([]Finding, error) {
 	if env.Nodes == nil {
 		return nil, nil
@@ -246,6 +251,7 @@ func RuntimeName(id string) string {
 	return plat + " " + strings.ReplaceAll(ver, "-", ".")
 }
 
+// SimDeviceDir is the CoreSimulator folder of the simulator with this UDID.
 func SimDeviceDir(env Env, udid string) string {
 	return filepath.Join(env.Home, "Library/Developer/CoreSimulator/Devices", udid)
 }

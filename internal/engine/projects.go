@@ -60,6 +60,9 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 // state can change, so it isn't kept long).
 const projectCacheTTL = 2 * time.Minute
 
+// ProjectCache holds the most recent project discovery for one home and
+// scan, so the dashboard's projects and opportunities views share one pass.
+// It is exported so tests can reset it.
 var ProjectCache struct {
 	sync.Mutex
 	Key string

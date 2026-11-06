@@ -18,6 +18,7 @@ import (
 // Kind is the type of filesystem entry to create.
 type Kind int
 
+// The kinds of entry a tree can hold.
 const (
 	KindDir Kind = iota + 1
 	KindFile
@@ -87,6 +88,7 @@ func (e Entry) WithModTime(t time.Time) Entry {
 	return e
 }
 
+// DefaultDirMode is the mode of a directory created without WithMode.
 const (
 	DefaultDirMode  os.FileMode = 0o755
 	defaultFileMode os.FileMode = 0o644

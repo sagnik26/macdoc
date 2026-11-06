@@ -36,6 +36,7 @@ type OverviewOptions struct {
 // OverviewStep names a stage of Overview.
 type OverviewStep string
 
+// The stages of Overview, in the order they are reported.
 const (
 	StepHealth OverviewStep = "health"
 	StepScan   OverviewStep = "scan"

@@ -1,3 +1,8 @@
+// Package check finds forbidden calls in Go source: deletes, renames,
+// truncations and command execution anywhere outside internal/executor.
+//
+// It parses source with go/parser, so aliased and dot imports are caught.
+// Exceptions live in tools/forbidcheck/allow.txt as "path:pkg.Func" lines.
 package check
 
 import (
@@ -96,9 +101,9 @@ func (f Finding) String() string { return fmt.Sprintf("%s:%d: %s", f.File, f.Lin
 // key is the allowlist key for a finding.
 func (f Finding) key() string { return f.File + ":" + f.Func }
 
-// CheckSource parses one Go file and returns every forbidden reference.
+// Source parses one Go file and returns every forbidden reference.
 // filename is used for positions and should be module-relative.
-func CheckSource(filename string, src []byte) ([]Finding, error) {
+func Source(filename string, src []byte) ([]Finding, error) { //nolint:gocognit,gocyclo // Pre-existing; split into per-node checks under plan.md claim 4, behind the 30+ tests in check/tests.
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {

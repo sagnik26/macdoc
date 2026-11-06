@@ -60,6 +60,7 @@ const (
 // GitState is what git says about a project's working tree.
 type GitState string
 
+// What is known about a project's git working tree.
 const (
 	GitClean   GitState = "clean"   // no uncommitted changes
 	GitDirty   GitState = "dirty"   // uncommitted or untracked changes

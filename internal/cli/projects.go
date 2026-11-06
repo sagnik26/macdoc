@@ -58,6 +58,8 @@ func FilterProjects(res engine.ProjectsResult, idle int) engine.ProjectsResult {
 	return res
 }
 
+// RenderProjects writes the discovered projects in the human format; idle is
+// the minimum idle days to show (0 shows all).
 func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle int) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -119,7 +121,7 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 }
 
 // idleText is "idle 143 days (git commit)" or "idle time unknown".
-func idleText(t *theme, p projects.Project) string {
+func idleText(t *Theme, p projects.Project) string {
 	if p.IdleDays < 0 {
 		return t.muted.Render("idle time unknown")
 	}
@@ -135,7 +137,7 @@ func idleText(t *theme, p projects.Project) string {
 }
 
 // gitText describes a project's git state.
-func gitText(t *theme, p projects.Project) string {
+func gitText(t *Theme, p projects.Project) string {
 	switch p.Git {
 	case projects.GitClean:
 		return t.Ok.Render("git clean")

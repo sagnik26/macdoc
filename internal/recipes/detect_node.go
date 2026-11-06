@@ -230,6 +230,7 @@ func newestMatching(versions []nodeVersion, prefix string) (string, bool) {
 	return best.name, true
 }
 
+// OrNone returns s, or "not set" when s is empty.
 func OrNone(s string) string {
 	if s == "" {
 		return "not set"

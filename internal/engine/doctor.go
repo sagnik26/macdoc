@@ -12,6 +12,7 @@ import (
 // Severity orders findings from most to least important.
 type Severity string
 
+// The severities of a health finding, most serious first.
 const (
 	SeverityCritical Severity = "critical"
 	SeverityWarn     Severity = "warn"

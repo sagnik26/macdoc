@@ -95,6 +95,8 @@ const (
 	// cancellation is noticed between batches.
 	batchSize = 512
 
+	// ReasonPermission is the reason recorded for a folder macdoc may not
+	// search.
 	ReasonPermission = "permission denied (grant Full Disk Access to your terminal)"
 )
 
@@ -121,6 +123,8 @@ type dir struct {
 	mtime   int64
 }
 
+// Scanner holds the state of one scan: the directories still to list, the
+// kept nodes and the unmeasured paths. Use Scan to run one.
 type Scanner struct {
 	threshold int64
 	keep      func(string) bool
@@ -298,6 +302,7 @@ func (s *Scanner) MapPath(p string) string {
 	return p
 }
 
+// Join appends name to dirPath without cleaning, treating "/" as the root.
 func Join(dirPath, name string) string {
 	if dirPath == "/" {
 		return "/" + name
@@ -548,7 +553,7 @@ func vanished(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) || errors.Is(err, syscall.ELOOP)
 }
 
-// fail records p as unmeasured unless it simply vanished.
+// Fail records p as unmeasured unless it simply vanished.
 func (s *Scanner) Fail(p string, err error) {
 	if vanished(err) {
 		return
@@ -579,7 +584,7 @@ type linkKey struct {
 	ino uint64
 }
 
-// count reports whether this link's blocks should be counted.
+// Count reports whether this link's blocks should be counted.
 func (l *LinkSet) Count(dev int32, ino uint64, nlink uint16) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()

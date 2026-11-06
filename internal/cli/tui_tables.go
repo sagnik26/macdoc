@@ -29,8 +29,8 @@ type Column struct {
 // cellStyle picks the style of a data cell; nil means the default text.
 type cellStyle func(row, col int) *lipgloss.Style
 
-// grid renders rows as a table at most width cells wide.
-func (t *theme) Grid(cols []Column, rows [][]string, width int, style cellStyle) string {
+// Grid renders rows as a table at most width cells wide.
+func (t *Theme) Grid(cols []Column, rows [][]string, width int, style cellStyle) string {
 	headers := make([]string, len(cols))
 	for i, c := range cols {
 		headers[i] = c.Title
@@ -150,7 +150,7 @@ func fitColumns(cols []Column, rows [][]string, width int) [][]string {
 }
 
 // block is a heading with an optional muted note, then content.
-func (t *theme) block(title, note, content string) string {
+func (t *Theme) block(title, note, content string) string {
 	h := " " + t.heading(title)
 	if note != "" {
 		h += " " + t.muted.Render(note)
@@ -175,7 +175,7 @@ func severityLabel(s engine.Severity) string {
 	return "Info"
 }
 
-func (t *theme) severityStyle(s engine.Severity) lipgloss.Style {
+func (t *Theme) severityStyle(s engine.Severity) lipgloss.Style {
 	switch s {
 	case engine.SeverityCritical:
 		return t.bad.Bold(true)
@@ -639,7 +639,7 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		case 0:
 			s = t.brand.Bold(true)
 		case 1:
-			s = t.Id
+			s = t.ID
 		case 2:
 			s = t.size
 		case 3:

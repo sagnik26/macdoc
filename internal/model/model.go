@@ -11,6 +11,7 @@ const SchemaVersion = "1"
 // Risk is the safety class of an opportunity (docs/SAFETY_MODEL.md §2).
 type Risk string
 
+// The risk classes of an opportunity (docs/SAFETY_MODEL.md §2).
 const (
 	RiskSafe    Risk = "SAFE"
 	RiskCaution Risk = "CAUTION"
@@ -22,6 +23,7 @@ const (
 // Source says where a number came from. Unknown is never shown as zero.
 type Source string
 
+// Where a number came from, strongest first.
 const (
 	SourceMeasured  Source = "measured"
 	SourceTool      Source = "tool"
@@ -39,6 +41,7 @@ type Bytes struct {
 // Method is how an opportunity would be reclaimed.
 type Method string
 
+// How an opportunity is reclaimed.
 const (
 	MethodNative     Method = "native"
 	MethodQuarantine Method = "quarantine"
@@ -48,6 +51,7 @@ const (
 // RestoreKind describes what it costs to get reclaimed data back.
 type RestoreKind string
 
+// What it costs to get an item back after it is removed.
 const (
 	RestoreRebuild       RestoreKind = "rebuild"
 	RestoreRedownload    RestoreKind = "redownload"
@@ -91,6 +95,7 @@ type Opportunity struct {
 // Origin records who created a plan.
 type Origin string
 
+// Who created a plan.
 const (
 	OriginCLI    Origin = "cli"
 	OriginClaude Origin = "claude"

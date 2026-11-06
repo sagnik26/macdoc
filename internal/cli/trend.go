@@ -50,6 +50,7 @@ only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
 	return cmd
 }
 
+// RenderTrend writes what grew between two scans in the human format.
 func RenderTrend(w io.Writer, res engine.TrendResult, home string) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -126,7 +127,7 @@ func changeText(r engine.Range, floor string) string {
 	return "under " + engine.DecimalBytes(max(-r.Low, r.High))
 }
 
-func changeStyle(t *theme, r engine.Range) lipgloss.Style {
+func changeStyle(t *Theme, r engine.Range) lipgloss.Style {
 	switch {
 	case r.Low > 0:
 		return t.warn

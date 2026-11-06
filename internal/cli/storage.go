@@ -44,6 +44,8 @@ func newStorageCmd(g *GlobalFlags) *cobra.Command {
 	return cmd
 }
 
+// RenderStorage writes where space goes; large adds the big items no recipe
+// covers.
 func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -86,7 +88,7 @@ func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 }
 
 // byRisk lists a category's known bytes per tier, in tier order.
-func (t *theme) byRisk(c engine.CategoryTotal) string {
+func (t *Theme) byRisk(c engine.CategoryTotal) string {
 	var parts []string
 	for _, r := range engine.TierOrder {
 		if v, ok := c.ByRisk[r]; ok {

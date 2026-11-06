@@ -45,6 +45,7 @@ func newExplainCmd(g *GlobalFlags) *cobra.Command {
 	}
 }
 
+// RenderExplain writes one suggestion in detail in the human format.
 func RenderExplain(w io.Writer, ex ExplainResult) error {
 	ex = display(ex) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -55,7 +56,7 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 	}
 
 	if t.on {
-		b.WriteString(t.Card(t.Badge(op.Risk) + " " + t.Id.Render(op.ID) + t.faint.Render(" · ") + t.Title.Render(op.Title)))
+		b.WriteString(t.Card(t.Badge(op.Risk) + " " + t.ID.Render(op.ID) + t.faint.Render(" · ") + t.Title.Render(op.Title)))
 		b.WriteString("\n")
 	} else {
 		fmt.Fprintf(&b, "%s · %s\n\n", op.ID, op.Title)
@@ -116,7 +117,7 @@ func RenderExplain(w io.Writer, ex ExplainResult) error {
 
 // stepText renders a step with each `command` styled as one to copy. The
 // backticks are dropped, so the plain theme prints just the text.
-func stepText(t *theme, s string) string {
+func stepText(t *Theme, s string) string {
 	parts := strings.Split(s, "`")
 	for i, p := range parts {
 		if i%2 == 1 {

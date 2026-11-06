@@ -147,6 +147,7 @@ func RenderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 	return nil
 }
 
+// RenderOverview writes the short `macdoc doctor` summary.
 func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder

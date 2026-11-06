@@ -13,6 +13,7 @@ var ErrNoQuarantine = errors.New("store: no such quarantine entry")
 // QuarantineStatus is a quarantine entry's lifecycle state.
 type QuarantineStatus string
 
+// The states of a quarantine record.
 const (
 	QuarantinePending  QuarantineStatus = "pending"  // recorded; the move may not have happened
 	QuarantineDone     QuarantineStatus = "done"     // moved into quarantine

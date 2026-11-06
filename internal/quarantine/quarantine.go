@@ -28,9 +28,10 @@ import (
 const (
 	// DirName is the quarantine folder inside the state directory.
 	DirName = "quarantine"
-	// ManifestName and PayloadDir are an entry's contents.
+	// ManifestName is the file in an entry that describes it.
 	ManifestName = "manifest.json"
-	PayloadDir   = "payload"
+	// PayloadDir is the folder in an entry that holds the moved item.
+	PayloadDir = "payload"
 	// DefaultTTL is how long an entry stays before it's reported as ready
 	// to purge. Nothing is purged automatically.
 	DefaultTTL = 7 * 24 * time.Hour
@@ -76,9 +77,13 @@ type Manifest struct {
 	Status        string            `json:"status"`
 }
 
-// EntryDir, ManifestPath and PayloadPath locate an entry's parts.
-func EntryDir(root, id string) string     { return filepath.Join(root, id) }
+// EntryDir is the folder of entry id under the quarantine root.
+func EntryDir(root, id string) string { return filepath.Join(root, id) }
+
+// ManifestPath is the manifest file of entry id.
 func ManifestPath(root, id string) string { return filepath.Join(root, id, ManifestName) }
+
+// PayloadPath is where the moved item sits inside its entry.
 func PayloadPath(root string, m Manifest) string {
 	return filepath.Join(root, m.ID, PayloadDir, m.Name)
 }
@@ -128,6 +133,7 @@ func containsNUL(s string) bool { return bytes.IndexByte([]byte(s), 0) >= 0 }
 // State is an entry's condition as found on disk.
 type State string
 
+// The states of a quarantine entry, from what is on disk.
 const (
 	StateHeld        State = "held"        // moved into quarantine; restorable
 	StateInterrupted State = "interrupted" // apply stopped mid-move but the folder is here; restorable

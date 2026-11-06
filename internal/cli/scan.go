@@ -29,13 +29,14 @@ func newScanCmd(g *GlobalFlags) *cobra.Command {
 	return cmd
 }
 
+// RenderScan writes the result of a scan in the human format.
 func RenderScan(w io.Writer, s engine.ScanSummary) error {
 	s = display(s) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
 	in := s.Info
 	dur := in.FinishedAt.Sub(in.StartedAt).Round(time.Second)
-	fmt.Fprintf(&b, "%s %s · %s in %d files · %s", t.heading("Scan"), t.Id.Render(in.ID), t.size.Render(engine.DecimalBytes(in.TotalBytes)), in.TotalFiles, dur)
+	fmt.Fprintf(&b, "%s %s · %s in %d files · %s", t.heading("Scan"), t.ID.Render(in.ID), t.size.Render(engine.DecimalBytes(in.TotalBytes)), in.TotalFiles, dur)
 	if in.Status != model.ScanComplete {
 		b.WriteString(t.warn.Render(fmt.Sprintf(" · %s (interrupted; results are partial)", in.Status)))
 	}
@@ -81,7 +82,7 @@ func RenderScan(w io.Writer, s engine.ScanSummary) error {
 
 // writeSizeList writes "  <size>  <path>" lines; with color, a small bar
 // shows each item relative to the first (largest).
-func writeSizeList(b *strings.Builder, t *theme, nodes []model.Node) {
+func writeSizeList(b *strings.Builder, t *Theme, nodes []model.Node) {
 	var top int64
 	for _, n := range nodes {
 		top = max(top, n.Bytes)

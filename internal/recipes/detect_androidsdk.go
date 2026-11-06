@@ -81,8 +81,8 @@ func readIni(path string) (map[string]string, error) {
 	return kv, sc.Err()
 }
 
-// avd is one emulator from <avd home>/<name>.ini.
-type avd struct {
+// AVD is one emulator from <avd home>/<name>.ini.
+type AVD struct {
 	name string
 	dir  string            // the <name>.avd data directory
 	cfg  map[string]string // its config.ini; nil if it has none
@@ -96,7 +96,7 @@ type avd struct {
 // other read error is returned, so callers never treat an unreadable
 // registry as "no AVDs reference this". Every AVD is returned, so all their
 // system images count as used; only those with ok set may become findings.
-func ListAVDs(env Env) ([]avd, error) {
+func ListAVDs(env Env) ([]AVD, error) {
 	dir := AvdHome(env)
 	ents, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -116,7 +116,7 @@ func ListAVDs(env Env) ([]avd, error) {
 		return nil, err
 	}
 	canonHome := filepath.Dir(c)
-	var out []avd
+	var out []AVD
 	for _, e := range ents {
 		name, ok := strings.CutSuffix(e.Name(), ".ini")
 		if !ok || !e.Type().IsRegular() || name == "" {
@@ -126,7 +126,7 @@ func ListAVDs(env Env) ([]avd, error) {
 		if err != nil {
 			return nil, err
 		}
-		a := avd{name: name, dir: filepath.Join(dir, name+".avd")}
+		a := AVD{name: name, dir: filepath.Join(dir, name+".avd")}
 		if p := ini["path"]; filepath.IsAbs(p) {
 			a.dir = filepath.Clean(p)
 		}
@@ -222,7 +222,7 @@ func detectGradleWrapperOld(_ context.Context, env Env, _ Recipe) ([]Finding, er
 
 // ---- android.avd / android.avd_snapshots ----
 
-func avdTitle(a avd) string {
+func avdTitle(a AVD) string {
 	if d := a.cfg["avd.ini.displayname"]; d != "" {
 		return d
 	}

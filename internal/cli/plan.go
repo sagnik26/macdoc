@@ -180,6 +180,7 @@ func finishPlan(w io.Writer, g *GlobalFlags, res engine.PlanResult, home string,
 	return RenderPlan(w, res, home, time.Now())
 }
 
+// RenderPlan writes a sealed dry-run plan in the human format.
 func RenderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -231,7 +232,7 @@ func RenderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 }
 
 // planHeader is the first line: ID, items, size, expiry, origin, status.
-func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
+func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 	p := res.Plan
 	expiry := "expired"
 	if left := p.ExpiresAt.Sub(now); left > 0 {
@@ -244,7 +245,7 @@ func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
 	line := fmt.Sprintf("Plan %s · %d item(s) · %s · %s · %s", p.ID, len(p.Items), engine.DecimalBytes(p.TotalBytes), expiry, origin)
 	var out string
 	if t.on {
-		out = t.Card(t.brand.Render("◆ ")+t.Title.Render("Plan ")+t.Id.Render(p.ID)+t.muted.Render(strings.TrimPrefix(line, "Plan "+p.ID))) + "\n"
+		out = t.Card(t.brand.Render("◆ ")+t.Title.Render("Plan ")+t.ID.Render(p.ID)+t.muted.Render(strings.TrimPrefix(line, "Plan "+p.ID))) + "\n"
 	} else {
 		out = line + "\n\n"
 	}
@@ -261,10 +262,10 @@ func planHeader(t *theme, res engine.PlanResult, now time.Time) string {
 
 // writeAction writes one item: what it is, its size, and exactly what apply
 // would do. Every action has exactly one "→" line.
-func writeAction(b *strings.Builder, t *theme, a planner.Action, home string) {
+func writeAction(b *strings.Builder, t *Theme, a planner.Action, home string) {
 	it := a.Item
 	size := sizeCell(model.Bytes{Value: it.ExpectedBytes, Source: it.BytesSource})
-	fmt.Fprintf(b, "  %s  %s %s\n", t.Id.Render(it.OpportunityID), t.text.Render(padRight(truncateANSI(it.Title, 44), 44)), t.size.Render(fmt.Sprintf("%9s", size)))
+	fmt.Fprintf(b, "  %s  %s %s\n", t.ID.Render(it.OpportunityID), t.text.Render(padRight(truncateANSI(it.Title, 44), 44)), t.size.Render(fmt.Sprintf("%9s", size)))
 	const indent = "            "
 	switch a.Kind {
 	case planner.ActionNative:
@@ -294,7 +295,7 @@ func padRight(s string, n int) string {
 }
 
 // writeRefused lists what was asked for but left out.
-func writeRefused(b *strings.Builder, t *theme, refused []planner.Refusal) {
+func writeRefused(b *strings.Builder, t *Theme, refused []planner.Refusal) {
 	if len(refused) == 0 {
 		return
 	}
@@ -322,7 +323,7 @@ func renderPlanList(w io.Writer, recs []store.PlanRecord, now time.Time) error {
 		if r.Status == store.PlanPending && !now.Before(r.ExpiresAt) {
 			status, st = "expired", t.muted
 		}
-		fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n", t.Id.Render(r.ID), st.Render(fmt.Sprintf("%-8s", status)),
+		fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n", t.ID.Render(r.ID), st.Render(fmt.Sprintf("%-8s", status)),
 			t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(r.TotalBytes))), t.muted.Render(fmt.Sprintf("%2d item(s)", r.Items)),
 			t.muted.Render("made "+engine.FormatAge(now.Sub(r.CreatedAt))+" by "+string(r.Origin)))
 	}

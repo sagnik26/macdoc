@@ -74,6 +74,7 @@ type Config struct {
 // Outcome is what happened to one item.
 type Outcome string
 
+// The outcomes an item can have.
 const (
 	OutcomeDone    Outcome = "done"
 	OutcomeSkipped Outcome = "skipped" // a check failed or it wasn't approved; nothing was changed

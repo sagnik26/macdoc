@@ -37,9 +37,13 @@ const (
 	maxList        = 200
 	maxAudit       = 500
 
-	// Limits on Claude's plans (MCP_DESIGN §4).
-	MaxOpenPlans   = 5
-	PlanRateMax    = 10
+	// MaxOpenPlans is how many plans from Claude may be open at once
+	// (MCP_DESIGN §4).
+	MaxOpenPlans = 5
+	// PlanRateMax is how many create_cleanup_plan calls are accepted in each
+	// PlanRateWindow.
+	PlanRateMax = 10
+	// PlanRateWindow is the span PlanRateMax is counted over.
 	PlanRateWindow = 10 * time.Minute
 
 	// UntrustedHint ends every tool description: results carry names and

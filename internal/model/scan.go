@@ -5,6 +5,7 @@ import "time"
 // NodeKind distinguishes kept directories from kept individual files.
 type NodeKind string
 
+// The kinds of node a scan keeps.
 const (
 	NodeDir  NodeKind = "dir"
 	NodeFile NodeKind = "file"
@@ -31,6 +32,7 @@ type Unmeasured struct {
 // ScanStatus is the lifecycle state of a stored scan.
 type ScanStatus string
 
+// The states of a scan.
 const (
 	ScanRunning    ScanStatus = "running"
 	ScanComplete   ScanStatus = "complete"

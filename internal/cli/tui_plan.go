@@ -48,7 +48,7 @@ func (m *TuiModel) preMarkSafe() {
 	}
 }
 
-// markedSelector plans the marked suggestions in ranked order, or the
+// MarkedSelector plans the marked suggestions in ranked order, or the
 // selected one if none is marked. It returns nil (with a flash) if there is
 // nothing to plan.
 func (m *TuiModel) MarkedSelector() *planner.Selector {

@@ -339,7 +339,7 @@ func (m TuiModel) removeView() string {
 	case r.needsCode():
 		b.WriteString("\n   " + t.warn.Render("A RISKY item is included. It is deleted for good and can't be brought back.") + "\n")
 		if want, ok := r.nextRisky(); ok {
-			fmt.Fprintf(&b, "   Type %s and press Enter (%d of %d RISKY): %s%s\n", t.Id.Render(want.OpportunityID),
+			fmt.Fprintf(&b, "   Type %s and press Enter (%d of %d RISKY): %s%s\n", t.ID.Render(want.OpportunityID),
 				r.confirmed+1, len(r.riskyItems()), t.accent.Render(r.code), t.brand.Render("▏"))
 		}
 		b.WriteString("   " + t.muted.Render("esc cancels") + "\n")

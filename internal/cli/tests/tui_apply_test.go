@@ -36,11 +36,11 @@ func TestTUIApplyKeyHandsOff(t *testing.T) {
 		t.Fatal("a on a pending plan should hand the terminal to apply")
 	}
 	m = next.(cli.TuiModel)
-	m = step(t, m, cli.AppliedMsg{Id: "P-7F3K"})
+	m = step(t, m, cli.AppliedMsg{ID: "P-7F3K"})
 	if m.Overlay != cli.OverlayNone || m.Plan != nil || !strings.Contains(m.Flash, "Back from macdoc apply P-7F3K") {
 		t.Errorf("after apply: overlay %d plan %v flash %q", m.Overlay, m.Plan, m.Flash)
 	}
-	m = step(t, m, cli.AppliedMsg{Id: "P-7F3K", Err: errors.New("no tty")})
+	m = step(t, m, cli.AppliedMsg{ID: "P-7F3K", Err: errors.New("no tty")})
 	if !strings.Contains(m.Flash, "Couldn't hand the terminal") {
 		t.Errorf("flash %q", m.Flash)
 	}
@@ -78,7 +78,7 @@ func TestTUIApplyCommand(t *testing.T) {
 func TestApplyHandoffRun(t *testing.T) {
 	var out bytes.Buffer
 	var gotID string
-	h := &cli.ApplyHandoff{Home: "/nonexistent", Id: "P-7F3K", RunFunc: func(cmd *cobra.Command, d cli.ApplyDeps, id string) error {
+	h := &cli.ApplyHandoff{Home: "/nonexistent", ID: "P-7F3K", RunFunc: func(cmd *cobra.Command, d cli.ApplyDeps, id string) error {
 		gotID = id
 		if cmd.InOrStdin() == nil || d.Home != "/nonexistent" {
 			t.Error("handoff didn't pass the terminal and home")
@@ -97,7 +97,7 @@ func TestApplyHandoffRun(t *testing.T) {
 
 	// With the real cli.RunApply, a non-terminal is refused before anything.
 	out.Reset()
-	h = &cli.ApplyHandoff{Home: t.TempDir(), Id: "P-7F3K", RunFunc: cli.RunApply}
+	h = &cli.ApplyHandoff{Home: t.TempDir(), ID: "P-7F3K", RunFunc: cli.RunApply}
 	h.SetStdin(strings.NewReader("7F3K\n\n"))
 	h.SetStdout(&out)
 	_ = h.Run()

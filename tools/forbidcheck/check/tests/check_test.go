@@ -14,7 +14,7 @@ import (
 
 func findings(t *testing.T, src string) []string {
 	t.Helper()
-	fs, err := check.CheckSource("p/f.go", []byte(src))
+	fs, err := check.Source("p/f.go", []byte(src))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestPlatformCommandInsidePackage(t *testing.T) {
 	src := []byte(`package platform
 var c = Command{Name: "sh"}
 var d = (*Command)(nil)`)
-	got, err := check.CheckSource("internal/platform/x.go", src)
+	got, err := check.Source("internal/platform/x.go", src)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ var d = (*Command)(nil)`)
 		t.Errorf("got %v", got)
 	}
 	// Same source elsewhere is a different Command type.
-	if got, _ := check.CheckSource("other/x.go", src); len(got) != 0 {
+	if got, _ := check.Source("other/x.go", src); len(got) != 0 {
 		t.Errorf("outside internal/platform: got %v", got)
 	}
 }
@@ -261,7 +261,7 @@ func TestPlatformCommandNotAllowlistable(t *testing.T) {
 }
 
 func TestCheckSourceParseError(t *testing.T) {
-	if _, err := check.CheckSource("bad.go", []byte("package")); err == nil {
+	if _, err := check.Source("bad.go", []byte("package")); err == nil {
 		t.Error("want parse error")
 	}
 }

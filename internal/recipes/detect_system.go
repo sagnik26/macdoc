@@ -308,6 +308,7 @@ func FirstLine(b []byte) string {
 	return ""
 }
 
+// Plural formats n with one or many, for example "1 file" or "3 files".
 func Plural(n int, one, many string) string {
 	if n == 1 {
 		return "1 " + one
