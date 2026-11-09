@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // FreeSpace is the boot container's free space (not counting purgeable),
@@ -49,7 +49,7 @@ func Quarantine(o OpportunityOptions) (QuarantineResult, error) {
 	if err != nil {
 		return QuarantineResult{}, err
 	}
-	out := QuarantineResult{Listing: l, Root: root, HeldBytes: l.HeldBytes()}
+	out := QuarantineResult{Listing: l, Root: root, HeldBytes: l.Held()}
 	for _, e := range l.Expired() {
 		out.ExpiredBytes += e.Record.Bytes
 		out.ExpiredCount++

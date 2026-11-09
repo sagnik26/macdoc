@@ -2,13 +2,14 @@ package tests
 
 import (
 	"encoding/json"
-	"macdoc/internal/cli"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func TestStorageCommand(t *testing.T) {

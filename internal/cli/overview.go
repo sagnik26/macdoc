@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
 )
 
 // overviewTopLevel is how many top-level folders the overview lists.
@@ -47,13 +47,6 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	if err != nil {
 		return err
 	}
-	// A scan may run (always with rescan, or when none exists): keep the Mac
-	// responsive unless the user asked for foreground speed.
-	if !m.foreground {
-		if err := scanner.SetBackgroundPriority(); err != nil {
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "macdoc: could not lower priority:", err)
-		}
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -65,6 +58,12 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 		}
 	}
 	opts := engine.OverviewOptions{Home: home, Runner: Runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: ScanRoot}
+	if !m.foreground {
+		// A scan may run (always with rescan, or when none exists): keep the Mac
+		// responsive then, and only then. Lowering priority for a read that runs
+		// no scan made the cached overview four times slower for nothing.
+		opts.Step = Background(scanner.SetBackgroundPriority, errOut)
+	}
 	if tty {
 		opts.Progress = func(p scanner.Progress) {
 			status(fmt.Sprintf("Scanning… %s · %d files · %s · %s",
@@ -147,6 +146,21 @@ func RenderFull(w io.Writer, res engine.OverviewResult, space engine.StorageResu
 	return nil
 }
 
+// Background returns a step callback that lowers the process to background
+// priority when a scan starts, and at no other step. If lowering fails it says
+// so on w and carries on.
+func Background(lower func() error, w io.Writer) func(engine.OverviewStep) {
+	return func(s engine.OverviewStep) {
+		if s != engine.StepScan {
+			return
+		}
+		if err := lower(); err != nil {
+			_, _ = fmt.Fprintln(w, "macdoc: could not lower priority:", err)
+		}
+	}
+}
+
+// RenderOverview writes the short `macdoc doctor` summary.
 func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder

@@ -3,7 +3,6 @@ package tests
 import (
 	"encoding/json"
 	"errors"
-	"macdoc/internal/planner"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,10 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/planner"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
@@ -87,16 +88,16 @@ func refusedIDs(rs []planner.Refusal) []string {
 }
 
 func TestParseIDs(t *testing.T) {
-	got, err := planner.ParseIDs([]string{"O-AB23CD", "ab23cd", "o-ab23cd", "O-zz7qwe"})
+	got, err := planner.Parse([]string{"O-AB23CD", "ab23cd", "o-ab23cd", "O-zz7qwe"})
 	if err != nil || !slices.Equal(got, []string{"O-ab23cd", "O-zz7qwe"}) {
 		t.Errorf("got %v, %v", got, err)
 	}
 	for _, bad := range []string{"/Users/me/Library", "~/Library/Caches", "../x", "Library/Logs", "O-ab12cd.json", "O-ab", "rm -rf", "O-ab12c1", "P-7F3K"} {
-		if _, err := planner.ParseIDs([]string{bad}); err == nil {
+		if _, err := planner.Parse([]string{bad}); err == nil {
 			t.Errorf("%q must be refused", bad)
 		}
 	}
-	if _, err := planner.ParseIDs([]string{"~/x"}); err == nil || !strings.Contains(err.Error(), "never paths") {
+	if _, err := planner.Parse([]string{"~/x"}); err == nil || !strings.Contains(err.Error(), "never paths") {
 		t.Errorf("a path must be refused as a path: %v", err)
 	}
 }
@@ -135,7 +136,7 @@ func TestBuildItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.ID != "" || p.SHA256 != "" || p.ScanID != "S-TEST" || p.Origin != model.OriginCLI || !p.ExpiresAt.Equal(now.Add(planner.DefaultTTL)) {
+	if p.ID != "" || p.SHA256 != "" || p.ScanID != "S-TEST" || p.Origin != model.OriginCLI || !p.ExpiresAt.Equal(now.Add(planner.TTL)) {
 		t.Errorf("plan header = %+v", p)
 	}
 	if p.TotalBytes != 560_000_000 {
@@ -242,7 +243,7 @@ func verifyFile(t *testing.T, st *store.Store, dir, id string, w world, at time.
 func TestSaveLoadVerify(t *testing.T) {
 	w := newWorld(t)
 	st, dir, p := sealed(t, w)
-	if !planner.ValidID(p.ID) || len(p.SHA256) != 64 {
+	if !planner.Valid(p.ID) || len(p.SHA256) != 64 {
 		t.Fatalf("id %q hash %q", p.ID, p.SHA256)
 	}
 	fi, err := os.Stat(filepath.Join(dir, p.ID+".json"))
@@ -252,10 +253,10 @@ func TestSaveLoadVerify(t *testing.T) {
 	if err := verifyFile(t, st, dir, p.ID, w, now.Add(time.Minute)); err != nil {
 		t.Errorf("fresh plan: %v", err)
 	}
-	if err := verifyFile(t, st, dir, p.ID, w, now.Add(planner.DefaultTTL)); !errors.Is(err, planner.ErrExpired) {
+	if err := verifyFile(t, st, dir, p.ID, w, now.Add(planner.TTL)); !errors.Is(err, planner.ErrExpired) {
 		t.Errorf("after 30 min: %v, want planner.ErrExpired", err)
 	}
-	if planner.StatusOf(nil) != planner.StatusPending || planner.StatusOf(planner.ErrExpired) != planner.StatusExpired || planner.StatusOf(planner.ErrTampered) != planner.StatusInvalid {
+	if planner.Classify(nil) != planner.Pending || planner.Classify(planner.ErrExpired) != planner.Expired || planner.Classify(planner.ErrTampered) != planner.Invalid {
 		t.Error("StatusOf")
 	}
 	if _, err := planner.Load(dir, "../state"); err == nil {
@@ -359,10 +360,10 @@ func TestLoadRejectsTrailingData(t *testing.T) {
 
 func TestWriteNewNeverOverwrites(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "P-AAAA.json")
-	if err := planner.WriteNew(path, []byte("one")); err != nil {
+	if err := planner.Create(path, []byte("one")); err != nil {
 		t.Fatal(err)
 	}
-	if err := planner.WriteNew(path, []byte("two")); !errors.Is(err, os.ErrExist) {
+	if err := planner.Create(path, []byte("two")); !errors.Is(err, os.ErrExist) {
 		t.Errorf("second write: %v", err)
 	}
 	if b, _ := os.ReadFile(path); string(b) != "one" {
@@ -374,7 +375,7 @@ func TestPlanIDs(t *testing.T) {
 	seen := map[string]bool{}
 	for range 200 {
 		id, err := planner.NewID()
-		if err != nil || !planner.ValidID(id) || strings.ContainsAny(id[2:], "IO01") {
+		if err != nil || !planner.Valid(id) || strings.ContainsAny(id[2:], "IO01") {
 			t.Fatalf("id %q %v", id, err)
 		}
 		seen[id] = true

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 // ErrNoPlan is returned when no plan has the requested ID.
@@ -19,6 +19,7 @@ var ErrPlanExists = errors.New("store: plan ID already exists")
 // from ExpiresAt, not stored.
 type PlanStatus string
 
+// The states of a stored plan.
 const (
 	PlanPending PlanStatus = "pending"
 	PlanApplied PlanStatus = "applied" // set by apply (Phase 6)

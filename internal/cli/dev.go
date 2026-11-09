@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // toolchainAliases maps short names users are likely to type.
@@ -63,6 +63,8 @@ func parseToolchain(s string) (string, error) {
 	return s, nil
 }
 
+// BuildDevResult selects the suggestions of one toolchain (or all of them
+// when tc is empty) and totals them.
 func BuildDevResult(res engine.OpportunityResult, tc string) DevResult {
 	groups := engine.ByToolchain(res.Opportunities)
 	if tc != "" {
@@ -80,6 +82,7 @@ func BuildDevResult(res engine.OpportunityResult, tc string) DevResult {
 	return DevResult{Scan: res.Scan, ScanAge: res.ScanAge, Toolchain: tc, Toolchains: groups, Warnings: res.Warnings}
 }
 
+// RenderDev writes the suggestions of one toolchain in the human format.
 func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 	d = display(d) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder

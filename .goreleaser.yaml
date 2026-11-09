@@ -1,0 +1,61 @@
+# GoReleaser builds the release binaries. Run by .github/workflows/release.yml
+# on a v* tag, on a macOS runner: the purgeable-space shim uses cgo
+# (internal/platform/darwin), so these builds cannot be made on Linux.
+#
+# Check locally without publishing:
+#   goreleaser check
+#   goreleaser release --snapshot --clean --skip=publish
+version: 2
+
+project_name: macdoc
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: macdoc
+    main: ./cmd/macdoc
+    binary: macdoc
+    env:
+      - CGO_ENABLED=1
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    flags:
+      - -trimpath
+    # Pin file times to the commit so the same commit gives the same bytes.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      # -s -w drop the symbol and debug tables; panics still print a stack.
+      - -s -w -X github.com/sagnik26/macdoc/internal/cli.version={{ .Version }}
+
+# One archive per architecture, not a universal binary: the slices are
+# byte-for-byte reproducible but GoReleaser's fat-file wrapper is not, so a
+# per-architecture archive is what someone else can rebuild and compare.
+archives:
+  - id: macdoc
+    ids: [macdoc]
+    formats: [tar.gz]
+    name_template: "macdoc_{{ .Version }}_darwin_{{ .Arch }}"
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+    files:
+      - LICENSE
+      - README.md
+      - PRIVACY.md
+      - SECURITY.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
+
+release:
+  # Review the notes and the attached files, then publish by hand.
+  draft: true
+  prerelease: auto

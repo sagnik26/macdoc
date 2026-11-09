@@ -27,7 +27,7 @@ func runScript(t *testing.T, args ...string) string {
 }
 
 func TestImportcheckScript(t *testing.T) {
-	out := runScript(t, "../../../../scripts/importcheck.sh")
+	out := runScript(t, "../../../../scripts/imports.sh")
 	if !strings.Contains(out, "importcheck: ok") {
 		t.Errorf("unexpected output:\n%s", out)
 	}
@@ -35,7 +35,7 @@ func TestImportcheckScript(t *testing.T) {
 
 func TestImportcheckSelfTest(t *testing.T) {
 	t.Setenv("IMPORTCHECK_VERBOSE", "1")
-	out := runScript(t, "../../../../scripts/importcheck.sh", "--self-test")
+	out := runScript(t, "../../../../scripts/imports.sh", "--self-test")
 	if !strings.Contains(out, "importcheck self-test: ok") {
 		t.Errorf("unexpected output:\n%s", out)
 	}
@@ -43,5 +43,5 @@ func TestImportcheckSelfTest(t *testing.T) {
 }
 
 func TestForbidcheckScript(t *testing.T) {
-	runScript(t, "../../../../scripts/forbidcheck.sh")
+	runScript(t, "../../../../scripts/forbidden.sh")
 }

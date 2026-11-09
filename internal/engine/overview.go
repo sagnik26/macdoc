@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // staleOverviewScan is the scan age after which the overview suggests a
@@ -36,6 +36,7 @@ type OverviewOptions struct {
 // OverviewStep names a stage of Overview.
 type OverviewStep string
 
+// The stages of Overview, in the order they are reported.
 const (
 	StepHealth OverviewStep = "health"
 	StepScan   OverviewStep = "scan"
@@ -145,7 +146,7 @@ func topLevel(storePath string, info model.ScanInfo) ([]model.Node, error) {
 	if root == scanner.DataVolume {
 		root = "/" // the Data volume is reported with firmlinks mapped back to /
 	}
-	nodes, err := st.Nodes(info.ID, store.NodeQuery{Prefix: root, MaxDepth: 1})
+	nodes, err := st.Nodes(info.ID, store.Query{Prefix: root, MaxDepth: 1})
 	if err != nil {
 		return nil, err
 	}

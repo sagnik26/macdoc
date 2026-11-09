@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/executor"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ScheduleResult is what `macdoc schedule` did and what to run next.

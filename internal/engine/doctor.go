@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"sort"
 
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 // Severity orders findings from most to least important.
 type Severity string
 
+// The severities of a health finding, most serious first.
 const (
 	SeverityCritical Severity = "critical"
 	SeverityWarn     Severity = "warn"

@@ -5,5 +5,5 @@
 // user applies in Terminal with per-item confirmation.
 //
 // It must never import internal/executor or internal/cli (which imports
-// the executor); scripts/importcheck.sh enforces this.
+// the executor); scripts/imports.sh enforces this.
 package mcp

@@ -11,13 +11,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/model"
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 // version is set at build time via -ldflags.
 var version = "dev"
 
+// GlobalFlags are the flags every command accepts.
 type GlobalFlags struct {
 	json  bool
 	quiet bool
@@ -65,7 +66,7 @@ func interactive(cmd *cobra.Command) bool {
 // Execute runs the CLI and returns the process exit code.
 func Execute() int {
 	if err := NewRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "macdoc:", textsafe.ForTerminal(err.Error()))
+		fmt.Fprintln(os.Stderr, "macdoc:", textsafe.Terminal(err.Error()))
 		return 1
 	}
 	return 0

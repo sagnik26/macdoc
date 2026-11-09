@@ -1,18 +1,19 @@
 package tests
 
 import (
-	"macdoc/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/config"
 )
 
 func TestLoadSave(t *testing.T) {
 	home := t.TempDir()
 	c, err := config.Load(home)
-	if err != nil || len(c.Protect) != 0 || c.PlanTTL() != 30*time.Minute || c.NativeTimeout() != 15*time.Minute {
+	if err != nil || len(c.Protect) != 0 || c.TTL() != 30*time.Minute || c.Timeout() != 15*time.Minute {
 		t.Fatalf("defaults: %+v, %v", c, err)
 	}
 	if err := c.Set("plan_minutes", 60); err != nil {
@@ -32,7 +33,7 @@ func TestLoadSave(t *testing.T) {
 		t.Fatalf("file mode: %v, %v", fi, err)
 	}
 	got, err := config.Load(home)
-	if err != nil || got.PlanTTL() != time.Hour || len(got.Protect) != 1 || got.Protect[0] != "~/work/keep" {
+	if err != nil || got.TTL() != time.Hour || len(got.Protect) != 1 || got.Protect[0] != "~/work/keep" {
 		t.Fatalf("reloaded %+v, %v", got, err)
 	}
 	if err := got.RemoveProtect("~/work/keep"); err != nil || len(got.Protect) != 0 {
@@ -41,7 +42,7 @@ func TestLoadSave(t *testing.T) {
 	if err := got.RemoveProtect("~/Documents"); err == nil || !strings.Contains(err.Error(), "built-in") {
 		t.Errorf("removing a built-in: %v", err)
 	}
-	if err := got.Set("plan_minutes", 0); err != nil || got.PlanTTL() != 30*time.Minute {
+	if err := got.Set("plan_minutes", 0); err != nil || got.TTL() != 30*time.Minute {
 		t.Errorf("reset to default: %v", err)
 	}
 }

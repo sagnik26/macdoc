@@ -2,15 +2,16 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/engine"
+
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 func probeFixture(t *testing.T, name string) platform.Result {
@@ -22,8 +23,8 @@ func probeFixture(t *testing.T, name string) platform.Result {
 	return platform.Result{Stdout: b}
 }
 
-func slowRunner(t *testing.T, ps string) *platform.FakeRunner {
-	return &platform.FakeRunner{Responses: map[string]platform.Result{
+func slowRunner(t *testing.T, ps string) *platform.Fake {
+	return &platform.Fake{Responses: map[string]platform.Result{
 		"vm_stat":              probeFixture(t, "vm_stat.txt"),
 		"sysctl -n hw.memsize": {Stdout: []byte("8589934592\n")},
 		"memory_pressure -Q":   probeFixture(t, "memory_pressure_Q.txt"),

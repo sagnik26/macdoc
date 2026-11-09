@@ -36,12 +36,12 @@ type Runner interface {
 }
 
 // ExecRunner runs commands with os/exec.
-type ExecRunner struct{}
+type Exec struct{}
 
 // Run executes cmd and returns its output. A non-zero exit is reported in
 // Result.ExitCode, not as an error; errors mean the command could not run or
 // timed out.
-func (ExecRunner) Run(ctx context.Context, cmd Command) (Result, error) {
+func (Exec) Run(ctx context.Context, cmd Command) (Result, error) {
 	timeout := cmd.Timeout
 	if timeout == 0 {
 		timeout = DefaultTimeout

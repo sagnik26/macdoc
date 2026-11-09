@@ -2,11 +2,12 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/safety"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // newTestPolicy returns a policy whose home is a fresh directory under

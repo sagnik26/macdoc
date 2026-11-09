@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 of 11 are complete; Phase 7 is built; its dogfood week ended 2026-11-04 and it isn't signed off yet (0.88 of the 10 GB reclaim target); Phases 8–9 (Claude via MCP, with its limits and hardening) are built.** Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. **Phases 0–6 are complete; Phases 7–10 are built (Phase 7's dogfood week ended 2026-11-04 and it isn't signed off yet: 0.88 of the 10 GB reclaim target); Phase 11, open-source readiness, is in progress** (see [plan.md](plan.md)). It isn't released: there are no tags or binaries yet, so you build it from source. Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -127,6 +127,8 @@ These read the latest scan and don't rescan.
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 
+Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
+
 Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 1). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
 
 ### `macdoc plan`: a sealed dry run
@@ -194,7 +196,7 @@ Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude
 Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew install go`). Optional: `golangci-lint` for `make lint`.
 
 ```bash
-git clone <this repo> macdoc && cd macdoc
+git clone https://github.com/sagnik26/macdoc.git macdoc && cd macdoc
 make install               # builds and installs macdoc into ~/.local/bin
                            # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
 macdoc                     # interactive dashboard (scans automatically the first time)
@@ -202,7 +204,7 @@ macdoc doctor              # the short summary, printed
 macdoc doctor scan         # fresh scan + the full report
 macdoc doctor explain <id> # details for one suggestion
 ```
-After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
+There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
 Tab completion for zsh (bash and fish work the same way with `macdoc completion bash|fish`):
 ```bash
@@ -215,6 +217,10 @@ Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` make
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 
 Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The 10 newest scans are kept, plus one per week for 13 weeks (for `trend`).
+
+### Known limitation: a suggestion's size is a floor, and the real gain can be higher
+
+On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size (up to three times less in the experiment in `docs/experiments/S1-apfs-private-size`). For a suggestion made from the scan, macdoc therefore shows the space removing it is certain to free: the sum of the kernel's own per-file figure for the bytes a delete releases. That never overstates, but it can understate (the explanation then shows the range). A folder whose files are all clones of each other shows 0 (the space is released only when the last copy goes), and a file with more than one hard link counts as 0 because the kernel reports its full size for every link. Where a volume cannot report that figure (HFS+, exFAT), macdoc falls back to allocated blocks, the same thing `du` reports, as before. Sizes a tool reports (Docker, Homebrew, simctl) are shown as the tool gives them. `macdoc scan` and `doctor storage` still show allocated blocks, since they describe what is on disk. `macdoc doctor explain <id>` measures a folder whose files share space with copies on the spot and shows the range, "frees at least X and at most Y" ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)); lists, totals and plans keep the lower figure. This affects what you decide to remove, not whether removal is safe.
 
 ---
 
@@ -261,7 +267,7 @@ Developer tooling quietly eats tens of gigabytes:
 ## Why we're building it this way
 
 1. **Developer-aware.** DerivedData is regenerable, but Archives hold irreplaceable dSYMs. A system image that no AVD uses is dead weight.
-2. **Honest numbers.** Allocated bytes, not logical size. Hard links are counted once. Every number says where it came from, and unknown is never shown as 0.
+2. **Honest numbers.** A suggestion shows the space removing it is certain to free (never more); disk usage shows allocated bytes, not logical size, with hard links counted once. Every number says where it came from, and unknown is never shown as 0.
 3. **Safety is the product.** Read-only by default. Actions come only from a fixed recipe catalog with exact command allow-lists, and never from arbitrary paths. There's a dry-run before anything happens, confirmation by a person at the terminal, a crash-safe quarantine step, and an audit log.
 4. **Built for low-RAM hardware.** Scans run in the macOS background priority band with bounded memory.
 5. **Ready for Claude without handing over control.** CI proves the MCP and engine code can never reach the deletion code.
@@ -284,8 +290,8 @@ Developer tooling quietly eats tens of gigabytes:
 | 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week ended 2026-11-04, not signed off (0.88 of 10 GB reclaimed) |
 | 8 | MCP server for Claude: 11 read and propose-only tools, `macdoc mcp` | ✅ built |
 | 9 | Claude handoff and hardening: proposal time in `apply`, at most 5 open Claude plans and 10 per 10 minutes, rescan guidance, Claude-app permission warnings | ✅ built |
-| 10 | Optional daily read-only scans, TUI picker, slowness tips | |
-| 11 | Open-source readiness | later |
+| 10 | Optional daily read-only scans (`macdoc schedule enable\|disable`), pre-marked SAFE suggestions in the dashboard, slowness tips (`slow --tips`) | ✅ built |
+| 11 | Open-source readiness: Google Go style and complexity gates, tests found missing by mutation testing, a threat model and decision records, a release pipeline with reproducible archives, experiments that measured the design | 🟡 in progress: [plan.md](plan.md) has the plan and what is done; nothing is tagged or signed yet |
 
 Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/), with real-Mac measurements, the tasks run, and the safety findings.
 
@@ -339,6 +345,7 @@ macdoc (one Go binary)
   internal/quarantine   quarantine manifests and entry states (read-only)
   internal/config       settings file: timings and extra protected folders (add-only)
   internal/safety       canonicalization + protected-path policy
+  internal/pathfold     the one definition of "the same name" (case and Unicode folding) used by every path comparison
   internal/fsread       capped, non-blocking regular-file reader for detectors
   internal/textsafe     cleans names from the disk before you or Claude see them (escapes, invisible characters)
   internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
@@ -348,6 +355,7 @@ macdoc (one Go binary)
   internal/mcp          MCP server (`macdoc mcp`): read + propose plans; may never import the executor
   internal/testutil     fstree fixture builder for fake home directories
   tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
+  scripts/              import, forbidden-call and threat-model guards; shape.sh (the shape of a scan, no paths)
   schema/*.json         frozen JSON Schema for every --json command (contract-tested)
 ```
 
@@ -359,14 +367,19 @@ The CLI and the MCP server are two front doors over the same engine. See [docs/B
 make build        # ./bin/macdoc
 make install      # build + copy to ~/.local/bin (BINDIR=… to change)
 make test         # go test -race ./...
+make cover        # coverage across packages (tests live in internal/<pkg>/tests/)
 make lint         # golangci-lint (0 issues required)
 make importcheck  # MCP/engine must not reach the executor
 make forbidcheck  # no delete/exec/shell outside internal/executor
-make check        # all of the above
+make threatcheck  # every test the threat model and decision records name still exists
+make vulncheck    # govulncheck (known vulnerabilities in what the module calls)
+make check        # test, lint, importcheck, forbidcheck and threatcheck
 make fuzz         # fuzz the path-safety layer
 ```
 
-Rules for contributors (human or AI) are in [AGENTS.md](AGENTS.md), and Claude Code specifics are in [CLAUDE.md](CLAUDE.md).
+New code is held to Google Go style (doc comments on exported names, naming) and to complexity limits (cognitive 25, cyclomatic 15). The older code is checked only where a change touches it, relative to `origin/main`, while the backlog is cleared. CI also runs `make vulncheck`; a tag builds the release archives (see [docs/RELEASING.md](docs/RELEASING.md)).
+
+Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). The safety rules are in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and the decision records in [docs/adr/](docs/adr/README.md).
 
 ### How it's being built
 A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. This ran for Phases 0–3; from Phase 4 on, the tech-lead session built each phase itself and recorded it in a checkpoint. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md). Every task brief is in [`docs/tasks/`](docs/tasks/), and every report in [`docs/tasks/reports/`](docs/tasks/reports/).
@@ -376,12 +389,17 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 | File | What's in it |
 |---|---|
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Architecture, phases, tasks, acceptance criteria, testing, risks, carry-overs |
+| [docs/RELEASING.md](docs/RELEASING.md) | Cutting a release, a dry run, and how to rebuild a tag and compare hashes |
+| [docs/adr/](docs/adr/README.md) | Decision records: why approval is terminal-only, IDs not paths, one mutating package, delete-after-move, sizing by blocks, the test layout |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, adversaries, trust boundaries and, for each defense, the tests that fail without it (checked by `make threatcheck`) |
 | [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) | Risk classes, protected paths, the plan → confirm → apply → verify lifecycle, quarantine, audit, threat model |
 | [docs/RECIPE_CATALOG.md](docs/RECIPE_CATALOG.md) | Recipe schema, catalog intent, allowed native commands, how to add a recipe |
 | [docs/CLI_UX.md](docs/CLI_UX.md) | Commands, report mockups, tone rules, JSON contract |
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | Phase 8–9: MCP tools, the Claude-to-terminal handoff, prompt-injection hardening |
 | [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md) | One engine with two front doors, and the safety-first build order |
 | [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) | Tech lead + worker agents, permissions, verification, checkpoints |
+| [plan.md](plan.md) | The engineering plan for open-source readiness, with a progress log of what is done and what is not |
+| [docs/experiments/](docs/experiments/) | Reproducible experiments with their code and results: APFS sizing, mutation testing, test-only exports, the node-prefix query |
 | [docs/checkpoints/](docs/checkpoints/) | Per-phase results measured on the real Mac |
 | [docs/tasks/](docs/tasks/), [docs/tasks/reports/](docs/tasks/reports/) | Task briefs and archived worker/reviewer reports |
 

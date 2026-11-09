@@ -5,5 +5,5 @@
 # os.Symlink, os.Chmod, os.Chtimes, (*os.File).Truncate), none forbidden.
 
 # The read-only Runner. Only fixed argv, no shell; mutating commands are
-# run solely by internal/executor (AGENTS.md invariant 2).
+# run solely by internal/executor (docs/adr/0003-executor-is-the-only-mutator.md).
 internal/platform/runner.go:exec.CommandContext

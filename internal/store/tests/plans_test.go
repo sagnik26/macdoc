@@ -2,12 +2,13 @@ package tests
 
 import (
 	"errors"
-	"macdoc/internal/store"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
+
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func TestPlans(t *testing.T) {

@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"macdoc/internal/probe"
 	"reflect"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseLocalSnapshotsRealFixtureEmpty(t *testing.T) {
@@ -55,7 +56,7 @@ func TestParseLocalSnapshotsLineTooLong(t *testing.T) {
 }
 
 func TestCollectSnapshots(t *testing.T) {
-	r := &platform.FakeRunner{Responses: map[string]platform.Result{
+	r := &platform.Fake{Responses: map[string]platform.Result{
 		"tmutil listlocalsnapshots /": {Stdout: readFixture(t, "w2_tmutil_snapshots.txt")},
 	}}
 	s, err := probe.CollectSnapshots(context.Background(), r)
@@ -69,13 +70,13 @@ func TestCollectSnapshots(t *testing.T) {
 }
 
 func TestCollectSnapshotsFailure(t *testing.T) {
-	r := &platform.FakeRunner{Responses: map[string]platform.Result{
+	r := &platform.Fake{Responses: map[string]platform.Result{
 		"tmutil listlocalsnapshots /": {ExitCode: 80, Stderr: []byte("permission denied\n")},
 	}}
 	if _, err := probe.CollectSnapshots(context.Background(), r); err == nil || !strings.Contains(err.Error(), "exit status 80: permission denied") {
 		t.Errorf("err = %v", err)
 	}
-	r = &platform.FakeRunner{Errors: map[string]error{"tmutil listlocalsnapshots /": context.Canceled}}
+	r = &platform.Fake{Errors: map[string]error{"tmutil listlocalsnapshots /": context.Canceled}}
 	if _, err := probe.CollectSnapshots(context.Background(), r); !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v", err)
 	}

@@ -1,0 +1,227 @@
+[
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "ActionNative",
+  "new": "Native"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "ActionQuarantine",
+  "new": "Quarantine"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "DefaultTTL",
+  "new": "TTL"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "MaxScanAge",
+  "new": "Oldest"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "idRe",
+  "new": "pattern"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "StatusPending",
+  "new": "Pending"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "StatusExpired",
+  "new": "Expired"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "StatusApplied",
+  "new": "Applied"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "StatusInvalid",
+  "new": "Invalid"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "selectOps",
+  "new": "choose"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "buildItem",
+  "new": "item"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "checkTarget",
+  "new": "target"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "tierRank",
+  "new": "rank"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "sortItems",
+  "new": "order"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "maxPlanFile",
+  "new": "largest"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "idChars",
+  "new": "alphabet"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "idLen",
+  "new": "length"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "idRetries",
+  "new": "retries"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "planIDRe",
+  "new": "format"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "validateItems",
+  "new": "vet"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "NormalizeID",
+  "new": "Normalize"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "ParseIDs",
+  "new": "Parse"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "ValidID",
+  "new": "Valid"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "StatusOf",
+  "new": "Classify"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/planner",
+  "name": "WriteNew",
+  "new": "Create"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "FoldName",
+  "new": "Fold"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "resolveParents",
+  "new": "resolve"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "resolveFull",
+  "new": "follow"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "foldedComponents",
+  "new": "parts"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "hasPrefixComps",
+  "new": "under"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "Policy.matchAllow",
+  "new": "allowed"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "Policy.depthOK",
+  "new": "deep"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "homeRelative",
+  "new": "expand"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "checkHomeLocation",
+  "new": "location"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "cleanRoot",
+  "new": "tidy"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/safety",
+  "name": "newRoot",
+  "new": "root"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "bulkBufSize",
+  "new": "buffer"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "indexNUL",
+  "new": "nul"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "Scanner.listBulk",
+  "new": "bulk"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "Scanner.statEntry",
+  "new": "stat"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "Scanner.watchFor",
+  "new": "watch"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "foldIn",
+  "new": "among"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "lowerSet",
+  "new": "folded"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "Scanner.MapPath",
+  "new": "Map"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/scanner",
+  "name": "maxWorkers",
+  "new": "widest"
+ }
+]

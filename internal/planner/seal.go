@@ -15,27 +15,27 @@ import (
 	"regexp"
 	"time"
 
-	"macdoc/internal/fsread"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/fsread"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 const (
 	dirMode  os.FileMode = 0o700
 	fileMode os.FileMode = 0o600
-	// maxPlanFile bounds what Load reads.
-	maxPlanFile int64 = 4 << 20
-	// idChars avoid look-alikes (no I, O, 0, 1): the ID's code is typed to
+	// largest bounds what Load reads.
+	largest int64 = 4 << 20
+	// alphabet avoid look-alikes (no I, O, 0, 1): the ID's code is typed to
 	// confirm an apply.
-	idChars   = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	idLen     = 4
-	idRetries = 16
+	alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	length   = 4
+	retries  = 16
 )
 
-// planIDRe is a plan ID: what Load accepts, so an ID can never name a path.
-var planIDRe = regexp.MustCompile(`^P-[A-HJ-NP-Z2-9]{4}$`)
+// format is a plan ID: what Load accepts, so an ID can never name a path.
+var format = regexp.MustCompile(`^P-[A-HJ-NP-Z2-9]{4}$`)
 
 // Verification errors.
 var (
@@ -51,8 +51,8 @@ func Dir(storePath string) string {
 	return filepath.Join(filepath.Dir(storePath), "plans")
 }
 
-// ValidID reports whether id is a well-formed plan ID ("P-7F3K").
-func ValidID(id string) bool { return planIDRe.MatchString(id) }
+// Valid reports whether id is a well-formed plan ID ("P-7F3K").
+func Valid(id string) bool { return format.MatchString(id) }
 
 // Hash is the plan's seal: SHA-256 over its canonical JSON (encoding/json of
 // the struct, fields in declaration order, with SHA256 empty).
@@ -74,7 +74,7 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return fmt.Errorf("plans folder: %w", err)
 	}
-	for range idRetries {
+	for range retries {
 		id, err := NewID()
 		if err != nil {
 			return err
@@ -94,7 +94,7 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 		if err != nil {
 			return err
 		}
-		if err := WriteNew(filepath.Join(dir, id+".json"), append(b, '\n')); err != nil {
+		if err := Create(filepath.Join(dir, id+".json"), append(b, '\n')); err != nil {
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}
@@ -108,20 +108,22 @@ func Save(st *store.Store, dir string, p *model.Plan) error {
 	return errors.New("couldn't find an unused plan ID")
 }
 
+// NewID returns a random plan ID: "P-" and four characters that avoid
+// look-alikes, since the person types them to confirm.
 func NewID() (string, error) {
-	b := make([]byte, idLen)
+	b := make([]byte, length)
 	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(idChars))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
 		if err != nil {
 			return "", err
 		}
-		b[i] = idChars[n.Int64()]
+		b[i] = alphabet[n.Int64()]
 	}
 	return "P-" + string(b), nil
 }
 
-// WriteNew creates path (failing if it exists), writes b and syncs it.
-func WriteNew(path string, b []byte) error {
+// Create creates path (failing if it exists), writes b and syncs it.
+func Create(path string, b []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fileMode) //nolint:gosec // G304: path is the plans folder plus a generated ID.
 	if err != nil {
 		return err
@@ -141,10 +143,10 @@ func WriteNew(path string, b []byte) error {
 // so nothing can be smuggled past the seal.
 func Load(dir, id string) (model.Plan, error) {
 	var p model.Plan
-	if !ValidID(id) {
+	if !Valid(id) {
 		return p, fmt.Errorf("%q isn't a plan ID (they look like P-7F3K)", id)
 	}
-	b, err := fsread.SmallFile(filepath.Join(dir, id+".json"), maxPlanFile)
+	b, err := fsread.Small(filepath.Join(dir, id+".json"), largest)
 	if errors.Is(err, os.ErrNotExist) {
 		return p, fmt.Errorf("%w: %s", ErrUnknown, id)
 	}
@@ -183,11 +185,11 @@ func Verify(p model.Plan, rec store.PlanRecord, cat *recipes.Catalog, pol *safet
 	if !now.Before(p.ExpiresAt) {
 		return ErrExpired
 	}
-	return validateItems(p, cat, pol)
+	return vet(p, cat, pol)
 }
 
-// validateItems re-checks every item against the catalog and policy.
-func validateItems(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error {
+// vet re-checks every item against the catalog and policy.
+func vet(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error {
 	if len(p.Items) == 0 {
 		return fmt.Errorf("%w: it has no items", ErrInvalid)
 	}
@@ -204,7 +206,7 @@ func validateItems(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error
 			return bad("has an unknown recipe")
 		case r.Method != it.Method:
 			return bad("has the wrong method for its recipe")
-		case it.Risk == model.RiskAdvise || it.Risk == model.RiskBlocked || tierRank(it.Risk) < tierRank(r.Risk):
+		case it.Risk == model.RiskAdvise || it.Risk == model.RiskBlocked || rank(it.Risk) < rank(r.Risk):
 			return bad("has a risk its recipe doesn't allow")
 		}
 		switch it.Method {
@@ -229,22 +231,23 @@ func validateItems(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error
 // Status is a plan's state for display.
 type Status string
 
+// The states a plan can be in.
 const (
-	StatusPending Status = "pending"
-	StatusExpired Status = "expired"
-	StatusApplied Status = "applied"
-	StatusInvalid Status = "invalid" // fails Verify for another reason
+	Pending Status = "pending"
+	Expired Status = "expired"
+	Applied Status = "applied"
+	Invalid Status = "invalid" // fails Verify for another reason
 )
 
-// StatusOf classifies a Verify result.
-func StatusOf(err error) Status {
+// Classify classifies a Verify result.
+func Classify(err error) Status {
 	switch {
 	case err == nil:
-		return StatusPending
+		return Pending
 	case errors.Is(err, ErrExpired):
-		return StatusExpired
+		return Expired
 	case errors.Is(err, ErrApplied):
-		return StatusApplied
+		return Applied
 	}
-	return StatusInvalid
+	return Invalid
 }

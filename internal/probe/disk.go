@@ -10,9 +10,9 @@ import (
 
 	"howett.net/plist"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/platform/darwin"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform/darwin"
 )
 
 // DiskutilTimeout bounds each diskutil invocation.

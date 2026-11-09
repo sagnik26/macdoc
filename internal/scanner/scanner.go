@@ -1,8 +1,16 @@
 // Package scanner walks the Data volume and measures allocated space with
 // bounded memory, at background priority. It is strictly read-only.
 //
-// CONTRACT (tech lead): exported names and documented behavior are fixed.
-// Implementation: task P2-W1 (docs/tasks/P2-W1.md).
+// Sizes are allocated blocks (st_blocks * 512), which over-states the space
+// freed by deleting a file that shares blocks with a clone
+// (docs/adr/0005-size-by-allocated-blocks.md). Each kept node also carries a
+// private size, a lower bound of what deleting it frees: the sum of its
+// files' ATTR_CMNEXT_PRIVATESIZE plus its folders' own blocks. A file with
+// several links adds a known 0, because the kernel reports its full size for
+// every link and the tree may hold only some of them. Only the
+// getattrlistbulk reader can read it. When any file below a node was
+// measured without one (the fstatat reader, or a volume that does not report
+// it) the node's private size is nil, meaning unknown; it is never zero.
 package scanner
 
 import (
@@ -22,7 +30,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // DataVolume is the default scan root on macOS.
@@ -86,7 +95,7 @@ type Result struct {
 const (
 	defaultKeepThreshold = 100 << 20
 	defaultWorkers       = 4
-	maxWorkers           = 16
+	widest               = 16
 	defaultHardlinkLimit = 1_000_000
 	defaultProgressEvery = 250 * time.Millisecond
 
@@ -95,6 +104,8 @@ const (
 	// cancellation is noticed between batches.
 	batchSize = 512
 
+	// ReasonPermission is the reason recorded for a folder macdoc may not
+	// search.
 	ReasonPermission = "permission denied (grant Full Disk Access to your terminal)"
 )
 
@@ -119,8 +130,44 @@ type dir struct {
 	bytes   int64
 	files   int64
 	mtime   int64
+	private privacy // bytes a delete certainly frees, as far as known
 }
 
+// privacy is a running sum of private sizes that remembers whether every term
+// was known. Once one term is unknown the sum is unknown and stays so as it
+// is folded up the tree; the bytes added before and after are never shown as
+// the answer, so unknown can't turn into zero.
+type privacy struct {
+	sum     int64
+	unknown bool
+}
+
+// note adds e's private size, or marks the sum unknown if e has none.
+func (p *privacy) note(e *entry) {
+	if v, ok := e.freed(); ok {
+		p.sum += v
+	} else {
+		p.unknown = true
+	}
+}
+
+// merge folds in another sum.
+func (p *privacy) merge(o privacy) {
+	p.sum += o.sum
+	p.unknown = p.unknown || o.unknown
+}
+
+// value returns the sum for a node, or nil when any term was unknown.
+func (p privacy) value() *int64 {
+	if p.unknown {
+		return nil
+	}
+	v := p.sum
+	return &v
+}
+
+// Scanner holds the state of one scan: the directories still to list, the
+// kept nodes and the unmeasured paths. Use Scan to run one.
 type Scanner struct {
 	threshold int64
 	keep      func(string) bool
@@ -130,12 +177,15 @@ type Scanner struct {
 	opaque    map[string]bool // lowercased unmapped paths
 	watchDirs map[string]bool // lowercased parents of skip and opaque paths
 
-	stop  atomic.Bool  // set on ctx cancel; checked between batches
-	files atomic.Int64 // progress counters
-	bytes atomic.Int64
-	cur   atomic.Pointer[dir]
+	stop   atomic.Bool  // set on ctx cancel; checked between batches
+	nobulk atomic.Bool  // getattrlistbulk is unsupported on this volume
+	files  atomic.Int64 // progress counters
+	bytes  atomic.Int64
+	cur    atomic.Pointer[dir]
 
-	links LinkSet
+	links Links
+	attrs *unix.Attrlist // what getattrlistbulk is asked for
+	share *tracker       // sees every counted file; nil in a full scan
 
 	mu         sync.Mutex
 	cond       *sync.Cond
@@ -151,39 +201,25 @@ type Scanner struct {
 // unreadable subdirectories become Unmeasured entries. On ctx cancellation it
 // returns the partial Result with Incomplete set and a nil error.
 func Scan(ctx context.Context, opts Options) (Result, error) {
-	start := time.Now()
-	root := opts.Root
-	if root == "" {
-		root = DataVolume
-	}
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return Result{}, fmt.Errorf("scanner: root %q: %w", opts.Root, err)
-	}
-	prefix := opts.MapPrefix
-	if prefix == "" && root == DataVolume {
-		prefix = DataVolume
-	}
-	if prefix != "" {
-		prefix = filepath.Clean(prefix)
-	}
+	return walk(ctx, opts, nil)
+}
 
-	var st unix.Stat_t
-	if err := unix.Lstat(root, &st); err != nil {
-		return Result{}, fmt.Errorf("scanner: root %s: %w", root, err)
-	}
-	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
-		return Result{}, fmt.Errorf("scanner: root %s: not a directory", root)
-	}
-
+// newScanner sets up the scan of root (lstat'd as st) with its root directory
+// on the stack. tr, if not nil, also sees every counted file.
+func newScanner(root, prefix string, st *unix.Stat_t, opts Options, tr *tracker) *Scanner {
 	s := &Scanner{
 		threshold: opts.KeepThreshold,
 		keep:      opts.Keep,
 		Prefix:    prefix,
 		rootDev:   st.Dev,
-		skip:      lowerSet(opts.Skip),
-		opaque:    lowerSet(opts.Opaque),
-		links:     LinkSet{Limit: opts.HardlinkLimit},
+		skip:      folded(opts.Skip),
+		opaque:    folded(opts.Opaque),
+		links:     Links{Limit: opts.HardlinkLimit},
+		attrs:     &bulkAttrs,
+		share:     tr,
+	}
+	if tr != nil {
+		s.attrs = &cloneAttrs
 	}
 	if s.threshold <= 0 {
 		s.threshold = defaultKeepThreshold
@@ -200,16 +236,56 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	}
 	s.cond = sync.NewCond(&s.mu)
 
-	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec}
-	rd.opaque = s.opaque[strings.ToLower(root)]
-	rd.watch = s.watchDirs[strings.ToLower(root)]
+	rd := &dir{path: root, ino: st.Ino, pending: 1, bytes: st.Blocks * 512, mtime: st.Mtim.Sec,
+		private: privacy{sum: st.Blocks * 512}}
+	rd.opaque = s.opaque[pathfold.Fold(root)]
+	rd.watch = s.watchDirs[pathfold.Fold(root)]
 	s.stack = append(s.stack, rd)
+	return s
+}
+
+// resolve turns the options' root into an absolute path, its mapping prefix
+// and its lstat, and checks that it is a directory.
+func resolve(opts Options) (root, prefix string, st unix.Stat_t, err error) {
+	root = opts.Root
+	if root == "" {
+		root = DataVolume
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return "", "", st, fmt.Errorf("scanner: root %q: %w", opts.Root, err)
+	}
+	prefix = opts.MapPrefix
+	if prefix == "" && root == DataVolume {
+		prefix = DataVolume
+	}
+	if prefix != "" {
+		prefix = filepath.Clean(prefix)
+	}
+	if err := unix.Lstat(root, &st); err != nil {
+		return "", "", st, fmt.Errorf("scanner: root %s: %w", root, err)
+	}
+	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
+		return "", "", st, fmt.Errorf("scanner: root %s: not a directory", root)
+	}
+	return root, prefix, st, nil
+}
+
+// walk is Scan, optionally feeding every counted file to tr (see Measure).
+func walk(ctx context.Context, opts Options, tr *tracker) (Result, error) {
+	start := time.Now()
+	root, prefix, st, err := resolve(opts)
+	if err != nil {
+		return Result{}, err
+	}
+
+	s := newScanner(root, prefix, &st, opts, tr)
 
 	workers := opts.Workers
 	if workers <= 0 {
 		workers = defaultWorkers
 	}
-	workers = min(max(workers, 1), maxWorkers)
+	workers = min(max(workers, 1), widest)
 
 	if ctx.Err() != nil {
 		// Already canceled: don't let a worker start listing first.
@@ -239,7 +315,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 
 	var wg sync.WaitGroup
 	for range workers {
-		wg.Go(s.worker)
+		wg.Go(s.run)
 	}
 	wg.Wait()
 	close(done)
@@ -263,7 +339,7 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		return a.Path < b.Path
 	})
 	return Result{
-		Root:             s.MapPath(root),
+		Root:             s.Map(root),
 		TotalBytes:       s.root.bytes,
 		TotalFiles:       s.root.files,
 		Nodes:            s.nodes,
@@ -274,18 +350,18 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 	}, nil
 }
 
-func lowerSet(paths []string) map[string]bool {
+func folded(paths []string) map[string]bool {
 	m := make(map[string]bool, len(paths))
 	for _, p := range paths {
 		if p != "" {
-			m[strings.ToLower(filepath.Clean(p))] = true
+			m[pathfold.Fold(filepath.Clean(p))] = true
 		}
 	}
 	return m
 }
 
-// MapPath applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
-func (s *Scanner) MapPath(p string) string {
+// Map applies MapPrefix: prefix itself becomes "/", prefix/x becomes /x.
+func (s *Scanner) Map(p string) string {
 	if s.Prefix == "" || s.Prefix == "/" {
 		return p
 	}
@@ -298,6 +374,7 @@ func (s *Scanner) MapPath(p string) string {
 	return p
 }
 
+// Join appends name to dirPath without cleaning, treating "/" as the root.
 func Join(dirPath, name string) string {
 	if dirPath == "/" {
 		return "/" + name
@@ -315,20 +392,49 @@ func (s *Scanner) progress(fn func(Progress), every time.Duration, start time.Ti
 		case <-t.C:
 			p := Progress{Files: s.files.Load(), Bytes: s.bytes.Load(), Elapsed: time.Since(start)}
 			if d := s.cur.Load(); d != nil {
-				p.CurrentDir = s.MapPath(d.path)
+				p.CurrentDir = s.Map(d.path)
 			}
 			fn(p)
 		}
 	}
 }
 
-func (s *Scanner) worker() {
+// worker is one reader goroutine's private state. Kept nodes and child
+// directories collect here and reach the shared scanner under one lock per
+// batch or directory, not one per file.
+type worker struct {
+	buf      []byte       // getattrlistbulk reply buffer, allocated on first use
+	nodes    []model.Node // kept files of the directory being listed
+	children []*dir       // subdirectories found in the current batch
+	bytes    int64        // progress counters for the current batch
+	files    int64
+}
+
+// flush publishes the current batch: progress counters first, then the new
+// subdirectories become work for other readers.
+func (w *worker) flush(s *Scanner, d *dir) {
+	s.bytes.Add(w.bytes)
+	s.files.Add(w.files)
+	w.bytes, w.files = 0, 0
+	if len(w.children) > 0 {
+		s.mu.Lock()
+		d.pending += len(w.children)
+		s.stack = append(s.stack, w.children...)
+		s.cond.Broadcast()
+		s.mu.Unlock()
+		clear(w.children)
+		w.children = w.children[:0]
+	}
+}
+
+func (s *Scanner) run() {
+	var w worker
 	for {
 		d := s.next()
 		if d == nil {
 			return
 		}
-		s.list(d)
+		s.list(&w, d)
 		s.mu.Lock()
 		s.active--
 		if s.active == 0 && len(s.stack) == 0 {
@@ -359,53 +465,81 @@ func (s *Scanner) next() *dir {
 // totals accumulates one directory's direct entries before they are merged.
 type totals struct {
 	bytes, files, mtime int64
+	private             privacy
 }
 
-// list reads d's entries, counts files and pushes subdirectories. It always
-// ends by releasing d's own pending count, even on error or cancel.
-func (s *Scanner) list(d *dir) {
-	s.cur.Store(d)
-	var acc totals
-	defer func() {
-		s.mu.Lock()
-		d.bytes += acc.bytes
-		d.files += acc.files
-		d.mtime = max(d.mtime, acc.mtime)
-		s.release(d)
-		s.mu.Unlock()
-	}()
-	if s.stop.Load() {
-		return
-	}
+// merge adds what a worker counted for d to d and the scan, and releases d's
+// own pending count.
+func (s *Scanner) merge(w *worker, d *dir, acc *totals) {
+	s.mu.Lock()
+	d.bytes += acc.bytes
+	d.files += acc.files
+	d.mtime = max(d.mtime, acc.mtime)
+	d.private.merge(acc.private)
+	s.nodes = append(s.nodes, w.nodes...)
+	s.release(d)
+	s.mu.Unlock()
+	clear(w.nodes)
+	w.nodes = w.nodes[:0]
+}
+
+// open opens d and checks that it is still the directory its parent saw: the
+// same device and inode. Anything else was swapped mid-scan and is ignored.
+// ok is false when the directory is not to be read; a failure is recorded.
+func (s *Scanner) open(d *dir) (f *os.File, rc syscall.RawConn, ok bool) {
 	f, err := os.OpenFile(d.path, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
-	defer f.Close() //nolint:errcheck // read-only directory handle
-	rc, err := f.SyscallConn()
+	rc, err = f.SyscallConn()
 	if err != nil {
+		_ = f.Close()
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
-	// The directory must still be the one its parent saw: same device and
-	// inode. Anything else was swapped mid-scan and is ignored.
 	var st unix.Stat_t
 	if cerr := rc.Control(func(fd uintptr) { err = unix.Fstat(int(fd), &st) }); cerr != nil {
 		err = cerr
 	}
 	if err != nil {
+		_ = f.Close()
 		s.Fail(d.path, err)
-		return
+		return nil, nil, false
 	}
 	if st.Dev != s.rootDev || st.Ino != d.ino {
+		_ = f.Close()
+		return nil, nil, false
+	}
+	return f, rc, true
+}
+
+// list reads d's entries, counts files and pushes subdirectories. It always
+// ends by releasing d's own pending count, even on error or cancel.
+func (s *Scanner) list(w *worker, d *dir) {
+	s.cur.Store(d)
+	var acc totals
+	defer s.merge(w, d, &acc)
+	if s.stop.Load() {
+		return
+	}
+	f, rc, ok := s.open(d)
+	if !ok {
+		return
+	}
+	defer f.Close() //nolint:errcheck // read-only directory handle
+	var wn *watchNames
+	if d.watch {
+		wn = s.watch(d)
+	}
+	if Bulk && !s.nobulk.Load() && s.bulk(w, d, rc, wn, &acc) {
 		return
 	}
 	for !s.stop.Load() {
 		names, rerr := f.Readdirnames(batchSize)
 		if len(names) > 0 {
 			var abort bool
-			if cerr := rc.Control(func(fd uintptr) { abort = s.batch(d, int(fd), names, &acc) }); cerr != nil {
+			if cerr := rc.Control(func(fd uintptr) { abort = s.batch(w, d, int(fd), names, wn, &acc) }); cerr != nil {
 				s.Fail(d.path, cerr)
 				return
 			}
@@ -422,90 +556,199 @@ func (s *Scanner) list(d *dir) {
 	}
 }
 
-// batch stats one batch of names relative to the open directory fd. It
-// returns true if the directory should not be read further.
-func (s *Scanner) batch(d *dir, fd int, names []string, acc *totals) bool {
-	var children []*dir
-	var nbytes, nfiles int64
-	defer func() {
-		s.bytes.Add(nbytes)
-		s.files.Add(nfiles)
-		if len(children) > 0 {
-			s.mu.Lock()
-			d.pending += len(children)
-			s.stack = append(s.stack, children...)
-			s.cond.Broadcast()
-			s.mu.Unlock()
-		}
-	}()
+// stat lstats name relative to the open directory fd. ok is false if the
+// entry must be skipped; abort is true if the directory can't be read further
+// (no search permission, recorded once for the directory).
+func (s *Scanner) stat(d *dir, fd int, name string, st *unix.Stat_t) (ok, abort bool) {
+	err := Fstatat(fd, name, st, unix.AT_SYMLINK_NOFOLLOW)
+	if err == nil {
+		return true, false
+	}
+	if vanished(err) {
+		return false, false
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		s.Fail(d.path, err) // no search permission: one entry for the dir
+		return false, true
+	}
+	s.Fail(Join(d.path, name), err)
+	return false, false
+}
+
+// batch is the fstatat reader: it stats one batch of names relative to the
+// open directory fd. It returns true if the directory should not be read
+// further.
+func (s *Scanner) batch(w *worker, d *dir, fd int, names []string, wn *watchNames, acc *totals) bool {
+	defer w.flush(s, d)
 	var st unix.Stat_t // reused: it escapes through the Fstatat hook
+	var e entry
 	for _, name := range names {
-		if err := Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-			if vanished(err) {
-				continue
-			}
-			if errors.Is(err, fs.ErrPermission) {
-				s.Fail(d.path, err) // no search permission: one entry for the dir
-				return true
-			}
-			s.Fail(Join(d.path, name), err)
+		ok, abort := s.stat(d, fd, name, &st)
+		if abort {
+			return true
+		}
+		if !ok {
 			continue
 		}
-		var isOpaque bool
-		if d.watch {
-			lp := strings.ToLower(Join(d.path, name))
-			if s.skip[lp] {
+		e.fromStat(name, &st)
+		s.visit(w, d, &e, wn, acc)
+	}
+	return false
+}
+
+// visit applies one measured entry of d. Both readers feed it, so they can't
+// disagree about what an entry means. It touches only w and acc: no lock.
+func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals) {
+	var isOpaque bool
+	if wn != nil {
+		switch wn.match(e.name) {
+		case matchSkip:
+			return
+		case matchOpaque:
+			isOpaque = true
+		}
+	}
+	n := e.bytes
+	switch e.kind {
+	case kindDir:
+		if e.dev != s.rootDev {
+			return // mount point: another device is never descended or counted
+		}
+		c := &dir{
+			parent:  d,
+			path:    Join(d.path, e.name),
+			ino:     e.ino,
+			depth:   d.depth + 1,
+			opaque:  isOpaque,
+			hidden:  d.opaque || d.hidden,
+			pending: 1,
+			bytes:   n,
+			mtime:   e.mtime,
+			private: privacy{sum: n}, // a folder is not clone-shared: its blocks are its own
+		}
+		if len(s.watchDirs) > 0 {
+			c.watch = s.watchDirs[pathfold.Fold(c.path)]
+		}
+		w.children = append(w.children, c)
+		w.bytes += n
+	case kindFile:
+		if e.nlink > 1 && !s.links.Count(e.dev, e.ino, e.nlink) {
+			return // another link to this inode was already counted
+		}
+		acc.bytes += n
+		acc.files++
+		acc.mtime = max(acc.mtime, e.mtime)
+		acc.private.note(e) // counted when its bytes are; a multi-link file adds a known 0
+		s.share.note(e)     // nil in a full scan: a no-op
+		w.bytes += n
+		w.files++
+		if n >= s.threshold && !d.opaque && !d.hidden {
+			w.nodes = append(w.nodes, model.Node{
+				Path:     s.Map(Join(d.path, e.name)),
+				Kind:     model.NodeFile,
+				Bytes:    n,
+				Files:    1,
+				MtimeMax: e.mtime,
+				Depth:    d.depth + 1,
+				Private:  e.value(),
+			})
+		}
+	default: // symlinks (never followed), sockets, fifos: own blocks only
+		acc.bytes += n
+		acc.mtime = max(acc.mtime, e.mtime)
+		acc.private.note(e)
+		s.share.note(e) // nil in a full scan: a no-op
+		w.bytes += n
+	}
+}
+
+// Results of watchNames.match.
+const (
+	matchNone = iota
+	matchSkip
+	matchOpaque
+)
+
+// watchNames holds, for one directory, the lowercased names of its direct
+// children that are Skip or Opaque paths. Matching an entry needs no
+// allocation for ASCII names, which is nearly all of them.
+type watchNames struct {
+	skip, opaque []string
+}
+
+// watch builds the watch list of d, a directory with a Skip or Opaque
+// child. A child matches when lower(d.path)/lower(name) is a configured path,
+// the same rule as the lowercased full-path lookup it replaces.
+func (s *Scanner) watch(d *dir) *watchNames {
+	dl := pathfold.Fold(d.path)
+	wn := &watchNames{}
+	collect := func(set map[string]bool) []string {
+		var out []string
+		for p := range set {
+			if p == dl || filepath.Dir(p) != dl {
 				continue
 			}
-			isOpaque = s.opaque[lp]
+			if base := strings.TrimPrefix(p[len(dl):], "/"); base != "" {
+				out = append(out, base)
+			}
 		}
-		n := st.Blocks * 512
-		switch st.Mode & unix.S_IFMT {
-		case unix.S_IFDIR:
-			if st.Dev != s.rootDev {
-				continue // mount point: another device is never descended or counted
+		return out
+	}
+	wn.skip = collect(s.skip)
+	wn.opaque = collect(s.opaque)
+	return wn
+}
+
+func (wn *watchNames) match(name string) int {
+	ascii := true
+	for i := 0; i < len(name); i++ {
+		if name[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		if among(wn.skip, name) {
+			return matchSkip
+		}
+		if among(wn.opaque, name) {
+			return matchOpaque
+		}
+		return matchNone
+	}
+	l := pathfold.Fold(name)
+	for _, c := range wn.skip {
+		if c == l {
+			return matchSkip
+		}
+	}
+	for _, c := range wn.opaque {
+		if c == l {
+			return matchOpaque
+		}
+	}
+	return matchNone
+}
+
+// among reports whether the ASCII name, lowercased, equals one of cands
+// (already lowercase). It allocates nothing.
+func among(cands []string, name string) bool {
+	for _, c := range cands {
+		if len(c) != len(name) {
+			continue
+		}
+		i := 0
+		for ; i < len(name); i++ {
+			b := name[i]
+			if 'A' <= b && b <= 'Z' {
+				b += 'a' - 'A'
 			}
-			c := &dir{
-				parent:  d,
-				path:    Join(d.path, name),
-				ino:     st.Ino,
-				depth:   d.depth + 1,
-				opaque:  isOpaque,
-				hidden:  d.opaque || d.hidden,
-				pending: 1,
-				bytes:   n,
-				mtime:   st.Mtim.Sec,
+			if b != c[i] {
+				break
 			}
-			if len(s.watchDirs) > 0 {
-				c.watch = s.watchDirs[strings.ToLower(c.path)]
-			}
-			children = append(children, c)
-			nbytes += n
-		case unix.S_IFREG:
-			if st.Nlink > 1 && !s.links.Count(st.Dev, st.Ino, st.Nlink) {
-				continue // another link to this inode was already counted
-			}
-			acc.bytes += n
-			acc.files++
-			acc.mtime = max(acc.mtime, st.Mtim.Sec)
-			nbytes += n
-			nfiles++
-			if n >= s.threshold && !d.opaque && !d.hidden {
-				s.mu.Lock()
-				s.nodes = append(s.nodes, model.Node{
-					Path:     s.MapPath(Join(d.path, name)),
-					Kind:     model.NodeFile,
-					Bytes:    n,
-					Files:    1,
-					MtimeMax: st.Mtim.Sec,
-					Depth:    d.depth + 1,
-				})
-				s.mu.Unlock()
-			}
-		default: // symlinks (never followed), sockets, fifos: own blocks only
-			acc.bytes += n
-			acc.mtime = max(acc.mtime, st.Mtim.Sec)
-			nbytes += n
+		}
+		if i == len(name) {
+			return true
 		}
 	}
 	return false
@@ -520,14 +763,15 @@ func (s *Scanner) release(d *dir) {
 		if d.pending > 0 {
 			return
 		}
-		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.MapPath(d.path))))) {
+		if d.parent == nil || (!d.hidden && (d.bytes >= s.threshold || (s.keep != nil && s.keep(s.Map(d.path))))) {
 			s.nodes = append(s.nodes, model.Node{
-				Path:     s.MapPath(d.path),
+				Path:     s.Map(d.path),
 				Kind:     model.NodeDir,
 				Bytes:    d.bytes,
 				Files:    d.files,
 				MtimeMax: d.mtime,
 				Depth:    d.depth,
+				Private:  d.private.value(),
 			})
 		}
 		p := d.parent
@@ -538,6 +782,7 @@ func (s *Scanner) release(d *dir) {
 		p.bytes += d.bytes
 		p.files += d.files
 		p.mtime = max(p.mtime, d.mtime)
+		p.private.merge(d.private)
 		d = p
 	}
 }
@@ -548,7 +793,7 @@ func vanished(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) || errors.Is(err, syscall.ELOOP)
 }
 
-// fail records p as unmeasured unless it simply vanished.
+// Fail records p as unmeasured unless it simply vanished.
 func (s *Scanner) Fail(p string, err error) {
 	if vanished(err) {
 		return
@@ -561,13 +806,13 @@ func (s *Scanner) Fail(p string, err error) {
 		reason = pe.Err.Error() // the path is already in Unmeasured.Path
 	}
 	s.mu.Lock()
-	s.Unmeasured = append(s.Unmeasured, model.Unmeasured{Path: s.MapPath(p), Reason: reason})
+	s.Unmeasured = append(s.Unmeasured, model.Unmeasured{Path: s.Map(p), Reason: reason})
 	s.mu.Unlock()
 }
 
 // LinkSet de-duplicates hard links by (dev, ino). An entry is dropped once
 // all of its links have been seen, so only partially seen inodes use memory.
-type LinkSet struct {
+type Links struct {
 	mu    sync.Mutex
 	Limit int
 	M     map[linkKey]uint16 // remaining links not yet seen
@@ -579,8 +824,8 @@ type linkKey struct {
 	ino uint64
 }
 
-// count reports whether this link's blocks should be counted.
-func (l *LinkSet) Count(dev int32, ino uint64, nlink uint16) bool {
+// Count reports whether this link's blocks should be counted.
+func (l *Links) Count(dev int32, ino uint64, nlink uint16) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	k := linkKey{dev, ino}

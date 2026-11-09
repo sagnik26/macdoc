@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"macdoc/internal/model"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 //go:embed catalog
@@ -121,118 +121,187 @@ func ArgvIn(argv []string, set [][]string) bool {
 	return slices.ContainsFunc(set, func(a []string) bool { return slices.Equal(a, argv) })
 }
 
+// problems collects the lint messages for one recipe, in the order found.
+type problems struct {
+	id   string
+	errs []error
+}
+
+// add records one problem, prefixed with the recipe ID.
+func (p *problems) add(format string, a ...any) {
+	p.errs = append(p.errs, fmt.Errorf("recipe %s: "+format, append([]any{p.id}, a...)...))
+}
+
 // Validate checks one recipe, including the safety lint from the P0-R1/P0-W3
-// carry-overs. It returns all problems joined.
+// carry-overs. It returns all problems joined. The checks run in a fixed
+// order, which is also the order of the messages.
 func Validate(r Recipe) error {
-	var errs []error
-	bad := func(format string, a ...any) {
-		errs = append(errs, fmt.Errorf("recipe %s: "+format, append([]any{r.ID}, a...)...))
-	}
+	p := &problems{id: r.ID}
+	identity(p, r)
+	vocabulary(p, r)
+	method(p, r)
+	allows(p, r)
+	children(p, r)
+	names(p, r)
+	argvs(p, r)
+	conditions(p, r)
+	return errors.Join(p.errs...)
+}
+
+// identity checks the ID, the texts and the manual steps.
+func identity(p *problems, r Recipe) {
 	if r.ID == "" || strings.ContainsAny(r.ID, " /") || !strings.Contains(r.ID, ".") {
-		bad("id must be dotted with no spaces or slashes")
+		p.add("id must be dotted with no spaces or slashes")
 	}
 	if r.Title == "" || r.Explain == "" {
-		bad("title and explain are required")
+		p.add("title and explain are required")
 	}
 	for _, s := range r.Steps {
 		if strings.TrimSpace(s) == "" || strings.Count(s, "`")%2 != 0 {
-			bad("steps must be non-empty with paired backticks")
+			p.add("steps must be non-empty with paired backticks")
 		}
 	}
+}
+
+// vocabulary checks every field that must come from a fixed set.
+func vocabulary(p *problems, r Recipe) {
 	if !slices.Contains(Categories, r.Category) {
-		bad("unknown category %q", r.Category)
+		p.add("unknown category %q", r.Category)
 	}
 	if !slices.Contains(Toolchains, r.Toolchain) {
-		bad("unknown toolchain %q", r.Toolchain)
+		p.add("unknown toolchain %q", r.Toolchain)
 	}
+	risk(p, r)
+	if _, ok := Lookup(r.Detector); !ok {
+		p.add("unknown detector %q", r.Detector)
+	}
+	restore(p, r)
+	if r.StaleDays < 0 {
+		p.add("stale_days must be >= 0")
+	}
+	if v, ok := r.Params["dirty_risk"]; ok && !slices.Contains([]model.Risk{model.RiskCaution, model.RiskRisky}, model.Risk(v)) {
+		p.add("params.dirty_risk must be CAUTION or RISKY")
+	}
+}
+
+func risk(p *problems, r Recipe) {
 	switch r.Risk {
 	case model.RiskSafe, model.RiskCaution, model.RiskRisky, model.RiskAdvise:
 	default:
-		bad("risk must be SAFE, CAUTION, RISKY or ADVISE (BLOCKED things are not recipes)")
+		p.add("risk must be SAFE, CAUTION, RISKY or ADVISE (BLOCKED things are not recipes)")
 	}
-	if _, ok := Lookup(r.Detector); !ok {
-		bad("unknown detector %q", r.Detector)
-	}
+}
+
+func restore(p *problems, r Recipe) {
 	switch r.Restore.Kind {
 	case model.RestoreRebuild, model.RestoreRedownload, model.RestoreIrreplaceable, model.RestoreNone:
 	default:
-		bad("restore.kind must be rebuild, redownload, irreplaceable or none")
+		p.add("restore.kind must be rebuild, redownload, irreplaceable or none")
 	}
-	if r.StaleDays < 0 {
-		bad("stale_days must be >= 0")
-	}
-	if v, ok := r.Params["dirty_risk"]; ok && !slices.Contains([]model.Risk{model.RiskCaution, model.RiskRisky}, model.Risk(v)) {
-		bad("params.dirty_risk must be CAUTION or RISKY")
-	}
+}
 
+// method checks that the recipe's method agrees with its allow patterns,
+// native command and risk.
+func method(p *problems, r Recipe) {
 	switch r.Method {
 	case model.MethodQuarantine:
-		if len(r.Allow) == 0 {
-			bad("quarantine recipes need allow patterns")
-		}
-		if r.Native != nil {
-			bad("quarantine recipes must not have native")
-		}
-		if r.Restore.Kind == model.RestoreIrreplaceable {
-			bad("irreplaceable data must be advise-only")
-		}
+		quarantine(p, r)
 	case model.MethodNative:
-		if r.Native == nil || len(r.Native.Argv) == 0 {
-			bad("native recipes need native.argv")
-		}
-		if len(r.Allow) != 0 {
-			bad("native recipes must not have allow patterns")
-		}
+		native(p, r)
 	case model.MethodAdvise:
-		if r.Native != nil || len(r.Allow) != 0 {
-			bad("advise recipes must not have native or allow")
-		}
-		if r.Risk != model.RiskAdvise {
-			bad("advise recipes must have risk ADVISE")
-		}
+		advise(p, r)
 	default:
-		bad("method must be native, quarantine or advise")
+		p.add("method must be native, quarantine or advise")
 	}
 	if r.Risk == model.RiskAdvise && r.Method != model.MethodAdvise {
-		bad("risk ADVISE requires method advise")
+		p.add("risk ADVISE requires method advise")
 	}
+}
 
-	for _, p := range r.Allow {
-		if err := lintPattern(p); err != nil {
-			bad("allow %q: %v", p, err)
-		} else if err := LintAllowProtected(p); err != nil {
-			bad("allow %q: %v", p, err)
-		}
-	}
-	for _, p := range r.KeepChildrenOf {
-		if err := lintPattern(p); err != nil || strings.Contains(p, "*") {
-			bad("keep_children_of %q must be a literal ~-relative directory at least 2 deep", p)
-		}
-	}
-	for _, n := range r.KeepNames {
-		if n == "" || strings.ContainsAny(n, "/*?[") || n == "." || n == ".." {
-			bad("keep_names %q must be a plain directory name", n)
-		}
+func quarantine(p *problems, r Recipe) {
+	if len(r.Allow) == 0 {
+		p.add("quarantine recipes need allow patterns")
 	}
 	if r.Native != nil {
-		for _, argv := range [][]string{r.Native.Argv, r.Native.DryRunArgv} {
-			if err := lintArgv(argv); err != nil {
-				bad("native argv %q: %v", argv, err)
-			}
+		p.add("quarantine recipes must not have native")
+	}
+	if r.Restore.Kind == model.RestoreIrreplaceable {
+		p.add("irreplaceable data must be advise-only")
+	}
+}
+
+func native(p *problems, r Recipe) {
+	if r.Native == nil || len(r.Native.Argv) == 0 {
+		p.add("native recipes need native.argv")
+	}
+	if len(r.Allow) != 0 {
+		p.add("native recipes must not have allow patterns")
+	}
+}
+
+func advise(p *problems, r Recipe) {
+	if r.Native != nil || len(r.Allow) != 0 {
+		p.add("advise recipes must not have native or allow")
+	}
+	if r.Risk != model.RiskAdvise {
+		p.add("advise recipes must have risk ADVISE")
+	}
+}
+
+// allows lints every allow pattern: its shape, then what it could match.
+func allows(p *problems, r Recipe) {
+	for _, pat := range r.Allow {
+		err := lintPattern(pat)
+		if err == nil {
+			err = LintAllowProtected(pat)
 		}
-		if len(r.Native.Argv) > 0 && !ArgvIn(r.Native.Argv, NativeArgvAllowed) {
-			bad("native argv %q: native argv not in the allow-list", r.Native.Argv)
-		}
-		if len(r.Native.DryRunArgv) > 0 && !ArgvIn(r.Native.DryRunArgv, DryRunArgvAllowed) {
-			bad("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
+		if err != nil {
+			p.add("allow %q: %v", pat, err)
 		}
 	}
+}
+
+func children(p *problems, r Recipe) {
+	for _, pat := range r.KeepChildrenOf {
+		if err := lintPattern(pat); err != nil || strings.Contains(pat, "*") {
+			p.add("keep_children_of %q must be a literal ~-relative directory at least 2 deep", pat)
+		}
+	}
+}
+
+func names(p *problems, r Recipe) {
+	for _, n := range r.KeepNames {
+		if n == "" || strings.ContainsAny(n, "/*?[") || n == "." || n == ".." {
+			p.add("keep_names %q must be a plain directory name", n)
+		}
+	}
+}
+
+// argvs lints the native argv and dry-run argv, then pins both to their
+// exact allow-lists.
+func argvs(p *problems, r Recipe) {
+	if r.Native == nil {
+		return
+	}
+	for _, argv := range [][]string{r.Native.Argv, r.Native.DryRunArgv} {
+		if err := lintArgv(argv); err != nil {
+			p.add("native argv %q: %v", argv, err)
+		}
+	}
+	if len(r.Native.Argv) > 0 && !ArgvIn(r.Native.Argv, NativeArgvAllowed) {
+		p.add("native argv %q: native argv not in the allow-list", r.Native.Argv)
+	}
+	if len(r.Native.DryRunArgv) > 0 && !ArgvIn(r.Native.DryRunArgv, DryRunArgvAllowed) {
+		p.add("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
+	}
+}
+
+func conditions(p *problems, r Recipe) {
 	for _, pc := range r.Preconditions {
 		if !validPrecondition(pc) {
-			bad("unknown precondition %q", pc)
+			p.add("unknown precondition %q", pc)
 		}
 	}
-	return errors.Join(errs...)
 }
 
 // lintPattern enforces: "~/"-relative (targets outside home are native-only),

@@ -1,10 +1,3 @@
-// Command forbidcheck fails if any non-test Go file outside internal/executor
-// deletes, renames, truncates or runs commands (AGENTS.md invariants 2 and 8).
-//
-// It parses source with go/parser, so aliased and dot imports are caught.
-// Exceptions live in tools/forbidcheck/allow.txt as "path:pkg.Func" lines.
-//
-// Usage: go run ./tools/forbidcheck [-allow file] [./...|./dir/...|./dir]
 package check
 
 import (
@@ -121,7 +114,7 @@ func checkFiles(root string, files []string, allow Allowlist) ([]Finding, map[st
 		if err != nil {
 			return nil, nil, err
 		}
-		found, err := CheckSource(rel, src)
+		found, err := Source(rel, src)
 		if err != nil {
 			return nil, nil, err
 		}

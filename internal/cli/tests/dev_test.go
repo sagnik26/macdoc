@@ -2,9 +2,10 @@ package tests
 
 import (
 	"encoding/json"
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/cli"
 )
 
 func TestDevCommand(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/projects"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ProjectsResult is the data behind `macdoc doctor projects`.
@@ -45,7 +45,7 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 	if err != nil {
 		return ProjectsResult{}, err
 	}
-	r, err := discoverProjects(ctx, o, ScanNodes{St: st, ScanID: info.ID}, info.ID)
+	r, err := discoverProjects(ctx, o, NewScanNodes(st, info.ID), info.ID)
 	if err != nil {
 		return ProjectsResult{}, err
 	}
@@ -60,6 +60,9 @@ func Projects(ctx context.Context, o OpportunityOptions) (ProjectsResult, error)
 // state can change, so it isn't kept long).
 const projectCacheTTL = 2 * time.Minute
 
+// ProjectCache holds the most recent project discovery for one home and
+// scan, so the dashboard's projects and opportunities views share one pass.
+// It is exported so tests can reset it.
 var ProjectCache struct {
 	sync.Mutex
 	Key string

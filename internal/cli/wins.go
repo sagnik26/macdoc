@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // UserHome and LoadCatalog are variables so tests can use a fixture home and
@@ -78,6 +78,8 @@ func newWinsCmd(g *GlobalFlags) *cobra.Command {
 	return cmd
 }
 
+// ParseTier turns a tier name (any case) into a risk class; an empty name
+// means no filter and returns an empty risk.
 func ParseTier(s string) (model.Risk, error) {
 	if s == "" {
 		return "", nil
@@ -102,6 +104,8 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 	return res
 }
 
+// RenderWins writes the suggestions in the human format; all lists repeated
+// items individually and only restricts the output to one tier.
 func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -161,7 +165,7 @@ func tierTotal(known int64, ops []model.Opportunity) string {
 
 // writeOpportunities lists ops, folding recipes with many items into one
 // line unless all is set.
-func writeOpportunities(b *strings.Builder, t *theme, ops []model.Opportunity, cat *recipes.Catalog, all bool) {
+func writeOpportunities(b *strings.Builder, t *Theme, ops []model.Opportunity, cat *recipes.Catalog, all bool) {
 	count := map[string]int{}
 	sum := map[string]int64{}
 	for _, op := range ops {
@@ -186,14 +190,15 @@ func writeOpportunities(b *strings.Builder, t *theme, ops []model.Opportunity, c
 }
 
 // writeOpportunity renders one line, plus the native command below it.
-func writeOpportunity(b *strings.Builder, t *theme, op model.Opportunity) {
-	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.Id.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
+func writeOpportunity(b *strings.Builder, t *Theme, op model.Opportunity) {
+	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.ID.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
 		t.text.Render(fmt.Sprintf("%-44s", Truncate(op.Title, 44))), t.muted.Render(RestoreNote(op)))
 	if op.Method == model.MethodNative && len(op.Command) > 0 {
 		fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render("→"), t.Command(op.Command))
 	}
 }
 
+// RecipeTitle is the recipe's title, or id when the recipe is not in cat.
 func RecipeTitle(cat *recipes.Catalog, id string) string {
 	if cat != nil {
 		if r, ok := cat.Get(id); ok {
@@ -237,7 +242,7 @@ func RestoreNote(op model.Opportunity) string {
 	return ""
 }
 
-func writeNotes(b *strings.Builder, t *theme, warnings []string) {
+func writeNotes(b *strings.Builder, t *Theme, warnings []string) {
 	if len(warnings) == 0 {
 		return
 	}

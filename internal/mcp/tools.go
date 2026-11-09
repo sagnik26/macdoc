@@ -10,11 +10,11 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/projects"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ToolNames are every tool the server offers. A test pins this list: adding
@@ -37,9 +37,13 @@ const (
 	maxList        = 200
 	maxAudit       = 500
 
-	// Limits on Claude's plans (MCP_DESIGN §4).
-	MaxOpenPlans   = 5
-	PlanRateMax    = 10
+	// MaxOpenPlans is how many plans from Claude may be open at once
+	// (MCP_DESIGN §4).
+	MaxOpenPlans = 5
+	// PlanRateMax is how many create_cleanup_plan calls are accepted in each
+	// PlanRateWindow.
+	PlanRateMax = 10
+	// PlanRateWindow is the span PlanRateMax is counted over.
 	PlanRateWindow = 10 * time.Minute
 
 	// UntrustedHint ends every tool description: results carry names and
@@ -199,7 +203,7 @@ func (s *Server) opportunities(ctx context.Context, _ *sdk.CallToolRequest, in o
 }
 
 func (s *Server) explain(ctx context.Context, _ *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
-	id, ok := planner.NormalizeID(in.ID)
+	id, ok := planner.Normalize(in.ID)
 	if !ok {
 		return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd)", in.ID))
 	}
@@ -233,7 +237,7 @@ func (s *Server) projects(ctx context.Context, _ *sdk.CallToolRequest, in projec
 	}
 	kept := []projects.Project{}
 	for _, p := range res.Projects {
-		if p.ArtifactBytes < 1_000_000 || (in.IdleDays > 0 && p.IdleDays < in.IdleDays) {
+		if p.ReclaimableBytes < 1_000_000 || (in.IdleDays > 0 && p.IdleDays < in.IdleDays) {
 			continue
 		}
 		kept = append(kept, p)
@@ -344,7 +348,7 @@ func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in plan
 	var ids []string
 	seen := map[string]bool{}
 	for _, raw := range in.OpportunityIDs {
-		id, ok := planner.NormalizeID(raw)
+		id, ok := planner.Normalize(raw)
 		if !ok {
 			return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd); plans take IDs only, never paths", raw))
 		}
@@ -369,7 +373,7 @@ func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in plan
 		}
 		return toolError(fmt.Errorf("%s older than the %d hours a plan allows (max_age), so its IDs can't be planned. "+
 			"Call refresh_scan, or better ask the user to run macdoc doctor scan in Terminal, then call list_opportunities again: IDs change with every scan",
-			when, int(planner.MaxScanAge.Hours())))
+			when, int(planner.Oldest.Hours())))
 	case errors.Is(err, engine.ErrNoScan):
 		return toolError(fmt.Errorf("%w: call refresh_scan, or ask the user to run macdoc doctor scan in Terminal, then list_opportunities", err))
 	case err != nil:
@@ -416,7 +420,7 @@ func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in plan
 
 func (s *Server) getPlan(ctx context.Context, _ *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
 	id := strings.ToUpper(strings.TrimSpace(in.ID))
-	if !planner.ValidID(id) {
+	if !planner.Valid(id) {
 		return toolError(fmt.Errorf("%q isn't a plan ID (they look like P-7F3K)", in.ID))
 	}
 	res, err := engine.ShowPlan(ctx, s.opp(), id)

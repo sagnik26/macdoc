@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"macdoc/internal/cli"
+	"github.com/sagnik26/macdoc/internal/cli"
 )
 
 func main() {

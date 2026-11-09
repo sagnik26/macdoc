@@ -1,11 +1,12 @@
 package tests
 
 import (
-	"macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/executor"
 )
 
 // The agent is written to the one LaunchAgents file, runs `macdoc scan

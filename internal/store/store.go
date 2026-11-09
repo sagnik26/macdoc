@@ -1,8 +1,11 @@
-// Package store persists scans, nodes, unmeasured paths and (later) plans in a
-// local SQLite database (pure-Go modernc.org/sqlite, WAL mode).
+// Package store persists scans, nodes, unmeasured paths, plans, quarantine
+// records and memory samples in a local SQLite database (pure-Go
+// modernc.org/sqlite, WAL mode).
 //
-// CONTRACT (tech lead): exported names and documented behavior are fixed.
-// Implementation: task P2-W2 (docs/tasks/P2-W2.md).
+// A scan is derived data and can be rebuilt by scanning again. A plan record
+// holds the second copy of a plan's seal and a quarantine record is what
+// makes a folder in quarantine one that macdoc created, so neither can be
+// rebuilt.
 package store
 
 import (
@@ -20,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/text/unicode/norm"
-
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/model"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // ErrNoScan is returned when no scan matches a query.
@@ -170,24 +173,34 @@ func newScanID() (string, error) {
 func (s *Store) AddNodes(scanID string, nodes []model.Node) error {
 	return s.writeRunning(scanID, func(tx *sql.Tx) error {
 		stmt, err := tx.Prepare(`INSERT INTO nodes
-			(scan_id, path, path_fold, kind, bytes, files, mtime_max, depth, rel_depth)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(scan_id, path, path_fold, kind, bytes, files, mtime_max, depth, rel_depth, private_bytes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(scan_id, path_fold) DO UPDATE SET
 				path = excluded.path, kind = excluded.kind, bytes = excluded.bytes,
 				files = excluded.files, mtime_max = excluded.mtime_max,
-				depth = excluded.depth, rel_depth = excluded.rel_depth`)
+				depth = excluded.depth, rel_depth = excluded.rel_depth,
+				private_bytes = excluded.private_bytes`)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = stmt.Close() }()
 		for _, n := range nodes {
 			if _, err := stmt.Exec(scanID, n.Path, Fold(n.Path), string(n.Kind), n.Bytes,
-				n.Files, n.MtimeMax, DepthOf(n.Path), n.Depth); err != nil {
+				n.Files, n.MtimeMax, DepthOf(n.Path), n.Depth, nullable(n.Private)); err != nil {
 				return fmt.Errorf("node %q: %w", n.Path, err)
 			}
 		}
 		return nil
 	})
+}
+
+// nullable returns v for a known size and NULL for an unknown one, so an
+// unknown size never reaches the database as 0.
+func nullable(v *int64) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *v, Valid: true}
 }
 
 // AddUnmeasured stores unreadable paths for a running scan.
@@ -306,8 +319,11 @@ func (s *Store) OldestScan() (model.ScanInfo, error) {
 		WHERE status = ? ORDER BY started_at, rowid LIMIT 1`, string(model.ScanComplete)))
 }
 
+// nodeCols are the columns Nodes reads, in the order it scans them.
+const nodeCols = `path, kind, bytes, files, mtime_max, rel_depth, private_bytes`
+
 // NodeQuery filters Nodes.
-type NodeQuery struct {
+type Query struct {
 	Prefix   string // only nodes equal to or below this path ("" = all)
 	MinBytes int64
 	MaxDepth int // relative to Prefix's depth; 0 = unlimited
@@ -316,18 +332,18 @@ type NodeQuery struct {
 
 // Nodes returns a scan's kept nodes, Bytes descending (Path ascending on
 // ties). Prefix matching is component-wise and case-insensitive.
-func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
+func (s *Store) Nodes(scanID string, q Query) ([]model.Node, error) {
 	if err := s.scanExists(scanID); err != nil {
 		return nil, err
 	}
-	// Unused filters are disabled through their parameters (an empty prefix,
-	// maxDepth -1, LIMIT -1) so the SQL text stays fixed.
-	prefix, like, prefixDepth := "", "", 0
+	prefix, prefixDepth := "", 0
 	if q.Prefix != "" {
 		if p := Fold(path.Clean(q.Prefix)); p != "/" {
-			prefix, like, prefixDepth = p, EscapeLike(p)+"/%", DepthOf(p)
+			prefix, prefixDepth = p, DepthOf(p)
 		}
 	}
+	// Unused filters are disabled through their parameters (maxDepth -1,
+	// LIMIT -1) so the SQL text stays fixed for each of the two shapes.
 	maxDepth := -1
 	if q.MaxDepth > 0 {
 		maxDepth = prefixDepth + q.MaxDepth
@@ -336,12 +352,29 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 	if q.Limit > 0 {
 		limit = q.Limit
 	}
-	rows, err := s.DB.Query(`SELECT path, kind, bytes, files, mtime_max, rel_depth FROM nodes
-		WHERE scan_id = ? AND bytes >= ?
-			AND (? = '' OR path_fold = ? OR path_fold LIKE ? ESCAPE '\')
-			AND (? < 0 OR depth <= ?)
-		ORDER BY bytes DESC, path ASC LIMIT ?`,
-		scanID, q.MinBytes, prefix, prefix, like, maxDepth, maxDepth, limit)
+	var rows *sql.Rows
+	var err error
+	if prefix == "" {
+		// bytes stays indexable here: (scan_id, bytes DESC) serves this shape.
+		rows, err = s.DB.Query(`SELECT `+nodeCols+` FROM nodes
+			WHERE scan_id = ? AND bytes >= ?
+				AND (? < 0 OR depth <= ?)
+			ORDER BY bytes DESC, path ASC LIMIT ?`,
+			scanID, q.MinBytes, maxDepth, maxDepth, limit)
+	} else {
+		// A prefix is a range on the primary key (scan_id, path_fold): the
+		// folded prefix itself, or anything from "prefix/" up to (not
+		// including) "prefix0", since "0" is the character after "/". "+bytes"
+		// keeps the planner from choosing the (scan_id, bytes) index instead,
+		// which would read every node of the scan and filter on the path row
+		// by row (measured: 237 ms against 0.2 ms with 300,000 nodes).
+		rows, err = s.DB.Query(`SELECT `+nodeCols+` FROM nodes
+			WHERE scan_id = ? AND +bytes >= ?
+				AND (path_fold = ? OR (path_fold >= ? AND path_fold < ?))
+				AND (? < 0 OR depth <= ?)
+			ORDER BY bytes DESC, path ASC LIMIT ?`,
+			scanID, q.MinBytes, prefix, prefix+"/", prefix+"0", maxDepth, maxDepth, limit)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("store: nodes: %w", err)
 	}
@@ -351,11 +384,15 @@ func (s *Store) Nodes(scanID string, q NodeQuery) ([]model.Node, error) {
 		var (
 			n    model.Node
 			kind string
+			priv sql.NullInt64
 		)
-		if err := rows.Scan(&n.Path, &kind, &n.Bytes, &n.Files, &n.MtimeMax, &n.Depth); err != nil {
+		if err := rows.Scan(&n.Path, &kind, &n.Bytes, &n.Files, &n.MtimeMax, &n.Depth, &priv); err != nil {
 			return nil, fmt.Errorf("store: nodes: %w", err)
 		}
-		n.Kind = model.NodeKind(kind)
+		n.Kind = model.Kind(kind)
+		if priv.Valid {
+			n.Private = &priv.Int64
+		}
 		out = append(out, n)
 	}
 	if err := rows.Err(); err != nil {
@@ -403,7 +440,7 @@ func (s *Store) scanExists(scanID string) error {
 
 // History returns (scanID, startedAt, bytes) for the given exact node path
 // across complete scans, oldest first. Used by `trend` later.
-func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
+func (s *Store) History(p string, limit int) ([]Point, error) {
 	if limit <= 0 {
 		limit = -1
 	}
@@ -416,10 +453,10 @@ func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
 		return nil, fmt.Errorf("store: history: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := []HistoryPoint{}
+	out := []Point{}
 	for rows.Next() {
 		var (
-			h       HistoryPoint
+			h       Point
 			started int64
 		)
 		if err := rows.Scan(&h.ScanID, &started, &h.Bytes); err != nil {
@@ -438,7 +475,7 @@ func (s *Store) History(p string, limit int) ([]HistoryPoint, error) {
 }
 
 // HistoryPoint is one sample of a path's size over time.
-type HistoryPoint struct {
+type Point struct {
 	ScanID    string    `json:"scan_id"`
 	StartedAt time.Time `json:"started_at"`
 	Bytes     int64     `json:"bytes"`
@@ -507,10 +544,11 @@ func (s *Store) prune(keep, weeks int, now time.Time) error {
 	return tx.Commit()
 }
 
-// Fold is the case- and normalization-insensitive form of a path: NFC, then
-// lower case.
+// Fold is the case- and normalization-insensitive form of a path, the key the
+// nodes table is indexed by. It is pathfold.Fold, so the store agrees with the
+// protected-path rules about what counts as the same name.
 func Fold(p string) string {
-	return strings.ToLower(norm.NFC.String(p))
+	return pathfold.Fold(p)
 }
 
 // DepthOf counts the non-empty components of p; "/" has depth 0.

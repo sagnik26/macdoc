@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,10 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // Test-only detectors. w3test_fixed returns the findings registered for the

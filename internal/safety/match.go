@@ -14,15 +14,15 @@ func (p *Policy) patternComponents(pattern string) (comps []string, ok bool) {
 		return nil, false
 	}
 	if pattern == "~" || strings.HasPrefix(pattern, "~/") {
-		pattern = homeRelative(p.home, pattern)
+		pattern = expand(p.home, pattern)
 	} else if !strings.HasPrefix(pattern, "/") {
 		return nil, false
 	}
-	return foldedComponents(pattern), true
+	return parts(pattern), true
 }
 
-// matchAllow reports whether the folded path Components match any pattern.
-func (p *Policy) matchAllow(pc []string, allow []string) bool {
+// allowed reports whether the folded path Components match any pattern.
+func (p *Policy) allowed(pc []string, allow []string) bool {
 	for _, pat := range allow {
 		if comps, ok := p.patternComponents(pat); ok && MatchComponents(comps, pc) {
 			return true
@@ -60,15 +60,15 @@ func MatchComponents(pat, name []string) bool {
 	return next[0]
 }
 
-// depthOK reports whether pc, already known to be within $HOME, is at least 2
+// deep reports whether pc, already known to be within $HOME, is at least 2
 // Components below $HOME.
-func (p *Policy) depthOK(pc []string) bool {
+func (p *Policy) deep(pc []string) bool {
 	return len(pc)-len(p.homeComps) >= 2
 }
 
-// homeRelative expands "~" or "~/..." to home. Other inputs are returned
+// expand expands "~" or "~/..." to home. Other inputs are returned
 // unchanged.
-func homeRelative(home, s string) string {
+func expand(home, s string) string {
 	if s == "~" {
 		return home
 	}

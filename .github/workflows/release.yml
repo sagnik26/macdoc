@@ -1,0 +1,50 @@
+name: Release
+
+# Runs when a version tag is pushed. It builds the darwin archives with
+# GoReleaser (.goreleaser.yaml), attests where they came from, and creates a
+# DRAFT GitHub release. Nothing is published until a person reviews the draft.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    # cgo (internal/platform/darwin) means this cannot be built on Linux.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the draft release and upload assets
+      id-token: write # sign the build provenance attestation
+      attestations: write
+    steps:
+      # Actions are pinned by commit SHA; the comment names the tag.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      # The same guards CI runs, so a tag cannot ship what CI would refuse.
+      - name: Tests and guards
+        run: make test importcheck forbidcheck threatcheck
+
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/checksums.txt

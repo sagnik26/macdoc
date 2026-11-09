@@ -4,11 +4,12 @@ package tests
 // P0-R1 red-team tests do not already cover.
 
 import (
-	"macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // D8: sandbox.Check refuses non-canonical input even when it would stay inside the
@@ -20,7 +21,7 @@ func TestD8CheckRefusesNonCanonical(t *testing.T) {
 	if err := os.Symlink(filepath.Join(sb, "real"), filepath.Join(sb, "link")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	for _, path := range []string{
 		sb + "/link/x",  // symlinked parent, resolves inside
 		sb + "/real/x/", // trailing slash
@@ -46,7 +47,7 @@ func TestD8CheckRefusesNonCanonical(t *testing.T) {
 func TestD9TempDirAccepted(t *testing.T) {
 	setup(t)
 	sb := t.TempDir() // /var/folders/..., resolves under /private/var/folders
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 	root, active, err := sandbox.Root()
 	if err != nil || !active {
 		t.Fatalf("Root() with TempDir %q = %q, %v, %v", sb, root, active, err)
@@ -72,7 +73,7 @@ func TestD9SystemAreasRejected(t *testing.T) {
 		if _, err := os.Stat(tt.val); err != nil {
 			continue
 		}
-		t.Setenv(sandbox.EnvVar, tt.val)
+		t.Setenv(sandbox.Env, tt.val)
 		root, active, err := sandbox.Root()
 		if err == nil || !active || root != "" {
 			t.Errorf("Root() with %q = %q, %v, %v; want rejection", tt.val, root, active, err)
@@ -87,10 +88,10 @@ func TestD9SystemAreasRejected(t *testing.T) {
 // A sandbox outside every system root (e.g. a non-temp dir elsewhere) is
 // still allowed; only home and its ancestors are excluded there.
 func TestD9NonSystemRootAllowed(t *testing.T) {
-	if err := sandbox.CheckSystemRoots("/nonexistent-macdoc/sb"); err != nil {
+	if err := sandbox.System("/nonexistent-macdoc/sb"); err != nil {
 		t.Errorf("checkSystemRoots outside system roots: %v", err)
 	}
-	if err := sandbox.CheckSystemRoots("/private/tmp/sb"); err != nil {
+	if err := sandbox.System("/private/tmp/sb"); err != nil {
 		t.Errorf("checkSystemRoots below /private/tmp: %v", err)
 	}
 }

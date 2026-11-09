@@ -15,11 +15,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/executor"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // RealTTY reports whether r and w are both a real terminal (an ioctl check,
@@ -34,8 +34,8 @@ var RealTTY = func(r io.Reader, w io.Writer) bool {
 type ApplyDeps struct {
 	Home string
 	Now  func() time.Time
-	exec executor.NativeExec // nil: the real one
-	Keep bool                // tests: leave moved items in quarantine instead of deleting them
+	exec executor.Native // nil: the real one
+	Keep bool            // tests: leave moved items in quarantine instead of deleting them
 }
 
 func newApplyCmd(g *GlobalFlags) *cobra.Command {
@@ -66,10 +66,13 @@ It needs a real Terminal: piped input is refused, and there is no --yes.`,
 	}
 }
 
+// RunApply carries out plan arg after showing it again, at a real terminal and
+// after the typed confirmation. It is the only path from the CLI to the
+// executor's Apply.
 func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
-	if !planner.ValidID(id) {
+	if !planner.Valid(id) {
 		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K; see macdoc plan list)", arg)
 	}
 	if !RealTTY(in, out) {
@@ -88,11 +91,11 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 		return err
 	}
 	switch res.Status {
-	case planner.StatusExpired:
+	case planner.Expired:
 		return errors.New("this plan has expired; make a new one with macdoc plan")
-	case planner.StatusApplied:
+	case planner.Applied:
 		return errors.New("this plan was already applied; see macdoc log")
-	case planner.StatusInvalid:
+	case planner.Invalid:
 		return errors.New("this plan doesn't verify, so it can't be applied")
 	}
 
@@ -123,7 +126,7 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: cat, Runner: Runner, Exec: d.exec, Now: d.Now,
 		DeleteNow: !d.Keep,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
-		OnItem:    func(ev executor.ItemEvent) { writeProgress(out, t, ev) },
+		OnItem:    func(ev executor.Event) { writeProgress(out, t, ev) },
 	}, res.Plan, approved)
 	if err != nil {
 		return fmt.Errorf("nothing was changed: %w", err)
@@ -131,9 +134,15 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	return renderApplyReport(out, t, rep, res.Snapshot.Count)
 }
 
+// RenderApply writes the summary of an apply in the human format.
+// snapshots is how many local Time Machine snapshots existed.
+func RenderApply(w io.Writer, rep executor.Report, snapshots int) error {
+	return renderApplyReport(w, themeFor(w), rep, snapshots)
+}
+
 // renderApplyPlan shows the dry run again, without the "to apply" footer.
 func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) error {
-	if res.Status == planner.StatusPending {
+	if res.Status == planner.Pending {
 		res.Status = "" // RenderPlan prints the apply hint only for pending plans
 	}
 	return RenderPlan(w, res, home, now)
@@ -141,7 +150,7 @@ func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.T
 
 // ConfirmItems asks y/N for RISKY items, and for every item of a plan
 // Claude proposed. Others are approved here and confirmed by the code.
-func ConfirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (executor.Approvals, error) {
+func ConfirmItems(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan) (executor.Approvals, error) {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	approved := executor.Approvals{}
 	claude := p.Origin == model.OriginClaude
@@ -168,7 +177,7 @@ func ConfirmItems(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan) (execut
 }
 
 // confirmCode asks for the plan's code: the part after "P-".
-func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved executor.Approvals) bool {
+func confirmCode(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan, approved executor.Approvals) bool {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	code := strings.TrimPrefix(p.ID, "P-")
 	var bytes int64
@@ -190,7 +199,7 @@ func confirmCode(rd *bufio.Reader, w io.Writer, t *theme, p model.Plan, approved
 			parts = append(parts, fmt.Sprintf("%s: %d", r, tiers[r]))
 		}
 	}
-	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.Id.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
+	_, _ = fmt.Fprintf(w, "\n Type %s to apply %d item(s), %s (%s): ", t.ID.Render(`"`+code+`"`), n, engine.DecimalBytes(bytes), strings.Join(parts, ", "))
 	ans, err := readLine(rd)
 	return err == nil && strings.EqualFold(strings.TrimSpace(ans), code)
 }
@@ -203,18 +212,18 @@ func readLine(rd *bufio.Reader) (string, error) {
 	return strings.TrimSpace(s), nil
 }
 
-func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
+func writeProgress(w io.Writer, t *Theme, ev executor.Event) {
 	ev = display(ev) // disk-sourced text, cleaned for the terminal (display)
 	it := ev.Item
 	if ev.Result == nil {
-		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.Id.Render(it.OpportunityID), it.Title)
+		_, _ = fmt.Fprintf(w, " [%d/%d] %s %s … ", ev.Index, ev.Total, t.ID.Render(it.OpportunityID), it.Title)
 		return
 	}
 	r := ev.Result
 	switch r.Outcome {
 	case executor.OutcomeDone:
 		if r.QuarantineID != "" && !r.Deleted {
-			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.Id.Render(r.QuarantineID))
+			_, _ = fmt.Fprintf(w, "%s %s\n", t.warn.Render("moved aside, not deleted:"), t.ID.Render(r.QuarantineID))
 		} else {
 			_, _ = fmt.Fprintln(w, t.Ok.Render("done"))
 		}
@@ -227,7 +236,7 @@ func writeProgress(w io.Writer, t *theme, ev executor.ItemEvent) {
 
 // renderApplyReport summarizes an apply: counts, measured space, anything
 // left in quarantine and why the numbers may differ.
-func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int) error {
+func renderApplyReport(w io.Writer, t *Theme, rep executor.Report, snapshots int) error {
 	rep = display(rep) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n %s\n", t.heading(fmt.Sprintf("Plan %s applied: %d done · %d skipped · %d failed",
@@ -250,8 +259,11 @@ func renderApplyReport(w io.Writer, t *theme, rep executor.Report, snapshots int
 		if snapshots > 0 {
 			why = append(why, fmt.Sprintf("%d local Time Machine snapshot(s) still reference some of it", snapshots))
 		}
-		why = append(why, "macOS may count freed space as purgeable for a while", "other apps may have written files meanwhile")
+		why = append(why, "files that share space with copies elsewhere free less than their size", "macOS may count freed space as purgeable for a while", "other apps may have written files meanwhile")
 		fmt.Fprintf(&b, " %s\n", t.muted.Render("Less than expected: "+strings.Join(why, "; ")+"."))
+	}
+	if freed, ok := rep.Freed(); ok && expected > 0 && freed > expected {
+		fmt.Fprintf(&b, " %s\n", t.muted.Render("Expected is the space removal was certain to free; more can be freed when the last copy of shared files goes."))
 	}
 	writeNotes(&b, t, rep.Warnings)
 	fmt.Fprintf(&b, " %s\n", t.muted.Render("Every step is in the audit log: macdoc log"))

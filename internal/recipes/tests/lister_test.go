@@ -2,11 +2,12 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/recipes"
 	"slices"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // P6-R1 F8: re-checking a native item must not need scan data. Each lister
@@ -44,7 +45,7 @@ func TestAVDNamesListerToolMissing(t *testing.T) {
 
 func TestSimctlListerNeedsNoScan(t *testing.T) {
 	withTools(t, "xcrun")
-	fr := &platform.FakeRunner{Responses: map[string]platform.Result{
+	fr := &platform.Fake{Responses: map[string]platform.Result{
 		keyDevs: {Stdout: readFixture(t, "w1_simctl_devices.json")},
 	}}
 	l, ok := recipes.LookupLister("simctl_idle_devices")
@@ -75,7 +76,7 @@ func TestSimctlListerNeedsNoScan(t *testing.T) {
 func TestSimctlListerToolMissing(t *testing.T) {
 	withTools(t)
 	l, _ := recipes.LookupLister("simctl_idle_devices")
-	ids, err := l(context.Background(), recipes.Env{Runner: &platform.FakeRunner{}}, recipes.Recipe{})
+	ids, err := l(context.Background(), recipes.Env{Runner: &platform.Fake{}}, recipes.Recipe{})
 	if err != nil || ids != nil {
 		t.Errorf("xcrun missing: ids = %v, err = %v; want none", ids, err)
 	}

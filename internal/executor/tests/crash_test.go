@@ -3,20 +3,21 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/executor"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/executor"
+
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // The crash test re-runs this test binary as a child that applies a plan
@@ -49,7 +50,7 @@ func crashChild() {
 			os.Exit(crashCode)
 		}
 	}
-	runner := &platform.FakeRunner{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
+	runner := &platform.Fake{Responses: map[string]platform.Result{"ps -axww -o command=": {Stdout: []byte("/sbin/launchd\n")}}}
 	cfg := executor.Config{Store: st, StorePath: sp, Home: home, Catalog: cat, Now: func() time.Time { return t0.Add(time.Minute) },
 		Runner: runner, Exec: (&fakeExec{}).run, StageHook: stageHook}
 	_, _ = executor.Apply(context.Background(), cfg, p, executor.Approvals{p.Items[0].OpportunityID: {Individually: true}})
@@ -65,9 +66,9 @@ func TestCrashMidApply(t *testing.T) {
 		movedAway  bool
 		restorable bool
 	}{
-		{"pending", quarantine.StateNotMoved, false, false},
-		{"moved", quarantine.StateInterrupted, true, true},
-		{"done", quarantine.StateInterrupted, true, true},
+		{"pending", quarantine.Unmoved, false, false},
+		{"moved", quarantine.Interrupted, true, true},
+		{"done", quarantine.Interrupted, true, true},
 	} {
 		t.Run(c.stage, func(t *testing.T) {
 			e := newEnv(t)
@@ -91,7 +92,7 @@ func TestCrashMidApply(t *testing.T) {
 			e.st, e.cfg.Store = st, st
 
 			// The audit log parses cleanly: started, no finish.
-			if got := eventNames(e.events(t)); len(got) != 1 || got[0] != audit.ApplyStarted {
+			if got := eventNames(e.events(t)); len(got) != 1 || got[0] != audit.Started {
 				t.Errorf("audit after crash = %v", got)
 			}
 			// The plan can't be applied again.

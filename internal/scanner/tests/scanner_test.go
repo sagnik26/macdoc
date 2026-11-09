@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"macdoc/internal/scanner"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,10 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sagnik26/macdoc/internal/scanner"
+
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
-	ft "macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/model"
+	ft "github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 const mb = 1 << 20
@@ -164,7 +165,7 @@ func TestHardlinkLimit(t *testing.T) {
 }
 
 func TestLinkSet(t *testing.T) {
-	l := scanner.LinkSet{Limit: 1}
+	l := scanner.Links{Limit: 1}
 	steps := []struct {
 		ino   uint64
 		nlink uint16
@@ -341,13 +342,13 @@ func TestMapPath(t *testing.T) {
 		"/elsewhere":                      "/elsewhere",
 		"/System/Volumes/Data/.fseventsd": "/.fseventsd",
 	} {
-		if got := s.MapPath(in); got != want {
+		if got := s.Map(in); got != want {
 			t.Errorf("MapPath(%q) = %q; want %q", in, got, want)
 		}
 	}
 	for _, p := range []string{"", "/"} {
 		s := &scanner.Scanner{Prefix: p}
-		if got := s.MapPath("/a/b"); got != "/a/b" {
+		if got := s.Map("/a/b"); got != "/a/b" {
 			t.Errorf("prefix %q: %q", p, got)
 		}
 	}
@@ -429,7 +430,9 @@ func TestStatErrorBecomesUnmeasured(t *testing.T) {
 	root := t.TempDir()
 	ft.Build(t, root, ft.File("bad", 10), ft.File("good", 10), ft.File("gone", 10))
 	orig := scanner.Fstatat
-	t.Cleanup(func() { scanner.Fstatat = orig })
+	origBulk := scanner.Bulk
+	scanner.Bulk = false // the hook only sees the fstatat reader
+	t.Cleanup(func() { scanner.Fstatat = orig; scanner.Bulk = origBulk })
 	scanner.Fstatat = func(fd int, name string, st *unix.Stat_t, flags int) error {
 		switch name {
 		case "bad":
@@ -454,7 +457,9 @@ func TestCrossDevice(t *testing.T) {
 	root := t.TempDir()
 	ft.Build(t, root, ft.File("mnt/f", 2*mb), ft.File("local/f", 2*mb))
 	orig := scanner.Fstatat
-	t.Cleanup(func() { scanner.Fstatat = orig })
+	origBulk := scanner.Bulk
+	scanner.Bulk = false // the hook only sees the fstatat reader
+	t.Cleanup(func() { scanner.Fstatat = orig; scanner.Bulk = origBulk })
 	scanner.Fstatat = func(fd int, name string, st *unix.Stat_t, flags int) error {
 		err := orig(fd, name, st, flags)
 		if name == "mnt" {

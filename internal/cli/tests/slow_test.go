@@ -3,13 +3,14 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 func TestRenderSlow(t *testing.T) {

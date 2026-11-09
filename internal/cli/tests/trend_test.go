@@ -3,14 +3,15 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 func TestRenderTrend(t *testing.T) {

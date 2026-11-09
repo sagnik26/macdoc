@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/config"
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // ConfigView is the data behind `macdoc config`.

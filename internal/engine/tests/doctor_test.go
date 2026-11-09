@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/engine"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/engine"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 const gb = 1_000_000_000
@@ -108,7 +109,7 @@ func TestFormatBytes(t *testing.T) {
 }
 
 func TestDoctorNeverFails(t *testing.T) {
-	res := engine.Doctor(context.Background(), &platform.FakeRunner{})
+	res := engine.Doctor(context.Background(), &platform.Fake{})
 	if len(res.Report.Warnings) < 4 {
 		t.Fatalf("expected a warning per failed probe, got %v", res.Report.Warnings)
 	}

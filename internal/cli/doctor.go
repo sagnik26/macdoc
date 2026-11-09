@@ -8,12 +8,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // Runner is the command Runner used by read-only commands; tests replace it.
-var Runner platform.Runner = platform.ExecRunner{}
+var Runner platform.Runner = platform.Exec{}
 
 // newDoctorCmd builds `macdoc doctor`: the one command that shows everything,
 // with sections underneath it for detail.
@@ -59,7 +59,7 @@ no scan yet. Use a section for more detail:
 }
 
 // writeVitals writes the header and the disk, memory and snapshot lines.
-func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra string) {
+func writeVitals(b *strings.Builder, t *Theme, res engine.DoctorResult, extra string) {
 	rep := res.Report
 	hw := rep.Hardware
 
@@ -118,7 +118,7 @@ func writeVitals(b *strings.Builder, t *theme, res engine.DoctorResult, extra st
 }
 
 // writeFindings writes "What matters most" (at most max findings; 0 = all).
-func writeFindings(b *strings.Builder, t *theme, fs []engine.Finding, max int, details bool) {
+func writeFindings(b *strings.Builder, t *Theme, fs []engine.Finding, max int, details bool) {
 	fmt.Fprintln(b, t.heading("What matters most"))
 	if len(fs) == 0 {
 		fmt.Fprintln(b, "  "+t.Ok.Render("Nothing urgent.")+" Disk, memory, and swap look healthy.")
@@ -180,7 +180,7 @@ func severityMark(s engine.Severity) string {
 	}
 }
 
-// bar renders a fixed-width usage bar.
+// Bar renders a fixed-width usage bar.
 func Bar(used, total int64, width int) string {
 	if total <= 0 {
 		return "▕" + strings.Repeat(" ", width) + "▏"
@@ -190,6 +190,7 @@ func Bar(used, total int64, width int) string {
 	return "▕" + strings.Repeat("█", filled) + strings.Repeat(" ", width-filled) + "▏"
 }
 
+// Truncate shortens s to at most n runes, ending in "…" when it cuts.
 func Truncate(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {

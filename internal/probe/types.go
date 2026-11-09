@@ -3,13 +3,9 @@
 //
 // Parsers are pure functions over captured command output so they can be
 // golden-tested; Collect* functions run the commands and call the parsers.
-//
-// CONTRACT (tech lead): the types and function signatures in this file are
-// fixed. Implementation: P1-W1 (hardware, memory, swap, processes) and P1-W2
-// (disk, APFS, snapshots, purgeable).
 package probe
 
-import "macdoc/internal/model"
+import "github.com/sagnik26/macdoc/internal/model"
 
 // Hardware describes the machine and OS.
 type Hardware struct {
@@ -24,6 +20,7 @@ type Hardware struct {
 // Pressure is the kernel memory pressure level.
 type Pressure string
 
+// The memory pressure levels macOS reports.
 const (
 	PressureNormal   Pressure = "normal"
 	PressureWarn     Pressure = "warn"

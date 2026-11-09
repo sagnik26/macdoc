@@ -1,12 +1,13 @@
 package tests
 
 import (
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 // The dashboard shows disk-sourced names cleaned, but plans from the

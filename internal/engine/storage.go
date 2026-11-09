@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"macdoc/internal/model"
-	"macdoc/internal/probe"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // StorageOptions configures Storage.
@@ -84,7 +84,7 @@ func Storage(ctx context.Context, o StorageOptions) (StorageResult, error) {
 	res.SystemData = systemData(ctx, o, st, opp.Scan, &res.Warnings)
 
 	if o.Large {
-		nodes, err := st.Nodes(opp.Scan.ID, store.NodeQuery{})
+		nodes, err := st.Nodes(opp.Scan.ID, store.Query{})
 		if err != nil {
 			return StorageResult{}, err
 		}
@@ -201,7 +201,7 @@ func systemData(ctx context.Context, o StorageOptions, st *store.Store, scan mod
 func scanPart(st *store.Store, scanID, path, name, explain string) SystemDataPart {
 	part := SystemDataPart{Name: name + " (" + path + ")", Explain: explain,
 		Bytes: unknownBytes("not in the latest scan")}
-	nodes, err := st.Nodes(scanID, store.NodeQuery{Prefix: path, MaxDepth: 1})
+	nodes, err := st.Nodes(scanID, store.Query{Prefix: path, MaxDepth: 1})
 	if err != nil {
 		part.Bytes.Reason = err.Error()
 		return part

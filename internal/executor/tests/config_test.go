@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/executor"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"macdoc/internal/config"
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/executor"
+
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 // A folder protected after the plan was made is never touched, and a broken

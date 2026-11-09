@@ -4,17 +4,17 @@
 // instances of it. Recipes are data (embedded YAML in catalog/); detectors are
 // small read-only Go functions registered by name.
 //
-// CONTRACT (tech lead): exported types and functions in recipe.go, registry.go
-// and load.go are fixed for Phase 3 workers.
+// Every action macdoc can take comes from a recipe. An item that no recipe
+// covers is advice-only (docs/adr/0002-ids-not-paths.md).
 package recipes
 
 import (
 	"context"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/projects"
 )
 
 // Recipe is one entry of the catalog (docs/RECIPE_CATALOG.md §1).
@@ -134,6 +134,10 @@ type Env struct {
 	// Projects returns the projects found in the latest scan (computed once
 	// and shared by all detectors). Nil if unavailable.
 	Projects func() (projects.Result, error)
+	// Cache, when set, lets the slow Homebrew dry runs reuse a recent
+	// result (RunCachedDryRun). Display only: leave it nil anywhere that
+	// decides or acts (executor, planner.Verify, listers).
+	Cache Cache
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

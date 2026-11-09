@@ -20,45 +20,45 @@ import (
 
 // Event names.
 const (
-	PlanCreated        = "plan_created"
-	ApplyStarted       = "apply_started"
-	ItemSkipped        = "item_skipped"
-	ItemDone           = "item_done"
-	ItemFailed         = "item_failed"
-	ApplyFinished      = "apply_finished"
-	QuarantineRestored = "quarantine_restored"
-	QuarantinePurged   = "quarantine_purged"
+	Planned  = "plan_created"
+	Started  = "apply_started"
+	Skipped  = "item_skipped"
+	Done     = "item_done"
+	Failed   = "item_failed"
+	Finished = "apply_finished"
+	Restored = "quarantine_restored"
+	Purged   = "quarantine_purged"
 )
 
 // Record is one audit line. Fields that don't apply to an event are omitted.
 type Record struct {
-	TS            time.Time `json:"ts"`
-	Event         string    `json:"event"`
-	Plan          string    `json:"plan,omitempty"`
-	Origin        string    `json:"origin,omitempty"`
-	Item          string    `json:"item,omitempty"`
-	Recipe        string    `json:"recipe,omitempty"`
-	Target        string    `json:"target,omitempty"`
-	Method        string    `json:"method,omitempty"`
-	Argv          []string  `json:"argv,omitempty"`
-	QuarantineID  string    `json:"quarantine_id,omitempty"`
-	Items         int       `json:"items,omitempty"`
-	ExpectedBytes int64     `json:"expected_bytes,omitempty"`
-	// ActualBytes is the measured change in free space (apply_finished), or
+	TS       time.Time `json:"ts"`
+	Event    string    `json:"event"`
+	Plan     string    `json:"plan,omitempty"`
+	Origin   string    `json:"origin,omitempty"`
+	Item     string    `json:"item,omitempty"`
+	Recipe   string    `json:"recipe,omitempty"`
+	Target   string    `json:"target,omitempty"`
+	Method   string    `json:"method,omitempty"`
+	Argv     []string  `json:"argv,omitempty"`
+	Entry    string    `json:"quarantine_id,omitempty"`
+	Items    int       `json:"items,omitempty"`
+	Expected int64     `json:"expected_bytes,omitempty"`
+	// Actual is the measured change in free space (apply_finished), or
 	// the bytes moved or purged. Nil means it wasn't measured.
-	ActualBytes *int64 `json:"actual_bytes,omitempty"`
-	Result      string `json:"result,omitempty"` // ok | skipped | failed | partial
-	Reason      string `json:"reason,omitempty"`
-	ExitCode    *int   `json:"exit_code,omitempty"`
-	Output      string `json:"output,omitempty"` // a native command's stdout and stderr, tail-truncated
+	Actual *int64 `json:"actual_bytes,omitempty"`
+	Result string `json:"result,omitempty"` // ok | skipped | failed | partial
+	Reason string `json:"reason,omitempty"`
+	Exit   *int   `json:"exit_code,omitempty"`
+	Output string `json:"output,omitempty"` // a native command's stdout and stderr, tail-truncated
 }
 
-// FileName is the audit log's name inside the state directory.
-const FileName = "audit.jsonl"
+// File is the audit log's name inside the state directory.
+const File = "audit.jsonl"
 
 // Path is the audit log next to the store.
 func Path(storePath string) string {
-	return filepath.Join(filepath.Dir(storePath), FileName)
+	return filepath.Join(filepath.Dir(storePath), File)
 }
 
 // MaxOutput bounds the command output kept per record.
@@ -110,7 +110,7 @@ func Append(path string, rec Record) error {
 		return fmt.Errorf("audit: lock: %w", err)
 	}
 	// A previous crash may have left a torn line; start ours on a new one.
-	prefix, err := needsNewline(f)
+	prefix, err := newline(f)
 	if err != nil {
 		_ = f.Close()
 		return fmt.Errorf("audit: %w", err)
@@ -131,9 +131,9 @@ func Append(path string, rec Record) error {
 	return f.Close()
 }
 
-// needsNewline reports whether the file is non-empty and doesn't end in a
+// newline reports whether the file is non-empty and doesn't end in a
 // newline.
-func needsNewline(f *os.File) (bool, error) {
+func newline(f *os.File) (bool, error) {
 	fi, err := f.Stat()
 	if err != nil || fi.Size() == 0 {
 		return false, err
@@ -145,8 +145,8 @@ func needsNewline(f *os.File) (bool, error) {
 	return b[0] != '\n', nil
 }
 
-// maxLine bounds one record when reading.
-const maxLine = 1 << 20
+// longest bounds one record when reading.
+const longest = 1 << 20
 
 // Read returns the log's records, oldest first, keeping only the last limit
 // (all if limit <= 0). Lines that don't parse (a torn write) are counted in
@@ -165,7 +165,7 @@ func Read(path string, limit int) (recs []Record, bad int, err error) {
 
 func parse(r io.Reader, limit int) ([]Record, int, error) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 64<<10), maxLine)
+	sc.Buffer(make([]byte, 64<<10), longest)
 	out := []Record{}
 	bad := 0
 	for sc.Scan() {

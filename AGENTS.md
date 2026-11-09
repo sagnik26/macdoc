@@ -1,78 +1,40 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repository. Read this before making changes.
+Rules for AI coding agents working in this repository. People should read [CONTRIBUTING.md](CONTRIBUTING.md); this file is the short list of things an agent must not get wrong. macdoc deletes files on people's Macs, so a mistake here can lose someone's data.
 
-## Project in one paragraph
+## Never, on this machine
 
-macdoc is a safe, local-first macOS CLI (Go) that diagnoses why a developer Mac's storage is full and why it's slow. It proposes dry-run cleanup plans and applies them only after a human confirms in a terminal. A local MCP server (`macdoc mcp`) lets Claude diagnose and *propose* plans, never execute them. See `README.md` for the what and why, and `docs/` for the full design.
+- Do not run `macdoc apply`, `macdoc quarantine purge` or `restore`, or any native cleanup command (`brew cleanup`, `docker … prune`, `xcrun simctl delete`, `npm cache clean`, and the like), unless the user asks for it in this session.
+- Read-only commands (`macdoc doctor …`, `scan`, `wins`, `slow`, `trend`) are fine to run for real.
+- Executor tests run only under `MACDOC_SANDBOX=<tmpdir>` with fixture trees from `t.TempDir()`. Never point an executor test at a real home directory.
+- Do not commit or push unless the user asks.
 
-## Current status
+## The rules the code depends on
 
-**In development.** Phases 0–6 are complete; Phase 7 (`slow`, `trend`, frozen JSON schemas in `schema/`, `config`, completions) is built. Its dogfood week ran 2026-10-28 to 2026-11-04; the reclaim target (≥ 10 GB through macdoc) isn't met (0.88 GB), so Phase 7 is not signed off. Phase 8 is built: `macdoc mcp` (`internal/mcp`) serves 11 read and propose-only tools to Claude; the tool list is pinned by a test. Phase 10 is built: `macdoc schedule enable|disable` writes or removes the daily read-only scan agent (the person runs the printed `launchctl` line in Terminal); `slow --tips` suggests what to do about measured memory users; the dashboard pre-marks SAFE suggestions on each new scan. Phase 9 is built: Claude plans are capped (5 open, 10 per 10 minutes), `apply` shows when Claude proposed a plan, and the server warns when a scan from the Claude app saw less. Bare `macdoc` opens a Bubble Tea dashboard. `macdoc doctor` is the printed overview, with sections `health`, `slow`, `trend`, `space`, `wins`, `explain`, `dev`, `projects` and `scan`, all read-only (`slow` and the overview store a small memory sample in macdoc's own state). `macdoc config` edits macdoc's settings file: timings and extra protected folders, which can only add protection. `macdoc plan` (and `p` in the dashboard) writes sealed dry-run plans into macdoc's state directory. `macdoc apply <P-id>` carries one out after typed confirmation at a real terminal, and Enter on a dashboard suggestion removes it after one more Enter (typed code for RISKY), both through `internal/executor`: native commands, or a checked move into quarantine that is deleted right away so the space is freed, all audited. `macdoc quarantine` handles anything left there, and `macdoc log` shows the audit log. See `docs/checkpoints/` for completed phases. Work proceeds phase by phase according to `docs/DEVELOPMENT_PLAN.md` §4. Don't skip ahead to later phases, and don't start a phase unless the user asks.
+The reasoning is in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) and [docs/adr/](docs/adr/README.md). If a task seems to need breaking one, stop and ask.
 
-## Source of truth
+1. Only `internal/executor` may delete, move or run mutating commands ([ADR 0003](docs/adr/0003-executor-is-the-only-mutator.md)). `internal/mcp`, `internal/engine` and `internal/planner` must never import it. Never loosen the import and forbidden-call guards.
+2. Plans and tools take opportunity IDs, never paths ([ADR 0002](docs/adr/0002-ids-not-paths.md)). No command, flag or MCP tool may accept a path as a cleanup target.
+3. Only a person at a real terminal approves a removal ([ADR 0001](docs/adr/0001-terminal-only-approval.md)). Never add `--yes` or any non-interactive bypass, and never let a plan Claude proposed skip per-item confirmation.
+4. Every action comes from a recipe in `internal/recipes/catalog/*.yaml`. An item no recipe covers is advice-only. Native commands use a fixed argv from the recipe: no shell, no `sudo`, no `--volumes`, no `docker system prune`.
+5. Re-validate every item immediately before acting. On a mismatch, skip and audit; never "fix up" a target.
+6. Protected paths are never touched (`docs/SAFETY_MODEL.md` §3). Configured protection can only add to the built-in list.
+7. Every number a person sees is measured, tool-reported, estimated or unknown. Never show unknown as zero.
 
-| Topic | Document |
-|---|---|
-| What and why, locked decisions | `README.md` |
-| Build order, how agents are orchestrated | `docs/BUILD_STRATEGY.md`, `docs/ORCHESTRATION.md` |
-| Architecture, layout, phases, tests, risks | `docs/DEVELOPMENT_PLAN.md` |
-| Safety rules (non-negotiable) | `docs/SAFETY_MODEL.md` |
-| What can be cleaned and how | `docs/RECIPE_CATALOG.md` |
-| Commands, output, tone, JSON contract | `docs/CLI_UX.md` |
-| Claude/MCP integration (Phase C) | `docs/MCP_DESIGN.md` |
+## The MCP server
 
-If code and docs disagree, stop and ask. Don't silently change either. When a design decision changes, update the relevant doc in the same change.
+`macdoc mcp` lets Claude diagnose and **propose** plans. Do not add a tool that executes a plan, accepts a path, or runs a command. The tool list is pinned by `internal/mcp/tests.TestToolList`, and the person applies plans in Terminal.
 
-## Non-negotiable safety invariants
+## Working here
 
-Never weaken these, even if a task seems to require it. Ask the user instead.
+- Go. Keep dependencies minimal and ask before adding one.
+- Tests live in `internal/<pkg>/tests/` (`package tests`), not beside the code ([ADR 0006](docs/adr/0006-tests-in-a-tests-folder.md)). Plain `go test -cover` reports 0% under this layout; use `make cover`.
+- Name each file with one word that says what it does, with no underscores or joined words (`apply.go`, not `apply_cmd.go` or `applycmd.go`). A test file is the same word plus `_test`. A name with an underscore can be read by Go as a build constraint and silently dropped (`_linux.go`, `_arm64.go`); a single word never is.
+- Every path-dependent function takes a home or root override so tests can use fixtures. External commands go through `platform.Runner`.
+- A new recipe needs a positive test, a look-alike negative test and a precondition-failure test (`docs/RECIPE_CATALOG.md` §3).
+- A new exported name needs a doc comment that starts with its name. New code is held to the complexity limits in `.golangci.yml`.
+- If code and a document disagree, stop and ask. Update the document in the same change when a design changes.
 
-1. **Read-only by default.** Only `apply`, the dashboard's confirmed remove (Enter), `quarantine restore|purge`, and `schedule enable|disable` may change anything outside macdoc's own state directory. `schedule` touches only `~/Library/LaunchAgents/com.macdoc.scan.plist`: enable writes it, disable removes it. macdoc never runs `launchctl`, so the person loads or unloads the agent in Terminal.
-2. **Only `internal/executor` may delete, move or run mutating commands.** Calls to `os.Remove*`, `os.RemoveAll`, `os.Rename` (outside macdoc's state, plans and store), or mutating `exec.Command` calls anywhere else are bugs.
-3. **`internal/mcp`, `internal/engine` and `internal/planner` must never import `internal/executor`.** A CI import guard enforces this. Never bypass or loosen it. The executor acts only on plans that pass `planner.Verify`.
-4. **Plans contain opportunity IDs, never user-supplied paths.** No command, flag or MCP tool may accept a path as a cleanup target.
-5. **Every action comes from a recipe** in `internal/recipes/catalog/*.yaml`. Unknown large items are advise-only.
-6. **Removal requires a person at a real TTY.** `macdoc apply` asks for the typed code. In the dashboard, SAFE and CAUTION items are removed after a second Enter on a confirmation box (the user's decision, 2026-10-28); RISKY items always need the typed code. Never add `--yes` or any non-interactive bypass, and never let a Claude-origin plan skip per-item confirmation.
-7. **Re-validate every item immediately before acting** (canonical path, fingerprint, allowlist, deny list, preconditions). On mismatch, skip and audit. Never "fix up" a target.
-8. **No shell.** No `sh -c`, no string-built commands, no `sudo`. Native commands use fixed argv from recipes. Dynamic identifiers must match the tool's own listing.
-9. **Never touch protected paths** (`docs/SAFETY_MODEL.md` §3), and never use `--volumes` or `docker system prune` in any recipe.
-10. **Every user-visible number is measured, tool-reported, estimated or unknown.** Never show unknown as zero.
+## Before finishing a change
 
-## Development rules
-
-- **Language:** Go. Follow the package layout in `docs/DEVELOPMENT_PLAN.md` §3. Keep dependencies minimal: cobra, lipgloss, bubbletea + bubbles (the `macdoc` dashboard), `modernc.org/sqlite`, yaml.v3, and the official MCP Go SDK in Phase 8. Ask before adding others.
-- **Never run real cleanups on the developer's machine while developing.** Executor tests run only under `MACDOC_SANDBOX=<tmpdir>` with fixture trees from `t.TempDir()`. Read-only commands (`doctor`, `scan`, `wins`, …) are fine to run for real.
-- **Path-dependent code takes a root/home override** so it can be tested against fixtures.
-- **External commands** go through the `platform.Runner` interface with timeouts and golden-file fakes in tests.
-- **Low-RAM budget:** keep scanner peak RSS ≤ 64 MB and never hold the full file tree in memory. Benchmark scanner changes.
-- **Output:** every command has a typed result struct and `--json` (versioned schema). Style human output only through `internal/cli/theme.go`. The plain theme must render exactly the uncolored text, so non-TTY output and tests stay stable. Follow the tone rules in `docs/CLI_UX.md` §3: neutral words, show restore cost, no scare language.
-- **File names:** never end a Go file name in a GOOS or GOARCH suffix such as `_android.go`, `_ios.go`, `_linux.go`, `_windows.go` or `_arm64.go`. Go treats these as build constraints and silently excludes the file on macOS. This happened in P3-W1.
-- **Recipes:** follow the checklist in `docs/RECIPE_CATALOG.md` §3. Each recipe needs a positive test, a look-alike negative test and a precondition-failure test.
-
-## Commands
-
-```
-make build        # build ./bin/macdoc
-make test         # go test ./... (race on)
-make cover        # coverage across packages (needed because tests live in tests/)
-make lint         # golangci-lint
-make importcheck  # fails if mcp/engine import executor
-make forbidcheck  # fails on delete/exec/shell calls outside the executor
-make check        # test + lint + importcheck + forbidcheck
-make fuzz         # fuzz safety/canonicalization
-```
-
-- **Tests live in `internal/<pkg>/tests/`** (package `tests`, external). Export only the names the tests need. Two exceptions: `scripts/importcheck.sh` allows `internal/cli/tests` to import the executor, and the `forbidcheck` logic lives in `tools/forbidcheck/check`. Plain `go test -cover` reports 0% under this layout; use `make cover`.
-
-## Before finishing any change
-
-- [ ] `make test lint importcheck` passes
-- [ ] No new deletion, rename or exec calls outside `internal/executor`
-- [ ] Docs are updated if behavior or design changed
-- [ ] New recipes have all three tests
-- [ ] JSON schema is updated and contract tests pass if output changed (`go test ./internal/cli -run TestSchemasFrozen -update` for additive changes only; anything else bumps `schema_version`)
-
-## Git
-
-Commit or push only when the user asks. Use small, focused commits with messages that explain why.
+`make check` passes (race tests, lint, import guard, forbidden-call guard, threat-model guard). If output changed, the JSON schema and its contract tests are updated: `go test ./internal/cli -run TestSchemasFrozen -update` is for additive changes only, and anything else bumps `schema_version`.

@@ -3,23 +3,24 @@ package tests
 import (
 	"bytes"
 	"errors"
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/sagnik26/macdoc/internal/cli"
+
 	tea "github.com/charmbracelet/bubbletea"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
 )
 
 var planNow = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 
 func samplePlan() engine.PlanResult {
 	return engine.PlanResult{
-		Status: planner.StatusPending,
+		Status: planner.Pending,
 		Plan: model.Plan{
 			SchemaVersion: "1", ID: "P-7F3K", Origin: model.OriginCLI, ScanID: "S-TEST", Request: "--safe",
 			CreatedAt: planNow, ExpiresAt: planNow.Add(30 * time.Minute), TotalBytes: 566_000_000,
@@ -137,9 +138,9 @@ func (r *recordingPerformer) Quarantine(_ model.PlanItem, target string) error {
 
 func TestRenderPlanStatuses(t *testing.T) {
 	for st, want := range map[planner.Status]string{
-		planner.StatusExpired: "This plan has expired.",
-		planner.StatusApplied: "already applied",
-		planner.StatusInvalid: "doesn't verify and can't be applied",
+		planner.Expired: "This plan has expired.",
+		planner.Applied: "already applied",
+		planner.Invalid: "doesn't verify and can't be applied",
 	} {
 		res := samplePlan()
 		res.Status = st

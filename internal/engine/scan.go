@@ -7,13 +7,13 @@ import (
 	"sort"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
-	"macdoc/internal/projects"
-	"macdoc/internal/recipes"
-	"macdoc/internal/scanner"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/scanner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // ScanOptions configures a stored scan. Zero values mean "real Data volume".

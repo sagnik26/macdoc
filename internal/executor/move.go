@@ -14,12 +14,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/safety"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // MaxCheckEntries bounds the content check of one folder. A folder with
@@ -62,7 +62,9 @@ func (p *performer) quarantine(item model.PlanItem, target string) (ItemResult, 
 	if err := p.pol.CheckTarget(target, r.Allow); err != nil {
 		return res, skipf("the safety rules refuse it: %v", err)
 	}
-	// Caches change on their own; anything else that changed is skipped.
+	// Caches change on their own; anything else that changed is skipped. A size
+	// taken again here counts allocated blocks, which overstate files that share
+	// space, so it is recorded as an estimate, never as the planned lower bound.
 	measure := fp.MtimeNS != item.Fingerprint.MtimeNS
 	if measure && item.Risk != model.RiskSafe {
 		return res, skip{"it changed since the plan; make a new plan to include it"}
@@ -74,10 +76,10 @@ func (p *performer) quarantine(item model.PlanItem, target string) (ItemResult, 
 			return res, err
 		}
 		if measure {
-			bytes, src = n, model.SourceMeasured
+			bytes, src = n, model.SourceEstimated
 		}
 	} else if measure {
-		bytes, src = allocBytes(fi), model.SourceMeasured
+		bytes, src = allocBytes(fi), model.SourceEstimated
 	}
 
 	root := p.cfg.quarantineRoot()
@@ -137,7 +139,7 @@ func checkContents(root string, measure bool) (int64, error) {
 		if vendored(rel) {
 			return nil
 		}
-		name := safety.FoldName(d.Name()) // case-insensitive volumes (P6-R1 F2)
+		name := safety.Fold(d.Name()) // case-insensitive volumes (P6-R1 F2)
 		switch {
 		case name == ".git":
 			return skipf("it contains a git repository (%s)", rel)
@@ -245,18 +247,18 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 		return "", err
 	}
 	entry := quarantine.EntryDir(root, id)
-	payload := filepath.Join(entry, quarantine.PayloadDir)
+	payload := filepath.Join(entry, quarantine.Payload)
 	m := quarantine.Manifest{
-		SchemaVersion: quarantine.SchemaVersion, ID: id, Plan: p.plan.ID, Item: item.OpportunityID, Recipe: item.RecipeID,
-		Title: item.Title, Original: target, Name: filepath.Base(target), Bytes: bytes, BytesSource: src, Fingerprint: fp,
-		CreatedAt: now.UTC().Round(0), ExpiresAt: now.Add(p.cfg.QuarantineTTL).UTC().Round(0), Status: quarantine.StatusPending,
+		Schema: quarantine.Schema, ID: id, Plan: p.plan.ID, Item: item.OpportunityID, Recipe: item.RecipeID,
+		Title: item.Title, Original: target, Name: filepath.Base(target), Bytes: bytes, Source: src, Fingerprint: fp,
+		Created: now.UTC().Round(0), Expires: now.Add(p.cfg.QuarantineTTL).UTC().Round(0), Status: quarantine.Pending,
 	}
 	if err := os.Mkdir(payload, 0o700); err != nil {
 		removeEmptyEntry(entry)
 		return "", err
 	}
 	if err := st.AddQuarantine(store.QuarantineRecord{ID: id, PlanID: m.Plan, ItemID: m.Item, RecipeID: m.Recipe,
-		Original: m.Original, Bytes: m.Bytes, CreatedAt: m.CreatedAt, ExpiresAt: m.ExpiresAt}); err != nil {
+		Original: m.Original, Bytes: m.Bytes, CreatedAt: m.Created, ExpiresAt: m.Expires}); err != nil {
 		removeEmptyEntry(entry)
 		return "", err
 	}
@@ -302,7 +304,7 @@ func (p *performer) moveIn(item model.PlanItem, target string, fp model.Fingerpr
 	if err := sameDir(pfd, parent); err != nil {
 		return id, p.moveBack(qfd, pfd, base, id, entry, err)
 	}
-	m.Status = quarantine.StatusDone
+	m.Status = quarantine.Done
 	if err := writeManifest(entry, m, false); err != nil {
 		p.warnings = append(p.warnings, fmt.Sprintf("%s: moved, but its manifest couldn't be updated: %v (it is still restorable)", id, err))
 		return id, nil
@@ -427,7 +429,7 @@ func writeNew(path string, b []byte) error {
 func removeEmptyEntry(entry string) {
 	_ = os.Remove(filepath.Join(entry, quarantine.ManifestName+".tmp"))
 	_ = os.Remove(filepath.Join(entry, quarantine.ManifestName))
-	_ = os.Remove(filepath.Join(entry, quarantine.PayloadDir))
+	_ = os.Remove(filepath.Join(entry, quarantine.Payload))
 	_ = os.Remove(entry)
 }
 

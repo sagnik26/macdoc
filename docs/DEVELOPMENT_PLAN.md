@@ -110,11 +110,11 @@ macdoc/
   internal/mcp/                  MCP server (must NOT import executor or cli)
   internal/testutil/fstree/      fake home trees for tests
   tools/forbidcheck/             AST guard against delete/exec/shell outside the executor
-  scripts/importcheck.sh         CI guard on import graph
+  scripts/imports.sh         CI guard on import graph
   schema/*.json                  frozen JSON Schemas of every --json output (Phase 7)
 ```
 
-**Test layout.** Each package keeps its tests in a `tests/` folder beside the code (`internal/<pkg>/tests/*_test.go`, `package tests`). The tests import the package and use only its exported names, so code that tests need from inside a package is exported. Fixtures live in `tests/testdata/`. Every package with tests follows this layout. `tools/forbidcheck` keeps its logic in `tools/forbidcheck/check` (a library), and `tools/forbidcheck/main.go` only wires the command, so its tests can import the logic. `scripts/importcheck.sh` allows `internal/cli/tests` alongside `internal/cli` to import the executor.
+**Test layout.** Each package keeps its tests in a `tests/` folder beside the code (`internal/<pkg>/tests/*_test.go`, `package tests`). The tests import the package and use only its exported names, so code that tests need from inside a package is exported. Fixtures live in `tests/testdata/`. Every package with tests follows this layout. `tools/forbidcheck` keeps its logic in `tools/forbidcheck/check` (a library), and `tools/forbidcheck/main.go` only wires the command, so its tests can import the logic. `scripts/imports.sh` allows `internal/cli/tests` alongside `internal/cli` to import the executor.
 
 ---
 

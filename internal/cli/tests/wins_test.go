@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"macdoc/internal/cli"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,11 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // w3test_cli_fixed returns the findings in cliFindings for the recipe ID.
@@ -107,7 +108,7 @@ func cliFixture(t *testing.T) (home string) {
 	oldHome, oldCat, oldRunner, oldTool := cli.UserHome, cli.LoadCatalog, cli.Runner, recipes.ToolInstalled
 	cli.UserHome = func() (string, error) { return home, nil }
 	cli.LoadCatalog = func() (*recipes.Catalog, error) { return cat, nil }
-	cli.Runner = &platform.FakeRunner{}
+	cli.Runner = &platform.Fake{}
 	recipes.ToolInstalled = func(string) bool { return true }
 	t.Cleanup(func() {
 		cli.UserHome, cli.LoadCatalog, cli.Runner, recipes.ToolInstalled = oldHome, oldCat, oldRunner, oldTool
@@ -378,7 +379,7 @@ func TestRealWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := engine.Opportunities(context.Background(), engine.OpportunityOptions{Home: home, Runner: platform.ExecRunner{}, Catalog: cat})
+	res, err := engine.Opportunities(context.Background(), engine.OpportunityOptions{Home: home, Runner: platform.Exec{}, Catalog: cat})
 	if err != nil {
 		t.Fatal(err)
 	}

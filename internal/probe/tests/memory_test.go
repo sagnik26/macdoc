@@ -3,11 +3,12 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/probe"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseVMStatGolden(t *testing.T) {
@@ -100,8 +101,8 @@ func TestParsePressureLevel(t *testing.T) {
 	}
 }
 
-func w1MemoryRunner(t *testing.T) *platform.FakeRunner {
-	return &platform.FakeRunner{Responses: map[string]platform.Result{
+func w1MemoryRunner(t *testing.T) *platform.Fake {
+	return &platform.Fake{Responses: map[string]platform.Result{
 		"vm_stat":              w1OK(w1Fixture(t, "vm_stat.txt")),
 		"sysctl -n hw.memsize": w1OK([]byte("8589934592\n")),
 		"memory_pressure -Q":   w1OK(w1Fixture(t, "memory_pressure_Q.txt")),

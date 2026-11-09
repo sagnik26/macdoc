@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/recipes"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/recipes"
+
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 func validRecipe() recipes.Recipe {

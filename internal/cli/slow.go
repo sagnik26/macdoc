@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/engine"
 )
 
 func newSlowCmd(g *GlobalFlags) *cobra.Command {
@@ -49,6 +49,7 @@ database, so the swap history fills in as you use macdoc.`,
 	return cmd
 }
 
+// RenderSlow writes the memory verdict in the human format.
 func RenderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -119,7 +120,7 @@ func RenderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 }
 
 // swapLine is swap now and over the history window.
-func swapLine(t *theme, res engine.SlowResult, now time.Time) string {
+func swapLine(t *Theme, res engine.SlowResult, now time.Time) string {
 	s := res.Health.Report.Swap
 	line := t.size.Render(engine.BinaryBytes(s.UsedBytes)) + t.text.Render(" in use now")
 	h := res.Swap

@@ -1,14 +1,20 @@
 // Package executor is the ONLY package allowed to delete, move, or run
-// mutating commands (AGENTS.md invariant 2). It is imported solely by the
-// CLI apply and quarantine commands, and it acts only on plans that pass
-// planner.Verify (docs/SAFETY_MODEL.md §4).
+// mutating commands (docs/adr/0003-executor-is-the-only-mutator.md). Only
+// internal/cli and cmd/macdoc may import it (scripts/imports.sh), and it
+// acts only on plans that pass planner.Verify (docs/SAFETY_MODEL.md §4).
 //
-// For each item it re-checks everything immediately before acting (the
-// target's identity, canonical path, allowlist and protected paths with a
-// freshly built policy, preconditions, contents), skips the item on any
-// mismatch, and records every step in the audit log. Folders are moved into
-// macdoc's quarantine, never deleted; the only deletion is a quarantine purge
-// of an entry macdoc itself created.
+// Invariants:
+//   - Every item is re-checked immediately before it is acted on: the
+//     target's identity, canonical path, allowlist and protected paths (with
+//     a freshly built policy), preconditions and contents. Any mismatch skips
+//     the item; the executor never adjusts a target to make it fit.
+//   - Nothing changes unless the audit log can be written.
+//   - A plan runs at most once, even after a crash: it is marked applied
+//     before the first item is touched.
+//   - Folders are moved into macdoc's quarantine, never deleted in place.
+//     The only deletion is a purge of an entry macdoc itself created, which
+//     with DeleteNow follows the move at once (ADR 0004).
+//   - Native commands run from a fixed argv in a recipe, with no shell.
 package executor
 
 import (
@@ -20,17 +26,17 @@ import (
 	"syscall"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/config"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/precond"
-	"macdoc/internal/quarantine"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/sandbox"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/precond"
+	"github.com/sagnik26/macdoc/internal/quarantine"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // DefaultNativeTimeout bounds one native cleanup command.
@@ -38,7 +44,7 @@ const DefaultNativeTimeout = 15 * time.Minute
 
 // NativeExec runs a fixed argv (no shell) and returns its combined output and
 // exit code. err means it couldn't run or timed out.
-type NativeExec func(ctx context.Context, argv []string, timeout time.Duration) (out []byte, exit int, err error)
+type Native func(ctx context.Context, argv []string, timeout time.Duration) (out []byte, exit int, err error)
 
 // Config is what the executor needs. Store and StorePath are required.
 type Config struct {
@@ -51,14 +57,14 @@ type Config struct {
 	Runner platform.Runner
 	// Exec runs native cleanup commands. Nil means the real one, which is
 	// refused in sandbox mode.
-	Exec          NativeExec
+	Exec          Native
 	Now           func() time.Time
 	QuarantineTTL time.Duration // default quarantine.DefaultTTL
 	NativeTimeout time.Duration // default DefaultNativeTimeout
 	// FreeSpace measures free space for the before/after report. Optional.
 	FreeSpace func(ctx context.Context) (int64, error)
 	// OnItem, if set, is told when an item starts and when it ends.
-	OnItem func(ev ItemEvent)
+	OnItem func(ev Event)
 	// StageHook is a test seam: it is called at each step of a move or purge
 	// (for example "pending", "moved", "purged-payload") so a crash or a swap
 	// can be simulated there. Production leaves it nil.
@@ -74,6 +80,7 @@ type Config struct {
 // Outcome is what happened to one item.
 type Outcome string
 
+// The outcomes an item can have.
 const (
 	OutcomeDone    Outcome = "done"
 	OutcomeSkipped Outcome = "skipped" // a check failed or it wasn't approved; nothing was changed
@@ -92,7 +99,7 @@ type ItemResult struct {
 }
 
 // ItemEvent reports progress: Result is nil when the item starts.
-type ItemEvent struct {
+type Event struct {
 	Index, Total int
 	Item         model.PlanItem
 	Result       *ItemResult
@@ -236,8 +243,8 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 			rep.FreeBefore = &n
 		}
 	}
-	if err := cfg.audit(audit.Record{Event: audit.ApplyStarted, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(plan.Items), ExpectedBytes: plan.TotalBytes}); err != nil {
+	if err := cfg.audit(audit.Record{Event: audit.Started, Plan: plan.ID, Origin: string(plan.Origin),
+		Items: len(plan.Items), Expected: plan.TotalBytes}); err != nil {
 		// Without an audit trail nothing may change.
 		return rep, fmt.Errorf("couldn't write the audit log, nothing was changed: %w", err)
 	}
@@ -253,10 +260,10 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 			rep.FreeAfter = &n
 		}
 	}
-	fin := audit.Record{Event: audit.ApplyFinished, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(rep.Items), ExpectedBytes: rep.NativeExpected() + rep.MovedBytes() + rep.DeletedBytes(), Result: finishResult(rep)}
+	fin := audit.Record{Event: audit.Finished, Plan: plan.ID, Origin: string(plan.Origin),
+		Items: len(rep.Items), Expected: rep.NativeExpected() + rep.MovedBytes() + rep.DeletedBytes(), Result: finishResult(rep)}
 	if n, ok := rep.Freed(); ok {
-		fin.ActualBytes = &n
+		fin.Actual = &n
 	}
 	if err := cfg.audit(fin); err != nil {
 		rep.Warnings = append(rep.Warnings, "couldn't write the final audit record: "+err.Error())
@@ -292,12 +299,12 @@ func (c *Config) defaults() error {
 		c.Now = time.Now
 	}
 	if c.QuarantineTTL <= 0 {
-		c.QuarantineTTL = quarantine.DefaultTTL
+		c.QuarantineTTL = quarantine.TTL
 	}
 	if c.NativeTimeout <= 0 {
 		c.NativeTimeout = DefaultNativeTimeout
 		if s, err := config.Load(c.Home); err == nil {
-			c.NativeTimeout = s.NativeTimeout()
+			c.NativeTimeout = s.Timeout()
 		}
 	}
 	if c.Exec == nil {

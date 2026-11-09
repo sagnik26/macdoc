@@ -1,0 +1,292 @@
+[
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "DirName",
+  "new": "Dir"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "PayloadDir",
+  "new": "Payload"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "DefaultTTL",
+  "new": "TTL"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "SchemaVersion",
+  "new": "Schema"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "Manifest.SchemaVersion",
+  "new": "Schema"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "maxManifest",
+  "new": "most"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "idRe",
+  "new": "pattern"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StatusPending",
+  "new": "Pending"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StatusDone",
+  "new": "Done"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "Manifest.BytesSource",
+  "new": "Source"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "Manifest.CreatedAt",
+  "new": "Created"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "Manifest.ExpiresAt",
+  "new": "Expires"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "LoadManifest",
+  "new": "Load"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "containsNUL",
+  "new": "nul"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StateHeld",
+  "new": "Held"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StateInterrupted",
+  "new": "Interrupted"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StateNotMoved",
+  "new": "Unmoved"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StateMissing",
+  "new": "Missing"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "StateDamaged",
+  "new": "Damaged"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/quarantine",
+  "name": "Listing.HeldBytes",
+  "new": "Held"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "EnvVar",
+  "new": "Env"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "resolveRoot",
+  "new": "resolve"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "tempRoots",
+  "new": "temps"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "CheckSystemRoots",
+  "new": "System"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "cleanRoot",
+  "new": "clean"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "canonicalHome",
+  "new": "canonical"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/sandbox",
+  "name": "samePath",
+  "new": "same"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "PlanCreated",
+  "new": "Planned"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "ApplyStarted",
+  "new": "Started"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "ItemSkipped",
+  "new": "Skipped"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "ItemDone",
+  "new": "Done"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "ItemFailed",
+  "new": "Failed"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "ApplyFinished",
+  "new": "Finished"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "QuarantineRestored",
+  "new": "Restored"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "QuarantinePurged",
+  "new": "Purged"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "Record.QuarantineID",
+  "new": "Entry"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "Record.ExpectedBytes",
+  "new": "Expected"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "Record.ActualBytes",
+  "new": "Actual"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "Record.ExitCode",
+  "new": "Exit"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "FileName",
+  "new": "File"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "needsNewline",
+  "new": "newline"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/audit",
+  "name": "maxLine",
+  "new": "longest"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/fsread",
+  "name": "SmallFile",
+  "new": "Small"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/fsread",
+  "name": "IsRegular",
+  "new": "Regular"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/fsread",
+  "name": "IsDir",
+  "new": "Dir"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/textsafe",
+  "name": "ForModel",
+  "new": "Model"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/textsafe",
+  "name": "ForTerminal",
+  "new": "Terminal"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/textsafe",
+  "name": "copyValue",
+  "new": "clone"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/precond",
+  "name": "Checker.notRunning",
+  "new": "stopped"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/precond",
+  "name": "Checker.ollamaIdle",
+  "new": "ollama"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/precond",
+  "name": "Checker.gitClean",
+  "new": "git"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "Config.PlanMinutes",
+  "new": "Plan"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "Config.NativeTimeoutMinutes",
+  "new": "Native"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "Config.PlanTTL",
+  "new": "TTL"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "Config.NativeTimeout",
+  "new": "Timeout"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "cleanProtect",
+  "new": "tidy"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/config",
+  "name": "checkProtect",
+  "new": "verify"
+ },
+ {
+  "pkg": "github.com/sagnik26/macdoc/internal/pathfold",
+  "name": "isASCII",
+  "new": "ascii"
+ }
+]

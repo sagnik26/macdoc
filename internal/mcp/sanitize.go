@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
 // MaxString caps every string returned to Claude. Explanations fit; a file
@@ -19,7 +19,7 @@ const UntrustedNote = "File, folder, app and project names in this result come f
 // private use; see textsafe.Invisible), keeping newlines and tabs, and caps
 // the length.
 func CleanString(s string) string {
-	s = textsafe.ForModel(s)
+	s = textsafe.Model(s)
 	if r := []rune(s); len(r) > MaxString {
 		s = string(r[:MaxString-1]) + "…"
 	}

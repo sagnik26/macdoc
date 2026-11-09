@@ -1,22 +1,23 @@
 package tests
 
 import (
-	"macdoc/internal/audit"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/sagnik26/macdoc/internal/audit"
 )
 
 func TestAppendRead(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "state", audit.FileName)
+	p := filepath.Join(t.TempDir(), "state", audit.File)
 	n := int64(42)
-	for i, ev := range []string{audit.ApplyStarted, audit.ItemDone, audit.ApplyFinished} {
+	for i, ev := range []string{audit.Started, audit.Done, audit.Finished} {
 		rec := audit.Record{TS: time.Unix(int64(i), 0), Event: ev, Plan: "P-ABCD"}
-		if ev == audit.ApplyFinished {
-			rec.ActualBytes = &n
+		if ev == audit.Finished {
+			rec.Actual = &n
 		}
 		if err := audit.Append(p, rec); err != nil {
 			t.Fatal(err)
@@ -33,11 +34,11 @@ func TestAppendRead(t *testing.T) {
 	if err != nil || bad != 0 || len(recs) != 3 {
 		t.Fatalf("Read = %d records, %d bad, %v", len(recs), bad, err)
 	}
-	if recs[2].ActualBytes == nil || *recs[2].ActualBytes != 42 || recs[1].ActualBytes != nil {
+	if recs[2].Actual == nil || *recs[2].Actual != 42 || recs[1].Actual != nil {
 		t.Errorf("actual bytes not kept: %+v", recs)
 	}
 	last, _, _ := audit.Read(p, 2)
-	if len(last) != 2 || last[0].Event != audit.ItemDone {
+	if len(last) != 2 || last[0].Event != audit.Done {
 		t.Errorf("limit 2 = %+v", last)
 	}
 }
@@ -52,8 +53,8 @@ func TestReadMissing(t *testing.T) {
 // A crash mid-write leaves a torn line: reading skips it and the next
 // append starts on a fresh line.
 func TestTornLine(t *testing.T) {
-	p := filepath.Join(t.TempDir(), audit.FileName)
-	if err := audit.Append(p, audit.Record{Event: audit.ApplyStarted, Plan: "P-ABCD"}); err != nil {
+	p := filepath.Join(t.TempDir(), audit.File)
+	if err := audit.Append(p, audit.Record{Event: audit.Started, Plan: "P-ABCD"}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.OpenFile(p, os.O_WRONLY|os.O_APPEND, 0)
@@ -64,23 +65,23 @@ func TestTornLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = f.Close()
-	if err := audit.Append(p, audit.Record{Event: audit.ApplyFinished, Plan: "P-ABCD"}); err != nil {
+	if err := audit.Append(p, audit.Record{Event: audit.Finished, Plan: "P-ABCD"}); err != nil {
 		t.Fatal(err)
 	}
 	recs, bad, err := audit.Read(p, 0)
-	if err != nil || bad != 1 || len(recs) != 2 || recs[1].Event != audit.ApplyFinished {
+	if err != nil || bad != 1 || len(recs) != 2 || recs[1].Event != audit.Finished {
 		t.Fatalf("Read = %+v, bad %d, %v", recs, bad, err)
 	}
 }
 
 func TestConcurrentAppends(t *testing.T) {
-	p := filepath.Join(t.TempDir(), audit.FileName)
+	p := filepath.Join(t.TempDir(), audit.File)
 	var wg sync.WaitGroup
 	for range 20 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := audit.Append(p, audit.Record{Event: audit.ItemDone, Output: strings.Repeat("x", 8000)}); err != nil {
+			if err := audit.Append(p, audit.Record{Event: audit.Done, Output: strings.Repeat("x", 8000)}); err != nil {
 				t.Error(err)
 			}
 		}()

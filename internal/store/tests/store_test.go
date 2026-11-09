@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"macdoc/internal/store"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,7 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
+
+	"github.com/sagnik26/macdoc/internal/model"
 )
 
 var t0 = time.Date(2026, 10, 1, 12, 0, 0, 123456789, time.UTC)
@@ -257,7 +258,7 @@ func TestLifecycle(t *testing.T) {
 		t.Errorf("LatestScan = %+v, %v", latest, err)
 	}
 
-	nodes, err := s.Nodes(id, store.NodeQuery{})
+	nodes, err := s.Nodes(id, store.Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +282,7 @@ func TestLifecycle(t *testing.T) {
 func TestEmptyResultsAreNonNil(t *testing.T) {
 	s := openTemp(t)
 	id := mustBegin(t, s, t0)
-	if n, err := s.Nodes(id, store.NodeQuery{}); err != nil || n == nil || len(n) != 0 {
+	if n, err := s.Nodes(id, store.Query{}); err != nil || n == nil || len(n) != 0 {
 		t.Errorf("Nodes = %#v, %v", n, err)
 	}
 	if u, err := s.Unmeasured(id); err != nil || u == nil || len(u) != 0 {
@@ -296,7 +297,7 @@ func TestUnknownScan(t *testing.T) {
 	s := openTemp(t)
 	checks := map[string]error{}
 	_, checks["Scan"] = s.Scan("S-NOPE0000")
-	_, checks["Nodes"] = s.Nodes("S-NOPE0000", store.NodeQuery{})
+	_, checks["Nodes"] = s.Nodes("S-NOPE0000", store.Query{})
 	_, checks["Unmeasured"] = s.Unmeasured("S-NOPE0000")
 	checks["AddNodes"] = s.AddNodes("S-NOPE0000", nil)
 	checks["AddUnmeasured"] = s.AddUnmeasured("S-NOPE0000", nil)
@@ -356,7 +357,7 @@ func TestFinishedScanIsReadOnly(t *testing.T) {
 	if err := s.FinishScan(id, model.ScanComplete, 0, 0, t0); err == nil {
 		t.Error("second FinishScan succeeded")
 	}
-	if n, _ := s.Nodes(id, store.NodeQuery{}); len(n) != 0 {
+	if n, _ := s.Nodes(id, store.Query{}); len(n) != 0 {
 		t.Errorf("nodes were added: %v", n)
 	}
 }
@@ -388,27 +389,27 @@ func TestNodesQueries(t *testing.T) {
 
 	cases := []struct {
 		name string
-		q    store.NodeQuery
+		q    store.Query
 		want []string
 	}{
-		{"component-wise", store.NodeQuery{Prefix: "/Users/a"}, []string{
+		{"component-wise", store.Query{Prefix: "/Users/a"}, []string{
 			"/Users/a", "/Users/a/Library", "/Users/a/Library/Caches", "/Users/a/Library/Caches/deep", nfc}},
-		{"trailing slash", store.NodeQuery{Prefix: "/Users/ab/"}, []string{"/Users/ab", "/Users/ab/x"}},
-		{"case-insensitive", store.NodeQuery{Prefix: "/USERS/A/library"}, []string{
+		{"trailing slash", store.Query{Prefix: "/Users/ab/"}, []string{"/Users/ab", "/Users/ab/x"}},
+		{"case-insensitive", store.Query{Prefix: "/USERS/A/library"}, []string{
 			"/Users/a/Library", "/Users/a/Library/Caches", "/Users/a/Library/Caches/deep"}},
-		{"NFD against NFC", store.NodeQuery{Prefix: nfd}, []string{nfc}},
-		{"percent literal", store.NodeQuery{Prefix: "/Users/a%b"}, []string{"/Users/a%b", "/Users/a%b/c"}},
-		{"underscore literal", store.NodeQuery{Prefix: "/Users/a_b"}, []string{"/Users/a_b", "/Users/a_b/d"}},
-		{"backslash literal", store.NodeQuery{Prefix: `/Users/q\r`}, []string{`/Users/q\r`, `/Users/q\r/s`}},
-		{"no match", store.NodeQuery{Prefix: "/Nope"}, []string{}},
-		{"min bytes", store.NodeQuery{MinBytes: 300}, []string{"/Users", "/Users/a", "/Users/ab", "/Users/a/Library"}},
-		{"max depth from root", store.NodeQuery{Prefix: "/", MaxDepth: 1}, []string{"/Users"}},
-		{"max depth relative", store.NodeQuery{Prefix: "/Users/a", MaxDepth: 1}, []string{
+		{"NFD against NFC", store.Query{Prefix: nfd}, []string{nfc}},
+		{"percent literal", store.Query{Prefix: "/Users/a%b"}, []string{"/Users/a%b", "/Users/a%b/c"}},
+		{"underscore literal", store.Query{Prefix: "/Users/a_b"}, []string{"/Users/a_b", "/Users/a_b/d"}},
+		{"backslash literal", store.Query{Prefix: `/Users/q\r`}, []string{`/Users/q\r`, `/Users/q\r/s`}},
+		{"no match", store.Query{Prefix: "/Nope"}, []string{}},
+		{"min bytes", store.Query{MinBytes: 300}, []string{"/Users", "/Users/a", "/Users/ab", "/Users/a/Library"}},
+		{"max depth from root", store.Query{Prefix: "/", MaxDepth: 1}, []string{"/Users"}},
+		{"max depth relative", store.Query{Prefix: "/Users/a", MaxDepth: 1}, []string{
 			"/Users/a", "/Users/a/Library", nfc}},
-		{"max depth 2", store.NodeQuery{Prefix: "/users/a", MaxDepth: 2, MinBytes: 150}, []string{
+		{"max depth 2", store.Query{Prefix: "/users/a", MaxDepth: 2, MinBytes: 150}, []string{
 			"/Users/a", "/Users/a/Library", "/Users/a/Library/Caches"}},
-		{"limit", store.NodeQuery{Limit: 2}, []string{"/Users", "/Users/a"}},
-		{"tie-break by path", store.NodeQuery{MinBytes: 100, Limit: 7}, []string{
+		{"limit", store.Query{Limit: 2}, []string{"/Users", "/Users/a"}},
+		{"tie-break by path", store.Query{MinBytes: 100, Limit: 7}, []string{
 			"/Users", "/Users/a", "/Users/ab", "/Users/a/Library", "/Users/a/Library/Caches",
 			"/Users/a/Library/Caches/deep", "/Users/zz"}},
 	}
@@ -424,7 +425,7 @@ func TestNodesQueries(t *testing.T) {
 		})
 	}
 
-	all, err := s.Nodes(id, store.NodeQuery{Prefix: "/"})
+	all, err := s.Nodes(id, store.Query{Prefix: "/"})
 	if err != nil || len(all) != 17 {
 		t.Errorf(`Prefix "/" returned %d nodes, %v`, len(all), err)
 	}
@@ -436,7 +437,7 @@ func TestNodesAreScopedToScan(t *testing.T) {
 	b := mustBegin(t, s, t0)
 	mustAdd(t, s, a, dir("/x", 1))
 	mustAdd(t, s, b, dir("/x", 2), dir("/y", 3))
-	got, _ := s.Nodes(a, store.NodeQuery{})
+	got, _ := s.Nodes(a, store.Query{})
 	if len(got) != 1 || got[0].Bytes != 1 {
 		t.Errorf("scan a nodes = %+v", got)
 	}
@@ -461,7 +462,7 @@ func TestHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []store.HistoryPoint{
+	want := []store.Point{
 		{ScanID: complete[0], StartedAt: t0, Bytes: 100},
 		{ScanID: complete[1], StartedAt: t0.Add(2 * time.Hour), Bytes: 300},
 		{ScanID: complete[2], StartedAt: t0.Add(3 * time.Hour), Bytes: 400},
@@ -607,7 +608,7 @@ func TestClosedStore(t *testing.T) {
 	if _, err := s.Scan(id); err == nil || errors.Is(err, store.ErrNoScan) {
 		t.Errorf("Scan after Close: %v", err)
 	}
-	if _, err := s.Nodes(id, store.NodeQuery{}); err == nil {
+	if _, err := s.Nodes(id, store.Query{}); err == nil {
 		t.Error("Nodes after Close succeeded")
 	}
 	if _, err := s.Unmeasured(id); err == nil {
@@ -669,7 +670,7 @@ func TestConcurrentReadersAndWriter(t *testing.T) {
 					return
 				default:
 				}
-				ns, err := s.Nodes(id, store.NodeQuery{Prefix: "/r"})
+				ns, err := s.Nodes(id, store.Query{Prefix: "/r"})
 				if err != nil {
 					errc <- err
 					return
@@ -693,7 +694,7 @@ func TestConcurrentReadersAndWriter(t *testing.T) {
 	for err := range errc {
 		t.Error(err)
 	}
-	ns, err := s.Nodes(id, store.NodeQuery{})
+	ns, err := s.Nodes(id, store.Query{})
 	if err != nil || len(ns) != batches*per {
 		t.Errorf("final nodes = %d, %v", len(ns), err)
 	}
@@ -713,7 +714,7 @@ func TestTwoHandlesSameFile(t *testing.T) {
 	defer func() { _ = b.Close() }()
 	id := mustBegin(t, a, t0)
 	mustAdd(t, b, id, dir("/x", 1))
-	if ns, err := a.Nodes(id, store.NodeQuery{}); err != nil || len(ns) != 1 {
+	if ns, err := a.Nodes(id, store.Query{}); err != nil || len(ns) != 1 {
 		t.Errorf("cross-handle read = %v, %v", ns, err)
 	}
 }
@@ -753,7 +754,7 @@ func TestDatabaseErrors(t *testing.T) {
 	if err := s.AddNodes(id, []model.Node{dir("/ok", 1), dir("/boom", 1)}); err == nil || !strings.Contains(err.Error(), "node boom") {
 		t.Errorf("AddNodes: %v", err)
 	}
-	if n, _ := s.Nodes(id, store.NodeQuery{}); len(n) != 0 {
+	if n, _ := s.Nodes(id, store.Query{}); len(n) != 0 {
 		t.Errorf("failed batch was not rolled back: %v", paths(n))
 	}
 	if err := s.AddUnmeasured(id, []model.Unmeasured{{Path: "/boom"}}); err == nil || !strings.Contains(err.Error(), "unmeasured boom") {
@@ -785,7 +786,7 @@ func TestDatabaseErrors(t *testing.T) {
 	if _, err := s.LatestScan(model.ScanComplete); err == nil {
 		t.Error("LatestScan of malformed row succeeded")
 	}
-	if _, err := s.Nodes("S-BAD00000", store.NodeQuery{}); err == nil {
+	if _, err := s.Nodes("S-BAD00000", store.Query{}); err == nil {
 		t.Error("Nodes of malformed row succeeded")
 	}
 	if _, err := s.History("/bad", 0); err == nil {

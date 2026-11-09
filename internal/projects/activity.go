@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"macdoc/internal/fsread"
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/fsread"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // walkSkip are folders that never count as source activity: artifacts,
@@ -99,7 +99,7 @@ func newestSource(root string, limit int) (newest int64, complete bool) {
 // locks (so the index isn't rewritten), disable fsmonitor hooks (a repo's
 // config could otherwise start a program) and are limited to the project's
 // own folder with the "." pathspec.
-func gitState(ctx context.Context, env Env, root string) (GitState, time.Time, string) {
+func gitState(ctx context.Context, env Env, root string) (Git, time.Time, string) {
 	if !inRepo(env.Home, root) {
 		return GitNone, time.Time{}, ""
 	}
@@ -181,8 +181,8 @@ func derivedData(env Env) ([]DerivedData, error) {
 		if n.Path == dir || filepath.Dir(n.Path) != dir || strings.EqualFold(filepath.Base(n.Path), "ModuleCache.noindex") {
 			continue
 		}
-		d := DerivedData{Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax}
-		if b, err := fsread.SmallFile(filepath.Join(n.Path, "info.plist"), fsread.MaxSmallFile); err == nil {
+		d := DerivedData{Path: n.Path, Bytes: n.Bytes, MtimeMax: n.MtimeMax, Private: n.Private}
+		if b, err := fsread.Small(filepath.Join(n.Path, "info.plist"), fsread.MaxSmallFile); err == nil {
 			if m := workspacePathRe.FindSubmatch(b); m != nil {
 				d.Workspace = html.UnescapeString(strings.TrimSpace(string(m[1])))
 			}
@@ -212,7 +212,7 @@ func workspaceRoot(ws string) string {
 // GitStatus reports whether dir has uncommitted changes, with the same
 // read-only git invocation discovery uses. It's for apply's git_clean
 // precondition; outside a repo it returns GitNone.
-func GitStatus(ctx context.Context, env Env, dir string) (GitState, string) {
+func GitStatus(ctx context.Context, env Env, dir string) (Git, string) {
 	st, _, note := gitState(ctx, env, dir)
 	return st, note
 }

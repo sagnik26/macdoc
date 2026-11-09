@@ -2,15 +2,16 @@ package tests
 
 import (
 	"context"
-	"macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/model"
-	"macdoc/internal/store"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/engine"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 func n(path string, bytes int64) model.Node {
@@ -121,5 +122,41 @@ func TestScanNodesAdapter(t *testing.T) {
 	ns, err := engine.ScanNodes{St: st, ScanID: sum.Info.ID}.Nodes(sum.Info.Root, 0)
 	if err != nil || len(ns) == 0 {
 		t.Fatalf("nodes = %v, %v", ns, err)
+	}
+}
+
+// The private size a scan measures reaches the store and both readers of it
+// (the store and the in-memory index), and no printed number changes: a tree
+// with no clones has private equal to bytes.
+func TestScanCarriesPrivateSize(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	fstree.Build(t, root, fstree.File("a/b/c.bin", 2<<20))
+	home := filepath.Join(base, "home")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := engine.Scan(context.Background(), engine.ScanOptions{Home: home, Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(store.DefaultPath(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
+	fromStore, err := st.Nodes(sum.Info.ID, store.Query{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromIndex, err := engine.NewScanNodes(st, sum.Info.ID).Query(store.Query{})
+	if err != nil || len(fromStore) == 0 {
+		t.Fatalf("nodes = %v, %v", fromStore, err)
+	}
+	for i, nd := range fromStore {
+		got := fromIndex[i]
+		if nd.Private == nil || got.Private == nil || *nd.Private != nd.Bytes || *got.Private != nd.Bytes {
+			t.Errorf("%s: bytes %d, private from store %v, from index %v; want both equal to bytes", nd.Path, nd.Bytes, nd.Private, got.Private)
+		}
 	}
 }

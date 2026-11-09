@@ -3,16 +3,17 @@ package tests
 import (
 	"context"
 	"io/fs"
-	"macdoc/internal/engine"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/engine"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
 )
 
 // The Phase 4 rule end to end, with the real catalog: a project with
@@ -48,7 +49,7 @@ func TestProjectRecipesEndToEnd(t *testing.T) {
 		engine.ProjectCache.Key = ""
 		engine.ProjectCache.Unlock()
 		base := "git -C " + f.p("code/app") + " --no-pager --no-optional-locks -c core.fsmonitor=false -c core.untrackedCache=false "
-		r := &platform.FakeRunner{Responses: map[string]platform.Result{
+		r := &platform.Fake{Responses: map[string]platform.Result{
 			base + "status --porcelain --untracked-files=normal -- .": {Stdout: []byte(status)},
 			base + "log -1 --format=%ct -- .":                         {Stdout: []byte(strconv.FormatInt(old.Unix(), 10))},
 		}}

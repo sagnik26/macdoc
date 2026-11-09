@@ -3,11 +3,12 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/probe"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseSwapUsageGolden(t *testing.T) {
@@ -75,7 +76,7 @@ func TestParseSwapSizeEmpty(t *testing.T) {
 }
 
 func TestCollectSwap(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{
+	f := &platform.Fake{Responses: map[string]platform.Result{
 		"sysctl -n vm.swapusage": w1OK(w1Fixture(t, "swapusage.txt")),
 	}}
 	s, err := probe.CollectSwap(context.Background(), f)
@@ -87,7 +88,7 @@ func TestCollectSwap(t *testing.T) {
 
 func TestCollectSwapError(t *testing.T) {
 	boom := errors.New("timeout")
-	f := &platform.FakeRunner{Errors: map[string]error{"sysctl -n vm.swapusage": boom}}
+	f := &platform.Fake{Errors: map[string]error{"sysctl -n vm.swapusage": boom}}
 	_, err := probe.CollectSwap(context.Background(), f)
 	if !errors.Is(err, boom) || !strings.HasPrefix(err.Error(), "probe: sysctl -n vm.swapusage: ") {
 		t.Fatalf("err = %v", err)

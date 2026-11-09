@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 // ResolveTool finds a bare tool name on PATH and returns the path to run,

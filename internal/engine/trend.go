@@ -1,15 +1,19 @@
 package engine
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/store"
+
+	"github.com/sagnik26/macdoc/internal/pathfold"
 )
 
 // TrendOptions configures Trend.
@@ -160,49 +164,64 @@ func Trend(o TrendOptions) (TrendResult, error) {
 	}
 	sort.SliceStable(res.Areas, func(i, j int) bool { return mid(res.Areas[i].Change) > mid(res.Areas[j].Change) })
 
-	res.Growing = growing(before, after)
+	res.Growing = Growing(before, after)
 	return res, nil
 }
 
 // nodeSizes maps each stored node's folded path to its node.
 func nodeSizes(st *store.Store, scanID string) (map[string]model.Node, error) {
-	nodes, err := st.Nodes(scanID, store.NodeQuery{})
+	nodes, err := st.Nodes(scanID, store.Query{})
 	if err != nil {
 		return nil, err
 	}
 	m := make(map[string]model.Node, len(nodes))
 	for _, n := range nodes {
-		m[strings.ToLower(n.Path)] = n
+		m[fold(n.Path)] = n
 	}
 	return m, nil
 }
 
 // sizeIn is p's size in a scan: exact if stored, else 0 up to KeptFloor.
-func sizeIn(nodes map[string]model.Node, p string) Range {
-	if n, ok := nodes[strings.ToLower(p)]; ok {
+func sizeIn(nodes map[string]model.Node, p string) Range { return sizeInKey(nodes, fold(p)) }
+
+// sizeInKey is sizeIn for a path that is already folded.
+func sizeInKey(nodes map[string]model.Node, key string) Range {
+	if n, ok := nodes[key]; ok {
 		return Range{n.Bytes, n.Bytes}
 	}
 	return Range{0, KeptFloor}
 }
 
+// fold is the key under which a path is compared and looked up.
+func fold(p string) string { return pathfold.Fold(p) }
+
 func (r Range) add(o Range) Range { return Range{r.Low + o.Low, r.High + o.High} }
 
 func mid(r Range) int64 { return r.Low + (r.High-r.Low)/2 }
 
-// growing finds the folders that grew by at least growMin, keeping the
+// Growing finds the folders that grew by at least growMin, keeping the
 // deepest one that explains most of a growth: a folder is dropped when one
-// of its Children grew by at least 80% as much.
-func growing(before, after map[string]model.Node) []TrendFolder {
-	type cand struct {
-		TrendFolder
-		depth int
-	}
-	var cands []cand
-	for _, n := range after {
+// of its descendants grew by at least 80% as much. The maps are keyed by
+// folded path, as nodeSizes builds them. It is exported so the tests can
+// compare it with a reference and benchmark it.
+//
+// Folders are judged deepest first, so everything below a folder has been
+// decided before the folder is. Each folder passes to its nearest candidate
+// ancestor what the ancestor needs to know, so each decision is constant
+// time once that ancestor is found by one walk up the path.
+func Growing(before, after map[string]model.Node) []TrendFolder {
+	return judge(candidates(before, after))
+}
+
+// candidates lists the folders that grew by at least growMin, before any of
+// them is judged against the folders around it.
+func candidates(before, after map[string]model.Node) []growCand {
+	var cands []growCand
+	for key, n := range after {
 		if n.Kind != model.NodeDir {
 			continue
 		}
-		b := sizeIn(before, n.Path)
+		b := sizeInKey(before, key)
 		ch := Range{n.Bytes - b.High, n.Bytes - b.Low}
 		if ch.Low < growMin {
 			continue
@@ -210,78 +229,109 @@ func growing(before, after map[string]model.Node) []TrendFolder {
 		// Space that moved rather than grew (an app update replacing its
 		// Versions/155 with Versions/156) shows as growth of the new folder
 		// only: its parent didn't grow.
-		if p, ok := after[strings.ToLower(filepath.Dir(n.Path))]; ok && p.Path != n.Path {
+		if p, ok := after[fold(filepath.Dir(n.Path))]; ok && p.Path != n.Path {
 			pb := sizeIn(before, p.Path)
 			if (p.Bytes-pb.High)*2 < ch.Low {
 				continue
 			}
 		}
-		cands = append(cands, cand{TrendFolder{Path: n.Path, Before: b, After: n.Bytes, Change: ch}, strings.Count(n.Path, "/")})
+		cands = append(cands, growCand{TrendFolder{Path: n.Path, Before: b, After: n.Bytes, Change: ch}, key, strings.Count(n.Path, "/")})
 	}
-	// Deepest first, so Children are judged before their parents.
-	sort.Slice(cands, func(i, j int) bool {
-		if cands[i].depth != cands[j].depth {
-			return cands[i].depth > cands[j].depth
+	return cands
+}
+
+// judge keeps the candidates that are not explained by the ones below them,
+// deepest first, then orders them by growth and applies the cap.
+func judge(cands []growCand) []TrendFolder {
+	// Deepest first, so descendants are judged before their parents.
+	slices.SortFunc(cands, func(a, b growCand) int {
+		if a.depth != b.depth {
+			return cmp.Compare(b.depth, a.depth)
 		}
-		return cands[i].Path < cands[j].Path
+		return strings.Compare(a.Path, b.Path)
 	})
-	var kept []cand
-	for _, c := range cands {
-		explained := false
-		for _, k := range kept {
-			if isUnder(k.Path, c.Path) && k.Change.Low*5 >= c.Change.Low*4 {
-				explained = true
-				break
-			}
-		}
-		if !explained {
-			kept = append(kept, c)
+	at := make(map[string]int, len(cands)) // folded path → index in cands
+	for i, c := range cands {
+		if c.key != "/" { // "/" is below nothing, so it is never an ancestor to find
+			at[c.key] = i
 		}
 	}
-	// A parent whose kept descendants explain all but growMin of its growth
-	// adds nothing. kept is deepest first, so descendants come before it.
-	paths := make([]string, len(kept))
-	for i, c := range kept {
-		paths[i] = c.Path
-	}
+	// For each folder, over the kept folders below it: the largest growth,
+	// and the summed growth of those with no other kept folder between them
+	// and it.
+	maxBelow := make([]int64, len(cands))
+	sumBelow := make([]int64, len(cands))
+	kept := make([]bool, len(cands))
 	out := []TrendFolder{}
-	for i, c := range kept {
-		rest := c.Change.Low
-		for j, d := range kept[:i] {
-			if isUnder(d.Path, c.Path) && !nestedIn(paths[:i], j, c.Path) {
-				rest -= d.Change.Low
-			}
+	for i, c := range cands {
+		low := c.Change.Low
+		biggest, summed := maxBelow[i], sumBelow[i]
+		if c.key == "/" {
+			biggest, summed = rootBelow(cands[:i], kept, at)
 		}
-		if rest < growMin && rest < c.Change.Low {
+		kept[i] = biggest*5 < low*4
+		// A parent whose kept descendants explain all but growMin of its
+		// growth adds nothing.
+		if rest := low - summed; kept[i] && (rest >= growMin || rest >= low) {
+			out = append(out, c.TrendFolder)
+		}
+		if c.key == "/" {
 			continue
 		}
-		out = append(out, c.TrendFolder)
+		if up := nearest(c.key, at); up >= 0 {
+			if kept[i] {
+				summed = low
+				biggest = max(biggest, low)
+			}
+			maxBelow[up] = max(maxBelow[up], biggest)
+			sumBelow[up] += summed
+		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Change.Low > out[j].Change.Low })
+	slices.SortStableFunc(out, func(a, b TrendFolder) int { return cmp.Compare(b.Change.Low, a.Change.Low) })
 	if len(out) > growingMax {
 		out = out[:growingMax]
 	}
 	return out
 }
 
-// nestedIn reports whether kept[j] is below another kept folder that is
-// itself below dir, so its growth is already counted in that folder's.
-func nestedIn(kept []string, j int, dir string) bool {
-	for k, o := range kept {
-		if k != j && isUnder(o, dir) && isUnder(kept[j], o) {
-			return true
-		}
-	}
-	return false
+// growCand is a folder that grew enough to be listed, before it is judged.
+type growCand struct {
+	TrendFolder
+	key   string // folded path
+	depth int
 }
 
-// isUnder reports whether p is strictly below dir, case-insensitively.
-func isUnder(p, dir string) bool {
-	p, dir = strings.ToLower(p), strings.ToLower(dir)
-	if dir == "/" {
-		return p != "/"
+// nearest is the index of the closest folder above key that is in at, or -1.
+func nearest(key string, at map[string]int) int {
+	for i := strings.LastIndexByte(key, '/'); i >= 0; i = strings.LastIndexByte(key[:i], '/') {
+		if j, ok := at[key[:i]]; ok {
+			return j
+		}
 	}
-	return strings.HasPrefix(p, dir+"/")
+	return -1
+}
+
+// rootBelow is maxBelow and sumBelow for the folder "/". It looks only at
+// the folders judged before it (those at least two levels down), and a kept
+// folder counts in the sum only when no kept folder above it is among them.
+// Every other path counts as below "/". These are the original rules, kept
+// as they were.
+func rootBelow(before []growCand, kept []bool, at map[string]int) (biggest, summed int64) {
+	for j, c := range before {
+		if !kept[j] {
+			continue
+		}
+		biggest = max(biggest, c.Change.Low)
+		covered := false // some kept folder between c and "/"
+		for i := strings.LastIndexByte(c.key, '/'); i >= 0 && !covered; i = strings.LastIndexByte(c.key[:i], '/') {
+			k, ok := at[c.key[:i]]
+			covered = ok && kept[k]
+		}
+		if !covered {
+			summed += c.Change.Low
+		}
+	}
+	return biggest, summed
 }
 
 func expandHome(home, p string) string {

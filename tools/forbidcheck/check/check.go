@@ -1,3 +1,8 @@
+// Package check finds forbidden calls in Go source: deletes, renames,
+// truncations and command execution anywhere outside internal/executor.
+//
+// It parses source with go/parser, so aliased and dot imports are caught.
+// Exceptions live in tools/forbidcheck/allow.txt as "path:pkg.Func" lines.
 package check
 
 import (
@@ -96,141 +101,183 @@ func (f Finding) String() string { return fmt.Sprintf("%s:%d: %s", f.File, f.Lin
 // key is the allowlist key for a finding.
 func (f Finding) key() string { return f.File + ":" + f.Func }
 
-// CheckSource parses one Go file and returns every forbidden reference.
+// scan is the state of checking one file.
+type scan struct {
+	filename string
+	fset     *token.FileSet
+	named    map[string]string // local name -> import path
+	dotted   []string          // dot-imported paths
+	cmds     commandNames
+	seen     map[ast.Node]bool // call targets already reported as calls
+	out      []Finding
+}
+
+// Source parses one Go file and returns every forbidden reference.
 // filename is used for positions and should be module-relative.
-func CheckSource(filename string, src []byte) ([]Finding, error) {
+func Source(filename string, src []byte) ([]Finding, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, err
 	}
-
-	named := map[string]string{} // local name -> import path
-	var dotted []string          // dot-imported paths
-	cmds := commandNames{
-		// Inside package platform itself, Command is unqualified.
-		bare: file.Name.Name == "platform" && strings.HasPrefix(filename, "internal/platform/"),
-		qual: map[string]bool{},
+	s := &scan{
+		filename: filename,
+		fset:     fset,
+		named:    map[string]string{},
+		cmds: commandNames{
+			// Inside package platform itself, Command is unqualified.
+			bare: file.Name.Name == "platform" && strings.HasPrefix(filename, "internal/platform/"),
+			qual: map[string]bool{},
+		},
+		seen: map[ast.Node]bool{},
 	}
 	for _, imp := range file.Imports {
-		p, err := strconv.Unquote(imp.Path.Value)
-		if err != nil {
-			continue
-		}
-		if p == platformPath {
-			switch {
-			case imp.Name == nil:
-				cmds.qual["platform"] = true
-			case imp.Name.Name == ".":
-				cmds.bare = true
-			case imp.Name.Name != "_":
-				cmds.qual[imp.Name.Name] = true
-			}
-			continue
-		}
-		if !watched(p) {
-			continue
-		}
-		switch {
-		case imp.Name == nil:
-			named[shortName(p)] = p
-		case imp.Name.Name == ".":
-			dotted = append(dotted, p)
-		case imp.Name.Name == "_":
-		default:
-			named[imp.Name.Name] = p
-		}
+		s.imports(imp)
 	}
-	if len(named) == 0 && len(dotted) == 0 && !cmds.any() {
+	if len(s.named) == 0 && len(s.dotted) == 0 && !s.cmds.any() {
 		return nil, nil
 	}
+	ast.Inspect(file, s.visit)
+	sort.SliceStable(s.out, func(i, j int) bool { return s.out[i].pos < s.out[j].pos })
+	return s.out, nil
+}
 
-	var out []Finding
-	report := func(n ast.Node, importPath, name string, r rule) {
-		fn := shortName(importPath) + "." + name
-		out = append(out, Finding{
-			File:    filename,
-			Line:    fset.Position(n.Pos()).Line,
-			pos:     n.Pos(),
-			Func:    fn,
-			Message: fmt.Sprintf("forbidden call %s (%s)", fn, r.reason),
-		})
+// imports records how one import can be spelled: the platform package for
+// platform.Command, or a watched package for forbidden functions.
+func (s *scan) imports(imp *ast.ImportSpec) {
+	p, err := strconv.Unquote(imp.Path.Value)
+	if err != nil {
+		return
 	}
-	// resolve returns the forbidden rule an expression refers to, if any.
-	resolve := func(e ast.Expr) (string, string, rule, bool) {
-		switch x := e.(type) {
-		case *ast.SelectorExpr:
-			id, ok := x.X.(*ast.Ident)
-			if !ok {
-				return "", "", rule{}, false
-			}
-			p, ok := named[id.Name]
-			if !ok {
-				return "", "", rule{}, false
-			}
-			r, ok := lookup(p, x.Sel.Name)
-			return p, x.Sel.Name, r, ok
-		case *ast.Ident:
-			for _, p := range dotted {
-				if r, ok := lookup(p, x.Name); ok {
-					return p, x.Name, r, true
-				}
-			}
-		}
-		return "", "", rule{}, false
+	switch {
+	case p == platformPath:
+		s.platform(imp)
+	case watched(p):
+		s.watch(imp, p)
 	}
+}
 
-	seen := map[ast.Node]bool{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.CallExpr:
-			p, name, r, ok := resolve(x.Fun)
-			if !ok {
-				return true
-			}
-			seen[x.Fun] = true
-			report(x, p, name, r)
-			if r.isExec && r.nameArg < len(x.Args) {
-				if s, ok := shellLiteral(x.Args[r.nameArg]); ok {
-					out = append(out, Finding{
-						File:    filename,
-						Line:    fset.Position(x.Args[r.nameArg].Pos()).Line,
-						pos:     x.Args[r.nameArg].Pos(),
-						Message: fmt.Sprintf("forbidden shell %q as command name (no shell, no sudo)", s),
-					})
-				}
-			}
-		case *ast.SelectorExpr:
-			// A reference that is not a call, e.g. "rm := os.Remove".
-			if seen[x] {
-				return true
-			}
-			if p, name, r, ok := resolve(x); ok {
-				report(x, p, name, r)
-			}
-		case *ast.CompositeLit:
-			for _, lit := range cmds.literals(x) {
-				if v := commandName(lit); v != nil {
-					if s, ok := shellLiteral(v); ok {
-						out = append(out, Finding{
-							File:    filename,
-							Line:    fset.Position(v.Pos()).Line,
-							pos:     v.Pos(),
-							Message: fmt.Sprintf("forbidden shell %q in platform.Command (no shell, ever)", s),
-						})
-					}
-				}
-			}
+func (s *scan) platform(imp *ast.ImportSpec) {
+	switch {
+	case imp.Name == nil:
+		s.cmds.qual["platform"] = true
+	case imp.Name.Name == ".":
+		s.cmds.bare = true
+	case imp.Name.Name != "_":
+		s.cmds.qual[imp.Name.Name] = true
+	}
+}
+
+func (s *scan) watch(imp *ast.ImportSpec, p string) {
+	switch {
+	case imp.Name == nil:
+		s.named[shortName(p)] = p
+	case imp.Name.Name == ".":
+		s.dotted = append(s.dotted, p)
+	case imp.Name.Name == "_":
+	default:
+		s.named[imp.Name.Name] = p
+	}
+}
+
+// visit looks at one node. It always descends, so nested calls are found.
+func (s *scan) visit(n ast.Node) bool {
+	switch x := n.(type) {
+	case *ast.CallExpr:
+		s.call(x)
+	case *ast.SelectorExpr:
+		s.ref(x)
+	case *ast.CompositeLit:
+		s.literal(x)
+	}
+	return true
+}
+
+// call reports a forbidden call, and a shell as the program of an exec call.
+func (s *scan) call(x *ast.CallExpr) {
+	p, name, r, ok := s.resolve(x.Fun)
+	if !ok {
+		return
+	}
+	s.seen[x.Fun] = true
+	s.report(x, p, name, r)
+	if r.isExec && r.nameArg < len(x.Args) {
+		s.shell(x.Args[r.nameArg], "forbidden shell %q as command name (no shell, no sudo)")
+	}
+}
+
+// ref reports a forbidden function that is not called, e.g. "rm := os.Remove".
+func (s *scan) ref(x *ast.SelectorExpr) {
+	if s.seen[x] {
+		return
+	}
+	if p, name, r, ok := s.resolve(x); ok {
+		s.report(x, p, name, r)
+	}
+}
+
+// literal reports a shell used as the Name of a platform.Command literal.
+func (s *scan) literal(x *ast.CompositeLit) {
+	for _, lit := range s.cmds.literals(x) {
+		if v := commandName(lit); v != nil {
+			s.shell(v, "forbidden shell %q in platform.Command (no shell, ever)")
 		}
-		return true
+	}
+}
+
+func (s *scan) report(n ast.Node, importPath, name string, r rule) {
+	fn := shortName(importPath) + "." + name
+	s.out = append(s.out, Finding{
+		File:    s.filename,
+		Line:    s.fset.Position(n.Pos()).Line,
+		pos:     n.Pos(),
+		Func:    fn,
+		Message: fmt.Sprintf("forbidden call %s (%s)", fn, r.reason),
 	})
-	sort.SliceStable(out, func(i, j int) bool { return out[i].pos < out[j].pos })
-	return out, nil
+}
+
+// shell reports e when it is a string literal naming a shell. format takes
+// the literal as its one %q.
+func (s *scan) shell(e ast.Expr, format string) {
+	lit, ok := shellLiteral(e)
+	if !ok {
+		return
+	}
+	s.out = append(s.out, Finding{
+		File:    s.filename,
+		Line:    s.fset.Position(e.Pos()).Line,
+		pos:     e.Pos(),
+		Message: fmt.Sprintf(format, lit),
+	})
+}
+
+// resolve returns the forbidden rule an expression refers to, if any.
+func (s *scan) resolve(e ast.Expr) (string, string, rule, bool) {
+	switch x := e.(type) {
+	case *ast.SelectorExpr:
+		id, ok := x.X.(*ast.Ident)
+		if !ok {
+			return "", "", rule{}, false
+		}
+		p, ok := s.named[id.Name]
+		if !ok {
+			return "", "", rule{}, false
+		}
+		r, ok := lookup(p, x.Sel.Name)
+		return p, x.Sel.Name, r, ok
+	case *ast.Ident:
+		for _, p := range s.dotted {
+			if r, ok := lookup(p, x.Name); ok {
+				return p, x.Name, r, true
+			}
+		}
+	}
+	return "", "", rule{}, false
 }
 
 // platformPath is the package whose Command type feeds the Runner. A shell
 // as Command.Name is never allowed (and never allowlistable).
-const platformPath = "macdoc/internal/platform"
+const platformPath = "github.com/sagnik26/macdoc/internal/platform"
 
 // commandNames records how platform.Command can be spelled in one file.
 type commandNames struct {

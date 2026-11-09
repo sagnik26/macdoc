@@ -3,11 +3,12 @@ package tests
 import (
 	"context"
 	"errors"
-	"macdoc/internal/probe"
 	"strings"
 	"testing"
 
-	"macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+
+	"github.com/sagnik26/macdoc/internal/platform"
 )
 
 func TestParseSysctlGolden(t *testing.T) {
@@ -77,7 +78,7 @@ func TestParseSwVers(t *testing.T) {
 }
 
 func TestCollectHardware(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{
+	f := &platform.Fake{Responses: map[string]platform.Result{
 		platform.Key(probe.CmdSysctlHW): w1OK(w1Fixture(t, "sysctl_hw.txt")),
 		platform.Key(probe.CmdSwVers):   w1OK(w1Fixture(t, "sw_vers.txt")),
 	}}
@@ -96,7 +97,7 @@ func TestCollectHardware(t *testing.T) {
 }
 
 func TestCollectHardwareSysctlExitError(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{
+	f := &platform.Fake{Responses: map[string]platform.Result{
 		platform.Key(probe.CmdSysctlHW): {ExitCode: 1, Stderr: []byte("  sysctl: unknown oid 'hw.model'\n")},
 	}}
 	_, err := probe.CollectHardware(context.Background(), f)
@@ -108,7 +109,7 @@ func TestCollectHardwareSysctlExitError(t *testing.T) {
 
 func TestCollectHardwareSwVersRunError(t *testing.T) {
 	boom := errors.New("boom")
-	f := &platform.FakeRunner{
+	f := &platform.Fake{
 		Responses: map[string]platform.Result{platform.Key(probe.CmdSysctlHW): w1OK(w1Fixture(t, "sysctl_hw.txt"))},
 		Errors:    map[string]error{platform.Key(probe.CmdSwVers): boom},
 	}
@@ -134,7 +135,7 @@ func TestCollectHardwareBadValues(t *testing.T) {
 		if name == "empty exit" {
 			res = platform.Result{ExitCode: 2}
 		}
-		f := &platform.FakeRunner{Responses: map[string]platform.Result{
+		f := &platform.Fake{Responses: map[string]platform.Result{
 			platform.Key(probe.CmdSysctlHW): res,
 			platform.Key(probe.CmdSwVers):   w1OK(w1Fixture(t, "sw_vers.txt")),
 		}}
@@ -145,7 +146,7 @@ func TestCollectHardwareBadValues(t *testing.T) {
 }
 
 func TestRunReadOnlyExitNoStderr(t *testing.T) {
-	f := &platform.FakeRunner{Responses: map[string]platform.Result{"vm_stat": {ExitCode: 3}}}
+	f := &platform.Fake{Responses: map[string]platform.Result{"vm_stat": {ExitCode: 3}}}
 	_, err := probe.RunReadOnly(context.Background(), f, probe.CmdVMStat)
 	if err == nil || err.Error() != "probe: vm_stat: exit status 3" {
 		t.Fatalf("err = %v", err)

@@ -1,0 +1,34 @@
+name: Recipe request
+description: Suggest something macdoc should be able to find or clean.
+labels: [recipe]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        macdoc only acts on things a recipe describes. A request is about *what* to cover; it is not a request to delete a path (macdoc never takes a path as a target). See docs/RECIPE_CATALOG.md.
+  - type: input
+    id: tool
+    attributes:
+      label: Tool or app
+      description: For example "Cargo", "Flutter", "JetBrains IDEs".
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where the space is
+      description: The folder, written with `~`, and a typical size you have seen.
+    validations:
+      required: true
+  - type: textarea
+    id: native
+    attributes:
+      label: Does the tool have its own cleanup command?
+      description: If so, the exact command and its dry-run form. macdoc prefers the owning tool's own command.
+  - type: textarea
+    id: regenerate
+    attributes:
+      label: What happens after it is removed?
+      description: Is it rebuilt automatically, downloaded again, or gone for good? This decides the risk tier.
+    validations:
+      required: true

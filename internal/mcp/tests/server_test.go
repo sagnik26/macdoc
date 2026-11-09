@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"macdoc/internal/mcp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,13 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sagnik26/macdoc/internal/mcp"
+
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 const gb = 1_000_000_000
@@ -126,7 +127,7 @@ func newFixtureAt(t *testing.T, now func() time.Time) *fixture {
 		fixMu.Unlock()
 	})
 
-	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.FakeRunner{}, Catalog: cat, Version: "test", ScanRoot: filepath.Join(home, "code"), Now: now})
+	srv := mcp.New(mcp.Options{Home: home, Runner: &platform.Fake{}, Catalog: cat, Version: "test", ScanRoot: filepath.Join(home, "code"), Now: now})
 	ct, st2 := sdk.NewInMemoryTransports()
 	ctx := context.Background()
 	ss, err := srv.Connect(ctx, st2, nil)
@@ -287,7 +288,7 @@ func TestCreatePlan(t *testing.T) {
 	}
 	data := out["data"].(map[string]any)
 	id, _ := data["plan_id"].(string)
-	if !planner.ValidID(id) || data["user_action"] != "Run in Terminal:  macdoc apply "+id ||
+	if !planner.Valid(id) || data["user_action"] != "Run in Terminal:  macdoc apply "+id ||
 		data["summary"].(map[string]any)["items"].(float64) != 2 || !strings.Contains(data["note"].(string), "cannot apply") {
 		t.Fatalf("plan result = %v", data)
 	}
@@ -300,7 +301,7 @@ func TestCreatePlan(t *testing.T) {
 	}
 
 	out, errText = f.call(t, "get_plan", map[string]any{"id": strings.ToLower(id)})
-	if errText != "" || out["data"].(map[string]any)["status"] != string(planner.StatusPending) {
+	if errText != "" || out["data"].(map[string]any)["status"] != string(planner.Pending) {
 		t.Errorf("get_plan: %v %s", out, errText)
 	}
 
@@ -488,7 +489,7 @@ func TestPlanScanGuidance(t *testing.T) {
 	if !strings.Contains(errText, "call list_opportunities again") || strings.Contains(errText, "doctor wins") {
 		t.Errorf("unknown ID: %q", errText)
 	}
-	c.advance(planner.MaxScanAge)
+	c.advance(planner.Oldest)
 	_, errText = f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
 	for _, want := range []string{"the latest scan is from 7h ago, older than the 6 hours", "max_age", "refresh_scan", "IDs change with every scan"} {
 		if !strings.Contains(errText, want) {

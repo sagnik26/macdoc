@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"io/fs"
-	"macdoc/internal/projects"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,9 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/testutil/fstree"
+	"github.com/sagnik26/macdoc/internal/projects"
+
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/testutil/fstree"
 )
 
 var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
@@ -56,9 +57,9 @@ func node(p string, mb int64, mtime time.Time) model.Node {
 }
 
 // gitRunner answers the two read-only git commands for root.
-func gitRunner(root, status string, commit time.Time) *platform.FakeRunner {
+func gitRunner(root, status string, commit time.Time) *platform.Fake {
 	base := "git -C " + root + " --no-pager --no-optional-locks -c core.fsmonitor=false -c core.untrackedCache=false "
-	return &platform.FakeRunner{Responses: map[string]platform.Result{
+	return &platform.Fake{Responses: map[string]platform.Result{
 		base + "status --porcelain --untracked-files=normal -- .": {Stdout: []byte(status)},
 		base + "log -1 --format=%ct -- .":                         {Stdout: []byte(strconv.FormatInt(commit.Unix(), 10) + "\n")},
 	}}
@@ -165,12 +166,12 @@ func TestGitStates(t *testing.T) {
 	cases := []struct {
 		name   string
 		runner platform.Runner
-		want   projects.GitState
+		want   projects.Git
 	}{
 		{"modified file", gitRunner(app, " M src/index.js\n", daysAgo(150)), projects.GitDirty},
 		{"untracked file", gitRunner(app, "?? notes.txt\n", daysAgo(150)), projects.GitDirty},
 		{"only Finder files", gitRunner(app, "?? .DS_Store\n?? ios/.DS_Store\n", daysAgo(150)), projects.GitClean},
-		{"git fails", &platform.FakeRunner{Errors: map[string]error{}}, projects.GitUnknown},
+		{"git fails", &platform.Fake{Errors: map[string]error{}}, projects.GitUnknown},
 		{"no runner", nil, projects.GitUnknown},
 	}
 	for _, c := range cases {
@@ -183,7 +184,7 @@ func TestGitStates(t *testing.T) {
 	if err := os.Remove(filepath.Join(app, ".git")); err != nil {
 		t.Fatal(err)
 	}
-	r := &platform.FakeRunner{}
+	r := &platform.Fake{}
 	if p := discover(t, projects.Env{Home: home, Nodes: nodes, Runner: r}).Projects[0]; p.Git != projects.GitNone || len(r.Calls) != 0 {
 		t.Errorf("without .git: git = %s, %d calls", p.Git, len(r.Calls))
 	}
@@ -191,7 +192,7 @@ func TestGitStates(t *testing.T) {
 
 func TestGitSkippedForSmallProjects(t *testing.T) {
 	home, nodes := rnHome(t)
-	r := &platform.FakeRunner{}
+	r := &platform.Fake{}
 	res, err := projects.Discover(context.Background(), projects.Env{Home: home, Nodes: nodes[:1], Runner: r, Now: now}, projects.Options{GitMinBytes: 1 << 40})
 	if err != nil {
 		t.Fatal(err)

@@ -5,14 +5,14 @@ import (
 	"errors"
 	"time"
 
-	"macdoc/internal/audit"
-	"macdoc/internal/config"
-	"macdoc/internal/model"
-	"macdoc/internal/planner"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
-	"macdoc/internal/recipes"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/audit"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // PlanOptions configure CreatePlan.
@@ -68,7 +68,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 		return PlanResult{}, err
 	}
 	if o.TTL <= 0 {
-		o.TTL = cfg.PlanTTL()
+		o.TTL = cfg.TTL()
 	}
 	st, err := store.Open(o.StorePath)
 	if err != nil {
@@ -85,7 +85,9 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 
 	ops := o.Precomputed
 	if ops == nil || ops.Scan.ID != info.ID {
-		res, err := Opportunities(ctx, o.OpportunityOptions)
+		live := o.OpportunityOptions
+		live.Live = true // a plan is built from what the tools say now
+		res, err := Opportunities(ctx, live)
 		if err != nil {
 			return PlanResult{}, err
 		}
@@ -105,9 +107,9 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 	if err := planner.Save(st, planner.Dir(o.StorePath), &out.Plan); err != nil {
 		return out, err
 	}
-	out.Status = planner.StatusPending
-	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.PlanCreated, Plan: out.Plan.ID,
-		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), ExpectedBytes: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
+	out.Status = planner.Pending
+	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.Planned, Plan: out.Plan.ID,
+		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), Expected: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
 		out.Warnings = append(out.Warnings, "couldn't record the plan in the audit log: "+err.Error())
 	}
 	return out, nil
@@ -139,7 +141,7 @@ func ShowPlan(ctx context.Context, o OpportunityOptions, id string) (PlanResult,
 	}
 	out := PlanResult{Plan: p, Refused: []planner.Refusal{}, Snapshot: snapshotNote(ctx, o.Runner)}
 	if err != nil {
-		out.Status, out.Warnings = planner.StatusInvalid, []string{err.Error()}
+		out.Status, out.Warnings = planner.Invalid, []string{err.Error()}
 		return out, nil
 	}
 	st, err := store.Open(o.StorePath)
@@ -149,15 +151,15 @@ func ShowPlan(ctx context.Context, o OpportunityOptions, id string) (PlanResult,
 	defer func() { _ = st.Close() }()
 	rec, err := st.Plan(id)
 	if errors.Is(err, store.ErrNoPlan) {
-		out.Status, out.Warnings = planner.StatusInvalid, []string{"macdoc has no record of this plan"}
+		out.Status, out.Warnings = planner.Invalid, []string{"macdoc has no record of this plan"}
 		return out, nil
 	}
 	if err != nil {
 		return PlanResult{}, err
 	}
 	verr := planner.Verify(p, rec, o.Catalog, pol, o.Now)
-	out.Status = planner.StatusOf(verr)
-	if out.Status == planner.StatusInvalid {
+	out.Status = planner.Classify(verr)
+	if out.Status == planner.Invalid {
 		out.Warnings = []string{verr.Error()}
 	}
 	return out, nil

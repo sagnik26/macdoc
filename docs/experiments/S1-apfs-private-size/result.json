@@ -1,0 +1,176 @@
+[
+ {
+  "label": "1 unique 64MB file",
+  "freed": 67108864,
+  "st_blocks": 67108864,
+  "private": 67108864,
+  "group": 67108864,
+  "detail": {
+   "u.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 67108864,
+    "cid": 16,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "2 clone original (2 clones remain)",
+  "freed": 0,
+  "st_blocks": 67108864,
+  "private": 0,
+  "group": 0,
+  "detail": {
+   "a.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 0,
+    "cid": 17,
+    "rc": 3
+   }
+  }
+ },
+ {
+  "label": "3 one of 2 remaining clones",
+  "freed": 0,
+  "st_blocks": 67108864,
+  "private": 0,
+  "group": 0,
+  "detail": {
+   "a1.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 0,
+    "cid": 17,
+    "rc": 2
+   }
+  }
+ },
+ {
+  "label": "4 last clone",
+  "freed": 67108864,
+  "st_blocks": 67108864,
+  "private": 67108864,
+  "group": 67108864,
+  "detail": {
+   "a2.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 67108864,
+    "cid": 17,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "5 hardlink 1 of 2",
+  "freed": 0,
+  "st_blocks": 67108864,
+  "private": 67108864,
+  "group": 67108864,
+  "detail": {
+   "h.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 67108864,
+    "cid": 20,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "6 last hardlink",
+  "freed": 67108864,
+  "st_blocks": 67108864,
+  "private": 67108864,
+  "group": 67108864,
+  "detail": {
+   "h2.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 67108864,
+    "cid": 20,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "7 sparse 200MB (4MB written)",
+  "freed": 4202496,
+  "st_blocks": 4194304,
+  "private": 4194304,
+  "group": 4194304,
+  "detail": {
+   "sp.bin": {
+    "blocks": 4194304,
+    "alloc": 4194304,
+    "priv": 4194304,
+    "cid": 23,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "8 diverged clone (8MB rewritten)",
+  "freed": 8388608,
+  "st_blocks": 67108864,
+  "private": 8388608,
+  "group": 67108864,
+  "detail": {
+   "d1.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 8388608,
+    "cid": 26,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "9 original after diverged clone gone",
+  "freed": 67108864,
+  "st_blocks": 67108864,
+  "private": 67108864,
+  "group": 67108864,
+  "detail": {
+   "d.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 67108864,
+    "cid": 24,
+    "rc": 1
+   }
+  }
+ },
+ {
+  "label": "10 whole clone group at once (b,b1,b2)",
+  "freed": 67108864,
+  "st_blocks": 201326592,
+  "private": 0,
+  "group": 67108864,
+  "detail": {
+   "b.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 0,
+    "cid": 27,
+    "rc": 3
+   },
+   "b1.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 0,
+    "cid": 27,
+    "rc": 3
+   },
+   "b2.bin": {
+    "blocks": 67108864,
+    "alloc": 67108864,
+    "priv": 0,
+    "cid": 27,
+    "rc": 3
+   }
+  }
+ }
+]

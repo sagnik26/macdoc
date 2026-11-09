@@ -1,13 +1,14 @@
 package tests
 
 import (
-	"macdoc/internal/sandbox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/sandbox"
+
+	"github.com/sagnik26/macdoc/internal/safety"
 )
 
 // realDir returns a canonical, symlink-free temp directory (t.TempDir lives
@@ -42,8 +43,8 @@ func TestRootInactive(t *testing.T) {
 	// D10: only an unset variable means inactive; set-but-empty fails closed
 	// (TestRootSetButEmpty).
 	setup(t)
-	t.Setenv(sandbox.EnvVar, "")
-	if err := os.Unsetenv(sandbox.EnvVar); err != nil {
+	t.Setenv(sandbox.Env, "")
+	if err := os.Unsetenv(sandbox.Env); err != nil {
 		t.Fatal(err)
 	}
 	root, active, err := sandbox.Root()
@@ -58,13 +59,13 @@ func TestRootInactive(t *testing.T) {
 func TestRootSetButEmpty(t *testing.T) {
 	base, _ := setup(t)
 	for _, v := range []string{"", " ", "\t\n"} {
-		t.Setenv(sandbox.EnvVar, v)
+		t.Setenv(sandbox.Env, v)
 		root, active, err := sandbox.Root()
 		if root != "" || !active || err == nil || !strings.Contains(err.Error(), "set but empty") {
 			t.Errorf("Root() with %q = %q, %v, %v; want \"\", true, set-but-empty error", v, root, active, err)
 		}
 		if err := sandbox.Check(filepath.Join(base, "x")); err == nil {
-			t.Errorf("Check with %s=%q = nil; want fail closed", sandbox.EnvVar, v)
+			t.Errorf("Check with %s=%q = nil; want fail closed", sandbox.Env, v)
 		}
 	}
 }
@@ -73,7 +74,7 @@ func TestRootValid(t *testing.T) {
 	base, _ := setup(t)
 	sb := mkdir(t, filepath.Join(base, "sb"))
 	for _, v := range []string{sb, sb + "/", sb + "/./"} {
-		t.Setenv(sandbox.EnvVar, v)
+		t.Setenv(sandbox.Env, v)
 		root, active, err := sandbox.Root()
 		if err != nil || !active || root != sb {
 			t.Errorf("Root(%q) = %q, %v, %v; want %q", v, root, active, err, sb)
@@ -88,7 +89,7 @@ func TestRootSymlinked(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(sandbox.EnvVar, link)
+	t.Setenv(sandbox.Env, link)
 	root, active, err := sandbox.Root()
 	if err != nil || !active || root != real {
 		t.Fatalf("Root() = %q, %v, %v; want resolved %q", root, active, err, real)
@@ -133,7 +134,7 @@ func TestRootRejects(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			t.Setenv(sandbox.EnvVar, c.val)
+			t.Setenv(sandbox.Env, c.val)
 			root, _, err := sandbox.Root()
 			if err == nil {
 				t.Fatalf("Root(%q) = %q, nil; want error", c.val, root)
@@ -166,7 +167,7 @@ func TestRootRejectsAncestorOfRealHome(t *testing.T) {
 	if err != nil {
 		t.Skip("home not resolvable")
 	}
-	t.Setenv(sandbox.EnvVar, filepath.Dir(h))
+	t.Setenv(sandbox.Env, filepath.Dir(h))
 	if _, _, err := sandbox.Root(); err == nil {
 		t.Errorf("Root(%q) = nil error; want rejection of home ancestor", filepath.Dir(h))
 	}
@@ -175,7 +176,7 @@ func TestRootRejectsAncestorOfRealHome(t *testing.T) {
 func TestRootHomeErrors(t *testing.T) {
 	base := realDir(t)
 	sb := mkdir(t, filepath.Join(base, "sb"))
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 
 	t.Setenv("HOME", "")
 	if _, _, err := sandbox.Root(); err == nil {
@@ -204,7 +205,7 @@ func TestCheck(t *testing.T) {
 	sb := mkdir(t, filepath.Join(base, "sb"))
 	other := mkdir(t, filepath.Join(base, "sbother"))
 	mkdir(t, filepath.Join(sb, "d"))
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 
 	cases := []struct {
 		path string
@@ -241,7 +242,7 @@ func TestCheckSymlinkOut(t *testing.T) {
 	if err := os.Symlink(outside, link); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(sandbox.EnvVar, sb)
+	t.Setenv(sandbox.Env, sb)
 
 	// The link itself lives inside the sandbox; removing it is fine.
 	c, err := safety.Canonicalize(link)

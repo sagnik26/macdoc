@@ -3,14 +3,15 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"macdoc/internal/cli"
 	"strings"
 	"testing"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/probe"
+	"github.com/sagnik26/macdoc/internal/cli"
+
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/probe"
 )
 
 func sampleResult() engine.DoctorResult {
@@ -68,7 +69,7 @@ func TestRenderDoctorUnmeasured(t *testing.T) {
 
 func TestDoctorHealthJSON(t *testing.T) {
 	old := cli.Runner
-	cli.Runner = &platform.FakeRunner{} // every command errors -> warnings, never a failure
+	cli.Runner = &platform.Fake{} // every command errors -> warnings, never a failure
 	t.Cleanup(func() { cli.Runner = old })
 
 	for _, args := range [][]string{{"doctor", "health", "--json"}} {

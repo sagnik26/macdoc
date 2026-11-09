@@ -10,22 +10,22 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"macdoc/internal/engine"
-	"macdoc/internal/model"
-	"macdoc/internal/textsafe"
+	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/textsafe"
 )
 
-// theme styles human output. A plain theme (pipes, files, tests, NO_COLOR,
+// Theme styles human output. A plain theme (pipes, files, tests, NO_COLOR,
 // TERM=dumb) renders every style as the bare text, so plain output is stable
 // and machine-friendly; decorations such as the header card only appear when
 // color is on.
-type theme struct {
+type Theme struct {
 	on    bool
 	dark  bool
 	r     *lipgloss.Renderer
 	width int // terminal width for boxes; 0 = unknown
 
-	brand, Title, text, muted, faint, accent, Id, size lipgloss.Style
+	brand, Title, text, muted, faint, accent, ID, size lipgloss.Style
 	Ok, warn, bad, info, risky                         lipgloss.Style
 	cmdName, cmdFlag, cmdArg                           lipgloss.Style
 	jsonKey, jsonString, jsonNumber, jsonLiteral       lipgloss.Style
@@ -64,7 +64,7 @@ var (
 //
 // Themes for terminals are cached per file: detecting a light or dark
 // background asks the terminal once, and a full report renders many views.
-func newTheme(w io.Writer) *theme {
+func newTheme(w io.Writer) *Theme {
 	f, ok := w.(*os.File)
 	if !ok || !IsTerminal(w) {
 		return PlainTheme()
@@ -85,7 +85,7 @@ func newTheme(w io.Writer) *theme {
 
 var (
 	themeMu    sync.Mutex
-	themeCache = map[uintptr]*theme{}
+	themeCache = map[uintptr]*Theme{}
 )
 
 // setBackground applies MACDOC_THEME=light|dark if set; otherwise lipgloss
@@ -99,7 +99,8 @@ func setBackground(r *lipgloss.Renderer) {
 	}
 }
 
-func PlainTheme() *theme {
+// PlainTheme returns a theme that renders exactly the uncolored text.
+func PlainTheme() *Theme {
 	r := lipgloss.NewRenderer(io.Discard)
 	r.SetColorProfile(termenv.Ascii)
 	t := ColorTheme(r, 0)
@@ -108,9 +109,9 @@ func PlainTheme() *theme {
 }
 
 // ColorTheme builds styles on renderer r (whose profile decides the depth).
-func ColorTheme(r *lipgloss.Renderer, width int) *theme {
+func ColorTheme(r *lipgloss.Renderer, width int) *Theme {
 	s := func(c lipgloss.TerminalColor) lipgloss.Style { return r.NewStyle().Foreground(c) }
-	return &theme{
+	return &Theme{
 		on:    true,
 		dark:  r.HasDarkBackground(),
 		r:     r,
@@ -122,7 +123,7 @@ func ColorTheme(r *lipgloss.Renderer, width int) *theme {
 		muted:  s(colMuted),
 		faint:  s(colFaint),
 		accent: s(colCyan),
-		Id:     s(colCyan),
+		ID:     s(colCyan),
 		size:   s(colText).Bold(true),
 
 		Ok:    s(colGreen),
@@ -168,12 +169,12 @@ func riskColor(r model.Risk) lipgloss.TerminalColor {
 }
 
 // riskStyle is the text style of a risk tier.
-func (t *theme) riskStyle(r model.Risk) lipgloss.Style {
+func (t *Theme) riskStyle(r model.Risk) lipgloss.Style {
 	return t.r.NewStyle().Foreground(riskColor(r))
 }
 
-// badge is a tier's short label as a colored pill (plain: the bare label).
-func (t *theme) Badge(r model.Risk) string {
+// Badge is a tier's short label as a colored pill (plain: the bare label).
+func (t *Theme) Badge(r model.Risk) string {
 	label := string(r)
 	if !t.on {
 		return label
@@ -181,8 +182,8 @@ func (t *theme) Badge(r model.Risk) string {
 	return t.r.NewStyle().Background(riskColor(r)).Foreground(colOnBadge).Bold(true).Render(" " + label + " ")
 }
 
-// dot is "● " in the tier color when color is on, else "".
-func (t *theme) Dot(r model.Risk) string {
+// Dot is "● " in the tier color when color is on, else "".
+func (t *Theme) Dot(r model.Risk) string {
 	if !t.on {
 		return ""
 	}
@@ -190,13 +191,13 @@ func (t *theme) Dot(r model.Risk) string {
 }
 
 // rule draws a horizontal rule of n cells.
-func (t *theme) rule(n int) string {
+func (t *Theme) rule(n int) string {
 	return t.faint.Render(strings.Repeat("─", max(0, n)))
 }
 
 // usageStyle colors a used/total ratio: green, then yellow from 80%, red
 // from 90%.
-func (t *theme) usageStyle(used, total int64) lipgloss.Style {
+func (t *Theme) usageStyle(used, total int64) lipgloss.Style {
 	if total <= 0 {
 		return t.muted
 	}
@@ -209,8 +210,8 @@ func (t *theme) usageStyle(used, total int64) lipgloss.Style {
 	return t.Ok
 }
 
-// meter is a slim colored usage bar (plain: the classic block bar).
-func (t *theme) Meter(used, total int64, width int) string {
+// Meter is a slim colored usage bar (plain: the classic block bar).
+func (t *Theme) Meter(used, total int64, width int) string {
 	if !t.on {
 		return Bar(used, total, width)
 	}
@@ -222,7 +223,7 @@ func (t *theme) Meter(used, total int64, width int) string {
 }
 
 // sev renders a finding's severity mark.
-func (t *theme) sev(s engine.Severity) string {
+func (t *Theme) sev(s engine.Severity) string {
 	m := severityMark(s)
 	if !t.on {
 		return m
@@ -236,8 +237,8 @@ func (t *theme) sev(s engine.Severity) string {
 	return t.muted.Render("•")
 }
 
-// command highlights a native command: tool name, flags, arguments.
-func (t *theme) Command(argv []string) string {
+// Command highlights a native command: tool name, flags, arguments.
+func (t *Theme) Command(argv []string) string {
 	if !t.on {
 		return strings.Join(argv, " ")
 	}
@@ -255,10 +256,10 @@ func (t *theme) Command(argv []string) string {
 	return strings.Join(parts, " ")
 }
 
-// card draws a rounded box around lines with one space of padding, sized to
+// Card draws a rounded box around lines with one space of padding, sized to
 // the widest line (and at most the terminal width). Plain themes return the
 // lines unboxed.
-func (t *theme) Card(lines ...string) string {
+func (t *Theme) Card(lines ...string) string {
 	if !t.on {
 		return strings.Join(lines, "\n") + "\n"
 	}
@@ -280,10 +281,10 @@ func (t *theme) Card(lines ...string) string {
 }
 
 // heading renders a bold section heading.
-func (t *theme) heading(s string) string { return t.Title.Render(s) }
+func (t *Theme) heading(s string) string { return t.Title.Render(s) }
 
 // done is the closing reassurance line.
-func (t *theme) done(s string) string {
+func (t *Theme) done(s string) string {
 	if !t.on {
 		return s
 	}
@@ -294,11 +295,11 @@ func (t *theme) done(s string) string {
 // a buffer but wants the terminal's colors).
 type themedWriter struct {
 	io.Writer
-	t *theme
+	t *Theme
 }
 
 // themeFor returns the theme for w: the carried one, or one detected from w.
-func themeFor(w io.Writer) *theme {
+func themeFor(w io.Writer) *Theme {
 	if tw, ok := w.(*themedWriter); ok {
 		return tw.t
 	}
@@ -306,7 +307,7 @@ func themeFor(w io.Writer) *theme {
 }
 
 // pressure colors a memory-pressure level.
-func (t *theme) pressure(p string) string {
+func (t *Theme) pressure(p string) string {
 	if !t.on {
 		return p
 	}
@@ -321,17 +322,17 @@ func (t *theme) pressure(p string) string {
 
 // commandHeader is the first line of a section view, e.g.
 // "macdoc doctor wins · scan S-… · 2 hours ago".
-func (t *theme) commandHeader(section, scanID, age string) string {
+func (t *Theme) commandHeader(section, scanID, age string) string {
 	if !t.on {
 		return fmt.Sprintf("macdoc doctor %s · scan %s · %s\n\n", section, scanID, age)
 	}
 	return t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("doctor "+section)+
-		t.muted.Render(" · scan ")+t.Id.Render(scanID)+t.muted.Render(" · "+age)) + "\n"
+		t.muted.Render(" · scan ")+t.ID.Render(scanID)+t.muted.Render(" · "+age)) + "\n"
 }
 
 // section renders " Name ─────── total" to a fixed width; name is drawn in
 // style s.
-func (t *theme) section(s lipgloss.Style, name, total string) string {
+func (t *Theme) section(s lipgloss.Style, name, total string) string {
 	const width = 72
 	dashes := max(3, width-lipgloss.Width(name)-len([]rune(total))-3)
 	if !t.on {
@@ -341,17 +342,17 @@ func (t *theme) section(s lipgloss.Style, name, total string) string {
 }
 
 // footer is the closing line of a section view.
-func (t *theme) footer(next string) string {
+func (t *Theme) footer(next string) string {
 	if !t.on {
 		return " " + next + " · nothing has been changed\n"
 	}
 	return " " + t.accent.Render(next) + t.faint.Render(" · ") + t.done("nothing has been changed") + "\n"
 }
 
-// wrap soft-wraps s, which starts at Column indent, to the theme width and
+// Wrap soft-wraps s, which starts at Column indent, to the theme width and
 // indents the continuation lines to match. Without a known width it returns
 // s unchanged.
-func (t *theme) Wrap(s string, indent int) string {
+func (t *Theme) Wrap(s string, indent int) string {
 	if t.width <= indent+10 {
 		return s
 	}
@@ -364,4 +365,4 @@ func (t *theme) Wrap(s string, indent int) string {
 // characters removed and newlines turned into spaces (textsafe.ForTerminal).
 // Every human renderer starts from it. It is for showing only: never plan or
 // act on the copy.
-func display[T any](v T) T { return textsafe.Copy(v, textsafe.ForTerminal) }
+func display[T any](v T) T { return textsafe.Copy(v, textsafe.Terminal) }

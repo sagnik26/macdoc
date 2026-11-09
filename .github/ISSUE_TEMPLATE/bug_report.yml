@@ -1,0 +1,35 @@
+name: Bug report
+description: Something macdoc showed, measured or did was wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If macdoc **deleted something it should not have**, or could be made to touch a protected path, report it privately instead (see SECURITY.md). Replace your user name and project paths with placeholders in anything you paste.
+  - type: input
+    id: version
+    attributes:
+      label: macdoc version
+      description: The output of `macdoc version`.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      description: For example "macOS 15.1, Apple silicon" or "macOS 13, Intel".
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran. A size that looks wrong is easier to diagnose with the `--json` output of the command, with paths replaced by placeholders.
+    validations:
+      required: true

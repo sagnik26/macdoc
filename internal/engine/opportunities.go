@@ -13,15 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/text/unicode/norm"
-
-	"macdoc/internal/config"
-	"macdoc/internal/model"
-	"macdoc/internal/platform"
-	"macdoc/internal/projects"
-	"macdoc/internal/recipes"
-	"macdoc/internal/safety"
-	"macdoc/internal/store"
+	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/pathfold"
+	"github.com/sagnik26/macdoc/internal/platform"
+	"github.com/sagnik26/macdoc/internal/projects"
+	"github.com/sagnik26/macdoc/internal/recipes"
+	"github.com/sagnik26/macdoc/internal/safety"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // OpportunityOptions configures Opportunities. Zero values use the real
@@ -35,6 +34,9 @@ type OpportunityOptions struct {
 	// MinBytes hides items of known size below it (0: 1 MB; negative: show
 	// everything).
 	MinBytes int64
+	// Live skips the short-lived cache of Homebrew dry runs, so every
+	// command is run now. Plans built from a fresh computation set it.
+	Live bool
 }
 
 // OpportunityResult is the data behind `macdoc wins`, `dev` and `explain`.
@@ -116,8 +118,11 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor scan" to refresh`, int(age.Hours())))
 	}
 
-	nodes := ScanNodes{St: st, ScanID: info.ID}
+	nodes := NewScanNodes(st, info.ID)
 	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
+	if !o.Live {
+		env.Cache = dryRuns{st}
+	}
 	env.Projects = sync.OnceValues(func() (projects.Result, error) {
 		return discoverProjects(ctx, o, nodes, info.ID)
 	})
@@ -149,7 +154,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 	}
 	if tiny > 0 {
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) under 1 MB not shown", tiny))
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) that would free under 1 MB not shown", tiny))
 	}
 	if unknownIdleCount > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))
@@ -436,7 +441,7 @@ func actionable(op model.Opportunity) bool {
 	return op.Target != "" && (op.Method == model.MethodNative || op.Method == model.MethodQuarantine)
 }
 
-func foldPath(p string) string { return strings.ToLower(norm.NFC.String(filepath.Clean(p))) }
+func foldPath(p string) string { return pathfold.Fold(filepath.Clean(p)) }
 
 // mergeOverlaps drops actionable opportunities whose target is strictly
 // below another actionable opportunity's target. Advise items never absorb
@@ -550,6 +555,8 @@ func subtractContained(ops []model.Opportunity) {
 	}
 }
 
+// Weaker returns the less trustworthy of two number sources, so a total
+// built from mixed sources never claims more certainty than its weakest part.
 func Weaker(a, b model.Source) model.Source {
 	if slices.Index(sourceStrength, a) < slices.Index(sourceStrength, b) {
 		return a
@@ -557,6 +564,7 @@ func Weaker(a, b model.Source) model.Source {
 	return b
 }
 
+// HasAncestor reports whether any strict ancestor directory of p is in set.
 func HasAncestor(set map[string]bool, p string) bool {
 	if p == "/" {
 		return false
