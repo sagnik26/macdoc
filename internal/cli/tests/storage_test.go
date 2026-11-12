@@ -14,7 +14,7 @@ import (
 
 func TestStorageCommand(t *testing.T) {
 	home := cliFixture(t)
-	out, err := run(t, "storage")
+	out, err := run(t, "space")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,13 +25,13 @@ func TestStorageCommand(t *testing.T) {
 		t.Error("large shown without --large")
 	}
 
-	out, err = run(t, "storage", "--large")
+	out, err = run(t, "space", "--large")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, out, "Large items with no recipe (≥ 1 GB): advice only, review manually", "4.0 GB  "+filepath.Join(home, "big.iso"))
 
-	out, err = run(t, "storage", "--large", "--json")
+	out, err = run(t, "space", "--large", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -70,7 +70,10 @@ func TestTUIApplyCommand(t *testing.T) {
 	if _, cmd := run("/apply p-7f3k"); cmd == nil {
 		t.Error("/apply P-id should hand off")
 	}
-	mustContain(t, m.HelpView(), "/apply [P-id]", "Nothing is removed until you confirm", "code typed")
+	mustContain(t, m.HelpView(), "apply it here in the terminal", "Nothing is removed until you confirm", "code typed")
+	if strings.Contains(m.HelpView(), "/apply") { // hidden from the palette; the a key stays
+		t.Error("/apply should not be listed in the palette")
+	}
 }
 
 // The handoff runs the real apply command on the terminal it's given, then

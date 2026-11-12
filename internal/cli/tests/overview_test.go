@@ -78,12 +78,12 @@ func TestDoctorSectionsExist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range []string{"health", "space", "storage", "wins", "dev", "explain", "scan"} {
+	for _, s := range []string{"health", "space", "wins", "dev", "scan"} {
 		if c, _, err := doctor.Find([]string{s}); err != nil || c == doctor {
 			t.Errorf("section %q missing", s)
 		}
 	}
-	for _, gone := range []string{"wins", "storage", "dev", "explain", "scan"} {
+	for _, gone := range []string{"wins", "dev", "explain", "scan"} {
 		if c, _, _ := cmd.Find([]string{gone}); c != cmd {
 			t.Errorf("top-level %q should be gone (it lives under doctor)", gone)
 		}

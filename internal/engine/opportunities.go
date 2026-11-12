@@ -39,7 +39,7 @@ type OpportunityOptions struct {
 	Live bool
 }
 
-// OpportunityResult is the data behind `macdoc wins`, `dev` and `explain`.
+// OpportunityResult is the data behind `macdoc doctor wins`, `doctor dev` and `doctor explain`.
 type OpportunityResult struct {
 	Scan          model.ScanInfo       `json:"scan"`
 	ScanAge       string               `json:"scan_age"`      // e.g. "2h ago"

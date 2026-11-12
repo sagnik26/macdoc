@@ -69,7 +69,7 @@ Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
 			}
 			if sel.Recipe != "" {
 				if _, ok := cat.Get(sel.Recipe); !ok {
-					return fmt.Errorf("unknown recipe %q (recipe IDs are shown by macdoc doctor explain)", sel.Recipe)
+					return fmt.Errorf("unknown recipe %q (see docs/RECIPE_CATALOG.md for the recipe IDs)", sel.Recipe)
 				}
 			}
 			res, err := engine.CreatePlan(context.Background(), engine.PlanOptions{

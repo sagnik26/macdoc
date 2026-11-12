@@ -253,7 +253,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "1"
+      "const": "2"
     },
     "warnings": {
       "items": {

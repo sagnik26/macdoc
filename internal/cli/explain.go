@@ -1,18 +1,15 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
 )
 
-// ExplainResult is the data behind `macdoc explain`.
+// ExplainResult is the data behind a suggestion's detail pane.
 type ExplainResult struct {
 	Scan        model.ScanInfo    `json:"scan"`
 	Opportunity model.Opportunity `json:"opportunity"`
@@ -24,56 +21,6 @@ type ExplainResult struct {
 	// the size above is the whole answer. Unknown is absent, never zero.
 	BytesLower *int64 `json:"bytes_lower,omitempty"`
 	BytesUpper *int64 `json:"bytes_upper,omitempty"`
-}
-
-func newExplainCmd(g *GlobalFlags) *cobra.Command {
-	return &cobra.Command{
-		Use:   "explain <O-id>",
-		Short: "What an item is, why it's there, what it costs to restore and the exact action (read-only)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			res, cat, err := loadOpportunities(context.Background())
-			if err != nil {
-				return err
-			}
-			op, ok := engine.FindOpportunity(res, args[0])
-			if !ok {
-				return fmt.Errorf(`%s not found in the latest scan; IDs change after a new scan`, args[0])
-			}
-			ex := ExplainResult{Scan: res.Scan, Opportunity: op, BaseRisk: op.Risk}
-			if base, raised := engine.RaisedFrom(op, cat); raised {
-				ex.BaseRisk = base
-			}
-			if warn := withSpan(cmd.Context(), &ex); warn != "" {
-				res.Warnings = append(res.Warnings, warn)
-			}
-			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "explain", ex, res.Warnings)
-			}
-			return RenderExplain(cmd.OutOrStdout(), ex)
-		},
-	}
-}
-
-// withSpan adds the measured range to ex when the item's files look shared. A
-// walk that fails or runs out of time costs the range, never the explanation;
-// the returned text says so, or is empty.
-func withSpan(ctx context.Context, ex *ExplainResult) string {
-	home, err := UserHome()
-	if err != nil {
-		return ""
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	sp, err := engine.Measure(ctx, engine.OpportunityOptions{Home: home}, ex.Opportunity)
-	if err != nil {
-		return "could not measure how much of this is shared with copies: " + err.Error()
-	}
-	if sp != nil {
-		ex.BytesLower, ex.BytesUpper = &sp.Lower, sp.Upper
-	}
-	return ""
 }
 
 // setSpan records a measured range; a nil sp leaves the explanation as it was.

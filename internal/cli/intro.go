@@ -156,7 +156,6 @@ func (m TuiModel) introView() string {
 	shell := t.heading("From the shell") + "\n" +
 		" " + t.Command([]string{"macdoc", "doctor"}) + t.muted.Render("              printed summary") + "\n" +
 		" " + t.Command([]string{"macdoc", "doctor", "scan"}) + t.muted.Render("         rescan + full report") + "\n" +
-		" " + t.Command([]string{"macdoc", "doctor", "explain", "<id>"}) + t.muted.Render(" one suggestion in detail") + "\n" +
 		" " + t.Command([]string{"macdoc", "--json"}) + t.muted.Render("              machine-readable output")
 	if m.h >= 40 {
 		blocks = append(blocks, shell)

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -54,17 +53,7 @@ type slashCommand struct {
 var SlashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
-	{"plan", "[safe|caution|risky]", "seal a dry-run plan: marked suggestions, or a whole tier"},
-	{"apply", "[P-id]", "apply a plan in this terminal, after you confirm (default: the last one)"},
-	{"wins", "", "every suggestion, ranked by safety"},
-	{"dev", "", "suggestions per developer toolchain"},
-	{"projects", "", "projects: idle days, build folders, git state"},
-	{"space", "", `space by category, "System Data" decoded`},
-	{"health", "", "disk, memory, swap and top memory users"},
 	{"slow", "", "why it feels slow: memory, swap and what uses it"},
-	{"trend", "", "what grew since an earlier scan"},
-	{"explain", "<id>", "one suggestion in detail"},
-	{"json", "", "this view as JSON"},
 	{"mcp", "", "Claude integration status"},
 	{"help", "", "keys and commands"},
 	{"quit", "", "leave macdoc"},
@@ -190,7 +179,6 @@ type overlay int
 const (
 	OverlayNone overlay = iota
 	overlayHelp
-	overlayJSON
 	OverlayPlan
 	OverlayRemove
 )
@@ -233,7 +221,6 @@ type TuiModel struct {
 
 	scroll  int
 	Overlay overlay
-	jsonDoc string
 
 	input     textinput.Model
 	InputMode rune // 0 or '/'
@@ -674,8 +661,7 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
 	views := map[string]tab{
-		"overview": tabOverview, "wins": TabSuggestions, "suggestions": TabSuggestions,
-		"dev": tabToolchains, "toolchains": tabToolchains, "projects": tabProjects, "space": TabSpace, "storage": TabSpace, "health": tabHealth, "slow": tabHealth, "trend": TabSpace,
+		"overview": tabOverview, "slow": tabHealth,
 	}
 	if v, ok := views[name]; ok {
 		m.setTab(v)
@@ -689,16 +675,6 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	case "scan":
 		m.Intro = false
 		return m, m.StartLoad(true)
-	case "explain", "json":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /" + name + " needs results."
-			return m, nil
-		}
-		if name == "explain" {
-			return m.explain(arg)
-		}
-		m.jsonDoc = m.currentJSON()
-		m.Overlay, m.scroll = overlayJSON, 0
 	case "plan":
 		if m.Intro {
 			m.Flash = "Choose “Check my Mac” first: /plan needs results."
@@ -725,60 +701,12 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m TuiModel) explain(id string) (tea.Model, tea.Cmd) {
-	if id == "" {
-		m.Flash = "Usage: /explain <id>, e.g. /explain O-ab12cd"
-		return m, nil
-	}
-	for i, op := range m.Items() {
-		if strings.EqualFold(op.ID, id) {
-			m.setTab(TabSuggestions)
-			m.Cursor, m.Detail = i, true
-			return m, nil
-		}
-	}
-	m.Flash = id + " is not in the latest scan; IDs change after a new scan."
-	return m, nil
-}
-
 // Items are the suggestions, in ranked order.
 func (m TuiModel) Items() []model.Opportunity {
 	if m.Data == nil {
 		return nil
 	}
 	return m.Data.Res.Opportunities.Opportunities
-}
-
-// currentJSON is the current view's data, as the matching --json command
-// would print it (without the envelope).
-func (m TuiModel) currentJSON() string {
-	if m.Data == nil {
-		return "null"
-	}
-	var v any
-	switch m.Tab {
-	case tabOverview:
-		v = m.Data.Res
-	case TabSuggestions:
-		if ops := m.Items(); m.Detail && m.Cursor < len(ops) {
-			v = ops[m.Cursor]
-		} else {
-			v = m.Data.Res.Opportunities
-		}
-	case tabToolchains:
-		v = m.Data.Dev
-	case tabProjects:
-		v = m.Data.Projects
-	case TabSpace:
-		v = m.Data.space
-	case tabHealth:
-		v = m.Data.Slow
-	}
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err.Error()
-	}
-	return string(b)
 }
 
 // --- view ---
@@ -821,8 +749,6 @@ func (m TuiModel) View() string {
 		body = m.loadingView()
 	case m.Overlay == overlayHelp:
 		body = m.scrolled(m.HelpView())
-	case m.Overlay == overlayJSON:
-		body = m.scrolled(HighlightJSON(t, m.jsonDoc))
 	case m.Overlay == OverlayPlan:
 		body = m.scrolled(m.planView())
 	case m.Overlay == OverlayRemove:
@@ -1157,59 +1083,6 @@ func truncateMiddle(s string, n int) string {
 	}
 	half := (n - 1) / 2
 	return string(r[:half]) + "…" + string(r[len(r)-(n-1-half):])
-}
-
-// HighlightJSON colors keys, strings, numbers and literals.
-func HighlightJSON(t *Theme, src string) string { //nolint:gocognit,gocyclo // Pre-existing; split per token kind under plan.md claim 4.
-	var b strings.Builder
-	b.WriteString("\n")
-	for _, line := range strings.Split(src, "\n") {
-		b.WriteString(" ")
-		i := 0
-		for i < len(line) {
-			c := line[i]
-			switch {
-			case c == '"':
-				j := i + 1
-				for j < len(line) && line[j] != '"' {
-					if line[j] == '\\' {
-						j++
-					}
-					j++
-				}
-				j = min(j+1, len(line))
-				tok := line[i:j]
-				rest := strings.TrimLeft(line[j:], " ")
-				if strings.HasPrefix(rest, ":") {
-					b.WriteString(t.jsonKey.Render(tok))
-				} else {
-					b.WriteString(t.jsonString.Render(tok))
-				}
-				i = j
-			case c == '-' || (c >= '0' && c <= '9'):
-				j := i + 1
-				for j < len(line) && strings.IndexByte("0123456789.eE+-", line[j]) >= 0 {
-					j++
-				}
-				b.WriteString(t.jsonNumber.Render(line[i:j]))
-				i = j
-			case strings.HasPrefix(line[i:], "true"), strings.HasPrefix(line[i:], "null"):
-				b.WriteString(t.jsonLiteral.Render(line[i : i+4]))
-				i += 4
-			case strings.HasPrefix(line[i:], "false"):
-				b.WriteString(t.jsonLiteral.Render(line[i : i+5]))
-				i += 5
-			case strings.IndexByte("{}[],:", c) >= 0:
-				b.WriteString(t.faint.Render(string(c)))
-				i++
-			default:
-				b.WriteByte(c)
-				i++
-			}
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
 }
 
 var _ io.Writer = (*themedWriter)(nil)

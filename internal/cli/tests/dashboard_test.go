@@ -157,23 +157,20 @@ func TestTUIWideShowsDetailBesideList(t *testing.T) {
 
 func TestTUISlashCommands(t *testing.T) {
 	m := loaded(t, 100, 30)
-	m = step(t, m, keys("/", "sp")...)
+	m = step(t, m, keys("/", "sl")...)
 	out := m.View()
-	mustContain(t, out, "▸ /space", "› /sp", "enter run", "tab complete")
+	mustContain(t, out, "▸ /slow", "› /sl", "enter run", "tab complete")
 	m = step(t, m, keys("enter")...)
-	if m.Tab != cli.TabSpace || m.InputMode != 0 {
-		t.Fatalf("/sp should run /space: tab=%d mode=%q", m.Tab, m.InputMode)
+	if m.Tab != 5 || m.InputMode != 0 { // 5 is the Health tab (tabHealth)
+		t.Fatalf("/sl should run /slow: tab=%d mode=%q", m.Tab, m.InputMode)
 	}
 
+	// /explain is gone; the e key on a suggestion explains it instead.
 	m = step(t, m, keys("/", "explain O-z4n1ty", "enter")...)
-	if m.Tab != cli.TabSuggestions || !m.Detail || m.Items()[m.Cursor].ID != "O-z4n1ty" {
-		t.Fatalf("/explain did not open the item: tab=%d detail=%v cursor=%d", m.Tab, m.Detail, m.Cursor)
-	}
-	m = step(t, m, keys("/", "explain O-nope", "enter")...)
-	mustContain(t, m.View(), "O-nope is not in the latest scan")
+	mustContain(t, m.View(), "Unknown command /explain")
 
 	m = step(t, m, keys("esc", "/", "json", "enter")...)
-	mustContain(t, m.View(), `"id": "O-ab12cd"`)
+	mustContain(t, m.View(), "Unknown command /json")
 	m = step(t, m, keys("esc", "/", "mcp", "enter")...)
 	mustContain(t, m.View(), "claude mcp add macdoc -- macdoc mcp", "only you apply them")
 	m = step(t, m, keys("/", "bogus", "enter")...)
@@ -220,28 +217,6 @@ func TestTUIQuitWhileLoadingWaitsForEngine(t *testing.T) {
 	_, cmd = m.Update(cli.LoadedMsg{Err: context.Canceled})
 	if cmd == nil || cmd() != tea.Quit() {
 		t.Error("quit after the engine returns")
-	}
-}
-
-func TestHighlightJSON(t *testing.T) {
-	src := `{
-  "id": "O-1",
-  "bytes": 12,
-  "ok": true,
-  "x": null
-}`
-	plain := cli.HighlightJSON(cli.PlainTheme(), src)
-	for _, want := range []string{`"id": "O-1"`, `"bytes": 12`, "true", "null"} {
-		if !strings.Contains(plain, want) {
-			t.Errorf("plain JSON lost %q", want)
-		}
-	}
-	r := lipgloss.NewRenderer(nil)
-	r.SetColorProfile(termenv.TrueColor)
-	r.SetHasDarkBackground(true)
-	colored := cli.HighlightJSON(cli.ColorTheme(r, 80), src)
-	if !strings.Contains(colored, "\x1b[38;2;") {
-		t.Error("truecolor JSON has no colors")
 	}
 }
 
@@ -357,13 +332,11 @@ func TestTUIWelcomeActions(t *testing.T) {
 	m = step(t, m, keys("esc")...)
 	mustContain(t, m.View(), "How it works")
 
-	// A view command starts the dashboard on that view; /json needs results.
+	// A view command starts the dashboard on that view; /slow needs results.
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
-	m = step(t, m, keys("/", "json", "enter")...)
-	mustContain(t, m.View(), "Choose “Check my Mac” first")
-	m = step(t, m, keys("/", "space", "enter")...)
-	if m.Intro || m.Tab != cli.TabSpace || !m.Loading {
-		t.Errorf("/space from the welcome screen: intro=%v tab=%d loading=%v", m.Intro, m.Tab, m.Loading)
+	m = step(t, m, keys("/", "slow", "enter")...)
+	if m.Intro || m.Tab != 5 || !m.Loading {
+		t.Errorf("/slow from the welcome screen: intro=%v tab=%d loading=%v", m.Intro, m.Tab, m.Loading)
 	}
 
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
@@ -414,7 +387,7 @@ func TestTUIPaletteShowsEveryCommand(t *testing.T) {
 	for _, c := range cli.SlashCommands {
 		mustContain(t, out, "/"+c.Name)
 	}
-	if !strings.Contains(out, "/scan") || strings.Index(out, "/scan") > strings.Index(out, "/wins") {
+	if !strings.Contains(out, "/scan") || strings.Index(out, "/scan") > strings.Index(out, "/slow") {
 		t.Error("/scan should be listed near the top")
 	}
 

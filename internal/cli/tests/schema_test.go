@@ -46,7 +46,6 @@ var jsonCommands = map[string]any{
 	"wins":               engine.OpportunityResult{},
 	"dev":                cli.DevResult{},
 	"projects":           engine.ProjectsResult{},
-	"explain":            cli.ExplainResult{},
 	"plan":               engine.PlanResult{},
 	"plan show":          engine.PlanResult{},
 	"plan list":          []store.PlanRecord{},
@@ -126,7 +125,7 @@ func TestEveryJSONCommandHasASchema(t *testing.T) {
 func TestJSONOutputMatchesSchema(t *testing.T) {
 	cliFixture(t)
 	for _, args := range [][]string{
-		{"version"}, {"doctor"}, {"health"}, {"slow"}, {"wins", "--all"}, {"dev"}, {"storage"},
+		{"version"}, {"doctor"}, {"health"}, {"slow"}, {"wins", "--all"}, {"dev"}, {"space"},
 		{"doctor", "projects"}, {"config"}, {"log"}, {"plan", "list"}, {"quarantine", "list"},
 	} {
 		out, err := run(t, append(args, "--json")...)
@@ -354,7 +353,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 	_ = json.Unmarshal(b, &schema)
 	env := func(data string) map[string]any {
 		var v map[string]any
-		_ = json.Unmarshal([]byte(`{"schema_version":"1","command":"x","generated_at":"2026-10-28T00:00:00Z","data":`+data+`}`), &v)
+		_ = json.Unmarshal([]byte(`{"schema_version":"`+model.SchemaVersion+`","command":"x","generated_at":"2026-10-28T00:00:00Z","data":`+data+`}`), &v)
 		return v
 	}
 	if errs := validate(schema, schema, env(`{"name":"a","size":3}`), "$"); len(errs) != 0 {

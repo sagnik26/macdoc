@@ -155,7 +155,7 @@ func benchScan(b *testing.B, projects, dirs int) {
 			b.Run(name, func(b *testing.B) { s.benchDetectors(b, name) })
 		}
 	})
-	// The whole of `macdoc wins`: open the store, run the detectors with the
+	// The whole of `macdoc doctor wins`: open the store, run the detectors with the
 	// worker pool, classify and rank.
 	b.Run("Opportunities", s.benchOpportunities)
 }

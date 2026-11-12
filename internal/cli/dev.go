@@ -17,7 +17,7 @@ import (
 // toolchainAliases maps short names users are likely to type.
 var toolchainAliases = map[string]string{"brew": "homebrew"}
 
-// DevResult is the data behind `macdoc dev`.
+// DevResult is the data behind `macdoc doctor dev`.
 type DevResult struct {
 	Scan       model.ScanInfo          `json:"scan"`
 	ScanAge    string                  `json:"scan_age"`
@@ -101,7 +101,7 @@ func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, d.Warnings)
-	b.WriteString(t.footer("macdoc doctor explain <id> · macdoc plan <id…> (a dry run)"))
+	b.WriteString(t.footer("macdoc plan <id…> (a dry run)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

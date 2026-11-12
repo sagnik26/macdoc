@@ -1,8 +1,6 @@
 package tests
 
 import (
-	"encoding/json"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -10,46 +8,6 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/model"
 )
-
-func TestExplainCommand(t *testing.T) {
-	cliFixture(t)
-	out, err := run(t, "wins", "--all")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ids := regexp.MustCompile(`O-[a-z2-7]{6}`).FindAllString(out, -1)
-	if len(ids) != 7 {
-		t.Fatalf("ids = %v\n%s", ids, out)
-	}
-	for _, id := range ids {
-		out, err := run(t, "explain", id)
-		if err != nil {
-			t.Fatalf("%s: %v", id, err)
-		}
-		mustContain(t, out, id+" · ", "Size", "Risk", "Restore", "What it is", "Nothing has been changed.")
-	}
-
-	// Upper case and without the prefix work too; JSON carries the base risk.
-	out, err = run(t, "explain", strings.ToUpper(ids[0][2:]), "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var env struct {
-		Command string            `json:"command"`
-		Data    cli.ExplainResult `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(out), &env); err != nil {
-		t.Fatalf("bad JSON: %v\n%s", err, out)
-	}
-	if env.Command != "explain" || env.Data.Opportunity.ID != ids[0] || env.Data.BaseRisk == "" {
-		t.Errorf("envelope = %+v", env)
-	}
-
-	_, err = run(t, "explain", "O-zzzzzz")
-	if err == nil || err.Error() != `O-zzzzzz not found in the latest scan; IDs change after a new scan` {
-		t.Errorf("err = %v", err)
-	}
-}
 
 func TestRenderExplain(t *testing.T) {
 	cases := []struct {

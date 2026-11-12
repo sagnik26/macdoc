@@ -7,7 +7,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | Field | Purpose |
 |---|---|
 | `id` | Stable dotted ID, e.g. `xcode.derived_data` |
-| `category` / `toolchain` | For `storage` and `dev` grouping |
+| `category` / `toolchain` | For `doctor space` and `doctor dev` grouping |
 | `detector` | Named Go detector + params (glob roots, tool listing) |
 | `allow` | Path patterns the target **must** match after canonicalization |
 | `risk` | Base class: SAFE / CAUTION / RISKY / ADVISE / BLOCKED |
@@ -118,7 +118,7 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
 | `swap.explain` | VM volume / swap files | ADVISE | A (explains swap and what reduces it) | n/a | n/a |
-| `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `storage --large`) | n/a | Unknown |
+| `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `doctor space --large`) | n/a | Unknown |
 
 ## 2a. Allowed native commands
 

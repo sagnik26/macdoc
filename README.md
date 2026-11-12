@@ -30,7 +30,7 @@ macdoc has **two everyday commands**:
 - macdoc's promises.
 - The shell commands, when the window is tall enough.
 
-`/` commands work here too: for example, `/space` opens the dashboard on the Space view. Small windows get a compact layout.
+`/` commands work here too: for example, `/slow` opens the dashboard on the Health view. Small windows get a compact layout.
 
 ### `macdoc`: the dashboard
 ```
@@ -62,12 +62,12 @@ macdoc has **two everyday commands**:
   - **Space:** by category with per-risk columns, **what grew** since a scan about 30 days old (areas and folders), "System Data" decoded, large items with no recipe.
   - **Health:** **"Is memory slowing it down?"** (a verdict, the biggest users against your RAM, swap now and over the last days), findings with explanations, and the top memory users with what each one is.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/plan` `/wins` `/dev` `/projects` `/space` `/health` `/slow` `/trend` `/explain <id>` `/json` (the current view as syntax-highlighted JSON) `/mcp` `/help` `/quit`.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/slow` `/mcp` `/help` `/quit`. Plans and removal use the `p` and `a` keys on Suggestions; `/plan` and `/apply` still work when typed but aren't listed. Views are reached with `tab` or `1`–`6`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
 - **Removing:** on Suggestions, press `enter` on an item (or mark several with `space` first). A box shows what will go and how much space comes back. Press `enter` again to remove it, or `esc` to cancel. RISKY items also ask you to type a short code. Each item is checked again just before it's removed and skipped if it changed. Removed items are deleted for good, so the space is freed at once; the result shows the measured free-space change. Advice-only items can't be removed (macdoc takes no action on them), so `enter` explains them.
-- **Plans the long way:** `p` seals a dry-run plan instead, and `a` (or `/apply`) runs `macdoc apply` on it in the terminal with the typed code. `q` quits.
+- **Plans the long way:** `p` seals a dry-run plan instead, and `a` runs `macdoc apply` on it in the terminal with the typed code. `q` quits.
 
 **Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
 
@@ -95,7 +95,7 @@ Reclaimable                              1.4 GB actionable · 48.9 GB advice
   ● Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB · pip cache 8.2 KB
   ● Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
 
-More: macdoc doctor scan (rescan + full report) · wins (every item + ID) · explain <id> · space · health
+More: macdoc doctor scan (rescan + full report) · wins (every item + ID) · space · health
 ✓ Nothing has been changed.
 ```
 In a terminal it's colored: the disk bar turns yellow at 80% and red at 90%, tiers are color-coded, IDs are cyan, and commands are syntax-highlighted. The boxes, dots and colors only appear in a terminal.
@@ -123,13 +123,12 @@ These read the latest scan and don't rescan.
 | `macdoc doctor trend [--days 30]` | What grew between the latest scan and one about 30 days old: per area (Xcode, Gradle, Docker, …) and the folders that grew most |
 | `macdoc doctor space [--large]` | Reclaimable space by category and "System Data" decoded. `--large` adds big items no recipe covers |
 | `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
-| `macdoc doctor explain <id>` | One suggestion in detail: what it is, why it's there, risk, idle time, how to restore, the exact action |
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 
 Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
 
-Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 1). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
+Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 2). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
 
 ### `macdoc plan`: a sealed dry run
 ```
@@ -202,7 +201,6 @@ make install               # builds and installs macdoc into ~/.local/bin
 macdoc                     # interactive dashboard (scans automatically the first time)
 macdoc doctor              # the short summary, printed
 macdoc doctor scan         # fresh scan + the full report
-macdoc doctor explain <id> # details for one suggestion
 ```
 There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
@@ -220,7 +218,7 @@ Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mo
 
 ### Known limitation: a suggestion's size is a floor, and the real gain can be higher
 
-On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size (up to three times less in the experiment in `docs/experiments/S1-apfs-private-size`). For a suggestion made from the scan, macdoc therefore shows the space removing it is certain to free: the sum of the kernel's own per-file figure for the bytes a delete releases. That never overstates, but it can understate (the explanation then shows the range). A folder whose files are all clones of each other shows 0 (the space is released only when the last copy goes), and a file with more than one hard link counts as 0 because the kernel reports its full size for every link. Where a volume cannot report that figure (HFS+, exFAT), macdoc falls back to allocated blocks, the same thing `du` reports, as before. Sizes a tool reports (Docker, Homebrew, simctl) are shown as the tool gives them. `macdoc scan` and `doctor storage` still show allocated blocks, since they describe what is on disk. `macdoc doctor explain <id>` measures a folder whose files share space with copies on the spot and shows the range, "frees at least X and at most Y" ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)); lists, totals and plans keep the lower figure. This affects what you decide to remove, not whether removal is safe.
+On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size (up to three times less in the experiment in `docs/experiments/S1-apfs-private-size`). For a suggestion made from the scan, macdoc therefore shows the space removing it is certain to free: the sum of the kernel's own per-file figure for the bytes a delete releases. That never overstates, but it can understate (the explanation then shows the range). A folder whose files are all clones of each other shows 0 (the space is released only when the last copy goes), and a file with more than one hard link counts as 0 because the kernel reports its full size for every link. Where a volume cannot report that figure (HFS+, exFAT), macdoc falls back to allocated blocks, the same thing `du` reports, as before. Sizes a tool reports (Docker, Homebrew, simctl) are shown as the tool gives them. `macdoc scan` and `doctor space` still show allocated blocks, since they describe what is on disk. The dashboard measures a folder whose files share space with copies in the background (`e` on Suggestions) and shows the range, "frees at least X and at most Y" ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)); lists, totals and plans keep the lower figure. This affects what you decide to remove, not whether removal is safe.
 
 ---
 

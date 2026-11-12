@@ -2,18 +2,17 @@
 
 ## 1. Commands
 
-> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | explain <id> | dev [toolchain] | projects [--idle N] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`, `apply`, `quarantine` and `log` are top-level commands. `slow` and `trend` are doctor sections (`macdoc doctor slow`, `macdoc doctor trend`, Phase 7); in the dashboard they are the "Is memory slowing it down?" block on Health and "What grew" on Space (`/slow`, `/trend`).
+> **Implemented structure (2026-10-27):** one command, `macdoc doctor` (also bare `macdoc`), shows the full overview. Detail views are its sections: `doctor health | space [--large] | wins [--all] [--tier] | dev [toolchain] | projects [--idle N] | scan`. `macdoc doctor` is the short summary from the latest scan, and `doctor scan` rescans and prints the full report (every section). There is no `--scan` flag. The flat command list below is the original design. `plan`, `apply`, `quarantine` and `log` are top-level commands. `slow` and `trend` are doctor sections (`macdoc doctor slow`, `macdoc doctor trend`, Phase 7); in the dashboard, `/slow` opens the "Is memory slowing it down?" block on Health. The "What grew" block is on Space, reached with `tab`.
 
 | Command | Mode | Purpose |
 |---|---|---|
 | `macdoc` / `macdoc doctor` | read | One-screen health summary and top findings |
 | `macdoc scan [--rescan] [--workers N] [--foreground]` | read | Run or refresh the full crawl. Other commands reuse a scan < 6 h old |
-| `macdoc wins [--all] [--tier safe\|caution\|risky]` | read | Top space wins, tiered |
-| `macdoc storage [--large]` | read | Category breakdown with "System Data" decoded. `--large` lists unknown big items |
-| `macdoc dev [xcode\|android\|node\|docker\|python\|ai\|brew]` | read | Per-toolchain breakdown |
-| `macdoc projects [--idle 90]` | read | Projects with idle days and artifact weight (built as `macdoc doctor projects`, §1b) |
+| `macdoc doctor wins [--all] [--tier safe\|caution\|risky]` | read | Top space wins, tiered |
+| `macdoc doctor space [--large]` | read | Category breakdown with "System Data" decoded. `--large` lists unknown big items |
+| `macdoc doctor dev [xcode\|android\|node\|docker\|python\|ai\|brew]` | read | Per-toolchain breakdown |
+| `macdoc doctor projects [--idle 90]` | read | Projects with idle days and artifact weight (§1b) |
 | `macdoc doctor slow [--days 7]` | read (stores a vitals sample) | Verdict, biggest users against RAM, what each known group is, swap now and over the window |
-| `macdoc explain <O-id>` | read | What it is, why it's there, restore cost, exact action |
 | `macdoc doctor trend [--days 30]` | read | Growth per area (Xcode, Gradle, Docker, …) and the folders that grew most, between the latest scan and one about N days old. Sizes of folders a scan didn't store are bounds ("<105 MB", "or more") |
 | `macdoc plan <O-id…> \| --safe \| --recipe <id>` | writes plan file | Dry-run plan, sealed |
 | `macdoc apply <P-id>` | **mutating, TTY** | Confirm, re-validate, execute, verify |
@@ -36,7 +35,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
     - An action menu: `enter` check, `s` fresh scan, `?` help, `q` quit.
     - "How it works" in four steps, the promises, and the shell commands (at ≥ 40 rows).
   - Under 104 columns, the menu drops its descriptions and shows only the selected one's.
-  - `/view` commands start the dashboard on that view. `/json` and `/explain` ask the user to check first.
+  - `/slow` starts the dashboard on that view.
 - **Layout:**
   - Header: brand, machine, free space, scan age, and an `asks before removing` marker.
   - Tab row: Overview, Suggestions, Toolchains, Projects, Space, Health (`1`–`6`).
@@ -44,8 +43,8 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - A context-sensitive help footer, generated from the key bindings.
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
-  - At ≥ 120 columns, the selected item's `explain` view sits beside the list. Narrower, `e` swaps the list for it.
-- **`/` palette:** `/overview /scan /plan [safe|caution|risky] /wins /dev /projects /space /health /scan /explain <id> /json /mcp /help /quit`, with prefix completion. `/json` shows the current view's data with JSON syntax highlighting. `/mcp` shows how to connect Claude (`claude mcp add macdoc -- macdoc mcp`).
+  - At ≥ 120 columns, the selected item's detail view sits beside the list. Narrower, `e` swaps the list for it.
+- **`/` palette:** `/overview /scan /slow /mcp /help /quit`, with prefix completion. `/plan` and `/apply` still work when typed but aren't listed; the `p` and `a` keys do the same jobs. View-only tabs have no command; reach them with `tab` or `1`–`6`. `/mcp` shows how to connect Claude (`claude mcp add macdoc -- macdoc mcp`).
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
@@ -116,7 +115,7 @@ macdoc doctor projects · scan S-TEST · 2h ago
 - **Dashboard remove (2026-10-28):** on Suggestions, `enter` on an item (or on the ones marked with `space`) seals a plan and opens a confirmation box: each item with its risk, size and path, the total, and "Enter remove · esc cancel". A second `enter` removes SAFE and CAUTION items; with any RISKY item the box asks to type the plan's 4-character code first. While it runs, the box shows each item as it finishes (removed, left alone with the reason, or failed). Afterwards the removed items leave the list and a flash gives "Removed n of m · freed X" (measured) and "Press r to rescan". `enter` on an advice-only item opens its explanation instead; `e` opens the explanation for any item. The footer is `enter remove • space mark • e explain • …`, and the header's status reads "asks before removing".
 - **Dashboard range (ADR 0005, stage 3):** when the detail pane shows a measured folder whose files may share space with copies, the dashboard measures the range in the background. The pane shows a one-line "measuring the range…" under the size note, then replaces the note with "Removing this frees at least X and at most Y. The difference is space shared with copies of its files." If the walk fails, is skipped or finds nothing shared, the usual note stays and no error is shown. The keys never wait for it: moving the selection, switching tab, closing the detail or rescanning cancels the walk, and results are kept per suggestion until the next scan. The walked path is the suggestion's own, never typed.
 - **Delete at once:** `apply` and the dashboard delete each moved item right away (the quarantine is only a crash-safe staging step), so the plan's `→` line for a folder reads `→ deletes <path>` with "Not undoable by macdoc: …", the totals are one "Freed right away" line, and progress says `done`. An item whose purge is refused stays in quarantine and progress says `moved aside, not deleted: Q-XXXX`.
-- **Dashboard (the long way):** after `p` seals a plan, the overlay offers `a apply`, and `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. Both this and the dashboard remove act only through `internal/executor`, and no subprocess is started.
+- **Dashboard (the long way):** after `p` seals a plan, the overlay offers `a apply`, and typing `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. Both this and the dashboard remove act only through `internal/executor`, and no subprocess is started.
 - The `macdoc doctor` overview adds a Quarantine line when anything is held, with "ready to purge" for expired entries. It only reports.
 
 ## 2. Report mockups
@@ -154,7 +153,7 @@ Nothing has been changed. macdoc is read-only unless you run `apply`.
  Your call (advice only) ───────────────────────────────────── 18.0 GB
             18.0 GB  iPhone backup (Mar 2025)        Finder › iPhone › Manage Backups
 
- macdoc explain <id> · macdoc plan --safe   (creates a dry-run; nothing is deleted)
+ macdoc plan --safe   (creates a dry-run; nothing is deleted)
 ```
 
 - Homebrew suggestions (`brew cleanup -n`, `brew autoremove -n`) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run (kept in macdoc's own database) while Homebrew's folders are unchanged. `apply` always re-checks with brew, and `macdoc plan` asks brew itself.
@@ -196,12 +195,12 @@ Every step is in the audit log: macdoc log
 - Use color sparingly: green for SAFE, amber for CAUTION, plain for advice. Never use flashing or red alarm banners.
 - Never show a fake "health score". Show real numbers with their source.
 - Unknowns are explicit: `—  unmeasured (no permission)`.
-- A measured suggestion size is explained once, in `doctor explain`: "This is the space removing it is certain to free. It can be less than the folder's total when its files share space with copies." A suggestion that would free under 1 MB is hidden with the note "N item(s) that would free under 1 MB not shown", a fully shared folder (a known 0) included; with the threshold off it is listed last, as 0 B. When a folder's files look shared with copies (allocated bytes exceed the size by more than 1% and 1 MB), `doctor explain` measures it on the spot and replaces that sentence with "Removing this frees at least 1.2 GB and at most 1.9 GB. The difference is space shared with copies of its files."; if the most could not be worked out it says "Removing this frees at least 1.2 GB. The most it could free could not be worked out." Lists, totals and plans keep the lower figure. The apply report says when the measured gain is above the expected size (the expected size is a floor), and names files that share space with copies among the reasons for a gain below it.
+- A measured suggestion size is explained once, in the Suggestions detail pane (`e`): "This is the space removing it is certain to free. It can be less than the folder's total when its files share space with copies." A suggestion that would free under 1 MB is hidden with the note "N item(s) that would free under 1 MB not shown", a fully shared folder (a known 0) included; with the threshold off it is listed last, as 0 B. When a folder's files look shared with copies (allocated bytes exceed the size by more than 1% and 1 MB), the dashboard measures it in the background and replaces that sentence with "Removing this frees at least 1.2 GB and at most 1.9 GB. The difference is space shared with copies of its files."; if the most could not be worked out it says "Removing this frees at least 1.2 GB. The most it could free could not be worked out." Lists, totals and plans keep the lower figure. The apply report says when the measured gain is above the expected size (the expected size is a floor), and names files that share space with copies among the reasons for a gain below it.
 - Names from the disk are shown cleaned: terminal escapes and invisible characters are dropped and newlines become spaces (`display` in `theme.go`, built on `internal/textsafe`). Renderers start from that copy and never plan from it. `--json` shows the data as found.
 - Keep `doctor` to 80 columns and 20 lines at most.
 
 ## 4. JSON contract
-- Every command supports `--json` (except `apply`, which needs a person at a terminal) and outputs `{"schema_version": "1", "command": "...", "generated_at": "...", "data": {...}, "warnings": [...]}`. Scan details, where relevant, are inside `data`.
+- Every command supports `--json` (except `apply`, which needs a person at a terminal) and outputs `{"schema_version": "2", "command": "...", "generated_at": "...", "data": {...}, "warnings": [...]}`. Scan details, where relevant, are inside `data`.
 - Byte values are integers. Every measurement has a `source`: `measured | tool | estimated | unknown`.
-- An opportunity's `bytes` (and so a plan item's `expected_bytes`) is the space removing it is certain to free: for a size measured from the scan, the node's private size when the volume reports it, else its allocated bytes (ADR 0005, stage 2). `explain --json` adds optional `bytes_lower` and `bytes_upper` when a range was measured (`bytes_upper` is absent when the most is unknown). `doctor projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (omitted when unknown) on artifacts and DerivedData, and `reclaimable_bytes` on each project.
+- An opportunity's `bytes` (and so a plan item's `expected_bytes`) is the space removing it is certain to free: for a size measured from the scan, the node's private size when the volume reports it, else its allocated bytes (ADR 0005, stage 2). the suggestion's detail (`e`) carries optional `bytes_lower` and `bytes_upper` when a range was measured (`bytes_upper` is absent when the most is unknown). `doctor projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (omitted when unknown) on artifacts and DerivedData, and `reclaimable_bytes` on each project.
 - JSON schemas live in `schema/` (one per command, generated from the Go types) and are contract-tested: `TestSchemasFrozen` fails on any change to an output type, and `TestJSONOutputMatchesSchema` validates real output. Additive changes regenerate them with `go test ./internal/cli -run TestSchemasFrozen -update`; renaming, removing or retyping a field bumps `schema_version`. The MCP tools return the same shapes.

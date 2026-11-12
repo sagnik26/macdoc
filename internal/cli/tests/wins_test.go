@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -128,7 +127,7 @@ func run(t *testing.T, args ...string) (string, error) {
 	// The detail views are sections of `macdoc doctor`.
 	if len(args) > 0 {
 		switch args[0] {
-		case "wins", "dev", "explain", "storage", "space", "scan", "health", "slow", "trend":
+		case "wins", "dev", "space", "scan", "health", "slow", "trend":
 			args = append([]string{"doctor"}, args...)
 		}
 	}
@@ -160,7 +159,7 @@ func TestWinsCommand(t *testing.T) {
 		" Worth considering ─", "15.0 GB",
 		"5 × Stale node_modules folder · 15.0 GB", "(macdoc doctor wins --all)",
 		" Your call (advice only) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
-		" macdoc doctor explain <id> · macdoc plan <id…> (a dry run) · nothing has been changed")
+		" macdoc plan <id…> (a dry run) · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
 		strings.Index(out, "Worth considering") > strings.Index(out, "Your call") {
@@ -238,8 +237,7 @@ func TestEnvelopeWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := regexpID.FindString(out)
-	for _, args := range [][]string{{"wins"}, {"dev"}, {"storage"}, {"explain", id}} {
+	for _, args := range [][]string{{"wins"}, {"dev"}, {"space"}} {
 		out, err := run(t, append(args, "--json")...)
 		if err != nil {
 			t.Fatalf("%v: %v", args, err)
@@ -251,7 +249,12 @@ func TestEnvelopeWarnings(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &env); err != nil {
 			t.Fatalf("%v: bad JSON: %v", args, err)
 		}
-		if env.Command != args[0] || !strings.Contains(strings.Join(env.Warnings, "\n"), "node.nm: skipped") {
+		// `space` keeps the JSON command name "storage" (a frozen schema field).
+		want := args[0]
+		if want == "space" {
+			want = "storage"
+		}
+		if env.Command != want || !strings.Contains(strings.Join(env.Warnings, "\n"), "node.nm: skipped") {
 			t.Errorf("%v: top-level warnings = %q", args, env.Warnings)
 		}
 	}
@@ -261,7 +264,7 @@ func TestEnvelopeWarnings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%v: %v", args, err)
 		}
-		if !strings.Contains(out, `"schema_version": "1"`) {
+		if !strings.Contains(out, `"schema_version": "`+model.SchemaVersion+`"`) {
 			t.Errorf("%v: %s", args, out)
 		}
 	}
@@ -271,8 +274,6 @@ func TestEnvelopeWarnings(t *testing.T) {
 	}
 }
 
-var regexpID = regexp.MustCompile(`O-[a-z2-7]{6}`)
-
 func TestWinsNoScanAndWarnings(t *testing.T) {
 	home := cliFixture(t)
 	// Another home without a scan.
@@ -281,20 +282,20 @@ func TestWinsNoScanAndWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	cli.UserHome = func() (string, error) { return empty, nil }
-	for _, args := range [][]string{{"wins"}, {"dev"}, {"explain", "O-abcdef"}, {"storage"}} {
+	for _, args := range [][]string{{"wins"}, {"dev"}, {"space"}} {
 		if _, err := run(t, args...); !errors.Is(err, engine.ErrNoScan) {
 			t.Errorf("%v: err = %v", args, err)
 		}
 	}
 	cli.UserHome = func() (string, error) { return "", errors.New("no home") }
-	for _, args := range [][]string{{"wins"}, {"storage"}} {
+	for _, args := range [][]string{{"wins"}, {"space"}} {
 		if _, err := run(t, args...); err == nil {
 			t.Errorf("%v: expected home error", args)
 		}
 	}
 	cli.UserHome = func() (string, error) { return home, nil }
 	cli.LoadCatalog = func() (*recipes.Catalog, error) { return nil, errors.New("bad catalog") }
-	for _, args := range [][]string{{"wins"}, {"storage"}} {
+	for _, args := range [][]string{{"wins"}, {"space"}} {
 		if _, err := run(t, args...); err == nil || !strings.Contains(err.Error(), "bad catalog") {
 			t.Errorf("%v: err = %v", args, err)
 		}
@@ -335,7 +336,7 @@ func TestRenderWins(t *testing.T) {
 		" Needs care ─", "8.4 GB + unknown", "re-download ~1.2 GB", "—  ",
 		"can't be restored",
 		" Notes\n  · results are from a scan 9 hours old",
-		" macdoc doctor explain <id> · macdoc plan <id…> (a dry run) · nothing has been changed")
+		" macdoc plan <id…> (a dry run) · nothing has been changed")
 
 	buf.Reset()
 	empty := engine.OpportunityResult{Scan: model.ScanInfo{ID: "S-X"}, ScanAge: "just now"}
