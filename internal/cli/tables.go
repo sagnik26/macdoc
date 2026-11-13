@@ -376,6 +376,10 @@ func (m TuiModel) healthTables() string {
 	rep := h.Report
 	var b strings.Builder
 	b.WriteString("\n")
+	if m.status != nil {
+		b.WriteString(statusBlocks(t, display(*m.status), false))
+		b.WriteString("\n")
+	}
 	b.WriteString(t.block("Your Mac", "", m.vitalsTable(w)))
 	b.WriteString("\n")
 	b.WriteString(m.slowBlock())

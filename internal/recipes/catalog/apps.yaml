@@ -1,0 +1,148 @@
+# Leftovers of apps that are no longer installed. Only reverse-DNS names
+# (com.vendor.app) are considered, so a folder is never matched by a name that
+# merely looks like an app. Application Support is left out on purpose: that
+# is where an app keeps its documents and settings, and the allow patterns
+# for it would overlap macdoc's own protected folders.
+
+- id: apps.leftovers
+  title: Data left by an app that is no longer installed
+  category: app-caches
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: app_leftovers
+  params:
+    dirs: "~/Library/Caches,~/Library/Logs,~/Library/Saved Application State,~/Library/HTTPStorages,~/Library/WebKit"
+    min_bytes: "1048576"
+  allow:
+    - "~/Library/Caches/*"
+    - "~/Library/Logs/*"
+    - "~/Library/Saved Application State/*"
+    - "~/Library/HTTPStorages/*"
+    - "~/Library/WebKit/*"
+  keep_children_of:
+    - "~/Library/Caches"
+    - "~/Library/Logs"
+    - "~/Library/Saved Application State"
+    - "~/Library/HTTPStorages"
+    - "~/Library/WebKit"
+  stale_days: 60
+  preconditions: ["no_installed_app"]
+  restore:
+    kind: none
+    note: >-
+      The app isn't installed, so nothing recreates this data. If you install
+      the app again it starts without it.
+  explain: >-
+    A folder here is named after an app's bundle identifier, but no installed
+    app or background item has that identifier, and nothing in it has changed
+    for two months. It is most likely what an app left behind when it was
+    removed. Check the name: if you use that app from somewhere macdoc doesn't
+    look (an external disk, a different user), leave it.
+  confidence_notes: "Matched by bundle identifier only, never by a similar name."
+
+# Apps installed for this user only (~/Applications) are inside the home
+# folder, so they are moved like any other item. Apps in /Applications are
+# protected and macdoc never touches them.
+- id: apps.user_bundle
+  title: An app installed in ~/Applications
+  category: app-caches
+  toolchain: system
+  risk: RISKY
+  method: quarantine
+  detector: user_app_bundles
+  params: {dir: "~/Applications"}
+  allow: ["~/Applications/*.app"]
+  preconditions: ["app_bundle_not_running"]
+  restore:
+    kind: redownload
+    note: Install the app again from where you got it. Its settings and caches are not touched.
+  explain: >-
+    Moves the app out of ~/Applications. Its settings and caches stay where
+    they are; if the app is gone for good, macdoc offers those as leftovers on
+    a later scan once nothing installed owns them. Quit the app first.
+
+# A background item (LaunchAgent) whose program is gone: the app was deleted
+# without unloading it. Unloading uses launchctl remove with the item's Label
+# taken from its own property list; the property list is then moved aside.
+- id: apps.launch_agent_unload
+  title: Unload a background item whose program is gone
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: native
+  detector: broken_launch_agents
+  params: {dir: "~/Library/LaunchAgents"}
+  native: {argv: [launchctl, remove, "{id}"]}
+  restore: {kind: none, note: "The program it started no longer exists, so there is nothing to start again."}
+  explain: >-
+    This background item still points at a program that has been deleted, so it
+    fails every time macOS tries to start it. Unloading stops that; the file
+    that defines it is a separate suggestion.
+
+- id: apps.launch_agent_file
+  title: Background item whose program is gone
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: broken_launch_agents
+  params: {dir: "~/Library/LaunchAgents"}
+  allow: ["~/Library/LaunchAgents/*.plist"]
+  restore: {kind: none, note: "The program it started no longer exists, so there is nothing to start again."}
+  explain: >-
+    The property list of a background item whose program has been deleted. The
+    item fails every time macOS tries to start it. Remove it with the unload
+    suggestion for the same item.
+
+# An app in /Applications. That folder is a protected root, so this recipe uses
+# the one exception in safety.CheckTarget (ADR 0011): a bundle directly in
+# /Applications, never anything deeper. Apple's apps and Mac App Store apps are
+# never offered, and a bundle the user can't move is left out.
+- id: apps.system_bundle
+  title: An app installed in /Applications
+  category: app-caches
+  toolchain: system
+  risk: RISKY
+  method: quarantine
+  detector: system_app_bundles
+  params: {dir: "/Applications"}
+  allow: ["/Applications/*.app"]
+  preconditions: ["app_bundle_not_running"]
+  restore:
+    kind: redownload
+    note: Install the app again from where you got it. Its settings and caches are not touched.
+  explain: >-
+    Moves the app out of /Applications. Its settings and caches stay where they
+    are; once nothing installed owns them macdoc offers them as leftovers on a
+    later scan. Quit the app first. Apple's apps and Mac App Store apps are
+    never listed.
+
+# Folders in Application Support named after an app's bundle identifier when
+# nothing installed owns it and nothing in it changed for six months. This is
+# where apps keep documents and settings, so each one needs its own
+# confirmation (ADR 0011).
+- id: apps.support_leftovers
+  title: Settings and documents left by an app that is no longer installed
+  category: app-caches
+  toolchain: system
+  risk: RISKY
+  method: quarantine
+  detector: app_leftovers
+  params:
+    dirs: "~/Library/Application Support"
+    min_bytes: "1048576"
+  allow: ["~/Library/Application Support/*"]
+  keep_children_of: ["~/Library/Application Support"]
+  stale_days: 180
+  preconditions: ["no_installed_app"]
+  restore:
+    kind: none
+    note: >-
+      The app isn't installed, so nothing recreates this data. It may hold
+      documents or settings you want if you ever install the app again.
+  explain: >-
+    A folder named after an app's bundle identifier, with no installed app or
+    background item that owns it and nothing changed for six months. It may
+    still hold documents or settings, so check what it is before confirming.
+  confidence_notes: "Matched by bundle identifier only, never by a similar name."

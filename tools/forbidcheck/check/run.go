@@ -12,7 +12,8 @@ import (
 	"strings"
 )
 
-// executorDir is the only package allowed to mutate the filesystem.
+// executorDir is the only package allowed to mutate the filesystem. Its files
+// are still checked for shells and sudo, which only SudoFile may name.
 const executorDir = "internal/executor"
 
 // errUsage means the flag package already printed the problem.
@@ -209,7 +210,7 @@ func inScope(rel string) bool {
 	if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
 		return false
 	}
-	return rel != executorDir && !strings.HasPrefix(rel, executorDir+"/")
+	return true
 }
 
 func wholeModule(root, dir string, patterns []string) bool {

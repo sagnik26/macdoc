@@ -93,6 +93,8 @@ func RenderSlow(w io.Writer, res engine.SlowResult, now time.Time) error {
 		fmt.Fprintf(&b, "  %s\n", t.Wrap(t.faint.Render(engine.RSSNote), 2))
 	}
 
+	writeAlerts(&b, t, res.Alerts)
+
 	if len(res.Tips) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", t.heading("Tips"))
 		for _, tp := range res.Tips {

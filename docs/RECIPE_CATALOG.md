@@ -10,11 +10,14 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `category` / `toolchain` | For `doctor space` and `doctor dev` grouping |
 | `detector` | Named Go detector + params (glob roots, tool listing) |
 | `allow` | Path patterns the target **must** match after canonicalization |
+| `keep_files` | Small files the scanner must keep so a detector can see them: a literal `~`-relative folder and an extension, like `~/Downloads/*.dmg` (case-insensitive, files directly in that folder, any size). A bad entry fails the catalog load |
 | `risk` | Base class: SAFE / CAUTION / RISKY / ADVISE / BLOCKED |
 | `method` | `native` (argv template) or `quarantine` |
 | `native.argv` | Fixed argv. Placeholders only for identifiers validated against the tool's own listing |
 | `native.dry_run_argv` | Tool's own dry-run if it has one (e.g. `brew cleanup -n`) |
-| `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean` |
+| `privileged` | `true` for a native step that needs administrator rights. The argv must exactly match `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`). Run only by `internal/executor/privileged.go` through the OS password prompt; never in a plan Claude proposed (ADR 0009) |
+| `on_request` | `true` to keep the recipe out of scans, wins and MCP listings. It is shown only by `macdoc doctor maintenance` and planned by ID |
+| `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean`, `no_installed_app` |
 | `staleness` | Signal + threshold (e.g. `mtime_max > 60d`) |
 | `restore` | How it comes back plus cost: `rebuild` / `redownload:<GB>` / `irreplaceable` |
 | `explain` | What it is, why it's there, and what removing it means, in plain language |
@@ -114,15 +117,27 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `user.app_caches` | `~/Library/Caches/<bundle-id>` for non-Apple apps, > 500 MB | CAUTION | Q | That app not running | Regenerated |
 | `user.logs` | `~/Library/Logs/**` older than 30d, > 100 MB total | SAFE | Q | none | n/a |
 | `user.trash` | `~/.Trash` | ADVISE | A ("Empty Trash in Finder") | n/a | Gone after emptying |
-| `user.downloads_large_old` | `~/Downloads` files > 500 MB and older than 90d with installer/archive extensions only (`.dmg .pkg .zip .iso …`) | CAUTION | Q | none | Re-download if available |
+| `user.downloads_large_old` | `~/Downloads` installers and archives of at least 20 MB (`.dmg .pkg .mpkg .iso .xip` at any size, other archives from 100 MB) not changed in 30 days | CAUTION | Q | none | Re-download if available |
 | `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
+| `apps.leftovers` | Folders in `~/Library/{Caches,Logs,Saved Application State,HTTPStorages,WebKit}` named after a bundle ID (`com.vendor.app`, optional `.savedState`, never `com.apple.*`) that no installed app or LaunchAgent/LaunchDaemon owns, at least 1 MB, unchanged 60 days (ADR 0008) | CAUTION | Q | `no_installed_app` | Not recreated by any app; the quarantine copy is the way back |
+| `apps.user_bundle` | An app bundle directly in `~/Applications` (not Apple's), size from the scan or unknown (ADR 0008) | RISKY | Q | `app_bundle_not_running` | Install it again; its settings and caches are not touched |
+| `apps.system_bundle` | An app bundle directly in `/Applications` (`/Applications/<Name>.app`; not Apple's, not Mac App Store, not a symlink, owned or group-writable by the user; ADR 0011) | RISKY | Q | `app_bundle_not_running` | Install it again; settings and caches are not touched. A root-owned bundle the system refuses fails cleanly |
+| `apps.support_leftovers` | Folders in `~/Library/Application Support` named by a bundle ID, no installed app or LaunchAgent owner, at least 1 MB, unchanged 180 days (ADR 0011) | RISKY | Q | `no_installed_app` | The quarantine copy is the only way back; may hold documents or settings |
+| `apps.launch_agent_unload` | A user LaunchAgent whose program no longer exists: `launchctl remove <label>` | CAUTION | N | none | Nothing to start again |
+| `apps.launch_agent_file` | The plist of that same background item, moved aside | CAUTION | Q | none | Nothing to start again |
 | `swap.explain` | VM volume / swap files | ADVISE | A (explains swap and what reduces it) | n/a | n/a |
 | `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `doctor space --large`) | n/a | Unknown |
 
+### Detector `app_leftovers` and precondition `no_installed_app`
+
+`app_leftovers` takes two params: `dirs`, a comma-separated list of `~`-relative folders to look in, and `min_bytes`, the smallest folder size to offer (1 MB for `apps.leftovers`). A folder qualifies only if its name is a reverse-DNS bundle ID (see `recipes.LeftoverID`) and no installed app or LaunchAgent/LaunchDaemon plist owns it: the IDs are equal, or one is the other plus `.something`. If the installed-app list can't be read, the detector returns an error and offers nothing. `apps.support_leftovers` uses the same detector on `~/Library/Application Support` with a 180-day age; its allow pattern `~/Library/Application Support/*` is accepted by the lint only for a RISKY quarantine `app_leftovers` recipe, and macdoc's own folder and `MobileSync` can never match (ADR 0011). App bundles directly in `/Applications` are covered only by `apps.system_bundle` (`docs/SAFETY_MODEL.md` §3).
+
+`no_installed_app` runs right before the move. It fails if the folder's bundle ID is owned by an installed app now, or if the list can't be read, so the item is skipped and audited.
+
 ## 2a. Allowed native commands
 
-Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test.
+Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test. Privileged argvs are a separate, exact list, `PrivilegedArgvAllowed` (3 entries); `qlmanage -r cache` and `qlmanage -r` are in the ordinary list. The `maintenance.*` recipes (`flush_dns`, `restart_mdnsresponder`, `purge_memory`, `quicklook_cache`, `quicklook_reset`) are in `catalog/maintenance.yaml`.
 
 ## 3. Adding a recipe (checklist)
 1. YAML with every field filled in, including `explain` and `restore`.

@@ -27,6 +27,79 @@ type Config struct {
 	Plan int `json:"plan_minutes,omitempty"`
 	// Native bounds a tool's own cleanup command.
 	Native int `json:"native_timeout_minutes,omitempty"`
+	// ExcludedRecipes lists recipe IDs (or "prefix.*") whose items macdoc must
+	// never list, plan or apply. It can only subtract: nothing here enables
+	// or adds a recipe. Malformed entries are ignored.
+	ExcludedRecipes ExcludeList `json:"excluded_recipes,omitempty"`
+}
+
+// ExcludeList is a tolerant list of recipe IDs: a value that isn't a list of
+// strings, and any entry that isn't a well-formed ID, is dropped rather than
+// failing the whole settings file.
+type ExcludeList []string
+
+// UnmarshalJSON keeps only well-formed string entries.
+func (l *ExcludeList) UnmarshalJSON(b []byte) error {
+	var raw []json.RawMessage
+	if json.Unmarshal(b, &raw) != nil {
+		*l = nil
+		return nil
+	}
+	var out ExcludeList
+	for _, r := range raw {
+		var s string
+		if json.Unmarshal(r, &s) == nil {
+			if s = strings.TrimSpace(s); validExclude(s) && !slices.Contains(out, s) {
+				out = append(out, s)
+			}
+		}
+	}
+	*l = out
+	return nil
+}
+
+// validExclude accepts "a.b_c" style IDs, optionally ending in ".*".
+func validExclude(s string) bool {
+	s = strings.TrimSuffix(s, ".*")
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '.' && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return !strings.HasPrefix(s, ".") && !strings.HasSuffix(s, ".") && !strings.Contains(s, "..")
+}
+
+// Excludes reports whether the recipe ID is excluded by the settings. An
+// entry matches the exact ID, or with a trailing ".*" every ID under that
+// prefix ("maintenance.*" matches "maintenance.purge_memory", not
+// "maintenancex.a").
+func (c Config) Excludes(id string) bool {
+	for _, e := range c.ExcludedRecipes {
+		if p, ok := strings.CutSuffix(e, ".*"); ok {
+			if strings.HasPrefix(id, p+".") {
+				return true
+			}
+		} else if e == id {
+			return true
+		}
+	}
+	return false
+}
+
+// UnknownExcludes lists excluded entries that match no known recipe ID, for
+// a note. They are ignored, never an error.
+func (c Config) UnknownExcludes(known []string) []string {
+	var out []string
+	for _, e := range c.ExcludedRecipes {
+		one := Config{ExcludedRecipes: ExcludeList{e}}
+		if !slices.ContainsFunc(known, one.Excludes) {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // Setting describes one number setting.
@@ -219,6 +292,10 @@ func verify(p string) error {
 	return nil
 }
 
+// AppsFolder is a fixture folder that stands in for /Applications in every
+// policy Policy builds, when it is set. Only tests set it.
+var AppsFolder string
+
 // Policy is the safety policy for home with the configured protected
 // folders added. An unreadable or invalid settings file is an error.
 func Policy(home string) (*safety.Policy, Config, error) {
@@ -227,5 +304,8 @@ func Policy(home string) (*safety.Policy, Config, error) {
 		return nil, c, err
 	}
 	p, err := safety.NewPolicy(home, c.Protect)
+	if err == nil && AppsFolder != "" {
+		p.SetAppsFolder(AppsFolder)
+	}
 	return p, c, err
 }

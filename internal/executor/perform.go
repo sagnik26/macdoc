@@ -78,7 +78,7 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 		res.Outcome, res.Reason = OutcomeFailed, err.Error()
 	}
 	rec := audit.Record{Plan: p.plan.ID, Origin: string(p.plan.Origin), Item: item.OpportunityID, Recipe: item.RecipeID,
-		Target: item.Target, Method: string(item.Method), Argv: item.Argv, Entry: res.QuarantineID,
+		Target: item.Target, Method: string(item.Method), Privileged: item.Privileged, Argv: item.Argv, Entry: res.QuarantineID,
 		Expected: item.ExpectedBytes, Exit: res.ExitCode, Reason: res.Reason, Output: lastOutput(p, res)}
 	switch res.Outcome {
 	case OutcomeDone:
@@ -138,6 +138,9 @@ func (p *performer) native(item model.PlanItem, argv []string) (ItemResult, erro
 	if !recipes.MatchesNative(r, argv) {
 		return res, skip{"its command doesn't match the recipe's"}
 	}
+	if r.Privileged != item.Privileged {
+		return res, skip{"its administrator-rights setting doesn't match its recipe's"}
+	}
 	if !recipes.ToolInstalled(argv[0]) {
 		return res, skipf("%s isn't installed any more", argv[0])
 	}
@@ -155,7 +158,14 @@ func (p *performer) native(item model.PlanItem, argv []string) (ItemResult, erro
 			return res, skipf("%s is no longer listed by %s", arg, argv[0])
 		}
 	}
-	out, code, err := p.cfg.Exec(p.ctx, argv, p.cfg.NativeTimeout)
+	run := p.cfg.Exec
+	if item.Privileged {
+		if err := p.privilegedAllowed(r, argv); err != nil {
+			return res, err
+		}
+		run = p.cfg.Priv
+	}
+	out, code, err := run(p.ctx, argv, p.cfg.NativeTimeout)
 	res.ExitCode = &code
 	p.lastOut = out
 	if err != nil {

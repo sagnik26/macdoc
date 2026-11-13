@@ -40,6 +40,14 @@ type Recipe struct {
 
 	// Native is required for method native and forbidden otherwise.
 	Native *Native `yaml:"native"`
+	// Privileged marks a native recipe whose command needs administrator
+	// rights. Its argv must be one of PrivilegedArgvAllowed; only the
+	// executor's one privileged function ever runs it (ADR 0009).
+	Privileged bool `yaml:"privileged"`
+	// OnRequest keeps the recipe out of the usual suggestions. It is listed by
+	// `macdoc doctor maintenance` and can be planned by ID, because a
+	// maintenance step is something a person asks for, not space to reclaim.
+	OnRequest bool `yaml:"on_request"`
 
 	// KeepChildrenOf and KeepNames tell the scanner which small directories
 	// to keep so detectors can see them: every direct child of these
@@ -47,6 +55,11 @@ type Recipe struct {
 	// names (e.g. "node_modules").
 	KeepChildrenOf []string `yaml:"keep_children_of"`
 	KeepNames      []string `yaml:"keep_names"`
+	// KeepFiles tell the scanner which small files to keep so detectors can
+	// see them. Each is a literal ~-relative folder followed by /*.ext, such as
+	// "~/Downloads/*.dmg": every file directly in that folder with that
+	// extension (case-insensitive), whatever its size.
+	KeepFiles []string `yaml:"keep_files"`
 
 	StaleDays     int           `yaml:"stale_days"`    // 0: no idle requirement
 	Preconditions []string      `yaml:"preconditions"` // see Preconditions
@@ -89,14 +102,14 @@ var Toolchains = []string{
 var Preconditions = []string{
 	"app_not_running:", "docker_reachable", "emulator_not_running",
 	"simulator_not_running", "gradle_daemons_stopped", "metro_not_running",
-	"ollama_model_not_loaded", "git_clean",
+	"ollama_model_not_loaded", "git_clean", "no_installed_app", "app_bundle_not_running",
 }
 
 // NativeTools are the only programs a native argv may start with. They are
 // the tools of the exact argv allow-list in load.go.
 var NativeTools = []string{
 	"brew", "xcrun", "docker", "npm", "pnpm", "yarn", "pip3", "uv", "conda",
-	"ollama", "avdmanager", "pod",
+	"ollama", "avdmanager", "pod", "qlmanage", "launchctl",
 }
 
 // Finding is one concrete instance a detector found for a recipe.
@@ -142,6 +155,12 @@ type Env struct {
 	// result (RunCachedDryRun). Display only: leave it nil anywhere that
 	// decides or acts (executor, planner.Verify, listers).
 	Cache Cache
+	// AppDirs is where installed apps are looked for; nil means the usual
+	// folders (DefaultAppDirs). Tests set it to a fixture.
+	AppDirs []string
+	// AppsFolder stands in for /Applications when set. Tests use it so a
+	// detector never reads the real folder.
+	AppsFolder string
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

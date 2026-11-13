@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/config"
+	"github.com/sagnik26/macdoc/internal/recipes"
 	"github.com/sagnik26/macdoc/internal/safety"
 )
 
@@ -19,6 +20,9 @@ type ConfigView struct {
 	Protect  []string       `json:"protect"`  // yours
 	BuiltIn  []string       `json:"built_in_protected"`
 	System   []string       `json:"system_protected"`
+	// Excluded are recipe IDs you turned off; Notes explain ignored entries.
+	Excluded []string `json:"excluded_recipes"`
+	Notes    []string `json:"notes,omitempty"`
 }
 
 func newConfigCmd(g *GlobalFlags) *cobra.Command {
@@ -44,7 +48,8 @@ func newConfigCmd(g *GlobalFlags) *cobra.Command {
 				return err
 			}
 			v := ConfigView{Path: config.Path(home), Settings: map[string]int{}, Protect: append([]string{}, c.Protect...),
-				BuiltIn: safety.HomeProtected(), System: safety.SystemRoots()}
+				BuiltIn: safety.HomeProtected(), System: safety.SystemRoots(), Excluded: append([]string{}, c.ExcludedRecipes...)}
+			v.Notes = excludeNotes(c)
 			for _, s := range config.Settings {
 				v.Settings[s.Key] = c.Effective(s.Key)
 			}
@@ -159,10 +164,41 @@ func renderConfig(w io.Writer, c config.Config, v ConfigView) error {
 	for _, p := range v.Protect {
 		fmt.Fprintf(&b, "  %s\n", t.text.Render(p))
 	}
+	fmt.Fprintf(&b, "\n%s\n", t.heading("Turned off tasks"))
+	if len(v.Excluded) == 0 {
+		b.WriteString(t.muted.Render(`  None. Add "excluded_recipes": ["maintenance.purge_memory", "maintenance.*"] to the settings file.`) + "\n")
+	}
+	for _, e := range v.Excluded {
+		fmt.Fprintf(&b, "  %s\n", t.text.Render(e))
+	}
+	for _, n := range v.Notes {
+		fmt.Fprintf(&b, "  %s\n", t.muted.Render(n))
+	}
 	fmt.Fprintf(&b, "\n%s\n", t.heading("Always protected"))
 	fmt.Fprintf(&b, "  %s\n", t.Wrap(t.muted.Render("~/"+strings.Join(v.BuiltIn, ", ~/")), 2))
 	fmt.Fprintf(&b, "  %s\n", t.Wrap(t.muted.Render("and system folders: "+strings.Join(v.System, ", ")), 2))
 	fmt.Fprintf(&b, "\n%s %s\n", t.muted.Render("Settings file:"), v.Path)
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// excludeNotes explains excluded entries that match no recipe; they are
+// ignored, never an error.
+func excludeNotes(c config.Config) []string {
+	if len(c.ExcludedRecipes) == 0 {
+		return nil
+	}
+	cat, err := recipes.Load()
+	if err != nil {
+		return nil
+	}
+	var known []string
+	for _, r := range cat.Recipes {
+		known = append(known, r.ID)
+	}
+	var notes []string
+	for _, e := range c.UnknownExcludes(known) {
+		notes = append(notes, "ignored: "+e+" matches no known recipe")
+	}
+	return notes
 }

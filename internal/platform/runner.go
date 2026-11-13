@@ -42,10 +42,7 @@ type Exec struct{}
 // Result.ExitCode, not as an error; errors mean the command could not run or
 // timed out.
 func (Exec) Run(ctx context.Context, cmd Command) (Result, error) {
-	timeout := cmd.Timeout
-	if timeout == 0 {
-		timeout = DefaultTimeout
-	}
+	timeout := TimeoutFor(cmd.Name, cmd.Timeout, envLookup)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

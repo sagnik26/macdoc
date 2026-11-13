@@ -47,15 +47,16 @@ type OwnedFolder struct {
 // Bytes is the sum of Folders, measured by the scan; zero means no data
 // folder was found, not that the size is unknown.
 type SoftwareEntry struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	Kind      string        `json:"kind"`
-	Version   string        `json:"version,omitempty"`
-	BundleID  string        `json:"bundle_id,omitempty"`
-	Source    string        `json:"source"`
-	Installed *time.Time    `json:"installed,omitempty"` // absent when unknown
-	Bytes     int64         `json:"bytes"`
-	Folders   []OwnedFolder `json:"folders"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Kind      string          `json:"kind"`
+	Version   string          `json:"version,omitempty"`
+	BundleID  string          `json:"bundle_id,omitempty"`
+	Source    string          `json:"source"`
+	Installed *time.Time      `json:"installed,omitempty"` // absent when unknown
+	Bytes     int64           `json:"bytes"`
+	Folders   []OwnedFolder   `json:"folders"`
+	Slim      *inventory.Slim `json:"slim,omitempty"` // advice only; absent when the executable could not be read
 	// CoveredBy lists the recipes whose match names this software: the
 	// cleanups macdoc can offer for it. Empty means advisory only (ADR 0007).
 	CoveredBy []string `json:"covered_by"`
@@ -321,7 +322,7 @@ func entries(sw []inventory.Software, owners []inventory.Owner, cover map[string
 	}
 	out := make([]SoftwareEntry, 0, len(sw))
 	for _, s := range sw {
-		e := SoftwareEntry{ID: s.ID, Name: s.Name, Kind: s.Kind, Version: s.Version, BundleID: s.BundleID, Source: s.Source}
+		e := SoftwareEntry{ID: s.ID, Name: s.Name, Kind: s.Kind, Version: s.Version, BundleID: s.BundleID, Source: s.Source, Slim: s.Slim}
 		if !s.Installed.IsZero() {
 			t := s.Installed
 			e.Installed = &t

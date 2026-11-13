@@ -32,32 +32,56 @@ Each phase ends with `make check`, a read-only run on this Mac, and doc updates.
 `internal/<pkg>/tests/`; every path-dependent function takes a home/root override; executor tests only under
 `MACDOC_SANDBOX`. Never run `apply` for real.
 
-### 1. Installer files (Mole: `mo installer`)
-New recipes for DMG, PKG, MPKG, ISO, XIP in Downloads, Desktop, `~/Library/Caches/Homebrew/downloads`, iCloud
-Downloads, Mail Downloads. Detector `installer_files` over scan nodes; method quarantine; risk CAUTION; restore
-"re-download". ZIPs only when the name or contents say installer (else advisory). Files: `internal/recipes/`
-(new detector, `catalog/system.yaml` or new `installers.yaml`), tests (positive, look-alike `.dmg.txt`,
-precondition). The scanner must keep these file nodes (`keep_names`/extension hook).
+### 1. Installer files (Mole: `mo installer`) - done
+Built on the existing `user.downloads_large_old` recipe rather than a new one: the minimum drops to 20 MB and the
+idle time to 30 days, and a new `keep_files` recipe field plus a scanner `KeepFile` option make the scan keep
+DMG, PKG, MPKG, ISO and XIP files in `~/Downloads` at any size (archives still need 100 MB, the scanner
+threshold). Tests: the scanner option, `SplitKeepFile`/`KeepFileFunc`, the loader check, the detector, and a
+scan-to-suggestion test (checked by disabling the wiring).
+Correction to the first plan: `~/Desktop`, iCloud Drive (`Mobile Documents`) and `~/Library/Mail` are protected
+paths (`docs/SAFETY_MODEL.md` §3), so no recipe may touch them; Mole cleans there, macdoc cannot. The Homebrew
+download cache is already handled by the `brew.cleanup` recipe. So only Downloads gets a removal recipe. Reporting
+installers in the protected places as advice-only is possible later.
 
-### 2. Disk explorer (Mole: `mo analyze`)
-Read-only tree built from stored scan nodes, no new scan. `engine.Explore(scanID, path)` returns children with
-bytes, share, scan status (complete/partial/unknown, never zero for unknown), plus the largest files. UI: a
-block in the Space tab with `enter` to descend, `backspace` to go up, no deletion (ADR 0002: no paths as
-targets), and `macdoc doctor space --path <dir> --json`. Files: `internal/engine/explore.go`,
-`internal/cli/tables.go` (reuse `Grid`/`block`), `internal/store` query reuse (`Nodes` with Prefix/MaxDepth).
+### 2. Disk explorer (Mole: `mo analyze`) - done
+`engine.Explore` reads the stored scan only (no new scan): a folder's kept children biggest first with their share,
+a "smaller items" remainder so the entries add up, the biggest files below, and `complete`/`partial`/`unavailable`
+(an unmeasured folder has no size; it is never shown as zero). `macdoc doctor explore [path] [--json]` and an
+overlay opened with `enter` on the Space tab (`enter` opens a folder, `backspace` goes up, `esc` closes). It is
+read-only and takes a path only to look at, never as a target (ADR 0002). Difference from the first plan: a separate
+command `doctor explore` instead of `doctor space --path`, because `space` already has its own frozen JSON shape.
 
-### 3. Live status (Mole: `mo status`)
-`macdoc doctor status [--json] [--watch --interval 2s]` and a live block in the Health tab. Read-only probes in
-`internal/probe`: CPU per core and load, memory pressure, disk I/O, network rates, battery and power, thermals
-(no `powermetrics`, it needs root), top processes, a health score. Fixed read-only commands through
-`platform.Runner` (`ps`, `vm_stat`, `iostat`, `netstat`, `pmset`). Frozen schema `doctor-status.json`. Watch mode
-streams NDJSON.
+### 3. Live status (Mole: `mo status`) - done
+`macdoc doctor status [--json] [--watch --interval D]` and a live block on the Health tab (refreshed every 3 s while
+the tab is open, never on other tabs). Read-only collectors in `internal/probe/live.go`: CPU and load (`top`,
+`sysctl`), network rates (`netstat -ib`, physical `en*` interfaces only so tunnels don't double-count), disk traffic
+(`iostat`), battery and power (`pmset`, and `ioreg` for cycles, health and temperature, reading only named keys so the
+battery serial is never read). `engine.Status` runs them in parallel; a failed probe leaves its section out with a
+note. The health score is a fixed set of rules (`engine.HealthScore`). Not done, by choice: per-core CPU (no
+read-only command gives it without sampling machinery), fan speed and sensor temperatures (`powermetrics` needs
+root, which phase 3 does not use).
 
-### 4. Zombie and CPU alerts (Mole: process alerts)
-Add to `slow`/`status`: zombie parents (`ps` state Z) and sustained CPU over a window, read-only, never
-terminates anything. Window sampling reuses the vitals samples in the store.
+### 4. Zombie and CPU alerts (Mole: process alerts) - done
+`doctor slow` and `doctor status` (text and `alerts` in `--json`) now list zombie parents (`ps` state Z, counted per
+parent; a parent that is no longer listed is said so) and processes using 80% of a core or more, at most five of
+each, read-only: macdoc only says who the parent is and that quitting it clears the zombies, and never signals
+anything. One fixed `ps -axo pid=,ppid=,stat=,pcpu=,comm=` call (`probe.CollectProcessAlerts`). Difference from the
+first plan: "sustained" is the recent average macOS reports in `ps`, not a window rebuilt from stored samples,
+because the stored vitals hold memory and swap, not per-process CPU; building that would mean storing process lists,
+which is more than an alert needs. A failed `ps` leaves the section out with a note, never "all clear".
 
-### 5. Uninstaller and leftovers (Mole: `mo uninstall`, `mo clean` leftovers) - ADR 0008
+### 5. Uninstaller and leftovers (Mole: `mo uninstall`, `mo clean` leftovers) - ADR 0008 - done within the safety rules
+Done: Recipe `apps.leftovers` (detector `app_leftovers`, precondition `no_installed_app`): folders in
+`~/Library/{Caches,Logs,Saved Application State,HTTPStorages,WebKit}` named after a bundle ID with no installed app or
+LaunchAgent/LaunchDaemon owner, at least 1 MB, unchanged 60 days; CAUTION, quarantine; nothing is offered if the
+installed-app list can't be read. Deviation: no confidence tiers (bundle-ID match only, never by name).
+Also done: `apps.user_bundle` (an app in `~/Applications`, RISKY, own confirmation, precondition
+`app_bundle_not_running`, Apple's apps skipped) and `apps.launch_agent_unload` + `apps.launch_agent_file` (a user
+LaunchAgent whose program no longer exists: `launchctl remove <label>`, then the plist is quarantined; the argv is
+`remove` not `bootout` because a native `{id}` can't contain the `/` that `gui/<uid>/<label>` needs).
+Also done (ADR 0011, owner decision 2026-11-14): `apps.system_bundle` (`/Applications/<Name>.app`, RISKY, quarantine)
+and `apps.support_leftovers` (Application Support, RISKY, 180 days). Only gap: root-owned bundles the system
+refuses fail cleanly; there is no privileged removal. The plan below is the original scope.
 - Opportunities generated from `doctor software` apps: one per app (bundle + its attributed data folders).
   Personal data (settings, plugins) is kept by default; the confirm step lets the person add data paths one by
   one; browser profiles and group containers are never preselected.
@@ -66,12 +90,13 @@ terminates anything. Window sampling reuses the vitals samples in the store.
 - LaunchAgents/Daemons: list plists for the app; unload with a fixed `launchctl bootout` argv (`{id}` from the
   tool's own listing), then quarantine the plist.
 - Preconditions: app not running (`app_not_running`), not under `/System`, not Apple-signed system apps, path
-  under `/Applications` or `~/Applications`. Root-owned bundles need the privileged path (phase 6).
+  under `/Applications` or `~/Applications`. Root-owned bundles fail cleanly (ADR 0011).
 - Plans carry IDs, never paths (ADR 0002); re-validate every item right before acting.
 Files: `internal/recipes/` (detector over `internal/inventory`), `internal/engine/uninstall.go`,
 `internal/executor/` (reuse quarantine move), tests with fixture homes and fake `platform.Runner`.
 
-### 6. System maintenance with privileged steps (Mole: `mo optimize`) - ADR 0009
+### 6. System maintenance with privileged steps (Mole: `mo optimize`) - ADR 0009 - done
+Done as below, with `doctor maintenance` and recipes `maintenance.*`. Not done: Touch ID (stays advice-only).
 Bounds, all enforced in code and tests:
 - Only `internal/executor` may run privileged steps, through one typed function (new
   `executor/privileged.go`); `tools/forbidcheck` allows `sudo` only in that file.
@@ -82,22 +107,25 @@ Bounds, all enforced in code and tests:
   (`planner` refuses privileged items when the origin is Claude; MCP gets no new tool).
 - The OS shows the password prompt; macdoc never reads, stores or logs it, never uses `sudo -S`, and runs
   `sudo -k` afterwards. The dry run shows the exact command; the audit log records the privileged step.
-- Whitelist: `config` can exclude individual tasks (add-only protection, like folders).
+- Whitelist (done): `config` `excluded_recipes` can exclude individual tasks (add-only protection, like folders).
 Docs to change: `AGENTS.md` rule 4, `CONTRIBUTING.md`, `docs/SAFETY_MODEL.md` §5, `docs/THREAT_MODEL.md`
 (the "never uses sudo" statement), ADR index, forbidcheck tests.
 
-### 7. Slim universal apps (Mole: `mo slim`)
+### 7. Slim universal apps (Mole: `mo slim`) - done as advice (owner decision 2026-11-14)
+The owner chose to keep slimming advice-only after the experiment (ADR 0010); 7b is not implemented. `launchctl remove` in phase 5 (instead of `bootout`) was also kept by the owner.
 7a, read-only first: `lipo -archs` and `lipo -detailed_info` report each app's Intel slice and savings in
 `doctor software`/Space. 7b, the action, only after an experiment under `docs/experiments/` shows a
 copy-modify-resign flow keeps Developer-ID apps launching; then ADR 0010. If the experiment fails, 7b is
 dropped and 7a stays as advice.
+Status: 7a done (read-only advice in `doctor software`; `Slim` field, additive). 7b: experiment done (`docs/experiments/slim-universal-apps.md`); ad-hoc re-signing makes Gatekeeper reject Developer-ID apps and drops their Team ID, so 7b is dropped and slimming stays advice-only (ADR 0010).
 
-### 8. Operations parity
+### 8. Operations parity - done
 `macdoc log --json` run IDs; tunable timeouts (`MACDOC_TIMEOUT_*` like Mole's, with sane defaults); shell
 completion already exists; Touch ID for sudo stays advice-only (it edits `/etc/pam.d`); no self-update (macdoc
 makes no network calls; Homebrew updates it).
 
-### 9. Distribution and agent access
+### 9. Distribution and agent access - done (files only)
+Added `install.sh`, `packaging/homebrew/macdoc.rb`, `llms.txt`, `skills/macdoc/`, `.claude-plugin/plugin.json`, `launchers/`. Not verifiable offline: install.sh against a real release, the Homebrew tap (owner must create it), shellcheck.
 Homebrew formula/tap, `install.sh` (checksum-verified from the release workflow), `llms.txt`, an agent skill and
 plugin manifest for Claude Code/Codex/Cursor that always runs `plan` before anything, Raycast/Alfred launcher
 script, multilingual README later. Extends `docs/RELEASING.md` and the existing goreleaser workflow.

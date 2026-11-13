@@ -161,6 +161,9 @@
             "null"
           ]
         },
+        "privileged": {
+          "type": "boolean"
+        },
         "recipe_id": {
           "type": "string"
         },

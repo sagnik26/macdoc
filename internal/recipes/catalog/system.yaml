@@ -64,25 +64,33 @@
     - "Choose Finder › Empty Trash, then press r in macdoc to rescan."
 
 - id: user.downloads_large_old
-  title: Large old installer or archive
+  title: Old installer or archive
   category: downloads
   toolchain: system
   risk: CAUTION
   method: quarantine
   detector: downloads_large_old
-  # Only installers and archives (.dmg, .pkg, .zip, .xip, .iso, .ipa, …).
-  params: {dir: "~/Downloads", min_bytes: "524288000", files: installers}
+  # Installers and archives (.dmg, .pkg, .zip, .xip, .iso, .ipa, …). Disk
+  # images, packages and ISOs are kept by the scanner at any size so small
+  # ones are seen; archives are seen from 100 MB, the scanner's threshold.
+  params: {dir: "~/Downloads", min_bytes: "20971520", files: installers}
   allow: ["~/Downloads/*"]
-  stale_days: 90
+  keep_files:
+    - "~/Downloads/*.dmg"
+    - "~/Downloads/*.pkg"
+    - "~/Downloads/*.mpkg"
+    - "~/Downloads/*.iso"
+    - "~/Downloads/*.xip"
+  stale_days: 30
   restore:
     kind: redownload
     note: >-
       Re-download from the original source, if it's still available. Other
-      large downloads aren't included, because they may be the only copy.
+      downloads aren't included, because they may be the only copy.
   explain: >-
     Installers, disk images and archives in Downloads often stay after
-    they've been used. This one is large and hasn't changed in months. Check
-    that you don't need it, or can download it again, before cleaning.
+    they've been used. This one hasn't changed in a month or more. Check that
+    you don't need it, or can download it again, before cleaning.
 
 - id: user.downloads_large_other
   title: Large old download

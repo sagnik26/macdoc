@@ -158,3 +158,80 @@ func TestBadNpmOutputIsUnknownNotAPanic(t *testing.T) {
 		t.Errorf("npm status = %+v, want unknown", st)
 	}
 }
+
+func slimEnv(t *testing.T, plist string, resp map[string]platform.Result, errs map[string]error) (inventory.Software, *platform.Fake) {
+	t.Helper()
+	apps := t.TempDir()
+	bundle := makeApp(t, apps, "Fat")
+	resp[plutilKey(bundle)] = platform.Result{Stdout: []byte(plist)}
+	fake := &platform.Fake{Responses: resp, Errors: errs}
+	res := inventory.Discover(context.Background(), inventory.Env{
+		Home: t.TempDir(), AppDirs: []string{apps}, Runner: fake,
+		HasTool: func(string) bool { return false },
+	})
+	sw, ok := find(res, "app:com.x.fat")
+	if !ok {
+		t.Fatal("app not found")
+	}
+	return sw, fake
+}
+
+const slimPlist = `{"CFBundleIdentifier":"com.x.fat","CFBundleExecutable":"Fat"}`
+
+func TestSlimUniversal(t *testing.T) {
+	apps := t.TempDir()
+	bundle := makeApp(t, apps, "Fat")
+	exe := filepath.Join(bundle, "Contents", "MacOS", "Fat")
+	fake := &platform.Fake{Responses: map[string]platform.Result{
+		plutilKey(bundle):            {Stdout: []byte(slimPlist)},
+		"lipo -archs " + exe:         {Stdout: []byte("x86_64 arm64\n")},
+		"lipo -detailed_info " + exe: {Stdout: []byte("Fat header in: x\nnfat_arch 2\narchitecture x86_64\n    offset 16384\n    size 48128\n    align 2^14\narchitecture arm64\n    size 99\n")},
+	}}
+	res := inventory.Discover(context.Background(), inventory.Env{Home: t.TempDir(), AppDirs: []string{apps}, Runner: fake,
+		HasTool: func(string) bool { return false }})
+	sw, _ := find(res, "app:com.x.fat")
+	if sw.Slim == nil || !sw.Slim.Universal || sw.Slim.IntelBytes == nil || *sw.Slim.IntelBytes != 48128 {
+		t.Fatalf("slim = %+v", sw.Slim)
+	}
+}
+
+func TestSlimSingleArchIsNotUniversal(t *testing.T) {
+	for _, archs := range []string{"arm64", "x86_64"} {
+		apps := t.TempDir()
+		bundle := makeApp(t, apps, "Fat")
+		exe := filepath.Join(bundle, "Contents", "MacOS", "Fat")
+		fake := &platform.Fake{Responses: map[string]platform.Result{
+			plutilKey(bundle):    {Stdout: []byte(slimPlist)},
+			"lipo -archs " + exe: {Stdout: []byte(archs + "\n")},
+		}}
+		res := inventory.Discover(context.Background(), inventory.Env{Home: t.TempDir(), AppDirs: []string{apps}, Runner: fake,
+			HasTool: func(string) bool { return false }})
+		sw, _ := find(res, "app:com.x.fat")
+		if sw.Slim == nil || sw.Slim.Universal || sw.Slim.IntelBytes != nil {
+			t.Fatalf("%s: slim = %+v", archs, sw.Slim)
+		}
+	}
+}
+
+func TestSlimUnknownWhenLipoFails(t *testing.T) {
+	sw, _ := slimEnv(t, slimPlist, map[string]platform.Result{}, nil) // fake has no lipo answer: error
+	if sw.Slim != nil {
+		t.Fatalf("want unknown (nil), got %+v", sw.Slim)
+	}
+}
+
+func TestSlimIntelSizeUnknownWhenDetailFails(t *testing.T) {
+	apps := t.TempDir()
+	bundle := makeApp(t, apps, "Fat")
+	exe := filepath.Join(bundle, "Contents", "MacOS", "Fat")
+	fake := &platform.Fake{Responses: map[string]platform.Result{
+		plutilKey(bundle):    {Stdout: []byte(slimPlist)},
+		"lipo -archs " + exe: {Stdout: []byte("arm64 x86_64")},
+	}}
+	res := inventory.Discover(context.Background(), inventory.Env{Home: t.TempDir(), AppDirs: []string{apps}, Runner: fake,
+		HasTool: func(string) bool { return false }})
+	sw, _ := find(res, "app:com.x.fat")
+	if sw.Slim == nil || !sw.Slim.Universal || sw.Slim.IntelBytes != nil {
+		t.Fatalf("slim = %+v", sw.Slim)
+	}
+}

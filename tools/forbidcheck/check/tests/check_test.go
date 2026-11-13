@@ -448,3 +448,34 @@ func TestRepoIsClean(t *testing.T) {
 		t.Errorf("forbidcheck on repo: code %d\n%s%s", code, out, errOut)
 	}
 }
+
+// Inside internal/executor the guard still refuses a shell, and refuses sudo
+// everywhere except the one privileged file; the executor may still delete,
+// move and run commands.
+func TestSudoOnlyInThePrivilegedFile(t *testing.T) {
+	src := func(name string) string {
+		return `package executor
+import "os/exec"
+func f() { exec.Command("` + name + `", "x") }`
+	}
+	cases := []struct {
+		file, prog string
+		want       int
+	}{
+		{check.SudoFile, "/usr/bin/sudo", 0},       // the one allowed place
+		{check.SudoFile, "sh", 1},                  // a shell is never allowed, even there
+		{"internal/executor/native.go", "sudo", 1}, // sudo elsewhere in the executor
+		{"internal/executor/move.go", "/usr/bin/sudo", 1},
+		{"internal/executor/native.go", "tmutil", 0}, // an ordinary command is the executor's job
+		{"internal/cli/apply.go", "sudo", 2},         // outside the executor: forbidden call and sudo
+	}
+	for _, c := range cases {
+		fs, err := check.Source(c.file, []byte(src(c.prog)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(fs) != c.want {
+			t.Errorf("%s running %q: %d findings %v; want %d", c.file, c.prog, len(fs), fs, c.want)
+		}
+	}
+}

@@ -57,8 +57,13 @@ type Config struct {
 	Runner platform.Runner
 	// Exec runs native cleanup commands. Nil means the real one, which is
 	// refused in sandbox mode.
-	Exec          Native
+	Exec Native
+	// Priv runs a privileged command (ADR 0009). Nil means the real one,
+	// which asks the system for the password at the terminal and is refused
+	// in sandbox mode.
+	Priv          Native
 	Now           func() time.Time
+	run           string        // this invocation's audit run ID
 	QuarantineTTL time.Duration // default quarantine.DefaultTTL
 	NativeTimeout time.Duration // default DefaultNativeTimeout
 	// FreeSpace measures free space for the before/after report. Optional.
@@ -167,6 +172,8 @@ func (r Report) Freed() (int64, bool) {
 // Errors that stop an apply before anything is changed.
 var (
 	ErrNoApproval = errors.New("no item was approved")
+	// ErrExcluded means a plan item's recipe is excluded in your settings.
+	ErrExcluded = errors.New("excluded in your settings")
 )
 
 // Approval is one person's confirmation of one item. Individually is true
@@ -186,7 +193,7 @@ func (a Approvals) approves(item model.PlanItem, origin model.Origin) bool {
 	if !ok {
 		return false
 	}
-	if (origin == model.OriginClaude || item.Risk == model.RiskRisky) && !ap.Individually {
+	if (origin == model.OriginClaude || item.Risk == model.RiskRisky || item.Privileged) && !ap.Individually {
 		return false
 	}
 	return true
@@ -213,9 +220,16 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 	}
 	// A fresh policy, so protected folders that became symlinks since the
 	// plan are covered at their real location (P0-W3 Q2).
-	pol, _, err := config.Policy(cfg.Home)
+	pol, settings, err := config.Policy(cfg.Home)
 	if err != nil {
 		return rep, err
+	}
+	// Settings can exclude a recipe after the plan was made; refuse before
+	// anything changes.
+	for _, it := range plan.Items {
+		if settings.Excludes(it.RecipeID) {
+			return rep, fmt.Errorf("%w: %s (%s); nothing was changed", ErrExcluded, it.OpportunityID, it.RecipeID)
+		}
 	}
 	rec, err := cfg.Store.Plan(plan.ID)
 	if errors.Is(err, store.ErrNoPlan) {
@@ -298,6 +312,9 @@ func (c *Config) defaults() error {
 	if c.Now == nil {
 		c.Now = time.Now
 	}
+	if c.run == "" {
+		c.run = audit.NewRunID()
+	}
 	if c.QuarantineTTL <= 0 {
 		c.QuarantineTTL = quarantine.TTL
 	}
@@ -310,6 +327,9 @@ func (c *Config) defaults() error {
 	if c.Exec == nil {
 		c.Exec, c.realExec = realExec, true
 	}
+	if c.Priv == nil {
+		c.Priv = realPrivileged
+	}
 	return nil
 }
 
@@ -320,6 +340,7 @@ func (c *Config) audit(rec audit.Record) error {
 	if rec.TS.IsZero() {
 		rec.TS = c.Now()
 	}
+	rec.Run = c.run
 	return audit.Append(audit.Path(c.StorePath), rec)
 }
 

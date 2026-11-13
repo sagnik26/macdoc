@@ -102,3 +102,18 @@ func TestTail(t *testing.T) {
 		t.Errorf("Tail kept %d bytes", len(got))
 	}
 }
+
+func TestRunID(t *testing.T) {
+	a, b := audit.NewRunID(), audit.NewRunID()
+	if !strings.HasPrefix(a, "R-") || len(a) != 10 || a == b {
+		t.Errorf("run IDs %q %q", a, b)
+	}
+	p := filepath.Join(t.TempDir(), audit.File)
+	if err := audit.Append(p, audit.Record{Event: audit.Started, Run: a, Plan: "P-ABCD"}); err != nil {
+		t.Fatal(err)
+	}
+	recs, _, _ := audit.Read(p, 0)
+	if len(recs) != 1 || recs[0].Run != a {
+		t.Errorf("run not kept: %+v", recs)
+	}
+}

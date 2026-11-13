@@ -29,6 +29,15 @@ type Software struct {
 	Source    string    // the source that found it
 	Installed time.Time // zero if unknown
 	Evidence  string    // where it was seen, for display
+	Slim      *Slim     // nil unless the app's executable was read; nil means unknown
+}
+
+// Slim says which CPU architectures an app's main executable holds. It is
+// advice only: nothing in macdoc removes a slice.
+type Slim struct {
+	Archs      []string `json:"archs"`                 // as reported by lipo, e.g. arm64, x86_64
+	Universal  bool     `json:"universal"`             // holds an Intel (x86_64) slice next to an arm64 one
+	IntelBytes *int64   `json:"intel_bytes,omitempty"` // size of the Intel slice; absent when unknown
 }
 
 // Env is what the sources may use. Every field is injected so tests run on

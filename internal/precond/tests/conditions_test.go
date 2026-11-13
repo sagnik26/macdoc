@@ -3,6 +3,8 @@ package tests
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,5 +90,47 @@ func TestOllama(t *testing.T) {
 func TestKnown(t *testing.T) {
 	if !precond.Known([]string{"app_not_running:Xcode", "git_clean"}) || precond.Known([]string{"app_not_running:"}) || precond.Known([]string{"nope"}) {
 		t.Error("Known is wrong")
+	}
+}
+
+// A folder named after an app that was installed after the plan was made is
+// not moved; one nobody owns passes; a list that can't be read fails.
+func TestNoInstalledApp(t *testing.T) {
+	dir := t.TempDir()
+	bundle := filepath.Join(dir, "Alive.app")
+	if err := os.MkdirAll(filepath.Join(bundle, "Contents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	key := "plutil -convert json -o - " + filepath.Join(bundle, "Contents", "Info.plist")
+	r := &platform.Fake{Responses: map[string]platform.Result{key: {Stdout: []byte(`{"CFBundleIdentifier":"com.vendor.alive"}`)}}}
+	c := &precond.Checker{Runner: r, Home: t.TempDir(), AppDirs: []string{dir}}
+	item := func(target string) model.PlanItem {
+		return model.PlanItem{Target: target, Preconditions: []string{"no_installed_app"}}
+	}
+	ctx := context.Background()
+	if err := c.Check(ctx, item("/h/Library/Caches/com.gone.app")); err != nil {
+		t.Errorf("an unowned folder was refused: %v", err)
+	}
+	if err := c.Check(ctx, item("/h/Library/Caches/com.vendor.alive")); err == nil {
+		t.Error("a folder of an installed app passed")
+	}
+	if err := c.Check(ctx, item("/h/Library/Caches/Slack")); err == nil {
+		t.Error("a folder not named after an app passed")
+	}
+	none := &precond.Checker{Runner: &platform.Fake{}, Home: t.TempDir(), AppDirs: []string{t.TempDir()}}
+	if err := none.Check(ctx, item("/h/Library/Caches/com.gone.app")); err == nil {
+		t.Error("an unreadable app list passed")
+	}
+}
+
+// An app that is open is not moved; one that is closed, or only has a similar
+// name, is.
+func TestAppBundleNotRunning(t *testing.T) {
+	item := model.PlanItem{Target: "/h/Applications/Mine.app", Preconditions: []string{"app_bundle_not_running"}}
+	if err := check(t, "/h/Applications/Mine.app/Contents/MacOS/Mine\n", nil, item); err == nil {
+		t.Error("an open app passed")
+	}
+	if err := check(t, "/h/Applications/Mine Pro.app/Contents/MacOS/Mine Pro\n/sbin/launchd\n", nil, item); err != nil {
+		t.Errorf("a similarly named app blocked it: %v", err)
 	}
 }

@@ -1,0 +1,553 @@
+{
+  "$defs": {
+    "engine.StatusResult": {
+      "properties": {
+        "alerts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.ProcessAlerts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cpu": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.CPU"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disk_io": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.DiskIO"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "network": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.NetworkRates"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "power": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.Power"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "report": {
+          "$ref": "#/$defs/probe.Report"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reasons",
+        "report",
+        "score"
+      ],
+      "type": "object"
+    },
+    "model.Bytes": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "value"
+      ],
+      "type": "object"
+    },
+    "probe.BusyProcess": {
+      "properties": {
+        "cpu_percent": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pid": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cpu_percent",
+        "name",
+        "pid"
+      ],
+      "type": "object"
+    },
+    "probe.CPU": {
+      "properties": {
+        "load_1": {
+          "type": "number"
+        },
+        "load_15": {
+          "type": "number"
+        },
+        "load_5": {
+          "type": "number"
+        },
+        "logical_cores": {
+          "type": "integer"
+        },
+        "system_percent": {
+          "type": "number"
+        },
+        "usage_percent": {
+          "type": "number"
+        },
+        "user_percent": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "load_1",
+        "load_15",
+        "load_5",
+        "logical_cores",
+        "system_percent",
+        "usage_percent",
+        "user_percent"
+      ],
+      "type": "object"
+    },
+    "probe.Disk": {
+      "properties": {
+        "container_free_bytes": {
+          "type": "integer"
+        },
+        "container_ref": {
+          "type": "string"
+        },
+        "container_total_bytes": {
+          "type": "integer"
+        },
+        "purgeable_bytes": {
+          "$ref": "#/$defs/model.Bytes"
+        },
+        "volumes": {
+          "items": {
+            "$ref": "#/$defs/probe.Volume"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "container_free_bytes",
+        "container_ref",
+        "container_total_bytes",
+        "purgeable_bytes",
+        "volumes"
+      ],
+      "type": "object"
+    },
+    "probe.DiskIO": {
+      "properties": {
+        "mb_per_sec": {
+          "type": "number"
+        },
+        "transfers_per_sec": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "mb_per_sec",
+        "transfers_per_sec"
+      ],
+      "type": "object"
+    },
+    "probe.Hardware": {
+      "properties": {
+        "chip": {
+          "type": "string"
+        },
+        "cpu_count": {
+          "type": "integer"
+        },
+        "memory_bytes": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "os_build": {
+          "type": "string"
+        },
+        "os_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chip",
+        "cpu_count",
+        "memory_bytes",
+        "model",
+        "os_build",
+        "os_version"
+      ],
+      "type": "object"
+    },
+    "probe.Memory": {
+      "properties": {
+        "active_bytes": {
+          "type": "integer"
+        },
+        "compressed_bytes": {
+          "type": "integer"
+        },
+        "free_bytes": {
+          "type": "integer"
+        },
+        "free_percent": {
+          "type": "integer"
+        },
+        "inactive_bytes": {
+          "type": "integer"
+        },
+        "pressure": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "wired_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active_bytes",
+        "compressed_bytes",
+        "free_bytes",
+        "free_percent",
+        "inactive_bytes",
+        "pressure",
+        "total_bytes",
+        "wired_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.NetworkRates": {
+      "properties": {
+        "in_bytes_per_sec": {
+          "type": "number"
+        },
+        "out_bytes_per_sec": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "in_bytes_per_sec",
+        "out_bytes_per_sec"
+      ],
+      "type": "object"
+    },
+    "probe.Power": {
+      "properties": {
+        "cycle_count": {
+          "type": "integer"
+        },
+        "health_percent": {
+          "type": "integer"
+        },
+        "on_battery": {
+          "type": "boolean"
+        },
+        "percent": {
+          "type": "integer"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "remaining": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "temperature_c": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "cycle_count",
+        "health_percent",
+        "on_battery",
+        "percent",
+        "present",
+        "remaining",
+        "state",
+        "temperature_c"
+      ],
+      "type": "object"
+    },
+    "probe.ProcessAlerts": {
+      "properties": {
+        "busy_processes": {
+          "items": {
+            "$ref": "#/$defs/probe.BusyProcess"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "zombie_parents": {
+          "items": {
+            "$ref": "#/$defs/probe.ZombieParent"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "busy_processes",
+        "zombie_parents"
+      ],
+      "type": "object"
+    },
+    "probe.ProcessGroup": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rss_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count",
+        "name",
+        "rss_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.Report": {
+      "properties": {
+        "disk": {
+          "$ref": "#/$defs/probe.Disk"
+        },
+        "hardware": {
+          "$ref": "#/$defs/probe.Hardware"
+        },
+        "memory": {
+          "$ref": "#/$defs/probe.Memory"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/probe.Snapshots"
+        },
+        "swap": {
+          "$ref": "#/$defs/probe.Swap"
+        },
+        "top_processes": {
+          "items": {
+            "$ref": "#/$defs/probe.ProcessGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "disk",
+        "hardware",
+        "memory",
+        "snapshots",
+        "swap",
+        "top_processes"
+      ],
+      "type": "object"
+    },
+    "probe.Snapshots": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "names": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "count",
+        "names"
+      ],
+      "type": "object"
+    },
+    "probe.Swap": {
+      "properties": {
+        "encrypted": {
+          "type": "boolean"
+        },
+        "free_bytes": {
+          "type": "integer"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "used_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "encrypted",
+        "free_bytes",
+        "total_bytes",
+        "used_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.Volume": {
+      "properties": {
+        "mount_point": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "used_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "roles",
+        "used_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.ZombieParent": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "parent_known": {
+          "type": "boolean"
+        },
+        "pid": {
+          "type": "integer"
+        },
+        "zombies": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "parent_known",
+        "pid",
+        "zombies"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/doctor-status.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "doctor status"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.StatusResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc doctor status --json",
+  "type": "object"
+}

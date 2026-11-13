@@ -126,6 +126,11 @@ These read the latest scan and don't rescan.
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
 | `macdoc doctor software` | Installed software (apps, Homebrew, npm) with the data folders that belong to each, the cleanup recipes that cover it (or "advisory only"), the largest folders under your home folder (three levels deep) that no software owns, wherever they are, and what is new since the previous scan. Read-only; `--json` lists everything. Stores a snapshot with the scan |
+| `macdoc doctor explore [path]` | Where the space is inside one folder, from the last scan: its biggest items with a share bar, a "smaller items" line so the sizes add up, and the biggest files below. `partial` when some paths couldn't be read; `unavailable` (no size) for a folder the scan kept no detail on. In the dashboard, press `enter` on the Space tab: `enter` opens a folder, `backspace` goes up. Read-only: a path here is only looked at, never a target |
+| `macdoc doctor maintenance` | Maintenance steps you can ask for: flush the DNS cache, restart the DNS responder, free inactive memory (`purge`), and reset the Quick Look cache. Read-only list; plan one by ID. The first three need your Mac password, which macOS asks for in Terminal (macdoc never sees it); each is confirmed on its own and never comes from a plan Claude proposed (ADR 0009) |
+| `macdoc doctor status [--watch --interval 2s]` | What the Mac is doing now: a 0 to 100 health score with the reasons it is lower, CPU and load, memory and swap, disk space and traffic, network rates, battery (percent, health, cycles, temperature) and the biggest memory users. Read-only. `--json` is one snapshot; with `--watch` it streams one compact JSON object per line. A probe that can't run leaves its section out (never zero) and adds a note. Zombie parents and processes using 80% of a core or more are listed under "Process alerts" (also in `doctor slow`); macdoc only reports them. The Health tab in the dashboard shows the same live block and refreshes it every 3 seconds while the tab is open |
+
+Data left in `~/Library` (caches, logs, saved state, web storage) by apps that are no longer installed is suggested as `apps.leftovers` (CAUTION, moved to quarantine, nothing is offered if the installed-app list can't be read). App bundles in `/Applications` and `~/Applications`, and Application Support leftovers, are offered as RISKY items with their own confirmation (ADR 0011).
 
 Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
 
@@ -178,7 +183,7 @@ $ macdoc apply P-ZDHP
 | `macdoc quarantine` / `quarantine list` | Anything apply moved aside but couldn't delete (normally empty), how long each entry stays restorable, and what has expired |
 | `macdoc quarantine restore <Q-id>` | Moves a folder back where it was. It never overwrites: if something now exists there, it stops |
 | `macdoc quarantine purge --expired` · `purge <Q-id…>` | Permanently deletes entries, after you type `purge` in Terminal. Nothing is ever purged automatically |
-| `macdoc log` | Everything macdoc changed: plans, applies (each item done, skipped or failed, with the reason), restores and purges |
+| `macdoc log` | Everything macdoc changed: plans, applies (each item done, skipped or failed, with the reason), restores and purges; `--json` entries carry a `run` ID. Set `MACDOC_TIMEOUT=<seconds>` or `MACDOC_TIMEOUT_<COMMAND>` (1 to 600) to change the 10 s limit on read-only commands |
 
 Right before touching each item, apply checks it again: it's still the same folder (same device and inode), its path still resolves the same way, the allowlist and protected-path rules still pass (with a freshly built policy), the preconditions hold (Xcode closed, emulator stopped, Docker running, …), and it holds no git repository or `.env` file. Anything that changed is skipped with a reason, and the rest continue. Folders are moved with `renameatx_np` relative to the opened parent folder, so a symlink swapped in at the last moment can't redirect the move. Native commands run with a fixed argv and no shell, and a tool identifier (a simulator, AVD or model) must still be in the tool's own listing.
 
@@ -203,7 +208,7 @@ macdoc                     # interactive dashboard (scans automatically the firs
 macdoc doctor              # the short summary, printed
 macdoc doctor scan         # fresh scan + the full report
 ```
-There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
+Once a release is published, `curl -fsSL https://raw.githubusercontent.com/sagnik26/macdoc/main/install.sh | sh` installs it to `~/.local/bin` after checking its sha256 (`MACDOC_VERSION`, `MACDOC_PREFIX` override). There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
 Tab completion for zsh (bash and fish work the same way with `macdoc completion bash|fish`):
 ```bash
@@ -211,7 +216,7 @@ mkdir -p ~/.zfunc && macdoc completion zsh > ~/.zfunc/_macdoc
 # then in ~/.zshrc, before compinit: fpath=(~/.zfunc $fpath)
 ```
 
-Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` makes macdoc never suggest or remove anything in that folder; `macdoc config set plan_minutes 60` keeps plans valid longer. Settings can only make macdoc stricter or change timings.
+Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` makes macdoc never suggest or remove anything in that folder; `macdoc config set plan_minutes 60` keeps plans valid longer. Settings can only make macdoc stricter or change timings. To turn off individual tasks, list recipe IDs in the settings file, e.g. `"excluded_recipes": ["maintenance.purge_memory", "maintenance.*"]` (a trailing `.*` matches a whole family). Excluded tasks disappear from listings and are refused when planning and applying; unknown or malformed entries are ignored with a note.
 
 **For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
 

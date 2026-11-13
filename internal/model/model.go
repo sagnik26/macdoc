@@ -112,16 +112,19 @@ type Fingerprint struct {
 
 // PlanItem is one action in a sealed plan.
 type PlanItem struct {
-	OpportunityID string      `json:"opportunity_id"`
-	RecipeID      string      `json:"recipe_id"`
-	Title         string      `json:"title"`
-	Target        string      `json:"target"` // quarantine: the folder to move; native: informational ("" if none)
-	ExpectedBytes int64       `json:"expected_bytes"`
-	BytesSource   Source      `json:"bytes_source"` // unknown: Expected is 0 and must not be shown as 0
-	Risk          Risk        `json:"risk"`
-	RiskReason    string      `json:"risk_reason,omitempty"`
-	Method        Method      `json:"method"`
-	Argv          []string    `json:"argv,omitempty"` // native method only
+	OpportunityID string   `json:"opportunity_id"`
+	RecipeID      string   `json:"recipe_id"`
+	Title         string   `json:"title"`
+	Target        string   `json:"target"` // quarantine: the folder to move; native: informational ("" if none)
+	ExpectedBytes int64    `json:"expected_bytes"`
+	BytesSource   Source   `json:"bytes_source"` // unknown: Expected is 0 and must not be shown as 0
+	Risk          Risk     `json:"risk"`
+	RiskReason    string   `json:"risk_reason,omitempty"`
+	Method        Method   `json:"method"`
+	Argv          []string `json:"argv,omitempty"` // native method only
+	// Privileged means the command runs with administrator rights, after the
+	// person types the Mac password at the system prompt (ADR 0009).
+	Privileged    bool        `json:"privileged,omitempty"`
 	Preconditions []string    `json:"preconditions,omitempty"`
 	Restore       Restore     `json:"restore"`
 	Fingerprint   Fingerprint `json:"fingerprint"` // quarantine only; zero for native

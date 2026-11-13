@@ -206,13 +206,17 @@ func TestDownloadsLargeOld(t *testing.T) {
 		{Path: d, Bytes: 10 << 30},
 		{Path: d + "/Xcode.xip", Kind: model.NodeFile, Bytes: 7 << 30, MtimeMax: w2DaysAgo(200)},
 		{Path: d + "/small-old.dmg", Kind: model.NodeFile, Bytes: 400 << 20, MtimeMax: w2DaysAgo(200)},
+		{Path: d + "/Upper.DMG", Kind: model.NodeFile, Bytes: 30 << 20, MtimeMax: w2DaysAgo(40)},      // extension is case-insensitive
+		{Path: d + "/tiny.pkg", Kind: model.NodeFile, Bytes: 5 << 20, MtimeMax: w2DaysAgo(200)},       // below 20 MB
+		{Path: d + "/recent.dmg", Kind: model.NodeFile, Bytes: 30 << 20, MtimeMax: w2DaysAgo(10)},     // newer than 30 days
+		{Path: d + "/notes.dmg.txt", Kind: model.NodeFile, Bytes: 30 << 20, MtimeMax: w2DaysAgo(200)}, // look-alike: not an installer
 		{Path: d + "/big-new.zip", Kind: model.NodeFile, Bytes: 2 << 30, MtimeMax: w2DaysAgo(10)},
 		{Path: d + "/no-mtime.mov", Kind: model.NodeFile, Bytes: 2 << 30},
 		{Path: d + "/Project", Bytes: 3 << 30, MtimeMax: w2DaysAgo(200)}, // a directory
 		{Path: d + "/Project/huge.iso", Kind: model.NodeFile, Bytes: 3 << 30, MtimeMax: w2DaysAgo(200)},
 	}
 	fs, err := w2Run(t, "user.downloads_large_old", recipes.Env{Nodes: nodes})
-	w2WantTargets(t, fs, err, d+"/Xcode.xip")
+	w2WantTargets(t, fs, err, d+"/Upper.DMG", d+"/Xcode.xip", d+"/small-old.dmg")
 	fs, err = w2Run(t, "user.downloads_large_old", recipes.Env{})
 	w2WantNone(t, fs, err)
 }

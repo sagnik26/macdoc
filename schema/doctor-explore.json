@@ -1,0 +1,168 @@
+{
+  "$defs": {
+    "engine.ExploreEntry": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "share": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "bytes",
+        "kind",
+        "name",
+        "share"
+      ],
+      "type": "object"
+    },
+    "engine.ExploreResult": {
+      "properties": {
+        "bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/engine.ExploreEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "largest_files": {
+          "items": {
+            "$ref": "#/$defs/engine.ExploreEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entries",
+        "largest_files",
+        "path",
+        "scan",
+        "scan_age",
+        "status"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/doctor-explore.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "doctor explore"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.ExploreResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc doctor explore --json",
+  "type": "object"
+}

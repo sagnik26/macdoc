@@ -67,6 +67,16 @@
     },
     "engine.SlowResult": {
       "properties": {
+        "alerts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/probe.ProcessAlerts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "groups": {
           "items": {
             "$ref": "#/$defs/engine.SlowGroup"
@@ -200,6 +210,25 @@
       ],
       "type": "object"
     },
+    "probe.BusyProcess": {
+      "properties": {
+        "cpu_percent": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pid": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cpu_percent",
+        "name",
+        "pid"
+      ],
+      "type": "object"
+    },
     "probe.Disk": {
       "properties": {
         "container_free_bytes": {
@@ -300,6 +329,33 @@
         "pressure",
         "total_bytes",
         "wired_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.ProcessAlerts": {
+      "properties": {
+        "busy_processes": {
+          "items": {
+            "$ref": "#/$defs/probe.BusyProcess"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "zombie_parents": {
+          "items": {
+            "$ref": "#/$defs/probe.ZombieParent"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "busy_processes",
+        "zombie_parents"
       ],
       "type": "object"
     },
@@ -437,6 +493,29 @@
         "name",
         "roles",
         "used_bytes"
+      ],
+      "type": "object"
+    },
+    "probe.ZombieParent": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "parent_known": {
+          "type": "boolean"
+        },
+        "pid": {
+          "type": "integer"
+        },
+        "zombies": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "parent_known",
+        "pid",
+        "zombies"
       ],
       "type": "object"
     }

@@ -68,6 +68,11 @@ var unixPrefixes = map[string]string{
 
 const unixPath = "golang.org/x/sys/unix"
 
+// SudoFile is the one file that may name sudo as a program
+// (docs/adr/0009-privileged-maintenance-steps.md). Shells are still refused
+// there.
+const SudoFile = "internal/executor/privileged.go"
+
 // shells may never be the program run by an exec call.
 var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "sudo": true}
 
@@ -138,6 +143,17 @@ func Source(filename string, src []byte) ([]Finding, error) {
 		return nil, nil
 	}
 	ast.Inspect(file, s.visit)
+	if strings.HasPrefix(filename, executorDir+"/") {
+		// The executor may delete, move and run commands, but never a shell,
+		// and never sudo outside SudoFile.
+		kept := s.out[:0]
+		for _, f := range s.out {
+			if f.Func == "" {
+				kept = append(kept, f)
+			}
+		}
+		s.out = kept
+	}
 	sort.SliceStable(s.out, func(i, j int) bool { return s.out[i].pos < s.out[j].pos })
 	return s.out, nil
 }
@@ -241,6 +257,9 @@ func (s *scan) report(n ast.Node, importPath, name string, r rule) {
 func (s *scan) shell(e ast.Expr, format string) {
 	lit, ok := shellLiteral(e)
 	if !ok {
+		return
+	}
+	if path.Base(lit) == "sudo" && s.filename == SudoFile {
 		return
 	}
 	s.out = append(s.out, Finding{

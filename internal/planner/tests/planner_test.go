@@ -420,3 +420,50 @@ func (r *recorder) Quarantine(it model.PlanItem, target string) error {
 	r.calls = append(r.calls, "quarantine "+it.OpportunityID+" "+target)
 	return nil
 }
+
+// A step that needs administrator rights is refused in a plan Claude proposed
+// and planned in one a person makes, flagged as privileged.
+func TestBuildPrivilegedSteps(t *testing.T) {
+	w := newWorld(t)
+	w.cat.Recipes = append(w.cat.Recipes, recipes.Recipe{ID: "maintenance.purge_memory", Risk: model.RiskCaution, Method: model.MethodNative,
+		Privileged: true, Native: &recipes.Native{Argv: []string{"purge"}}})
+	w.ops = append(w.ops, model.Opportunity{ID: "O-purgea", RecipeID: "maintenance.purge_memory", Title: "Free inactive memory",
+		Risk: model.RiskCaution, Method: model.MethodNative, Bytes: model.Bytes{Source: model.SourceUnknown}, Command: []string{"purge"}})
+
+	in := w.input()
+	plan, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
+	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Privileged || len(refused) != 0 {
+		t.Fatalf("a person's plan: items %+v refused %+v err %v", plan.Items, refused, err)
+	}
+	in.Origin = model.OriginClaude
+	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
+	if err == nil || len(refused) != 1 || refused[0].Reason != planner.ReasonPrivilegedFromClaude {
+		t.Errorf("Claude's plan: refused %+v err %v; want the privileged refusal", refused, err)
+	}
+	// Look-alike: an ordinary native step is still fine in Claude's plan.
+	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-brewaa"}})
+	if err != nil || len(refused) != 0 {
+		t.Errorf("an ordinary native step was refused for Claude: %+v %v", refused, err)
+	}
+}
+
+func TestBuildRefusesExcludedRecipes(t *testing.T) {
+	w := newWorld(t)
+	in := w.input()
+	in.Excluded = func(id string) bool { return id == "user.logs" }
+	p, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-logsaa", "O-nodeaa"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(p); len(got) != 1 || got[0] != "O-nodeaa" {
+		t.Errorf("plan items = %v, want only the look-alike recipe's item", got)
+	}
+	if len(refused) != 1 || refused[0].ID != "O-logsaa" || refused[0].Reason != planner.ReasonExcluded {
+		t.Errorf("refused = %+v", refused)
+	}
+	// Excluded can only refuse: nil excludes nothing and never adds items.
+	in.Excluded = nil
+	if p, _, err = planner.Build(in, planner.Selector{IDs: []string{"O-logsaa"}}); err != nil || len(p.Items) != 1 {
+		t.Errorf("no exclusion: %v %v", p.Items, err)
+	}
+}

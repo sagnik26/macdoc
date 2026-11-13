@@ -142,8 +142,8 @@ func renderApplyPlan(w io.Writer, res engine.PlanResult, home string, now time.T
 	return RenderPlan(w, res, home, now)
 }
 
-// ConfirmItems asks y/N for RISKY items, and for every item of a plan
-// Claude proposed. Others are approved here and confirmed by the code.
+// ConfirmItems asks y/N for RISKY items, for items that need administrator
+// rights, and for every item of a plan Claude proposed. Others are approved here and confirmed by the code.
 func ConfirmItems(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan) (executor.Approvals, error) {
 	p = display(p) // disk-sourced text, cleaned for the terminal (display)
 	approved := executor.Approvals{}
@@ -152,7 +152,7 @@ func ConfirmItems(rd *bufio.Reader, w io.Writer, t *Theme, p model.Plan) (execut
 		_, _ = fmt.Fprintln(w, " "+t.warn.Render("Claude proposed this plan "+ProposedAt(p.CreatedAt)+". Confirm each item yourself."))
 	}
 	for _, it := range p.Items {
-		if !claude && it.Risk != model.RiskRisky {
+		if !claude && it.Risk != model.RiskRisky && !it.Privileged {
 			approved[it.OpportunityID] = executor.Approval{} // a group approval
 			continue
 		}

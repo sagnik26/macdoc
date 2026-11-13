@@ -91,6 +91,7 @@ func Scan(ctx context.Context, o ScanOptions) (ScanSummary, error) {
 		return ScanSummary{}, err
 	}
 	recipeKeep, projectKeep := recipes.KeepFunc(cat, o.Home), projects.Keep(o.Home)
+	opts.KeepFile = recipes.KeepFileFunc(cat, o.Home)
 	opts.Keep = keepTopLevel(opts, func(p string) bool {
 		return projectKeep(p) || (recipeKeep != nil && recipeKeep(p))
 	})

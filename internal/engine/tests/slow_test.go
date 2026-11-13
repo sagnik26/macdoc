@@ -31,6 +31,7 @@ func slowRunner(t *testing.T, ps string) *platform.Fake {
 		"sysctl -n kern.memorystatus_vm_pressure_level": {Stdout: []byte("2\n")}, // warn
 		"sysctl -n vm.swapusage":                        probeFixture(t, "swapusage.txt"),
 		"ps -axo rss=,comm=":                            {Stdout: []byte(ps)},
+		"ps -axo pid=,ppid=,stat=,pcpu=,comm=":          {Stdout: []byte("1 0 Ss 0.0 /sbin/launchd\n")},
 	}}
 }
 
@@ -52,15 +53,22 @@ func TestSlow(t *testing.T) {
 	if len(res.Groups) != 3 || !res.Groups[0].Dev || res.Groups[0].Explain == "" || res.Groups[2].Explain != "" {
 		t.Errorf("groups = %+v", res.Groups)
 	}
-	// ps runs once: slow reuses the doctor's process list.
-	n := 0
+	// slow reuses the doctor's memory list (one rss listing); the alerts need
+	// process state and CPU, which is a second, different ps call.
+	n, alerts := 0, 0
 	for _, c := range r.Calls {
-		if c.Name == "ps" {
+		switch {
+		case c.Name == "ps" && len(c.Args) > 1 && c.Args[1] == "rss=,comm=":
 			n++
+		case c.Name == "ps":
+			alerts++
 		}
 	}
-	if n != 1 {
-		t.Errorf("ps ran %d times", n)
+	if n != 1 || alerts != 1 {
+		t.Errorf("rss listings %d, alert listings %d; want 1 and 1", n, alerts)
+	}
+	if res.Alerts == nil {
+		t.Error("slow should carry the process alerts")
 	}
 	if res.Swap.Samples != 1 || res.Swap.Peak != res.Health.Report.Swap.UsedBytes {
 		t.Errorf("swap history = %+v", res.Swap)

@@ -1,0 +1,78 @@
+# Maintenance steps: refresh a cache or restart a helper. They free no
+# measurable space, so they are only listed by `macdoc doctor maintenance`
+# (on_request) and are planned by ID like anything else. A privileged step
+# runs through the system's password prompt in Terminal (ADR 0009); each
+# command is pinned to the exact allow-list in internal/recipes/load.go.
+
+- id: maintenance.flush_dns
+  title: Flush the DNS cache
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: native
+  privileged: true
+  on_request: true
+  detector: maintenance
+  native: {argv: [dscacheutil, -flushcache]}
+  restore: {kind: none, note: "macOS rebuilds the DNS cache as sites are visited."}
+  explain: >-
+    Clears the cached results of recent name lookups, which can fix a site that
+    won't load after a network or DNS change. Needs your Mac password.
+
+- id: maintenance.restart_mdnsresponder
+  title: Restart the DNS responder
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: native
+  privileged: true
+  on_request: true
+  detector: maintenance
+  native: {argv: [killall, -HUP, mDNSResponder]}
+  restore: {kind: none, note: "macOS restarts it by itself in a moment."}
+  explain: >-
+    Tells the system's DNS responder to reload, the second half of a DNS flush.
+    Network name lookups pause for a moment. Needs your Mac password.
+
+- id: maintenance.purge_memory
+  title: Free inactive memory
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: native
+  privileged: true
+  on_request: true
+  detector: maintenance
+  native: {argv: [purge]}
+  restore: {kind: none, note: "macOS reads what it needs back from disk."}
+  explain: >-
+    Drops the disk cache macOS keeps in otherwise unused memory. Apps can feel
+    slower for a minute while it fills again, and it rarely helps on a healthy
+    Mac. Needs your Mac password.
+
+- id: maintenance.quicklook_cache
+  title: Reset the Quick Look cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  method: native
+  on_request: true
+  detector: maintenance
+  native: {argv: [qlmanage, -r, cache]}
+  restore: {kind: rebuild, note: "Quick Look builds previews again as you use it."}
+  explain: >-
+    Clears Quick Look's preview cache, which can fix previews that look stale
+    or wrong in Finder.
+
+- id: maintenance.quicklook_reset
+  title: Restart the Quick Look server
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  method: native
+  on_request: true
+  detector: maintenance
+  native: {argv: [qlmanage, -r]}
+  restore: {kind: none, note: "It starts again the next time you preview a file."}
+  explain: >-
+    Restarts the Quick Look server so it picks up new preview plug-ins.

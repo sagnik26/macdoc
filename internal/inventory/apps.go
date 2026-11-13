@@ -58,6 +58,9 @@ func appFrom(ctx context.Context, env Env, bundle string) Software {
 		}
 		sw.BundleID = firstString(info, "CFBundleIdentifier")
 		sw.Version = firstString(info, "CFBundleShortVersionString")
+		if exe := firstString(info, "CFBundleExecutable"); exe != "" && filepath.Base(exe) == exe {
+			sw.Slim = slimOf(ctx, env, filepath.Join(bundle, "Contents", "MacOS", exe))
+		}
 	}
 	if sw.BundleID != "" {
 		sw.ID = "app:" + sw.BundleID
@@ -95,4 +98,30 @@ func firstString(m map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+// AppBundleIDs returns the bundle identifier of every app in env.AppDirs, one
+// entry per app that has one. It fails when no app could be read at all, so a
+// caller never mistakes "could not look" for "nothing is installed".
+func AppBundleIDs(ctx context.Context, env Env) ([]string, error) {
+	apps, err := appsSource{}.Discover(ctx, env)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, a := range apps {
+		if a.BundleID != "" {
+			ids = append(ids, a.BundleID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, errAbsent{"any readable app"}
+	}
+	return ids, nil
+}
+
+// AppsIn lists the apps in env.AppDirs with their names and bundle
+// identifiers. A missing folder is not an error.
+func AppsIn(ctx context.Context, env Env) ([]Software, error) {
+	return appsSource{}.Discover(ctx, env)
 }

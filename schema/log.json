@@ -55,6 +55,9 @@
         "plan": {
           "type": "string"
         },
+        "privileged": {
+          "type": "boolean"
+        },
         "quarantine_id": {
           "type": "string"
         },
@@ -65,6 +68,9 @@
           "type": "string"
         },
         "result": {
+          "type": "string"
+        },
+        "run": {
           "type": "string"
         },
         "target": {

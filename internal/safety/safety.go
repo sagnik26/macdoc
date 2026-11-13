@@ -15,6 +15,7 @@ package safety
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/text/unicode/norm"
@@ -41,11 +42,18 @@ func (v *Violation) Error() string {
 	return fmt.Sprintf("safety: %s rejected (%s): %s", v.Path, v.Rule, v.Detail)
 }
 
+// AppsPattern is the one allow pattern outside $HOME that CheckTarget
+// accepts (ADR 0011): an app bundle directly in /Applications. A recipe that
+// lists it may move such a bundle; nothing else in /Applications, and nothing
+// below a bundle, is ever a target.
+const AppsPattern = "/Applications/*.app"
+
 // Policy holds the protected-path rules for one user.
 type Policy struct {
 	home           string   // canonical $HOME
 	ExtraProtected []string // canonical extra protected paths
 
+	appsComps  []string        // folded Components of /Applications (a test can move it)
 	homeComps  []string        // folded Components of home
 	containers []protectedRoot // home/Library/Containers, lexical and resolved
 	roots      []protectedRoot // system, home-relative and extra roots
@@ -74,7 +82,7 @@ func NewPolicy(home string, extraProtected []string) (*Policy, error) {
 		return nil, err
 	}
 
-	p := &Policy{home: h, homeComps: hc}
+	p := &Policy{home: h, homeComps: hc, appsComps: parts("/Applications")}
 	containers := filepath.Join(h, "Library", "Containers")
 	p.containers = append(p.containers, root(containers, false))
 	rc, err := follow(containers)
@@ -230,6 +238,9 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 	if err != nil {
 		return err
 	}
+	if p.appBundle(c, allow) {
+		return nil
+	}
 	if prot, root := p.isProtectedWith(c, p.currentContainers()); prot {
 		detail := "inside protected path " + root
 		if strings.HasPrefix(root, ContainsProtected) {
@@ -248,6 +259,32 @@ func (p *Policy) CheckTarget(path string, allow []string) error {
 		return &Violation{Path: c, Rule: RuleNotAllowed, Detail: "matches no allow pattern"}
 	}
 	return nil
+}
+
+// appBundle reports whether c is "<apps folder>/<Name>.app", one level below
+// the apps folder, and the recipe's allow list names AppsPattern. It is the
+// only way a path outside $HOME passes CheckTarget, and it is exact: the
+// parent must be the apps folder itself, so nothing deeper, nothing beside it
+// and no look-alike folder qualifies.
+func (p *Policy) appBundle(c string, allow []string) bool {
+	if !slices.Contains(allow, AppsPattern) {
+		return false
+	}
+	pc := parts(c)
+	if len(pc) != len(p.appsComps)+1 || !under(p.appsComps, pc) {
+		return false
+	}
+	name := pc[len(pc)-1]
+	return strings.HasSuffix(name, ".app") && len(name) > len(".app")
+}
+
+// SetAppsFolder points the apps folder somewhere else. Only tests use it, so
+// they can use a fixture instead of the real /Applications.
+func (p *Policy) SetAppsFolder(dir string) {
+	if c, err := follow(tidy(dir)); err == nil {
+		dir = c
+	}
+	p.appsComps = parts(dir)
 }
 
 // IsProtected reports whether a canonical path is inside a protected area,

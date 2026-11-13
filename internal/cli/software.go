@@ -382,19 +382,7 @@ func (m TuiModel) maxSoftwareScroll() int {
 // keepCursorVisible scrolls the view so the highlighted program's row is on
 // screen.
 func (m *TuiModel) keepCursorVisible() {
-	for i, line := range strings.Split(m.softwareTables(), "\n") {
-		if !strings.Contains(line, "▸ ") {
-			continue
-		}
-		h := m.bodyHeight()
-		switch {
-		case i < m.scroll:
-			m.scroll = i
-		case i >= m.scroll+h:
-			m.scroll = i - h + 1
-		}
-		return
-	}
+	m.scrollToMarker(m.softwareTables())
 }
 
 // softwareDetailView shows one installed program: its data folders, and the
@@ -416,7 +404,7 @@ func (m TuiModel) softwareDetailView() string {
 	if sw.Installed != nil {
 		info += " · installed " + sw.Installed.Format("2006-01-02")
 	}
-	b.WriteString(t.block("Program", "· esc to go back", info+"\n"))
+	b.WriteString(t.block("Program", "· esc to go back", info+"\n"+slimLine(sw)))
 
 	b.WriteString("\n")
 	var frows [][]string
@@ -539,4 +527,17 @@ func (m TuiModel) installedTable(res engine.SoftwareResult) string {
 	}
 	return t.block("Installed software", title, t.Grid(
 		[]Column{{Title: "Name", Flex: true}, {Title: "Kind"}, {Title: "Data", Right: true}, {Title: "Cleanup"}, {Title: "New"}}, rows, w, style))
+}
+
+// slimLine is a one-line piece of advice for a universal app, or "" when
+// there is nothing to say. An unknown Intel size is said to be unknown.
+func slimLine(sw engine.SoftwareEntry) string {
+	if sw.Slim == nil || !sw.Slim.Universal {
+		return ""
+	}
+	size := "size unknown"
+	if sw.Slim.IntelBytes != nil {
+		size = "about " + engine.DecimalBytes(*sw.Slim.IntelBytes)
+	}
+	return " Universal binary: the Intel (x86_64) part could be slimmed, " + size + ". Advice only; macdoc does not change apps.\n"
 }

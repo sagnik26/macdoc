@@ -25,6 +25,8 @@ var preconditionText = map[string]string{
 	"metro_not_running":       "Metro isn't running",
 	"ollama_model_not_loaded": "the model isn't loaded in Ollama",
 	"git_clean":               "the project has no uncommitted changes",
+	"no_installed_app":        "no installed app owns it",
+	"app_bundle_not_running":  "the app isn't running",
 }
 
 func preconditionLabel(p string) string {
@@ -277,6 +279,9 @@ func writeAction(b *strings.Builder, t *Theme, a planner.Action, home string) {
 	}
 	if it.RiskReason != "" {
 		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Risk raised: "+it.RiskReason))
+	}
+	if it.Privileged {
+		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Needs administrator rights: macOS asks for your password in Terminal. Runs: "+strings.Join(it.Argv, " ")))
 	}
 	if len(it.Preconditions) > 0 {
 		labels := make([]string, len(it.Preconditions))

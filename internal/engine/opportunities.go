@@ -37,6 +37,15 @@ type OpportunityOptions struct {
 	// Live skips the short-lived cache of Homebrew dry runs, so every
 	// command is run now. Plans built from a fresh computation set it.
 	Live bool
+	// AppDirs is where installed apps are looked for; nil means the usual
+	// folders. Tests set it so they never read the real machine.
+	AppDirs []string
+	// OnRequest includes the recipes marked on_request (maintenance steps),
+	// which the usual suggestions leave out.
+	OnRequest bool
+	// KeepExcluded keeps recipes excluded in settings, so the planner can
+	// refuse them by name. Listings leave it false.
+	KeepExcluded bool
 }
 
 // OpportunityResult is the data behind `macdoc doctor wins`, `doctor dev` and `doctor explain`.
@@ -93,7 +102,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 		o.Catalog = cat
 	}
-	policy, _, err := config.Policy(o.Home)
+	policy, cfg, err := config.Policy(o.Home)
 	if err != nil {
 		return OpportunityResult{}, err
 	}
@@ -119,7 +128,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	}
 
 	nodes := NewScanNodes(st, info.ID)
-	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now}
+	env := recipes.Env{Home: o.Home, Nodes: nodes, Runner: o.Runner, Now: o.Now, AppDirs: o.AppDirs}
 	if !o.Live {
 		env.Cache = dryRuns{st}
 	}
@@ -131,6 +140,12 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	var ops []model.Opportunity
 	unknownIdleCount, tiny := 0, 0
 	for _, run := range runs {
+		if run.recipe.OnRequest && !o.OnRequest {
+			continue
+		}
+		if !o.KeepExcluded && cfg.Excludes(run.recipe.ID) {
+			continue
+		}
 		if run.err != "" {
 			res.Warnings = append(res.Warnings, run.recipe.ID+": "+run.err)
 			continue

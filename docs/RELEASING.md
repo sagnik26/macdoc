@@ -37,5 +37,19 @@ A universal (arm64 + x86_64) binary was tried first. Its two slices were byte-id
 ## Not done yet
 
 - Developer ID signing and notarization. Without them, a downloaded binary is blocked by Gatekeeper until the person clears the quarantine attribute (`xattr -d com.apple.quarantine macdoc`). This needs an Apple Developer account and is the owner's decision.
-- A Homebrew tap.
+- A Homebrew tap: create the `homebrew-macdoc` repository yourself and copy `packaging/homebrew/macdoc.rb` into `Formula/`.
 - A tagged release: there are no tags yet.
+
+## Install script and Homebrew
+
+- `install.sh` downloads `macdoc_<version>_darwin_<arch>.tar.gz` and `checksums.txt` from the GitHub release, checks the sha256, and installs to `~/.local/bin` (no sudo). `MACDOC_VERSION=v0.1.0` picks a release; `MACDOC_PREFIX=DIR` installs to `DIR/bin`. It refuses on a mismatch. Checked offline on 2026-11-14 against a fake release (a stubbed `curl` serving a local archive): a good archive installed after the checksum matched, a tampered archive and a missing checksum line were both refused with nothing installed. Not run against a real release yet: no release exists.
+- `packaging/homebrew/macdoc.rb` is a template. After publishing a release, replace `VERSION` (no `v`), `SHA256_ARM64` and `SHA256_AMD64` (from `checksums.txt`), then commit it to the tap.
+- Agent files: `llms.txt`, `skills/macdoc/SKILL.md`, `.claude-plugin/plugin.json`, `launchers/`.
+
+## Finishing phase 9 by hand (owner steps)
+
+Nothing below has been run. In order:
+
+1. Commit the work and merge it, then `git tag v0.1.0 && git push origin v0.1.0` (the release workflow makes a draft release).
+2. Publish the draft, then test the installer: `MACDOC_VERSION=v0.1.0 sh install.sh` and run `macdoc version`.
+3. Create the `homebrew-macdoc` tap repository, copy `packaging/homebrew/macdoc.rb` into `Formula/`, replace `VERSION` (no `v`), `SHA256_ARM64` and `SHA256_AMD64` from `checksums.txt`, and run `brew install --build-from-source ./Formula/macdoc.rb`.

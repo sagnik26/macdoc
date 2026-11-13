@@ -101,6 +101,9 @@ type Input struct {
 	Now           time.Time
 	TTL           time.Duration // 0: TTL
 	Origin        model.Origin
+	// Excluded reports a recipe ID the person excluded in settings. It can
+	// only refuse items, never add any.
+	Excluded func(recipeID string) bool
 }
 
 // Refusal is an opportunity that was asked for but left out, and why.
@@ -112,6 +115,14 @@ type Refusal struct {
 
 // ReasonNotInScan is the refusal for an ID the latest scan doesn't have.
 const ReasonNotInScan = "not in the latest scan (IDs change after each scan; see macdoc doctor wins)"
+
+// ReasonExcluded is the refusal for an item whose recipe is excluded in settings.
+const ReasonExcluded = "excluded in your settings"
+
+// ReasonPrivilegedFromClaude is the refusal for a step that needs
+// administrator rights in a plan Claude proposed: only a person creates those
+// (ADR 0009).
+const ReasonPrivilegedFromClaude = "it needs administrator rights, and plans Claude proposes never include those; make the plan yourself in Terminal"
 
 // Errors from Build.
 var (
@@ -136,7 +147,7 @@ func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 	if age := in.Now.Sub(in.ScanFinished); age > Oldest {
 		return model.Plan{}, nil, fmt.Errorf(`%w (%d hours); run "macdoc doctor scan" first`, ErrStaleScan, int(age.Hours()))
 	}
-	picked, refused := choose(in.Opportunities, sel)
+	picked, refused := choose(in.Opportunities, sel, in.Excluded)
 
 	plan := model.Plan{
 		SchemaVersion: model.SchemaVersion,
@@ -167,11 +178,13 @@ func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 
 // choose applies the selector. IDs keep the order given; unknown IDs and
 // advice-only items are refused.
-func choose(ops []model.Opportunity, sel Selector) ([]model.Opportunity, []Refusal) {
+func choose(ops []model.Opportunity, sel Selector, excluded func(string) bool) ([]model.Opportunity, []Refusal) {
 	var picked []model.Opportunity
 	var refused []Refusal
 	consider := func(op model.Opportunity) {
 		switch {
+		case excluded != nil && excluded(op.RecipeID):
+			refused = append(refused, Refusal{ID: op.ID, Title: op.Title, Reason: ReasonExcluded})
 		case op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise:
 			refused = append(refused, Refusal{ID: op.ID, Title: op.Title, Reason: "advice only: macdoc takes no action on it"})
 		case op.Risk == model.RiskBlocked:
@@ -238,6 +251,15 @@ func item(in Input, op model.Opportunity) (model.PlanItem, string) {
 			return item, op.Command[0] + " isn't installed any more"
 		}
 		item.Argv = append([]string(nil), op.Command...)
+		if r.Privileged {
+			if in.Origin == model.OriginClaude {
+				return item, ReasonPrivilegedFromClaude
+			}
+			if !recipes.ArgvIn(item.Argv, recipes.PrivilegedArgvAllowed) {
+				return item, "its command isn't on the privileged allow-list"
+			}
+			item.Privileged = true
+		}
 	case model.MethodQuarantine:
 		fp, reason := target(in.Policy, op.Target, r.Allow)
 		if reason != "" {

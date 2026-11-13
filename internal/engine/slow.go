@@ -41,15 +41,17 @@ type SwapHistory struct {
 // SlowResult is the data behind `macdoc doctor slow`. It only explains; it
 // never acts on a process.
 type SlowResult struct {
-	Health   DoctorResult `json:"health"`
-	Level    Severity     `json:"level"` // critical, warn or info
-	Verdict  string       `json:"verdict"`
-	Summary  string       `json:"summary,omitempty"` // the biggest users against RAM size
-	Notes    []string     `json:"notes,omitempty"`   // other things that slow a Mac down, e.g. low disk
-	Groups   []SlowGroup  `json:"groups"`
-	Tips     []SlowTip    `json:"tips,omitempty"` // with --tips: what to do about the big users
-	Swap     SwapHistory  `json:"swap_history"`
-	Warnings []string     `json:"warnings,omitempty"`
+	Health  DoctorResult `json:"health"`
+	Level   Severity     `json:"level"` // critical, warn or info
+	Verdict string       `json:"verdict"`
+	Summary string       `json:"summary,omitempty"` // the biggest users against RAM size
+	Notes   []string     `json:"notes,omitempty"`   // other things that slow a Mac down, e.g. low disk
+	Groups  []SlowGroup  `json:"groups"`
+	Tips    []SlowTip    `json:"tips,omitempty"` // with --tips: what to do about the big users
+	Swap    SwapHistory  `json:"swap_history"`
+	// Alerts lists zombie parents and busy processes; absent when ps failed.
+	Alerts   *probe.ProcessAlerts `json:"alerts,omitempty"`
+	Warnings []string             `json:"warnings,omitempty"`
 }
 
 // slowGroups is how many process groups slow lists.
@@ -101,7 +103,17 @@ const RSSNote = "Sizes are resident memory. Memory shared between processes can 
 // records a sample in macdoc's own store for the swap history; it changes
 // nothing else.
 func Slow(ctx context.Context, o SlowOptions) SlowResult {
-	return SlowFrom(doctor(ctx, o.Runner, slowGroups), o)
+	res := SlowFrom(doctor(ctx, o.Runner, slowGroups), o)
+	r := o.Runner
+	if r == nil {
+		r = platform.Exec{}
+	}
+	if a, err := probe.CollectProcessAlerts(ctx, r); err != nil {
+		res.Warnings = append(res.Warnings, "process alerts: "+err.Error())
+	} else {
+		res.Alerts = &a
+	}
+	return res
 }
 
 // SlowFrom is Slow from a health check already made (the dashboard has

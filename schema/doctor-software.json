@@ -69,6 +69,16 @@
         "name": {
           "type": "string"
         },
+        "slim": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/inventory.Slim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "source": {
           "type": "string"
         },
@@ -166,6 +176,37 @@
       "required": [
         "source",
         "state"
+      ],
+      "type": "object"
+    },
+    "inventory.Slim": {
+      "properties": {
+        "archs": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "intel_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "universal": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "archs",
+        "universal"
       ],
       "type": "object"
     },

@@ -23,6 +23,9 @@ import (
 type Checker struct {
 	Runner platform.Runner
 	Home   string
+	// AppDirs is where installed apps are looked for; nil means the usual
+	// folders. Tests set it to a fixture.
+	AppDirs []string
 
 	once  sync.Once
 	procs []string
@@ -78,6 +81,16 @@ func (c *Checker) check(ctx context.Context, pc string, item model.PlanItem) err
 		return c.ollama(ctx, item)
 	case "git_clean":
 		return c.git(ctx, item)
+	case "app_bundle_not_running":
+		name := strings.TrimSuffix(filepath.Base(item.Target), ".app")
+		if name == "" || name == "." {
+			return errors.New("no app named")
+		}
+		return c.stopped(ctx, name+" is open; quit it first", func(cmd string) bool {
+			return strings.Contains(cmd, "/"+name+".app/Contents/MacOS/")
+		})
+	case "no_installed_app":
+		return c.noInstalledApp(ctx, item)
 	}
 	return fmt.Errorf("unknown precondition %q", pc)
 }
@@ -163,6 +176,25 @@ func (c *Checker) git(ctx context.Context, item model.PlanItem) error {
 		return errors.New("the project has uncommitted changes; commit them first")
 	}
 	return fmt.Errorf("couldn't check the project's git state (%s)", note)
+}
+
+// noInstalledApp fails if the folder is named after an app that is installed
+// now, or after a background item that exists now, or if that can't be told.
+// It runs right before the move, so an app installed after the plan was made
+// stops the item.
+func (c *Checker) noInstalledApp(ctx context.Context, item model.PlanItem) error {
+	id, ok := recipes.LeftoverID(filepath.Base(item.Target))
+	if !ok {
+		return errors.New("the folder is not named after an app")
+	}
+	installed, err := recipes.InstalledIDs(ctx, c.Runner, c.Home, c.AppDirs)
+	if err != nil {
+		return fmt.Errorf("couldn't list the installed apps: %w", err)
+	}
+	if recipes.OwnedByInstalled(id, installed) {
+		return fmt.Errorf("%s belongs to an app or background item that is installed", id)
+	}
+	return nil
 }
 
 // Known reports whether every precondition name is one Check understands.

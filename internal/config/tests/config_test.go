@@ -115,3 +115,50 @@ func TestPolicyProtects(t *testing.T) {
 		t.Error("CheckTarget allowed a configured protected folder")
 	}
 }
+
+func TestExcludedRecipes(t *testing.T) {
+	home := t.TempDir()
+	p := config.Path(home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"excluded_recipes": ["maintenance.purge_memory", "brew.*", "Bad ID", 7, "", "*", "a..b", "nope.missing"]}`
+	if err := os.WriteFile(p, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(home)
+	if err != nil {
+		t.Fatalf("malformed entries must be ignored, got %v", err)
+	}
+	for id, want := range map[string]bool{
+		"maintenance.purge_memory":  true,  // exact
+		"brew.cleanup":              true,  // prefix.*
+		"maintenance.flush_dns":     false, // other recipe in the same family
+		"brewing.cleanup":           false, // look-alike prefix
+		"maintenance.purge_memory2": false, // look-alike exact
+		"brew":                      false,
+	} {
+		if got := c.Excludes(id); got != want {
+			t.Errorf("Excludes(%q) = %v, want %v", id, got, want)
+		}
+	}
+	unknown := c.UnknownExcludes([]string{"maintenance.purge_memory", "brew.cleanup"})
+	if len(unknown) != 1 || unknown[0] != "nope.missing" {
+		t.Errorf("unknown = %v", unknown)
+	}
+	if err := os.WriteFile(p, []byte(`{"excluded_recipes": "maintenance.*"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = config.Load(home); err != nil || c.Excludes("maintenance.x") {
+		t.Errorf("a non-list value is ignored: %v %v", c, err)
+	}
+}
+
+// The setting can only subtract: an empty config excludes nothing, and no
+// field of it adds a recipe or a protected-path exception.
+func TestExcludedCannotAdd(t *testing.T) {
+	var c config.Config
+	if c.Excludes("maintenance.purge_memory") || len(c.UnknownExcludes(nil)) != 0 {
+		t.Fatal("empty config excludes nothing")
+	}
+}

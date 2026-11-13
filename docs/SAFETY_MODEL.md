@@ -29,14 +29,14 @@ Reading a project's git state (Phase 4) must not change the repository or run co
 
 Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.` is rejected outright, symlinks in parent directories are resolved, the path is Unicode NFC-normalized, and comparisons use Unicode case folding to match case-insensitive APFS.
 
-- The system volume and its contents: `/System`, `/usr` (except Homebrew prefixes, acted on only via `brew`), `/bin`, `/sbin`, `/Library`, `/private`, `/cores`, `/Applications` (no app removal)
+- The system volume and its contents: `/System`, `/usr` (except Homebrew prefixes, acted on only via `brew`), `/bin`, `/sbin`, `/Library`, `/private`, `/cores`, `/Applications`. The one exception is an app bundle directly inside it, `/Applications/<Name>.app`, allowed only through `safety.AppsPattern` and the RISKY quarantine recipe `apps.system_bundle` (own confirmation per app; never `com.apple.*`, never Mac App Store apps, never symlinks, only bundles the user owns or can write to as a group; root-owned bundles the system refuses fail cleanly, with no `sudo`). Anything deeper or other in `/Applications` stays protected (ADR 0011)
 - `/private/var/folders/**` (sized only, never acted on)
 - `~/Documents`, `~/Desktop`, `~/Pictures`, `~/Movies`, `~/Music`, `~/Public`
 - `~/Library/Mobile Documents` (iCloud Drive), `~/Library/CloudStorage` (Dropbox, Google Drive and similar)
 - `~/Library/Mail`, `~/Library/Messages`, `~/Library/Photos`, `~/Library/Keychains`, `~/Library/Containers/com.apple.*`
 - `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config`, `~/.kube`, `~/.docker/config.json`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`
 - Any `.git` directory, any `.env*` file (including `.envrc`), and `*.sqlite` / `*.sqlite3` / `*.db` files plus their `-wal` / `-shm` / `-journal` sidecars. A directory *containing* such files can be a target; the Phase 6 executor adds content checks, e.g. for nested `.git` and bare repos.
-- **Any parent of a named protected path.** For example, `~/Library/Application Support` is protected because it contains `MobileSync/Backup` and macdoc's state, and `~/Library/Containers` because it contains `com.apple.*`.
+- **Any parent of a named protected path.** For example, `~/Library/Application Support` is protected because it contains `MobileSync/Backup` and macdoc's state, and `~/Library/Containers` because it contains `com.apple.*`. The one exception is `~/Library/Application Support/<reverse-DNS id>` offered by the RISKY recipe `apps.support_leftovers`; macdoc's own folder and `MobileSync` can never match (ADR 0011).
 - **Everything outside `$HOME`.** No cleanup target may be outside the user's home. Cleanups outside home (Homebrew, Docker, simulators, SDKs) happen only through the owning tool's native command, never by path. The system roots (`/System`, `/usr`, `/private`, `/.vol`, `/Network`, …) are also protected explicitly as defense in depth.
 - Siblings of `$HOME` (other users' homes, `/Users/Shared`) and its ancestors.
 - Docker **volumes** (advise-only listing)
@@ -94,7 +94,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 ### 4.4 Execute
 - **Native:** `exec.Command(argv...)` with a fixed argv from the recipe and no shell. Dynamic identifiers (simulator runtime ID, model name, SDK package) must exactly match an entry from that tool's own listing captured at plan time. Each command has a timeout.
 - **Quarantine:** `os.Rename(target, quarantine/Q-XXXX/payload/<basename>)` on the same volume. Write the manifest first (`pending`), then rename, then mark the manifest `done`. A crash leaves a recoverable state.
-- **Never:** recursive deletion of a user-supplied path, `rm -rf`, `sh -c`, or `sudo`. Anything needing admin rights is advise-only and prints the command for the user to run.
+- **Never:** recursive deletion of a user-supplied path, `rm -rf`, `sh -c`, or `sudo` anywhere except `internal/executor/privileged.go`. Admin rights are used only for the exact argvs in `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`), through `/usr/bin/sudo -- <system tool>` so the OS asks for the password (never read, stored or logged; never `sudo -S`; `sudo -k` after). It needs a real terminal, is refused in plans Claude proposed, and each such item is confirmed on its own (ADR 0009). Any other command needing admin rights is advise-only.
 
 - **As built (Phase 6):**
   - Quarantine moves: create `Q-XXXX/payload/` (0700), record the entry in the store (`quarantine` table, migration v3) and write the manifest (`pending`, create-only, fsync). Open the target's parent and the payload folder one component at a time (`openDirStrict`: `openat` with `O_DIRECTORY|O_NOFOLLOW` from `/`), so a symlink in any ancestor makes the open fail. Check with `fstatat` that the name in the opened parent is still the fingerprinted inode, then `renameatx_np(…, RENAME_EXCL)` between the two folder descriptors. Before and after the move, reopen the parent path the same strict way and compare it with the held descriptor (`sameDir`); if the after-check fails, move the item back.
@@ -154,4 +154,5 @@ The fuller version, with assets, adversaries, trust boundaries and the test behi
 | A native tool removes more than expected (e.g. `docker system prune --volumes`) | Recipes pin exact argv. Volume-affecting flags are forbidden by a recipe lint rule |
 | Accidental batch approval | Typed plan-ID confirmation, per-item for RISKY, no `--yes` beyond SAFE |
 | Claude floods the user with plans | At most 5 open Claude plans and 10 `create_cleanup_plan` calls per 10 minutes, checked and saved under a file lock shared by every server process (`store.LockPlans`). IDs are normalized and de-duplicated, so one ID asked for twice is one item |
+| A privileged step is run without a person, or widened to another command | `sudo` is named only in `internal/executor/privileged.go` (build guard); the argv must match a three-entry allow-list; the planner and executor refuse privileged items from Claude plans; a real terminal and a separate y/N per item are required (ADR 0009) |
 | Crash during apply | Manifest-first quarantine, audit fsync, resumable state |

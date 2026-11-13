@@ -14,6 +14,7 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
+	"github.com/sagnik26/macdoc/internal/probe"
 	"github.com/sagnik26/macdoc/internal/projects"
 )
 
@@ -65,7 +66,7 @@ func step(t *testing.T, m cli.TuiModel, msgs ...tea.Msg) cli.TuiModel {
 // keys turns "tab", "enter", "esc", "down" or literal text into key messages.
 func keys(ks ...string) []tea.Msg {
 	named := map[string]tea.KeyType{"tab": tea.KeyTab, "enter": tea.KeyEnter, "esc": tea.KeyEsc,
-		"down": tea.KeyDown, "up": tea.KeyUp, "shift+tab": tea.KeyShiftTab, "pgdown": tea.KeyPgDown}
+		"down": tea.KeyDown, "up": tea.KeyUp, "shift+tab": tea.KeyShiftTab, "pgdown": tea.KeyPgDown, "backspace": tea.KeyBackspace}
 	var out []tea.Msg
 	for _, k := range ks {
 		if kt, ok := named[k]; ok {
@@ -606,4 +607,152 @@ func TestTUIInstalledArrowsReachLowerTables(t *testing.T) {
 		m = step(t, m, keys("up")...)
 	}
 	mustContain(t, m.View(), "Installed software")
+}
+
+// exploreModel is the dashboard with a two-level fake scan: home holds a
+// folder, a file and a remainder; the folder holds one file.
+func exploreModel(t *testing.T) cli.TuiModel {
+	t.Helper()
+	size := func(n int64) *int64 { return &n }
+	home := engine.ExploreResult{Path: "/Users/me", Parent: "/Users", Bytes: size(900), Status: "complete",
+		Entries: []engine.ExploreEntry{
+			{Name: "Caches", Path: "/Users/me/Caches", Kind: "dir", Bytes: 500, Share: 0.55},
+			{Name: "big.bin", Path: "/Users/me/big.bin", Kind: "file", Bytes: 300, Share: 0.33},
+			{Name: "smaller items", Kind: "other", Bytes: 100, Share: 0.11},
+		},
+		LargestFiles: []engine.ExploreEntry{{Name: "big.bin", Path: "/Users/me/big.bin", Kind: "file", Bytes: 300}}}
+	caches := engine.ExploreResult{Path: "/Users/me/Caches", Parent: "/Users/me", Bytes: size(500), Status: "complete",
+		Entries:      []engine.ExploreEntry{{Name: "inner.db", Path: "/Users/me/Caches/inner.db", Kind: "file", Bytes: 500, Share: 1}},
+		LargestFiles: []engine.ExploreEntry{}}
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
+		Explore: func(_ context.Context, _ *cli.TuiDeps, path string) (engine.ExploreResult, error) {
+			if path == "/Users/me/Caches" {
+				return caches, nil
+			}
+			return home, nil
+		}}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	return step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40}, cli.LoadedMsg{Data: tuiFixture()})
+}
+
+// Enter on the Space tab opens the explorer at home; the arrows move, Enter
+// opens a folder, Enter on a file does nothing, Backspace goes up, esc closes.
+func TestTUIExplorerNavigation(t *testing.T) {
+	m := exploreModel(t)
+	m = step(t, m, keys("5", "enter")...)
+	mustContain(t, m.View(), "▸ Caches/", "big.bin", "smaller items", "Biggest files below")
+	m = step(t, m, keys("down", "enter")...) // on the file
+	mustContain(t, m.View(), "▸ big.bin")
+	mustContain(t, m.Flash, "Only folders open")
+	m = step(t, m, keys("up", "enter")...) // back on the folder, open it
+	mustContain(t, m.View(), "inner.db")
+	if strings.Contains(m.View(), "smaller items") {
+		t.Error("the opened folder should show its own entries, not its parent's")
+	}
+	m = step(t, m, keys("backspace")...)
+	mustContain(t, m.View(), "smaller items")
+	m = step(t, m, keys("esc")...)
+	if strings.Contains(m.View(), "Biggest files below") {
+		t.Error("esc should close the explorer")
+	}
+}
+
+// statusModel is the dashboard with a fake live reading.
+func statusModel(t *testing.T) (cli.TuiModel, *int) {
+	t.Helper()
+	reads := 0
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
+		Status: func(context.Context, *cli.TuiDeps) engine.StatusResult {
+			reads++
+			return engine.StatusResult{Score: 83, Reasons: []string{"-10 memory pressure is warn", "-7 something else"},
+				CPU: &probe.CPU{UsagePercent: 42, Load1: 1.5, LogicalCores: 8}}
+		}}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	return step(t, m, tea.WindowSizeMsg{Width: 120, Height: 50}, cli.LoadedMsg{Data: tuiFixture()}), &reads
+}
+
+// deliverStatus runs the commands batched with a key press and feeds back the
+// live reading, as the program does.
+func deliverStatus(t *testing.T, m cli.TuiModel, cmd tea.Cmd) cli.TuiModel {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	msg := cmd()
+	b, ok := msg.(tea.BatchMsg)
+	if !ok { // a batch of one command is that command
+		if sm, ok := msg.(cli.StatusMsg); ok {
+			return step(t, m, sm)
+		}
+		return m
+	}
+	for _, c := range b {
+		if c == nil {
+			continue
+		}
+		if sm, ok := c().(cli.StatusMsg); ok {
+			m = step(t, m, sm)
+		}
+	}
+	return m
+}
+
+// Opening the Health tab takes one live reading and shows its score and
+// reasons; a second update while one is running does not start another.
+func TestTUIHealthTabShowsALiveReading(t *testing.T) {
+	m, reads := statusModel(t)
+	next, cmd := m.Update(keys("6")[0])
+	m = next.(cli.TuiModel)
+	if cmd == nil {
+		t.Fatal("opening the Health tab should start a live reading")
+	}
+	if _, again := m.Update(tea.WindowSizeMsg{Width: 120, Height: 50}); again != nil {
+		t.Error("a reading is already running; no second one should start")
+	}
+	m = deliverStatus(t, m, cmd)
+	mustContain(t, m.View(), "Health 83 / 100", "memory pressure is warn", "CPU")
+	if *reads != 1 {
+		t.Errorf("took %d readings, want 1", *reads)
+	}
+}
+
+// Other tabs never poll.
+func TestTUIOtherTabsDoNotPollTheLiveStatus(t *testing.T) {
+	m, reads := statusModel(t)
+	for _, k := range []string{"1", "2", "3", "4", "5"} {
+		next, cmd := m.Update(keys(k)[0])
+		m = next.(cli.TuiModel)
+		if cmd != nil {
+			t.Errorf("tab %s started a command; only the Health tab reads the live status", k)
+		}
+	}
+	if *reads != 0 {
+		t.Errorf("took %d readings on other tabs", *reads)
+	}
+}
+
+// A reading is followed by a wait, not by the next reading: right after one
+// arrives, the only command is the tick that sleeps, never another read.
+func TestTUILiveStatusWaitsBetweenReadings(t *testing.T) {
+	m, reads := statusModel(t)
+	next, cmd := m.Update(keys("6")[0])
+	m = deliverStatus(t, next.(cli.TuiModel), cmd)
+	_, after := m.Update(cli.StatusMsg{Res: engine.StatusResult{Score: 90}})
+	if after == nil {
+		t.Fatal("a reading should schedule the next one")
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- after() }()
+	select {
+	case msg := <-done:
+		if _, isBatch := msg.(tea.BatchMsg); isBatch {
+			t.Error("a reading started the next one at once; it must wait for the tick")
+		}
+	case <-time.After(300 * time.Millisecond): // the tick is sleeping: correct
+	}
+	if *reads != 1 {
+		t.Errorf("took %d readings, want 1", *reads)
+	}
 }

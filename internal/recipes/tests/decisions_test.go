@@ -56,7 +56,11 @@ func TestW4NativeArgvAllowList(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range c.Recipes {
-		if r.Native != nil && !recipes.ArgvIn(r.Native.Argv, recipes.NativeArgvAllowed) {
+		list := recipes.NativeArgvAllowed
+		if r.Privileged {
+			list = recipes.PrivilegedArgvAllowed
+		}
+		if r.Native != nil && !recipes.ArgvIn(r.Native.Argv, list) {
 			t.Errorf("%s: argv %q", r.ID, r.Native.Argv)
 		}
 	}

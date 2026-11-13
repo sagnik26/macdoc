@@ -60,6 +60,13 @@ type Options struct {
 	// returns true (mapped path), regardless of size, e.g. recipe roots and
 	// project roots. It must be cheap and must not touch the filesystem.
 	Keep func(path string) bool
+	// KeepFile, if non-nil, additionally keeps any file for which it returns
+	// true, whatever its size, so a detector can see small files such as
+	// installers. It gets the file's folder (mapped path) and its name, and
+	// is called for every file, so it must be cheap, must reject most names
+	// without allocating, and must not touch the filesystem. Files in hidden
+	// or opaque folders are still never kept.
+	KeepFile func(dir, name string) bool
 	// Workers is the number of concurrent directory readers (default 4,
 	// clamped to 1..16).
 	Workers int
@@ -171,6 +178,7 @@ func (p privacy) value() *int64 {
 type Scanner struct {
 	threshold int64
 	keep      func(string) bool
+	keepFile  func(dir, name string) bool
 	Prefix    string
 	rootDev   int32
 	skip      map[string]bool // lowercased unmapped paths
@@ -210,6 +218,7 @@ func newScanner(root, prefix string, st *unix.Stat_t, opts Options, tr *tracker)
 	s := &Scanner{
 		threshold: opts.KeepThreshold,
 		keep:      opts.Keep,
+		keepFile:  opts.KeepFile,
 		Prefix:    prefix,
 		rootDev:   st.Dev,
 		skip:      folded(opts.Skip),
@@ -642,7 +651,7 @@ func (s *Scanner) visit(w *worker, d *dir, e *entry, wn *watchNames, acc *totals
 		s.share.note(e)     // nil in a full scan: a no-op
 		w.bytes += n
 		w.files++
-		if n >= s.threshold && !d.opaque && !d.hidden {
+		if !d.opaque && !d.hidden && (n >= s.threshold || (s.keepFile != nil && s.keepFile(s.Map(d.path), e.name))) {
 			w.nodes = append(w.nodes, model.Node{
 				Path:     s.Map(Join(d.path, e.name)),
 				Kind:     model.NodeFile,

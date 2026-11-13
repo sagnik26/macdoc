@@ -22,7 +22,7 @@ A reference like `internal/mcp/tests.TestToolList` means the function `TestToolL
 | **Another local process** | Runs as the same user, can create, rename and replace files and symlinks while macdoc runs |
 | **A careless user** | Approves quickly, runs `apply` on a stale plan, or edits a file by hand |
 
-Out of scope: another user on the machine (macdoc runs unprivileged and never uses `sudo`), a compromised macOS or kernel, and an attacker who can already run commands as the user and could delete the files directly.
+Out of scope: another user on the machine (macdoc runs unprivileged; the only use of `sudo` is the bounded maintenance path in T18), a compromised macOS or kernel, and an attacker who can already run commands as the user and could delete the files directly.
 
 ## 3. Trust boundaries
 
@@ -57,6 +57,8 @@ disk ──(1)──▶ scanner ──▶ store ──▶ engine ──(2)──
 | T15 | A project with uncommitted changes is cleaned | A `git_clean` precondition is checked immediately before acting | `internal/precond/tests.TestGitClean` |
 | T16 | A configured protected folder is dropped | The settings file can only add protection; an unreadable file stops planning and apply | `internal/executor/tests.TestConfigProtectAtApply` |
 | T17 | A symlink at the launch-agent path redirects macdoc's one permitted write to another file | The path is inspected without following links and opened with `O_NOFOLLOW`, so a link is refused even if it appears after the check; removal leaves a link alone | `internal/executor/tests.TestScheduleRefusesALinkToNothing`, `internal/executor/tests.TestScheduleRefusesALinkToAnotherAgent` |
+| T18 | Privileged escalation: a maintenance step is widened beyond the allow-list, run from a Claude plan, or run without a person | `sudo` appears only in `internal/executor/privileged.go`; the argv must match `PrivilegedArgvAllowed`; the planner and executor refuse privileged items in Claude plans; a real terminal, no sandbox and a separate y/N per item are required; the password is never read | `internal/executor/tests.TestPrivilegedItemRunsThroughThePrivilegedFunction`, `internal/executor/tests.TestPrivilegedItemRefusals`, `internal/executor/tests.TestRealPrivilegedRefusesHere`, `internal/recipes/tests.TestPrivilegedAttacks`, `internal/recipes/tests.TestPrivilegedListIsPinned`, `internal/recipes/tests.TestPrivilegedAllowListValidates`, `internal/planner/tests.TestBuildPrivilegedSteps`, `internal/cli/tests.TestConfirmItemsAsksAboutPrivilegedStepsOnTheirOwn`, `tools/forbidcheck/check/tests.TestSudoOnlyInThePrivilegedFile` |
+| T19 | The app-bundle or Application Support exception is widened, or used on an Apple or App Store app, a symlink, a running app or macdoc's own data | One exact pattern (`safety.AppsPattern`, `/Applications/<Name>.app`) and one lint exception for RISKY quarantine `app_leftovers` recipes; `CheckTarget` still protects macdoc's folder and `MobileSync`; each item needs its own confirmation and is re-checked before the move | `internal/safety/tests.TestAppBundleException`, `internal/safety/tests.TestAppBundleExceptionFollowsTheFixtureFolder`, `internal/recipes/tests.TestSystemAppBundles`, `internal/recipes/tests.TestSupportLeftovers`, `internal/recipes/tests.TestR1LintAllowsProtectedPatterns`, `internal/executor/tests.TestSystemAppBundleMoveAndRestore`, `internal/executor/tests.TestUserAppBundleMovedOnlyWhenClosed` |
 
 ## 5. Known gaps
 

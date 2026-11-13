@@ -110,6 +110,19 @@ var NativeArgvAllowed = [][]string{
 	{"ollama", "rm", Placeholder},
 	{"pod", "cache", "clean", "--all"},
 	{"avdmanager", "delete", "avd", "-n", Placeholder},
+	{"qlmanage", "-r", "cache"},
+	{"qlmanage", "-r"},
+	{"launchctl", "remove", Placeholder},
+}
+
+// PrivilegedArgvAllowed is the exact allow-list of commands that may run with
+// administrator rights (ADR 0009). Each is a maintenance command that only
+// refreshes a cache and takes no path or argument from outside. A recipe
+// marked privileged must use exactly one of these, and no other recipe may.
+var PrivilegedArgvAllowed = [][]string{
+	{"dscacheutil", "-flushcache"},
+	{"killall", "-HUP", "mDNSResponder"},
+	{"purge"},
 }
 
 // DryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
@@ -148,6 +161,7 @@ func Validate(r Recipe) error {
 	allows(p, r)
 	children(p, r)
 	names(p, r)
+	keepFiles(p, r)
 	argvs(p, r)
 	conditions(p, r)
 	return errors.Join(p.errs...)
@@ -257,6 +271,13 @@ func advise(p *problems, r Recipe) {
 // allows lints every allow pattern: its shape, then what it could match.
 func allows(p *problems, r Recipe) {
 	for _, pat := range r.Allow {
+		if pat == safety.AppsPattern {
+			appsAllow(p, r)
+			continue
+		}
+		if pat == supportPattern && r.Method == model.MethodQuarantine && r.Risk == model.RiskRisky && r.Detector == "app_leftovers" {
+			continue // the one exception to the protected-overlap rule (ADR 0011)
+		}
 		err := lintPattern(pat)
 		if err == nil {
 			err = LintAllowProtected(pat)
@@ -264,6 +285,14 @@ func allows(p *problems, r Recipe) {
 		if err != nil {
 			p.add("allow %q: %v", pat, err)
 		}
+	}
+}
+
+// appsAllow lets the one /Applications pattern through, but only for a RISKY
+// quarantine recipe, so a person confirms each app on its own.
+func appsAllow(p *problems, r Recipe) {
+	if r.Method != model.MethodQuarantine || r.Risk != model.RiskRisky {
+		p.add("allow %q is only for a RISKY quarantine recipe", safety.AppsPattern)
 	}
 }
 
@@ -283,10 +312,24 @@ func names(p *problems, r Recipe) {
 	}
 }
 
+// keepFiles checks each keep_files entry is a literal ~-relative folder
+// followed by /*.ext.
+func keepFiles(p *problems, r Recipe) {
+	for _, pat := range r.KeepFiles {
+		if _, _, ok := SplitKeepFile(pat); !ok {
+			p.add("keep_files %q must be a literal ~-relative folder followed by /*.ext, like ~/Downloads/*.dmg", pat)
+		}
+	}
+}
+
 // argvs lints the native argv and dry-run argv, then pins both to their
 // exact allow-lists.
 func argvs(p *problems, r Recipe) {
 	if r.Native == nil {
+		return
+	}
+	if r.Privileged {
+		privilegedArgv(p, r)
 		return
 	}
 	for _, argv := range [][]string{r.Native.Argv, r.Native.DryRunArgv} {
@@ -299,6 +342,23 @@ func argvs(p *problems, r Recipe) {
 	}
 	if len(r.Native.DryRunArgv) > 0 && !ArgvIn(r.Native.DryRunArgv, DryRunArgvAllowed) {
 		p.add("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
+	}
+}
+
+// privilegedArgv pins a privileged recipe to the exact allow-list: no
+// placeholder, no dry-run argv, nothing but a listed command.
+func privilegedArgv(p *problems, r Recipe) {
+	if r.Method != model.MethodNative {
+		p.add("a privileged recipe must use method native")
+	}
+	if !ArgvIn(r.Native.Argv, PrivilegedArgvAllowed) {
+		p.add("privileged argv %q is not in the privileged allow-list", r.Native.Argv)
+	}
+	if len(r.Native.DryRunArgv) > 0 {
+		p.add("a privileged recipe must not have a dry_run_argv")
+	}
+	if r.Risk == model.RiskSafe {
+		p.add("a privileged recipe must be CAUTION or higher")
 	}
 }
 
@@ -351,6 +411,13 @@ var projectTreePatterns = []string{
 	"~/*/**/ios/Pods", "~/*/**/Pods", "~/*/**/ios/build",
 	"~/*/**/android/build", "~/*/**/android/app/build", "~/*/**/android/.gradle",
 }
+
+// supportPattern is the children of ~/Library/Application Support. Two
+// protected folders live directly below it (macdoc's own, and MobileSync
+// backups), so the usual overlap rule would reject it; CheckTarget refuses
+// both of them at plan and apply time, and the leftovers detector only offers
+// bundle-identifier names, which neither is (ADR 0011).
+const supportPattern = "~/Library/Application Support/*"
 
 // protectedNameSamples are names a final pattern component must not be able
 // to match: what IsProtected protects by name anywhere in home.

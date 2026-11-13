@@ -7,6 +7,8 @@ package audit
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,18 +34,23 @@ const (
 
 // Record is one audit line. Fields that don't apply to an event are omitted.
 type Record struct {
-	TS       time.Time `json:"ts"`
-	Event    string    `json:"event"`
-	Plan     string    `json:"plan,omitempty"`
-	Origin   string    `json:"origin,omitempty"`
-	Item     string    `json:"item,omitempty"`
-	Recipe   string    `json:"recipe,omitempty"`
-	Target   string    `json:"target,omitempty"`
-	Method   string    `json:"method,omitempty"`
-	Argv     []string  `json:"argv,omitempty"`
-	Entry    string    `json:"quarantine_id,omitempty"`
-	Items    int       `json:"items,omitempty"`
-	Expected int64     `json:"expected_bytes,omitempty"`
+	TS    time.Time `json:"ts"`
+	Event string    `json:"event"`
+	// Run identifies one macdoc invocation that wrote records (a plan, an
+	// apply, a restore, a purge); records of one run share it.
+	Run    string   `json:"run,omitempty"`
+	Plan   string   `json:"plan,omitempty"`
+	Origin string   `json:"origin,omitempty"`
+	Item   string   `json:"item,omitempty"`
+	Recipe string   `json:"recipe,omitempty"`
+	Target string   `json:"target,omitempty"`
+	Method string   `json:"method,omitempty"`
+	Argv   []string `json:"argv,omitempty"`
+	// Privileged is true when the command ran with administrator rights.
+	Privileged bool   `json:"privileged,omitempty"`
+	Entry      string `json:"quarantine_id,omitempty"`
+	Items      int    `json:"items,omitempty"`
+	Expected   int64  `json:"expected_bytes,omitempty"`
 	// Actual is the measured change in free space (apply_finished), or
 	// the bytes moved or purged. Nil means it wasn't measured.
 	Actual *int64 `json:"actual_bytes,omitempty"`
@@ -51,6 +58,15 @@ type Record struct {
 	Reason string `json:"reason,omitempty"`
 	Exit   *int   `json:"exit_code,omitempty"`
 	Output string `json:"output,omitempty"` // a native command's stdout and stderr, tail-truncated
+}
+
+// NewRunID returns a fresh run identifier such as "R-3fa9c01b".
+func NewRunID() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "R-" + hex.EncodeToString([]byte(time.Now().Format("0405")))
+	}
+	return "R-" + hex.EncodeToString(b[:])
 }
 
 // File is the audit log's name inside the state directory.

@@ -13,3 +13,7 @@ An accepted record is changed only by a new record that supersedes it.
 | [0005](0005-size-by-allocated-blocks.md) | Sizes come from allocated blocks (`st_blocks`) | **Under review**: see S1 |
 | [0006](0006-tests-in-a-tests-folder.md) | Each package keeps its tests in `internal/<pkg>/tests/` | Accepted; layout under review |
 | [0007](0007-discovered-software-is-advisory.md) | Discovered software is advisory until a recipe matches it | Accepted (owner decision, 2026-11-13) |
+| [0008](0008-app-leftovers-use-the-normal-removal-path.md) | Removing an app's leftover data uses the normal removal path | Accepted (owner decision, 2026-11-14); partly implemented |
+| [0009](0009-privileged-maintenance-steps.md) | Privileged maintenance steps run only through the OS password prompt, from an exact allow-list | Accepted (owner decision, 2026-11-13) |
+| [0010](0010-slimming-universal-apps.md) | macdoc reports slimmable universal apps and never removes slices or re-signs apps | Accepted (experiment S6, 2026-11-14) |
+| [0011](0011-app-bundles-and-support-folders.md) | App bundles directly in `/Applications` and Application Support leftovers may be moved, through one exact pattern and RISKY recipes | Accepted (owner decision, 2026-11-14) |

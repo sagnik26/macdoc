@@ -87,6 +87,8 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 	if ops == nil || ops.Scan.ID != info.ID {
 		live := o.OpportunityOptions
 		live.Live = true // a plan is built from what the tools say now
+		live.OnRequest = true
+		live.KeepExcluded = true // so the planner can say why it refuses them
 		res, err := Opportunities(ctx, live)
 		if err != nil {
 			return PlanResult{}, err
@@ -95,7 +97,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 	}
 	plan, refused, err := planner.Build(planner.Input{
 		ScanID: info.ID, ScanFinished: scanTime(info), Opportunities: ops.Opportunities,
-		Catalog: o.Catalog, Policy: pol, Now: o.Now, TTL: o.TTL, Origin: o.Origin,
+		Catalog: o.Catalog, Policy: pol, Now: o.Now, TTL: o.TTL, Origin: o.Origin, Excluded: cfg.Excludes,
 	}, o.Selector)
 	out := PlanResult{Plan: plan, Refused: refused, Snapshot: snapshotNote(ctx, o.Runner)}
 	if out.Refused == nil {
@@ -108,7 +110,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 		return out, err
 	}
 	out.Status = planner.Pending
-	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Event: audit.Planned, Plan: out.Plan.ID,
+	if err := audit.Append(audit.Path(o.StorePath), audit.Record{TS: o.Now, Run: audit.NewRunID(), Event: audit.Planned, Plan: out.Plan.ID,
 		Origin: string(out.Plan.Origin), Items: len(out.Plan.Items), Expected: out.Plan.TotalBytes, Reason: out.Plan.Request}); err != nil {
 		out.Warnings = append(out.Warnings, "couldn't record the plan in the audit log: "+err.Error())
 	}

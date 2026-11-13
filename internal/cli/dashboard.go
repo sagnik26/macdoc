@@ -124,6 +124,10 @@ type TuiDeps struct {
 	Measure func(ctx context.Context, d *TuiDeps, op model.Opportunity) (*engine.Span, error)
 	// Software reads the software inventory; nil uses the engine. Tests replace it.
 	Software func(ctx context.Context, d *TuiDeps) (engine.SoftwareResult, error)
+	// Explore reads a folder of the latest scan for the explorer; nil uses the engine.
+	Explore func(ctx context.Context, d *TuiDeps, path string) (engine.ExploreResult, error)
+	// Status takes a live reading for the Health tab; nil uses the engine.
+	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -182,6 +186,7 @@ const (
 	OverlayNone overlay = iota
 	overlayHelp
 	overlaySoftware
+	overlayExplore
 	OverlayPlan
 	OverlayRemove
 )
@@ -226,9 +231,14 @@ type TuiModel struct {
 	softwareErr     error
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
-	softwareCursor  int          // the highlighted row of the filtered list
-	softwareDetail  bool         // the details of the highlighted program are open
-	removing        *removeState // the remove confirmation box, while open
+	softwareCursor  int                   // the highlighted row of the filtered list
+	softwareDetail  bool                  // the details of the highlighted program are open
+	explore         *engine.ExploreResult // the folder shown in the explorer
+	exploreCursor   int                   // the highlighted entry of that folder
+	status          *engine.StatusResult  // the last live reading, shown on the Health tab
+	statusBusy      bool                  // a live reading is running
+	statusWait      bool                  // a reading was just taken; the next waits for the tick
+	removing        *removeState          // the remove confirmation box, while open
 
 	scroll  int
 	Overlay overlay
@@ -382,7 +392,11 @@ func (m TuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	next, cmd := m.update(msg)
 	if nm, ok := next.(TuiModel); ok {
-		return nm.syncSpan(cmd)
+		afterSpan, cmd := nm.syncSpan(cmd)
+		if nm, ok := afterSpan.(TuiModel); ok {
+			return nm.syncStatus(cmd)
+		}
+		return afterSpan, cmd
 	}
 	return next, cmd
 }
@@ -417,6 +431,13 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SoftwareMsg:
 		return m.softwareLoaded(msg)
+
+	case StatusMsg:
+		return m.statusRead(msg)
+
+	case statusTickMsg:
+		m.statusWait = false
+		return m, nil
 
 	case AppliedMsg:
 		return m.applied(msg)
@@ -505,6 +526,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return next, cmd
 		}
 	}
+	if m.Overlay == overlayExplore {
+		if next, cmd, ok := m.exploreKey(k); ok {
+			return next, cmd
+		}
+	}
 	if m.Overlay != OverlayNone {
 		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
 			return m.startApply(m.Plan.Plan.ID)
@@ -540,6 +566,9 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return m, m.StartLoad(true)
 	case "enter":
+		if m.Tab == TabSpace {
+			return m.openExplore("")
+		}
 		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
 			if m.Detail {
 				m.Detail = false
@@ -774,6 +803,8 @@ func (m TuiModel) View() string {
 		body = m.loadingView()
 	case m.Overlay == overlayHelp:
 		body = m.scrolled(m.HelpView())
+	case m.Overlay == overlayExplore:
+		body = m.scrolled(m.exploreBody())
 	case m.Overlay == overlaySoftware && m.softwareDetail:
 		body = m.scrolled(m.softwareDetailView())
 	case m.Overlay == overlaySoftware:
@@ -878,6 +909,12 @@ func (m TuiModel) footerView() string {
 		keys = nil
 	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
+	case m.Overlay == overlayExplore:
+		keys = []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open folder")),
+			key.NewBinding(key.WithKeys("backspace"), key.WithHelp("backspace", "up")),
+			m.keys.Move, m.keys.Back, m.keys.Quit,
+		}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareDetail:
@@ -890,6 +927,8 @@ func (m TuiModel) footerView() string {
 		}
 	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
+	case m.Tab == TabSpace:
+		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explore folders")), m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions:

@@ -40,6 +40,9 @@ var jsonCommands = map[string]any{
 	"doctor":             engine.OverviewResult{},
 	"doctor scan":        cli.FullResult{},
 	"doctor software":    engine.SoftwareResult{},
+	"doctor explore":     engine.ExploreResult{},
+	"doctor status":      engine.StatusResult{},
+	"doctor maintenance": engine.OpportunityResult{},
 	"doctor health":      engine.DoctorResult{},
 	"doctor slow":        engine.SlowResult{},
 	"doctor trend":       engine.TrendResult{},
@@ -127,7 +130,7 @@ func TestJSONOutputMatchesSchema(t *testing.T) {
 	cliFixture(t)
 	for _, args := range [][]string{
 		{"version"}, {"doctor"}, {"health"}, {"slow"}, {"wins", "--all"}, {"dev"}, {"space"},
-		{"doctor", "projects"}, {"doctor", "software"}, {"config"}, {"log"}, {"plan", "list"}, {"quarantine", "list"},
+		{"doctor", "projects"}, {"doctor", "software"}, {"doctor", "explore", "/nowhere"}, {"doctor", "status"}, {"config"}, {"log"}, {"plan", "list"}, {"quarantine", "list"},
 	} {
 		out, err := run(t, append(args, "--json")...)
 		if err != nil {

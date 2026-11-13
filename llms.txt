@@ -1,0 +1,31 @@
+# macdoc
+
+> A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
+
+macdoc scans your Mac, shows where space and memory go, and suggests cleanups from a fixed recipe catalog. It deletes nothing by itself: a person approves each removal at a real terminal.
+
+## Commands
+
+Read-only (safe to run any time):
+- `macdoc doctor`, `macdoc doctor scan`, `macdoc doctor dev [toolchain]`, `macdoc doctor projects`, `macdoc doctor software`, `macdoc doctor explore [path]`, `macdoc doctor status`, `macdoc doctor slow`, `macdoc log`
+- Every command supports `--json` (schemas in `schema/`).
+
+Plans and removal (Terminal, person only):
+- `macdoc plan` seals a dry-run plan from opportunity IDs (never paths). It changes nothing.
+- `macdoc apply <plan>` asks per item before removing. There is no `--yes`. Agents must not run it.
+- `macdoc quarantine restore|purge` also belong to the person.
+
+## MCP server
+
+`macdoc mcp` lets an AI assistant diagnose and propose plans. It cannot apply, delete, move, restore, accept a path or run a command. The person runs the returned `macdoc apply P-...` in Terminal.
+
+## Docs
+
+- [README](README.md)
+- [Agent rules](AGENTS.md)
+- [Safety model](docs/SAFETY_MODEL.md)
+- [Threat model](docs/THREAT_MODEL.md)
+- [MCP design](docs/MCP_DESIGN.md)
+- [Recipe catalog](docs/RECIPE_CATALOG.md)
+- [Releasing](docs/RELEASING.md)
+- [Agent skill](skills/macdoc/SKILL.md)
