@@ -52,4 +52,4 @@ Nothing below has been run. In order:
 
 1. Commit the work and merge it, then `git tag v0.1.0 && git push origin v0.1.0` (the release workflow makes a draft release).
 2. Publish the draft, then test the installer: `MACDOC_VERSION=v0.1.0 sh install.sh` and run `macdoc version`.
-3. Create the `homebrew-macdoc` tap repository, copy `packaging/homebrew/macdoc.rb` into `Formula/`, replace `VERSION` (no `v`), `SHA256_ARM64` and `SHA256_AMD64` from `checksums.txt`, and run `brew install --build-from-source ./Formula/macdoc.rb`.
+3. The `homebrew-macdoc` tap exists (`sagnik26/homebrew-macdoc`). For each release:  copy `packaging/homebrew/macdoc.rb` into `Formula/`, replace `VERSION` (no `v`), `SHA256_ARM64` and `SHA256_AMD64` from `checksums.txt`, and run `brew install --build-from-source ./Formula/macdoc.rb`.

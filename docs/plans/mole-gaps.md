@@ -124,8 +124,8 @@ Status: 7a done (read-only advice in `doctor software`; `Slim` field, additive).
 completion already exists; Touch ID for sudo stays advice-only (it edits `/etc/pam.d`); no self-update (macdoc
 makes no network calls; Homebrew updates it).
 
-### 9. Distribution and agent access - done except the Homebrew tap repository
-Added `install.sh`, `packaging/homebrew/macdoc.rb`, `llms.txt`, `skills/macdoc/`, `.claude-plugin/plugin.json`, `launchers/`. v0.1.0 is published and `install.sh` was run against it (pinned and latest, 2026-11-14). The formula in `packaging/homebrew/macdoc.rb` now holds the real v0.1.0 version and checksums (Ruby syntax checked). Still to do: create the public `homebrew-macdoc` tap repository and copy the formula to `Formula/macdoc.rb` in it; shellcheck was not run (not installed).
+### 9. Distribution and agent access - done
+Added `install.sh`, `packaging/homebrew/macdoc.rb`, `llms.txt`, `skills/macdoc/`, `.claude-plugin/plugin.json`, `launchers/`. v0.1.0 is published and `install.sh` was run against it (pinned and latest, 2026-11-14). The formula in `packaging/homebrew/macdoc.rb` now holds the real v0.1.0 version and checksums (Ruby syntax checked). The tap `sagnik26/homebrew-macdoc` is created with the formula (`brew tap sagnik26/macdoc && brew install macdoc`); shellcheck was not run (not installed), and the brew install itself was not run on this Mac.
 Homebrew formula/tap, `install.sh` (checksum-verified from the release workflow), `llms.txt`, an agent skill and
 plugin manifest for Claude Code/Codex/Cursor that always runs `plan` before anything, Raycast/Alfred launcher
 script, multilingual README later. Extends `docs/RELEASING.md` and the existing goreleaser workflow.
