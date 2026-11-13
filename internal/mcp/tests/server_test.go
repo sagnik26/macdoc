@@ -204,7 +204,14 @@ func TestToolList(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	want := slices.Clone(mcp.ToolNames)
+	// The pinned list: adding a tool is a deliberate, reviewed change, and none
+	// may apply, delete, move, restore, purge, run a command, take a path or
+	// change settings.
+	want := []string{
+		"get_system_overview", "get_storage_breakdown", "list_opportunities", "explain_opportunity",
+		"list_projects", "diagnose_slowness", "get_growth_history", "refresh_scan",
+		"create_cleanup_plan", "get_plan", "get_audit_log",
+	}
 	slices.Sort(want)
 	if !slices.Equal(names, want) {
 		t.Errorf("tools = %v, want %v", names, want)

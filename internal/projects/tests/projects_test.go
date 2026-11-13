@@ -296,10 +296,6 @@ func TestDerivedDataMapping(t *testing.T) {
 	if d := byName["Bin-ghi"]; d.Workspace != "" || d.Missing {
 		t.Errorf("binary plist = %+v", d)
 	}
-	p, a, ok := res.Owner(filepath.Join(dd, "App-abc"))
-	if !ok || p.Root != filepath.Join(home, "code/app") || a.Rel != "DerivedData" {
-		t.Errorf("owner = %v %+v %+v", ok, p, a)
-	}
 }
 
 func TestKeep(t *testing.T) {

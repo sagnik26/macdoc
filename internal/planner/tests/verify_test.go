@@ -16,7 +16,7 @@ import (
 )
 
 // These tests pin each clause of Verify, the gate between planning and
-// applying, and the boundaries of Build. Mutation testing (plan.md claim 2)
+// applying, and the boundaries of Build. Mutation testing
 // showed that dropping any single clause left every test passing.
 
 // reseal returns p with a fresh seal and a store row that agrees with it, the

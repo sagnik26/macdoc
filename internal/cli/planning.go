@@ -36,6 +36,32 @@ func (m *TuiModel) toggleMark() {
 	m.moveCursor("down")
 }
 
+// markCleanable marks the suggestions that the installed programs' cleanups
+// produce, and opens them in the Suggestions tab. Advice-only items are left
+// out, as toggleMark leaves them out. Nothing is planned or removed here.
+func (m TuiModel) markCleanable() (tea.Model, tea.Cmd) {
+	if m.software == nil || m.Data == nil {
+		m.Flash = "Nothing to mark yet: read the installed software first."
+		return m, nil
+	}
+	sum := softwareCleanups(display(*m.software), m.Items())
+	if len(sum.Items) == 0 {
+		m.Flash = "No installed program has a cleanup that can be marked."
+		return m, nil
+	}
+	if m.Marked == nil {
+		m.Marked = map[string]bool{}
+	}
+	for _, id := range sum.Items {
+		m.Marked[id] = true
+	}
+	m.Overlay = OverlayNone
+	m.setTab(TabSuggestions)
+	m.Flash = fmt.Sprintf("Marked %d suggestions from installed software (%s, + %d unknown). Nothing is removed yet: press p to plan it.",
+		len(sum.Items), engine.DecimalBytes(sum.Bytes), sum.Unknown)
+	return m, nil
+}
+
 // preMarkSafe marks the SAFE suggestions of a fresh scan, so the picker
 // starts with the items that are safest to remove (Phase 10). Advice-only
 // items can't be marked. Nothing is planned or removed by marking: a plan

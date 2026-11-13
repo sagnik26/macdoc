@@ -2,7 +2,7 @@
 # scanshape: print the SHAPE of macdoc's latest complete scan, with no paths.
 #
 # The numbers say how many nodes a real scan keeps, how deep they are and how
-# big, which decides whether the performance work in plan.md (H1, H3, H4, H6)
+# big, which decides whether the performance work (H1, H3, H4, H6)
 # matters on a real Mac. It is safe to paste into an issue: it prints counts
 # and sizes only, never a path or a name.
 #

@@ -181,19 +181,6 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	return res, nil
 }
 
-// FindOpportunity returns the opportunity with the given ID ("O-" prefix
-// optional, case-insensitive).
-func FindOpportunity(res OpportunityResult, id string) (model.Opportunity, bool) {
-	id = strings.ToLower(strings.TrimSpace(id))
-	id = strings.TrimPrefix(id, "o-")
-	for _, op := range res.Opportunities {
-		if strings.TrimPrefix(op.ID, "O-") == id {
-			return op, true
-		}
-	}
-	return model.Opportunity{}, false
-}
-
 // ToolchainTotal groups opportunities of one toolchain.
 type ToolchainTotal struct {
 	Toolchain     string              `json:"toolchain"`

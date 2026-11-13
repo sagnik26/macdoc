@@ -54,7 +54,7 @@ var SlashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
 	{"slow", "", "why it feels slow: memory, swap and what uses it"},
-	{"mcp", "", "Claude integration status"},
+	{"installed", "", "installed software, its data folders and cleanups"},
 	{"help", "", "keys and commands"},
 	{"quit", "", "leave macdoc"},
 }
@@ -122,6 +122,8 @@ type TuiDeps struct {
 	// Measure walks one suggestion's folder for the range it frees; the
 	// dashboard starts no walk while it is nil. Tests replace it.
 	Measure func(ctx context.Context, d *TuiDeps, op model.Opportunity) (*engine.Span, error)
+	// Software reads the software inventory; nil uses the engine. Tests replace it.
+	Software func(ctx context.Context, d *TuiDeps) (engine.SoftwareResult, error)
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -179,6 +181,7 @@ type overlay int
 const (
 	OverlayNone overlay = iota
 	overlayHelp
+	overlaySoftware
 	OverlayPlan
 	OverlayRemove
 )
@@ -217,7 +220,15 @@ type TuiModel struct {
 	span     *spanState // the range walk and its results, shared by copies
 	Planning bool
 	Plan     *engine.PlanResult
-	removing *removeState // the remove confirmation box, while open
+	// software: the last inventory shown in the /installed overlay
+	software        *engine.SoftwareResult
+	softwareBusy    bool
+	softwareErr     error
+	softwareStarted time.Time
+	softwareFilter  softwareFilter
+	softwareCursor  int          // the highlighted row of the filtered list
+	softwareDetail  bool         // the details of the highlighted program are open
+	removing        *removeState // the remove confirmation box, while open
 
 	scroll  int
 	Overlay overlay
@@ -404,6 +415,9 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlanMsg:
 		return m.planned(msg)
 
+	case SoftwareMsg:
+		return m.softwareLoaded(msg)
+
 	case AppliedMsg:
 		return m.applied(msg)
 
@@ -486,6 +500,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.Overlay == overlaySoftware {
+		if next, cmd, ok := m.softwareKey(k); ok {
+			return next, cmd
+		}
+	}
 	if m.Overlay != OverlayNone {
 		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
 			return m.startApply(m.Plan.Plan.ID)
@@ -689,8 +708,12 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
 	case "apply":
 		return m.startApply(arg)
-	case "mcp":
-		m.Flash = "Connect Claude once: claude mcp add macdoc -- macdoc mcp · Claude proposes, only you apply them."
+	case "installed":
+		if m.Intro {
+			m.Flash = "Choose “Check my Mac” first: /installed needs results."
+			return m, nil
+		}
+		return m.startSoftware()
 	case "help":
 		m.Overlay, m.scroll = overlayHelp, 0
 	case "quit", "exit", "q":
@@ -741,7 +764,9 @@ func (m TuiModel) View() string {
 		return b.String()
 	}
 	b.WriteString(m.headerView() + "\n")
-	b.WriteString(m.tabsView() + "\n")
+	if m.Overlay == OverlayNone { // the tabs can't be used from an overlay, so they're left out
+		b.WriteString(m.tabsView() + "\n")
+	}
 
 	var body string
 	switch {
@@ -749,6 +774,10 @@ func (m TuiModel) View() string {
 		body = m.loadingView()
 	case m.Overlay == overlayHelp:
 		body = m.scrolled(m.HelpView())
+	case m.Overlay == overlaySoftware && m.softwareDetail:
+		body = m.scrolled(m.softwareDetailView())
+	case m.Overlay == overlaySoftware:
+		body = m.scrolled(m.softwareTables())
 	case m.Overlay == OverlayPlan:
 		body = m.scrolled(m.planView())
 	case m.Overlay == OverlayRemove:
@@ -849,6 +878,16 @@ func (m TuiModel) footerView() string {
 		keys = nil
 	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
+	case m.Overlay == overlaySoftware && m.softwareBusy:
+		keys = []key.Binding{m.keys.Back, m.keys.Quit}
+	case m.Overlay == overlaySoftware && m.softwareDetail:
+		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
+	case m.Overlay == overlaySoftware:
+		keys = []key.Binding{
+			key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
+			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "mark cleanups")),
+			m.keys.Move, m.keys.Back, m.keys.Quit,
+		}
 	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Tab == TabSuggestions && m.Detail:
@@ -1019,7 +1058,7 @@ func (m TuiModel) detailView(op model.Opportunity, w int) string {
 	saved := m.t.width
 	m.t.width = w
 	ex.setSpan(m.span.done[op.ID])
-	_ = renderExplain(&themedWriter{Writer: &buf, t: m.t}, ex, m.spanLine(op.ID))
+	_ = RenderExplain(&themedWriter{Writer: &buf, t: m.t}, ex, m.spanLine(op.ID))
 	m.t.width = saved
 	return "\n" + buf.String()
 }

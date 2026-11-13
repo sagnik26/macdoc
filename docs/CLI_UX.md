@@ -12,6 +12,7 @@
 | `macdoc doctor space [--large]` | read | Category breakdown with "System Data" decoded. `--large` lists unknown big items |
 | `macdoc doctor dev [xcode\|android\|node\|docker\|python\|ai\|brew]` | read | Per-toolchain breakdown |
 | `macdoc doctor projects [--idle 90]` | read | Projects with idle days and artifact weight (§1b) |
+| `macdoc doctor software` | read (stores a software snapshot with the scan) | Installed software, its data folders, the largest unowned folders under home (three levels deep, anywhere), and what is new since the previous scan (ADR 0007). A folder holding owned software is not listed whole; its unowned parts are listed instead |
 | `macdoc doctor slow [--days 7]` | read (stores a vitals sample) | Verdict, biggest users against RAM, what each known group is, swap now and over the window |
 | `macdoc doctor trend [--days 30]` | read | Growth per area (Xcode, Gradle, Docker, …) and the folders that grew most, between the latest scan and one about N days old. Sizes of folders a scan didn't store are bounds ("<105 MB", "or more") |
 | `macdoc plan <O-id…> \| --safe \| --recipe <id>` | writes plan file | Dry-run plan, sealed |
@@ -44,7 +45,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's detail view sits beside the list. Narrower, `e` swaps the list for it.
-- **`/` palette:** `/overview /scan /slow /mcp /help /quit`, with prefix completion. `/plan` and `/apply` still work when typed but aren't listed; the `p` and `a` keys do the same jobs. View-only tabs have no command; reach them with `tab` or `1`–`6`. `/mcp` shows how to connect Claude (`claude mcp add macdoc -- macdoc mcp`).
+- **`/` palette:** `/overview /scan /slow /installed /help /quit`, with prefix completion. `/installed` shows the `doctor software` list in an overlay, read in the background: a summary (cleanups that can be reclaimed, new programs, the largest folder no software explains), tables filtered by `f`, `c` to mark the cleanups in Suggestions (nothing is removed until you plan and confirm), and `enter` on a program for its folders and cleanups. `/plan` and `/apply` still work when typed but aren't listed; the `p` and `a` keys do the same jobs. View-only tabs have no command; reach them with `tab` or `1`–`6`.
 - **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
@@ -204,3 +205,28 @@ Every step is in the audit log: macdoc log
 - Byte values are integers. Every measurement has a `source`: `measured | tool | estimated | unknown`.
 - An opportunity's `bytes` (and so a plan item's `expected_bytes`) is the space removing it is certain to free: for a size measured from the scan, the node's private size when the volume reports it, else its allocated bytes (ADR 0005, stage 2). the suggestion's detail (`e`) carries optional `bytes_lower` and `bytes_upper` when a range was measured (`bytes_upper` is absent when the most is unknown). `doctor projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (omitted when unknown) on artifacts and DerivedData, and `reclaimable_bytes` on each project.
 - JSON schemas live in `schema/` (one per command, generated from the Go types) and are contract-tested: `TestSchemasFrozen` fails on any change to an output type, and `TestJSONOutputMatchesSchema` validates real output. Additive changes regenerate them with `go test ./internal/cli -run TestSchemasFrozen -update`; renaming, removing or retyping a field bumps `schema_version`. The MCP tools return the same shapes.
+
+## Discovery sources (`doctor software`, `/installed`)
+
+Each source reads one place software is installed. Every query is a fixed, read-only command, or a read of a folder. A source that can't run is `absent` (its tool isn't installed); one that fails or times out is `unknown`, with the first line of the error as the reason.
+
+| Category | Source | What it reads |
+|---|---|---|
+| Apps and system packages | `apps` | `.app` bundles in `/Applications` and `~/Applications` (`Info.plist`) |
+| | `brew` | `brew list --formula` and `--cask` |
+| | `pkgutil` | installer receipts: `pkgutil --pkgs`, then `--pkg-info` for each |
+| | `mas` | App Store apps: `mas list` |
+| Language packages | `npm` | `npm ls -g --depth=0 --json` |
+| | `pip` | `pip3 list --format=json` |
+| | `pipx` | `pipx list --json` |
+| | `uv-tool` | `uv tool list` |
+| | `gem` | `gem list --local --no-details` |
+| | `cargo` | `cargo install --list` |
+| Runtimes | `runtimes` | version folders: nvm (`~/.nvm/versions/node`), pyenv, rustup toolchains, and Java JDKs (`/Library/Java/JavaVirtualMachines` and the per-user folder) |
+| Programs on PATH | `tools` | executables in the folders on `PATH` that you own; a copy that a package manager already lists is counted once, under the package manager |
+| Images and models | `docker` | `docker images` (needs the daemon running) |
+| | `ollama` | `ollama list` |
+
+Each install is counted once: a PATH program already listed by a package manager is left out, and an App Store entry for an app that's installed as a bundle is left out.
+
+**Not covered yet:** conda environments and packages, Poetry's own installs, Composer, Maven and Gradle's global tools, Homebrew taps, Docker containers (only images are listed), and anything installed by hand into an unusual folder. These need their own source and tests before they appear.

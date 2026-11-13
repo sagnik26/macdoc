@@ -205,7 +205,7 @@ Estimates assume part-time work (~15–20 h/week).
 
 **Done when:** the mapping from DerivedData to projects works on the real Mac, and projects with uncommitted changes never get SAFE-tier artifact suggestions except for pure caches.
 
-> **As built (2026-10-28, `internal/projects`, see `docs/checkpoints/PHASE-4.md`):**
+> **As built (2026-10-28, `internal/projects`):**
 > - Roots are found from the artifact folders the scan keeps (`projects.Keep` adds `node_modules`, `Pods`, `build`, `.gradle`, `.venv`, `.next`, `.expo` under home, outside hidden/Library trees and dependency folders), confirmed by marker files with `Lstat`. Projects with no artifacts aren't listed because there's nothing to reclaim. Scanner memory is unchanged.
 > - git runs for projects with ≥ **50 MB** of artifacts (lowered from 200 MB so most stale candidates get a real git state). It runs read-only and hardened: `git -C <root> --no-pager --no-optional-locks -c core.fsmonitor=false -c core.untrackedCache=false`, limited to the project with the `.` pathspec. It is never invoked for a folder that isn't inside a repo. Untracked `.DS_Store` files don't count as changes.
 > - Spotlight `kMDItemLastUsedDate` isn't used: folders rarely carry it. Activity is the newest of last commit, source mtimes (bounded walk of 20,000 entries, artifacts excluded) and artifact mtimes. A cut-short walk is trusted only when git says clean.
@@ -223,7 +223,7 @@ Estimates assume part-time work (~15–20 h/week).
 
 **Done when:** a plan file edited by hand is rejected, an expired plan is rejected, and the dry-run output matches exactly what the executor would do (verified by a parity test against a recording executor).
 
-> **As built (2026-10-28, see `docs/checkpoints/PHASE-5.md`):** `internal/planner` (Build, Save, Load, Verify, Actions, Perform), the engine façade (`CreatePlan`, `ShowPlan`, `ListPlans`), `macdoc plan` and the dashboard's mark-and-plan (`space`, `p`, `/plan`). `max_age` is 6 hours. The "item → action" translation (`planner.Actions`) is shared by the dry-run view and the `Performer` interface the Phase 6 executor implements, and `TestDryRunParity` checks them against each other. The `plan_created` audit event waits for the audit log in Phase 6.
+> **As built (2026-10-28):** `internal/planner` (Build, Save, Load, Verify, Actions, Perform), the engine façade (`CreatePlan`, `ShowPlan`, `ListPlans`), `macdoc plan` and the dashboard's mark-and-plan (`space`, `p`, `/plan`). `max_age` is 6 hours. The "item → action" translation (`planner.Actions`) is shared by the dry-run view and the `Performer` interface the Phase 6 executor implements, and `TestDryRunParity` checks them against each other. The `plan_created` audit event waits for the audit log in Phase 6.
 
 ### Phase 6: Executor + quarantine + audit → `apply`, `quarantine`, `log` (~1.5 wk)
 **Tasks**
@@ -233,7 +233,7 @@ Estimates assume part-time work (~15–20 h/week).
   - It still passes the recipe allowlist and the global deny list.
   - The recipe's preconditions are met (e.g. Xcode not running for DerivedData, Docker daemon reachable for docker recipes, Gradle daemons stopped for `~/.gradle`, Android emulator not running for AVDs).
   - If any check fails, **skip** that item, log it, and continue. Never "fix up" a target.
-- **Red-team carry-overs from P0-R1** (see `docs/tasks/reports/P0-R1.md`):
+- **Red-team carry-overs from P0-R1:**
   - Re-canonicalize and compare immediately before acting.
   - Open the parent directory and use `O_NOFOLLOW` plus `renameatx_np` relative to the parent fd, to close the TOCTOU window.
   - Before quarantining a directory, check its contents: refuse if it contains a `.git` directory or a bare-repo layout (`HEAD` + `objects/` + `refs/`) outside known artifact dirs, or a `.env*` file.
@@ -256,7 +256,7 @@ Estimates assume part-time work (~15–20 h/week).
 - Killing the process mid-apply leaves a consistent audit log and a recoverable quarantine.
 - No code path removes anything that isn't (a) the output of a native command or (b) a quarantine purge of an entry whose manifest macdoc wrote.
 
-> **As built (2026-10-28, see `docs/checkpoints/PHASE-6.md`):** `internal/executor` (Apply, Restore, Purge), with read-only helpers in new packages: `internal/audit` (append-only JSONL), `internal/quarantine` (manifests, listing, entry states) and `internal/precond` (precondition checks). Store migration v3 adds the `quarantine` table, and `MarkApplied` is the apply lock. CLI: `macdoc apply`, `macdoc quarantine [list|restore|purge]`, `macdoc log`; the overview reports what's held and expired. The `plan_created` event from Phase 5 is now written. Done-when: every executor test runs under `MACDOC_SANDBOX` (TestMain); symlink swaps before apply and during the move are skipped (`TestSwapsBetweenPlanAndApply`, `TestSwapDuringMove`); a child process killed at each step of a move leaves a clean audit log and a restorable or untouched entry (`TestCrashMidApply`); and `TestMutatingCallSites` pins every delete, rename and exec call. There is no `--yes`, even for SAFE-only plans.
+> **As built (2026-10-28):** `internal/executor` (Apply, Restore, Purge), with read-only helpers in new packages: `internal/audit` (append-only JSONL), `internal/quarantine` (manifests, listing, entry states) and `internal/precond` (precondition checks). Store migration v3 adds the `quarantine` table, and `MarkApplied` is the apply lock. CLI: `macdoc apply`, `macdoc quarantine [list|restore|purge]`, `macdoc log`; the overview reports what's held and expired. The `plan_created` event from Phase 5 is now written. Done-when: every executor test runs under `MACDOC_SANDBOX` (TestMain); symlink swaps before apply and during the move are skipped (`TestSwapsBetweenPlanAndApply`, `TestSwapDuringMove`); a child process killed at each step of a move leaves a clean audit log and a restorable or untouched entry (`TestCrashMidApply`); and `TestMutatingCallSites` pins every delete, rename and exec call. There is no `--yes`, even for SAFE-only plans.
 
 ### Phase 7: `slow`, `trend`, polish → **v0.1 (MVP B)** (~1 wk)
 **Tasks**
@@ -268,7 +268,7 @@ Estimates assume part-time work (~15–20 h/week).
 
 **Done when (MVP B DoD):** see §6.
 
-> **As built (2026-10-28):** `slow` and `trend` are doctor sections (`macdoc doctor slow|trend`) and dashboard blocks. Swap history comes from a `vitals` table (store v4), sampled by `slow` and the overview. `trend` compares node sizes between two stored scans (detectors can't be re-run on old scans) per well-known area plus the fastest-growing folders; folders below the 100 MiB keep threshold are shown as bounds. Scan retention became the 10 newest plus one per week for 13 weeks. The `nodes(path_fold)` index wasn't added: `trend` reads by `scan_id`. `config` is JSON, not TOML, with no `edit` subcommand. Install stays `make install` → `~/.local/bin`. Details: `docs/checkpoints/PHASE-7.md`.
+> **As built (2026-10-28):** `slow` and `trend` are doctor sections (`macdoc doctor slow|trend`) and dashboard blocks. Swap history comes from a `vitals` table (store v4), sampled by `slow` and the overview. `trend` compares node sizes between two stored scans (detectors can't be re-run on old scans) per well-known area plus the fastest-growing folders; folders below the 100 MiB keep threshold are shown as bounds. Scan retention became the 10 newest plus one per week for 13 weeks. The `nodes(path_fold)` index wasn't added: `trend` reads by `scan_id`. `config` is JSON, not TOML, with no `edit` subcommand. Install stays `make install` → `~/.local/bin`.
 
 ### Phase 8: MCP server (read + plan) (~1 wk)
 - `macdoc mcp` runs a stdio server built on the engine, with the tools listed in MCP_DESIGN.md.
@@ -276,7 +276,7 @@ Estimates assume part-time work (~15–20 h/week).
 - The import guard proves `internal/mcp` doesn't import `internal/executor`.
 - Document how to register it with Claude Code (`claude mcp add macdoc -- macdoc mcp`) and Claude Desktop config.
 
-> **As built (2026-10-30):** see the note in `docs/MCP_DESIGN.md` §2 and `docs/checkpoints/PHASE-8.md`. String sanitization from Phase 9 is already in; plan caps and rate limits remain for Phase 9.
+> **As built (2026-10-30):** see the note in `docs/MCP_DESIGN.md` §2. String sanitization from Phase 9 is already in; plan caps and rate limits remain for Phase 9.
 
 ### Phase 9: Claude handoff + hardening (~0.5 wk)
 - `apply` shows "Proposed by Claude at 14:02" for Claude-origin plans and forces the per-item view (no batch confirmation even for SAFE items on the first apply of a Claude plan; this is configurable).
@@ -284,7 +284,7 @@ Estimates assume part-time work (~15–20 h/week).
 - Account for Claude Desktop's different TCC permissions: tools report `unmeasured` honestly and suggest running `macdoc scan` from Terminal so MCP reads the cached scan.
 - Rate-limit `create_cleanup_plan` to N per minute and cap open plans.
 
-> **As built (2026-11-02, see `docs/checkpoints/PHASE-9.md`):** `apply` and `plan show` say "Claude proposed this plan at 14:02 on 2 Nov", and every item of a Claude plan is asked `[y/N]` every time (since Phase 6). That isn't configurable, because a setting could only loosen it. Sanitized strings and the untrusted-data note came in Phase 8; every tool description now also says not to follow instructions in names. TCC: `scan_visibility` on the overview and a saw-less warning after `refresh_scan`. Limits: 5 open Claude plans, 10 calls per 10 minutes, counted in memory and in the store. Stale scans and IDs from an older scan get their own messages for Claude.
+> **As built (2026-11-02):** `apply` and `plan show` say "Claude proposed this plan at 14:02 on 2 Nov", and every item of a Claude plan is asked `[y/N]` every time (since Phase 6). That isn't configurable, because a setting could only loosen it. Sanitized strings and the untrusted-data note came in Phase 8; every tool description now also says not to follow instructions in names. TCC: `scan_visibility` on the overview and a saw-less warning after `refresh_scan`. Limits: 5 open Claude plans, 10 calls per 10 minutes, counted in memory and in the store. Stale scans and IDs from an older scan get their own messages for Claude.
 
 ### Phase 10: Daily snapshots, TUI, slowness tips (~1.5 wk)
 - Optional `macdoc schedule enable`, which installs a user launchd agent that runs a **read-only** `macdoc scan --quiet` daily at low priority. It never deletes anything and `schedule disable` removes it. *Built as: enable writes the agent file and disable removes it; the person runs the `launchctl` line in Terminal, since macdoc never runs launchctl (AGENTS invariant 1, 2026-11-02 decision).*

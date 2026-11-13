@@ -37,7 +37,7 @@ func TestRenderExplain(t *testing.T) {
 	}
 	for _, c := range cases {
 		var b strings.Builder
-		if err := cli.RenderExplain(&b, c.ex); err != nil {
+		if err := cli.RenderExplain(&b, c.ex, ""); err != nil {
 			t.Fatal(err)
 		}
 		mustContain(t, b.String(), c.want...)
@@ -53,7 +53,7 @@ func TestExplainSaysWhatAMeasuredSizeMeans(t *testing.T) {
 	render := func(b model.Bytes) string {
 		var sb strings.Builder
 		ex := cli.ExplainResult{Opportunity: model.Opportunity{ID: "O-eeeeee", Title: "x", Method: model.MethodQuarantine, Bytes: b}}
-		if err := cli.RenderExplain(&sb, ex); err != nil {
+		if err := cli.RenderExplain(&sb, ex, ""); err != nil {
 			t.Fatal(err)
 		}
 		return strings.Join(strings.Fields(sb.String()), " ") // undo line wrapping

@@ -2,7 +2,7 @@
 
 > A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
 
-**Status:** in development. **Phases 0–6 are complete; Phases 7–10 are built (Phase 7's dogfood week ended 2026-11-04 and it isn't signed off yet: 0.88 of the 10 GB reclaim target); Phase 11, open-source readiness, is in progress** (see [plan.md](plan.md)). It isn't released: there are no tags or binaries yet, so you build it from source. Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
+**Status:** in development. It isn't released: there are no tags or binaries yet, so you build it from source. Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
 
 ---
 
@@ -62,7 +62,7 @@ macdoc has **two everyday commands**:
   - **Space:** by category with per-risk columns, **what grew** since a scan about 30 days old (areas and folders), "System Data" decoded, large items with no recipe.
   - **Health:** **"Is memory slowing it down?"** (a verdict, the biggest users against your RAM, swap now and over the last days), findings with explanations, and the top memory users with what each one is.
 - **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/slow` `/mcp` `/help` `/quit`. Plans and removal use the `p` and `a` keys on Suggestions; `/plan` and `/apply` still work when typed but aren't listed. Views are reached with `tab` or `1`–`6`.
+- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/slow` `/installed` `/help` `/quit`. In `/installed`: `f` filters (with data, cleanable, new, all), `c` marks the cleanups in Suggestions, `↑↓` picks a program, `enter` shows its folders and cleanups, `esc` goes back. Plans and removal use the `p` and `a` keys on Suggestions; `/plan` and `/apply` still work when typed but aren't listed. Views are reached with `tab` or `1`–`6`.
 - **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
 - **Footer:** shows the keys for the current context. `?` lists every key and command.
 - **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
@@ -125,6 +125,7 @@ These read the latest scan and don't rescan.
 | `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
 | `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
 | `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
+| `macdoc doctor software` | Installed software (apps, Homebrew, npm) with the data folders that belong to each, the cleanup recipes that cover it (or "advisory only"), the largest folders under your home folder (three levels deep) that no software owns, wherever they are, and what is new since the previous scan. Read-only; `--json` lists everything. Stores a snapshot with the scan |
 
 Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
 
@@ -273,26 +274,6 @@ Developer tooling quietly eats tens of gigabytes:
 
 ---
 
-## Progress
-
-| Phase | What | Status |
-|---|---|---|
-| 0 | Foundations: path-safety layer, sandbox mode, import and forbidden-call guards, lint, CI | ✅ done (red-teamed, 9 findings fixed) |
-| 1 | System probe → `doctor` | ✅ done |
-| 2 | Full-crawl scanner + SQLite store → `scan` | ✅ done |
-| 3 | 46 recipes + classifier; `macdoc doctor` short summary, `macdoc doctor scan` full report, single sections (`health`, `space`, `wins`, `explain`, `dev`) | ✅ done (red-teamed, 12 findings fixed, reviewed) |
-| 3.5 | Terminal UI: the `macdoc` dashboard (Bubble Tea) and colored output (Lip Gloss), with truecolor → 256 → 16 fallback | ✅ done |
-| 4 | Project awareness: `doctor projects` and the Projects tab; idle time from git commits, file changes and builds; uncommitted changes raise the risk; Pods, RN/Android build folders, `.next`; DerivedData mapped to its project | ✅ done |
-| 5 | Planner: sealed, expiring dry-run plans → `macdoc plan`, plus marking and planning in the dashboard | ✅ done |
-| 6 | Executor + quarantine + audit log → `apply`, `quarantine`, `log` (the first phase that can change files) | ✅ done |
-| 7 | `slow`, `trend`, frozen JSON schemas, `config` (protected folders, plan and command timeouts), completions, a 10 MB binary → **v0.1 (MVP B)** | built; dogfood week ended 2026-11-04, not signed off (0.88 of 10 GB reclaimed) |
-| 8 | MCP server for Claude: 11 read and propose-only tools, `macdoc mcp` | ✅ built |
-| 9 | Claude handoff and hardening: proposal time in `apply`, at most 5 open Claude plans and 10 per 10 minutes, rescan guidance, Claude-app permission warnings | ✅ built |
-| 10 | Optional daily read-only scans (`macdoc schedule enable\|disable`), pre-marked SAFE suggestions in the dashboard, slowness tips (`slow --tips`) | ✅ built |
-| 11 | Open-source readiness: Google Go style and complexity gates, tests found missing by mutation testing, a threat model and decision records, a release pipeline with reproducible archives, experiments that measured the design | 🟡 in progress: [plan.md](plan.md) has the plan and what is done; nothing is tagged or signed yet |
-
-Each completed phase has a checkpoint in [`docs/checkpoints/`](docs/checkpoints/), with real-Mac measurements, the tasks run, and the safety findings.
-
 ## Safety model, as implemented so far
 
 - **Path safety** (`internal/safety`):
@@ -380,7 +361,7 @@ New code is held to Google Go style (doc comments on exported names, naming) and
 Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). The safety rules are in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and the decision records in [docs/adr/](docs/adr/README.md).
 
 ### How it's being built
-A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. This ran for Phases 0–3; from Phase 4 on, the tech-lead session built each phase itself and recorded it in a checkpoint. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md). Every task brief is in [`docs/tasks/`](docs/tasks/), and every report in [`docs/tasks/reports/`](docs/tasks/reports/).
+A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md).
 
 ## Documents
 
@@ -396,10 +377,7 @@ A **tech-lead Claude session** writes the contracts, and delegates bounded tasks
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | Phase 8–9: MCP tools, the Claude-to-terminal handoff, prompt-injection hardening |
 | [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md) | One engine with two front doors, and the safety-first build order |
 | [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) | Tech lead + worker agents, permissions, verification, checkpoints |
-| [plan.md](plan.md) | The engineering plan for open-source readiness, with a progress log of what is done and what is not |
 | [docs/experiments/](docs/experiments/) | Reproducible experiments with their code and results: APFS sizing, mutation testing, test-only exports, the node-prefix query |
-| [docs/checkpoints/](docs/checkpoints/) | Per-phase results measured on the real Mac |
-| [docs/tasks/](docs/tasks/), [docs/tasks/reports/](docs/tasks/reports/) | Task briefs and archived worker/reviewer reports |
 
 ## Decisions locked
 

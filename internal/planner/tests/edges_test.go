@@ -13,7 +13,7 @@ import (
 	"github.com/sagnik26/macdoc/internal/planner"
 )
 
-// Edge cases found by mutation testing (plan.md claim 2): the text of a
+// Edge cases found by mutation testing: the text of a
 // selector, ID normalization, the order of plan items, how a plan file is read
 // back, and the status a verification result maps to.
 

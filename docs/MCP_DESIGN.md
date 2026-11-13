@@ -16,7 +16,7 @@ claude mcp add macdoc -- macdoc mcp           # Claude Code
 > - `create_cleanup_plan` takes only `opportunity_ids` (1–50). The optional `note` was left out: free text from Claude stored in a plan would later be shown to the user at `apply`, a channel for persuasion. Advice-only, unknown, stale or path-like IDs are refused.
 > - `refresh_scan` starts the crawl in the background and reports `running`, then `done` (with the unmeasured count) on later calls.
 > - `list_opportunities` also returns `matched` (before `limit`).
-> - Phase 9 (2026-11-02) added the open-plan cap and the rate limit (§4), Claude-specific messages for a scan older than max_age and for IDs from an older scan, the TCC guidance, and the untrusted-names sentence in every tool description. See `docs/checkpoints/PHASE-9.md`.
+> - Phase 9 (2026-11-02) added the open-plan cap and the rate limit (§4), Claude-specific messages for a scan older than max_age and for IDs from an older scan, the TCC guidance, and the untrusted-names sentence in every tool description.
 > - A test pins the tool list; no tool name or input field may suggest applying, deleting, a path or a command.
 
 ## 2. Tools

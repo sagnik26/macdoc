@@ -10,7 +10,7 @@ import (
 )
 
 // The tests in this file pin which rule fires, not just that something
-// protects a path. Mutation testing (plan.md claim 2) showed that tests
+// protects a path. Mutation testing showed that tests
 // asserting only "protected: yes" let boundary and error-path changes in
 // internal/safety survive, because another rule still protects the path.
 

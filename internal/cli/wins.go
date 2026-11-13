@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -136,11 +135,6 @@ func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 	b.WriteString(t.footer("macdoc plan <id…> (a dry run)"))
 	_, err := io.WriteString(w, b.String())
 	return err
-}
-
-// SectionHeader renders " Name ─────── total" to a fixed width.
-func SectionHeader(name, total string) string {
-	return PlainTheme().section(lipgloss.Style{}, name, total)
 }
 
 // tierTotal is the known total, flagged when some sizes are unknown. A total

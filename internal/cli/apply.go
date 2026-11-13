@@ -131,13 +131,7 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	if err != nil {
 		return fmt.Errorf("nothing was changed: %w", err)
 	}
-	return renderApplyReport(out, t, rep, res.Snapshot.Count)
-}
-
-// RenderApply writes the summary of an apply in the human format.
-// snapshots is how many local Time Machine snapshots existed.
-func RenderApply(w io.Writer, rep executor.Report, snapshots int) error {
-	return renderApplyReport(w, themeFor(w), rep, snapshots)
+	return RenderApply(out, rep, res.Snapshot.Count)
 }
 
 // renderApplyPlan shows the dry run again, without the "to apply" footer.
@@ -234,9 +228,12 @@ func writeProgress(w io.Writer, t *Theme, ev executor.Event) {
 	}
 }
 
-// renderApplyReport summarizes an apply: counts, measured space, anything
+// RenderApply writes the summary of an apply in the human format: counts,
+// measured space, anything
 // left in quarantine and why the numbers may differ.
-func renderApplyReport(w io.Writer, t *Theme, rep executor.Report, snapshots int) error {
+// snapshots is how many local Time Machine snapshots existed.
+func RenderApply(w io.Writer, rep executor.Report, snapshots int) error {
+	t := themeFor(w)
 	rep = display(rep) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n %s\n", t.heading(fmt.Sprintf("Plan %s applied: %d done · %d skipped · %d failed",

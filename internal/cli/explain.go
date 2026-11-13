@@ -30,14 +30,10 @@ func (ex *ExplainResult) setSpan(sp *engine.Span) {
 	}
 }
 
-// RenderExplain writes one suggestion in detail in the human format.
-func RenderExplain(w io.Writer, ex ExplainResult) error {
-	return renderExplain(w, ex, "")
-}
-
-// renderExplain is RenderExplain with an optional progress line, already
-// styled, shown under the size note while the range is being measured.
-func renderExplain(w io.Writer, ex ExplainResult, busy string) error {
+// RenderExplain writes one suggestion in detail in the human format. busy is
+// an optional progress line, already styled, shown under the size note while
+// the range is being measured ("" for none).
+func RenderExplain(w io.Writer, ex ExplainResult, busy string) error {
 	ex = display(ex) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)

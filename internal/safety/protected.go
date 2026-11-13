@@ -7,7 +7,7 @@ import (
 )
 
 // systemRoots are protected everywhere except inside $HOME when they are an
-// ancestor of $HOME (see the home containment exception in docs/tasks/P0-W1.md).
+// ancestor of $HOME (see the home containment exception).
 // "/" itself is handled separately: it is protected by equality only.
 //
 // /var, /tmp and /etc are the macOS symlinks into /private. Paths below them

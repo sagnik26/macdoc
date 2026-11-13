@@ -1,6 +1,6 @@
 package tests
 
-// P6-R1 red-team tests (docs/tasks/reports/P6-R1.md). Every test runs in
+// P6-R1 red-team tests. Every test runs in
 // this package, so TestMain's MACDOC_SANDBOX applies, and every fixture is a
 // folder inside a sandboxed fixture home. Native commands only reach the
 // fake Exec; nothing here runs a cleanup tool.

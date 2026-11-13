@@ -17,7 +17,7 @@ import (
 )
 
 // Restore puts a folder back, so each way it can be refused must leave the
-// quarantined copy exactly where it was. Mutation testing (plan.md claim 2)
+// quarantined copy exactly where it was. Mutation testing
 // showed that none of these branches was asserted: deleting a refusal left
 // every test green.
 

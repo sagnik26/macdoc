@@ -1,6 +1,6 @@
 package tests
 
-// P9-R1 red-team tests for the Claude/MCP boundary (docs/tasks/reports/P9-R1.md).
+// P9-R1 red-team tests for the Claude/MCP boundary.
 //
 // Tests named TestRedteamFixed* expose a finding and FAIL until it is fixed.
 // Tests named TestRedteamHeld* are attacks that held; they stay as

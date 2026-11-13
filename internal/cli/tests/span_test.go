@@ -36,7 +36,7 @@ func renderRange(t *testing.T, lower, upper *int64) string {
 		Opportunity: model.Opportunity{ID: "O-eeeeee", Title: "x", Method: model.MethodQuarantine, Bytes: measured(1_200_000_000)},
 		BytesLower:  lower, BytesUpper: upper,
 	}
-	if err := cli.RenderExplain(&sb, ex); err != nil {
+	if err := cli.RenderExplain(&sb, ex, ""); err != nil {
 		t.Fatal(err)
 	}
 	return flat(sb.String())

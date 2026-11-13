@@ -286,18 +286,6 @@ func (r Result) Find(root string) (Project, bool) {
 	return Project{}, false
 }
 
-// Owner returns the project an artifact path belongs to.
-func (r Result) Owner(artifact string) (Project, Artifact, bool) {
-	for _, p := range r.Projects {
-		for _, a := range p.Artifacts {
-			if a.Path == artifact {
-				return p, a, true
-			}
-		}
-	}
-	return Project{}, Artifact{}, false
-}
-
 // classify maps a kept artifact folder to its project root and its path
 // relative to the root. Marker files are checked with Lstat, so symlinked
 // markers don't count.

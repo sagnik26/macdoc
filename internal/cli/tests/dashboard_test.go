@@ -172,7 +172,7 @@ func TestTUISlashCommands(t *testing.T) {
 	m = step(t, m, keys("esc", "/", "json", "enter")...)
 	mustContain(t, m.View(), "Unknown command /json")
 	m = step(t, m, keys("esc", "/", "mcp", "enter")...)
-	mustContain(t, m.View(), "claude mcp add macdoc -- macdoc mcp", "only you apply them")
+	mustContain(t, m.View(), "Unknown command /mcp")
 	m = step(t, m, keys("/", "bogus", "enter")...)
 	mustContain(t, m.View(), "Unknown command /bogus")
 
@@ -432,4 +432,178 @@ func TestPicker_PreMarksSafeOnly(t *testing.T) {
 	if saw == 0 {
 		t.Fatal("fixture has no SAFE suggestion; the test checks nothing")
 	}
+}
+
+// /installed reads the software inventory in the background and shows it in
+// an overlay; esc closes it. Reading is replaced by a fake here.
+func TestTUIInstalledCommand(t *testing.T) {
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
+		Software: func(context.Context, *cli.TuiDeps) (engine.SoftwareResult, error) {
+			return engine.SoftwareResult{
+				Software:     []engine.SoftwareEntry{{ID: "app:com.figma.Desktop", Name: "Figma", Kind: "app", Version: "124.3", Bytes: 500, Folders: []engine.OwnedFolder{{Path: "/x", Bytes: 500}}, CoveredBy: []string{}}},
+				Unattributed: []engine.OwnedFolder{}, New: []string{}, Sources: []engine.SourceState{{Source: "apps", State: "ok"}},
+			}, nil
+		}}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 30}, cli.LoadedMsg{Data: tuiFixture()})
+
+	m = openInstalled(t, m)
+	mustContain(t, m.View(), "Installed software", "Figma")
+	m = step(t, m, keys("esc")...)
+	if strings.Contains(m.View(), "Figma") {
+		t.Error("esc should close the software list")
+	}
+}
+
+// softwareModel is the dashboard with a fixed software inventory: Docker has a
+// cleanup, Notion has data but no cleanup, and pipx is a program with no data.
+func softwareModel(t *testing.T) cli.TuiModel {
+	t.Helper()
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
+		Software: func(context.Context, *cli.TuiDeps) (engine.SoftwareResult, error) {
+			return engine.SoftwareResult{
+				Software: []engine.SoftwareEntry{
+					{ID: "bundle:com.docker.docker", Name: "Docker", Kind: "app", Version: "4.30", Bytes: 900_000_000,
+						Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Containers/com.docker.docker", Bytes: 900_000_000, Confidence: 0.9, Evidence: "bundle id"}},
+						CoveredBy: []string{"docker.bc"}},
+					{ID: "app:com.notion.id", Name: "Notion", Kind: "app", Version: "7.4", Bytes: 4_900_000_000,
+						Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Caches/notion", Bytes: 4_900_000_000, Confidence: 0.6, Evidence: "name"}},
+						CoveredBy: []string{}},
+					{ID: "tool:pipx", Name: "pipx", Kind: "tool", Folders: []engine.OwnedFolder{}, CoveredBy: []string{}},
+				},
+				Unattributed: []engine.OwnedFolder{{Path: "/Users/me/Downloads", Bytes: 723_000_000}},
+				New:          []string{"tool:pipx"},
+				Sources:      []engine.SourceState{{Source: "apps", State: "ok"}},
+			}, nil
+		}}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	return step(t, m, tea.WindowSizeMsg{Width: 120, Height: 60}, cli.LoadedMsg{Data: tuiFixture()})
+}
+
+// openInstalled runs /installed and feeds back the inventory it reads. The
+// read comes with a spinner tick in a batch, as the program delivers it.
+func openInstalled(t *testing.T, m cli.TuiModel) cli.TuiModel {
+	t.Helper()
+	next, cmd := m.RunCommand("/installed")
+	if cmd == nil {
+		t.Fatal("/installed should read the inventory")
+	}
+	m = next.(cli.TuiModel)
+	msg := cmd()
+	b, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return step(t, m, msg)
+	}
+	for _, c := range b {
+		if c == nil {
+			continue
+		}
+		if sm, ok := c().(cli.SoftwareMsg); ok {
+			m = step(t, m, sm)
+		}
+	}
+	return m
+}
+
+// The summary counts cleanups and the filters narrow the list; new and all work.
+func TestTUIInstalledSummaryAndFilters(t *testing.T) {
+	m := openInstalled(t, softwareModel(t))
+	mustContain(t, m.View(), "1 program has cleanups", "New since last scan: pipx", "with data · 2 of 3")
+	m = step(t, m, keys("f")...)
+	mustContain(t, m.View(), "cleanable · 1 of 3")
+	m = step(t, m, keys("f")...)
+	mustContain(t, m.View(), "new · 1 of 3")
+	m = step(t, m, keys("f")...)
+	mustContain(t, m.View(), "all · 3 of 3")
+}
+
+// c marks the suggestions the installed programs' cleanups produce, opens the
+// Suggestions tab, and changes nothing else. Advice-only items stay unmarked.
+func TestTUIInstalledCleanupLink(t *testing.T) {
+	m := openInstalled(t, softwareModel(t))
+	m = step(t, m, keys("c")...)
+	if m.Tab != cli.TabSuggestions || !m.Marked["O-k3m9pq"] {
+		t.Fatalf("c should mark the Docker cleanup and open Suggestions: tab=%d marked=%v", m.Tab, m.Marked)
+	}
+	mustContain(t, m.Flash, "Marked 1 suggestions", "Nothing is removed yet")
+}
+
+// enter opens a program's details, with its folders and cleanups; esc goes back.
+func TestTUIInstalledDetails(t *testing.T) {
+	m := openInstalled(t, softwareModel(t))
+	m = step(t, m, keys("down")...)
+	m = step(t, m, keys("enter")...)
+	mustContain(t, m.View(), "Program", "Notion", "Data folders", "~/Library/Caches/notion", "No cleanup recipe covers this program")
+	m = step(t, m, keys("esc")...)
+	if strings.Contains(m.View(), "Data folders") || !strings.Contains(m.View(), "Installed software") {
+		t.Error("esc should go back to the list, not close the view")
+	}
+	m = step(t, m, keys("esc")...)
+	if strings.Contains(m.View(), "Installed software") {
+		t.Error("a second esc should close the view")
+	}
+}
+
+// Regression: Enter in a program's details must not leave the view. It used
+// to close the overlay and land on Overview.
+func TestTUIInstalledEnterInDetailsStaysInView(t *testing.T) {
+	m := openInstalled(t, softwareModel(t))
+	m = step(t, m, keys("enter")...)
+	m = step(t, m, keys("enter")...)
+	if m.Overlay == cli.OverlayNone || !strings.Contains(m.View(), "Data folders") {
+		t.Errorf("Enter in the details left the view: overlay=%v", m.Overlay)
+	}
+	if m.Tab != 0 { // 0 is the Overview tab
+		t.Errorf("tab changed to %d", m.Tab)
+	}
+}
+
+// Regression: while the inventory is read the view opens at once, shows a
+// spinner and the time so far, and esc closes it. The result is kept, but the
+// view doesn't reopen by itself.
+func TestTUIInstalledShowsLoadingState(t *testing.T) {
+	m := softwareModel(t)
+	next, cmd := m.RunCommand("/installed")
+	if cmd == nil {
+		t.Fatal("/installed should start the read")
+	}
+	m = next.(cli.TuiModel)
+	mustContain(t, m.View(), "Reading installed software", "esc closes this view")
+	m = step(t, m, keys("esc")...)
+	if m.Overlay != cli.OverlayNone {
+		t.Errorf("esc should close the view while reading: overlay=%v", m.Overlay)
+	}
+}
+
+// The tab row is left out of overlays, where its keys don't work, and comes
+// back when the overlay closes.
+func TestTUITabsHiddenInOverlays(t *testing.T) {
+	m := openInstalled(t, softwareModel(t))
+	if strings.Contains(m.View(), "2 Suggestions") {
+		t.Error("the tab row should not show over the installed view")
+	}
+	m = step(t, m, keys("esc")...)
+	mustContain(t, m.View(), "2 Suggestions")
+}
+
+// Regression: in a short window the arrow keys must reach the tables below the
+// program list. They used to move the cursor only, so "Folders no software
+// explains" and "Discovery" could not be scrolled to.
+func TestTUIInstalledArrowsReachLowerTables(t *testing.T) {
+	m := softwareModel(t)
+	m = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 14})
+	m = openInstalled(t, m)
+	if !strings.Contains(m.View(), "Installed software") || strings.Contains(m.View(), "Notion") {
+		t.Fatal("the window is too short to show the list at once; the test needs its last row below the fold")
+	}
+	for i := 0; i < 40; i++ {
+		m = step(t, m, keys("down")...)
+	}
+	mustContain(t, m.View(), "Notion")
+	for i := 0; i < 40; i++ {
+		m = step(t, m, keys("up")...)
+	}
+	mustContain(t, m.View(), "Installed software")
 }

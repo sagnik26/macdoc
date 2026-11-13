@@ -1,0 +1,252 @@
+{
+  "$defs": {
+    "engine.OwnedFolder": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "confidence",
+        "evidence",
+        "path"
+      ],
+      "type": "object"
+    },
+    "engine.SoftwareEntry": {
+      "properties": {
+        "bundle_id": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "covered_by": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/engine.OwnedFolder"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "installed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "covered_by",
+        "folders",
+        "id",
+        "kind",
+        "name",
+        "source"
+      ],
+      "type": "object"
+    },
+    "engine.SoftwareResult": {
+      "properties": {
+        "new": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "software": {
+          "items": {
+            "$ref": "#/$defs/engine.SoftwareEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/engine.SourceState"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "unattributed": {
+          "items": {
+            "$ref": "#/$defs/engine.OwnedFolder"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "new",
+        "scan",
+        "scan_age",
+        "software",
+        "sources",
+        "unattributed"
+      ],
+      "type": "object"
+    },
+    "engine.SourceState": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "state"
+      ],
+      "type": "object"
+    },
+    "model.ScanInfo": {
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "macdoc_version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "total_bytes": {
+          "type": "integer"
+        },
+        "total_files": {
+          "type": "integer"
+        },
+        "unmeasured_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "finished_at",
+        "id",
+        "macdoc_version",
+        "root",
+        "started_at",
+        "status",
+        "total_bytes",
+        "total_files",
+        "unmeasured_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://macdoc.local/schema/doctor-software.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "const": "doctor software"
+    },
+    "data": {
+      "$ref": "#/$defs/engine.SoftwareResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "data"
+  ],
+  "title": "macdoc doctor software --json",
+  "type": "object"
+}

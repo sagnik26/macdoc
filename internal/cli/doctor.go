@@ -32,6 +32,7 @@ no scan yet. Use a section for more detail:
   macdoc doctor wins            every suggestion with its ID
   macdoc doctor dev [toolchain] suggestions per developer toolchain
   macdoc doctor projects        projects: idle days, build folders, git state
+  macdoc doctor software        installed software and the data it leaves behind
   macdoc doctor scan            rescan, then show the full report (every section)`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -53,7 +54,7 @@ no scan yet. Use a section for more detail:
 	}
 	space := newStorageCmd(g)
 	space.Use = "space"
-	cmd.AddCommand(health, newSlowCmd(g), newTrendCmd(g), space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newScanCmd(g))
+	cmd.AddCommand(health, newSlowCmd(g), newTrendCmd(g), space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newSoftwareCmd(g), newScanCmd(g))
 	return cmd
 }
 

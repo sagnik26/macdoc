@@ -1,6 +1,6 @@
 package tests
 
-// Tests for the P0-W3 tech-lead decisions (docs/tasks/P0-W3.md) that the
+// Tests for the P0-W3 tech-lead decisions that the
 // P0-R1 red-team tests do not already cover.
 
 import (

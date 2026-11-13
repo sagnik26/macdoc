@@ -126,6 +126,16 @@
         "scanned": {
           "type": "boolean"
         },
+        "software": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/engine.SoftwareSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "top_level": {
           "items": {
             "$ref": "#/$defs/model.Node"
@@ -225,6 +235,43 @@
         "scan",
         "top_level",
         "unmeasured"
+      ],
+      "type": "object"
+    },
+    "engine.SoftwareSummary": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "new_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "owned_bytes": {
+          "type": "integer"
+        },
+        "programs": {
+          "type": "integer"
+        },
+        "scan_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "headline",
+        "new_names",
+        "owned_bytes",
+        "programs",
+        "scan_id"
       ],
       "type": "object"
     },

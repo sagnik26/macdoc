@@ -1,6 +1,6 @@
 # S4: the node-prefix query read the whole scan
 
-**Hypothesis (H2 in `plan.md`).** Detectors ask `store.Nodes` for the children of a folder (about nine call sites). The SQL was `path_fold LIKE ? ESCAPE '\'` behind `(? = '' OR …)`, and I guessed that this stops SQLite from using the index.
+**Hypothesis H2.** Detectors ask `store.Nodes` for the children of a folder (about nine call sites). The SQL was `path_fold LIKE ? ESCAPE '\'` behind `(? = '' OR …)`, and I guessed that this stops SQLite from using the index.
 
 **Method.** Build a synthetic scan of 300,000 directory nodes through the real `store` API (1,000 projects of 300 directories each, a 59 MB database), time `store.Nodes` for detector-style prefixes, then read the plans with `EXPLAIN QUERY PLAN` on a copy of the file and test candidate queries against it. The data is synthetic, but the planner and the timings are SQLite's own.
 

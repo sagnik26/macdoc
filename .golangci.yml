@@ -24,7 +24,7 @@ linters:
         - name: context-as-argument
         - name: indent-error-flow
     # Gates for new code. The backlog is cleared hotspot by hotspot; see
-    # issues.new-from-rev below and plan.md claim 4.
+    # issues.new-from-rev below.
     gocognit:
       min-complexity: 25
     gocyclo:
@@ -52,9 +52,9 @@ linters:
         text: "^G(204|301|304|306):"
 
 issues:
-  # Style and complexity findings in code that already existed are tracked in
-  # plan.md and fixed over time; only lines changed since main are gated. Drop
-  # this once the backlog is cleared.
+  # Style and complexity findings in code that already existed are fixed over
+  # time; only lines changed since main are gated. Drop this once the backlog
+  # is cleared.
   new-from-rev: origin/main
 
 formatters:

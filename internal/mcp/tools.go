@@ -17,15 +17,6 @@ import (
 	"github.com/sagnik26/macdoc/internal/store"
 )
 
-// ToolNames are every tool the server offers. A test pins this list: adding
-// a tool is a deliberate, reviewed change, and none may apply, delete, move,
-// restore, purge, run a command, take a path or change settings.
-var ToolNames = []string{
-	"get_system_overview", "get_storage_breakdown", "list_opportunities", "explain_opportunity",
-	"list_projects", "diagnose_slowness", "get_growth_history", "refresh_scan",
-	"create_cleanup_plan", "get_plan", "get_audit_log",
-}
-
 var (
 	falseP   = new(bool)
 	readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: falseP}

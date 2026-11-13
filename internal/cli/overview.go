@@ -234,6 +234,13 @@ func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 	if n := len(res.Warnings); n > 0 {
 		fmt.Fprintln(&b, t.muted.Render(fmt.Sprintf("\n%d note(s) about skipped items: macdoc doctor wins", n)))
 	}
+	if sw := res.Software; sw != nil {
+		line := "\nSoftware: " + sw.Headline
+		if len(sw.NewNames) > 0 {
+			line += fmt.Sprintf(" · %d new since the last scan", len(sw.NewNames))
+		}
+		b.WriteString(line + " (macdoc doctor software)\n")
+	}
 	switch {
 	case t.on:
 		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc doctor scan") + t.muted.Render(" (rescan + full report) · ") +

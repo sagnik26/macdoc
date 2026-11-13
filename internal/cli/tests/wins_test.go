@@ -356,9 +356,6 @@ func TestHelpers(t *testing.T) {
 	if got := cli.RestoreNote(model.Opportunity{Restore: model.Restore{Kind: model.RestoreRebuild, Note: strings.Repeat("x", 60)}, Method: model.MethodAdvise}); len([]rune(got)) != 40 {
 		t.Errorf("advise note not truncated: %q", got)
 	}
-	if h := cli.SectionHeader(strings.Repeat("n", 80), "1 GB"); !strings.Contains(h, "───") {
-		t.Errorf("header = %q", h)
-	}
 	for _, s := range []string{"safe", "CAUTION", "Risky", "advise"} {
 		if _, err := cli.ParseTier(s); err != nil {
 			t.Errorf("%s: %v", s, err)

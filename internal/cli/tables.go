@@ -555,7 +555,23 @@ func (m TuiModel) spaceTables() string {
 	} else {
 		b.WriteString(t.block("Large items with no recipe", "(≥ 1 GB, advice only: review them yourself)", m.foldersTable(sp.Large, 0, w)))
 	}
+	b.WriteString("\n")
+	b.WriteString(softwareBlock(t, m.Data.Res.Software))
 	return b.String()
+}
+
+// softwareBlock is the Installed software section of the Space view, from
+// the stored snapshot. It says where to look for the full list.
+func softwareBlock(t *Theme, sw *engine.SoftwareSummary) string {
+	if sw == nil {
+		return t.block("Installed software", "", " Run macdoc doctor scan to see the software on this Mac.\n")
+	}
+	s := display(*sw) // names come from the disk; clean them for the terminal
+	body := " " + s.Headline + "\n"
+	if len(s.NewNames) > 0 {
+		body += " New since the last scan: " + strings.Join(s.NewNames, ", ") + "\n"
+	}
+	return t.block("Installed software", "(macdoc doctor software for the list)", body)
 }
 
 func (m TuiModel) toolchainTables() string {

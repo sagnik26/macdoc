@@ -1,6 +1,6 @@
 package tests
 
-// P9-R1 red-team tests (docs/tasks/reports/P9-R1.md): what macdoc apply
+// P9-R1 red-team tests: what macdoc apply
 // shows the user for a plan Claude proposed.
 
 import (

@@ -11,7 +11,7 @@ import (
 // The Report totals are the numbers a person reads after an apply and the
 // numbers written to the audit log, so each one is pinned with values that
 // make addition, subtraction, assignment and a dropped condition all differ.
-// Mutation testing (plan.md claim 2) showed none of them was pinned before.
+// Mutation testing showed none of them was pinned before.
 
 func ptr(n int64) *int64 { return &n }
 

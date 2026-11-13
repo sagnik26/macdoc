@@ -563,15 +563,6 @@ func TestIDsDeterministic(t *testing.T) {
 	if c.Opportunities[0].ID == a.Opportunities[0].ID && c.Opportunities[1].ID == a.Opportunities[1].ID {
 		t.Error("IDs did not change with the scan")
 	}
-	if o, ok := engine.FindOpportunity(a, strings.ToUpper(a.Opportunities[1].ID[2:])); !ok || o.ID != a.Opportunities[1].ID {
-		t.Error("FindOpportunity by bare upper-case ID")
-	}
-	if _, ok := engine.FindOpportunity(a, "o-"+a.Opportunities[0].ID[2:]); !ok {
-		t.Error("FindOpportunity with o- prefix")
-	}
-	if _, ok := engine.FindOpportunity(a, "O-zzzzzz"); ok {
-		t.Error("found a missing ID")
-	}
 }
 
 func TestIDCollisionExtension(t *testing.T) {

@@ -38,7 +38,7 @@ MiB. "freed" is the measured truth.
 - `st_blocks` is wrong in scenarios 2, 3, 8 and 10 (up to 3x too high). It is right only when nothing is shared.
 - `PRIVATESIZE` is exact for every single-file scenario except hardlinks (5). That case is about link counts, not clones: freeing needs every link in the set. The scanner already de-duplicates by `(dev, ino)`.
 - `PRIVATESIZE` fails for a set that holds a whole clone group (10): each member reports 0 because the blocks are shared among them. The shared blocks belong to nobody individually, so a plan needs clone-group logic, or an honest range: low = sum of private sizes, high = sum of allocation with each clone group counted once.
-- `CLONEID` and `CLONE_REFCNT` come back in the same call as the size, so detecting clones is not expensive. The speed question (bulk vs one syscall per entry) is separate; see H5 in `plan.md`.
+- `CLONEID` and `CLONE_REFCNT` come back in the same call as the size, so detecting clones is not expensive. The speed question (bulk vs one syscall per entry) is separate (H5).
 
 ## Directories (2026-11-06)
 
