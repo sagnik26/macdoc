@@ -124,8 +124,8 @@ Status: 7a done (read-only advice in `doctor software`; `Slim` field, additive).
 completion already exists; Touch ID for sudo stays advice-only (it edits `/etc/pam.d`); no self-update (macdoc
 makes no network calls; Homebrew updates it).
 
-### 9. Distribution and agent access - done (files only)
-Added `install.sh`, `packaging/homebrew/macdoc.rb`, `llms.txt`, `skills/macdoc/`, `.claude-plugin/plugin.json`, `launchers/`. Not verifiable offline: install.sh against a real release, the Homebrew tap (owner must create it), shellcheck.
+### 9. Distribution and agent access - done except the Homebrew tap repository
+Added `install.sh`, `packaging/homebrew/macdoc.rb`, `llms.txt`, `skills/macdoc/`, `.claude-plugin/plugin.json`, `launchers/`. v0.1.0 is published and `install.sh` was run against it (pinned and latest, 2026-11-14). Still to do: create the `homebrew-macdoc` tap repository and put the release's version and checksums into the formula (values are in the release's `checksums.txt`); shellcheck was not run.
 Homebrew formula/tap, `install.sh` (checksum-verified from the release workflow), `llms.txt`, an agent skill and
 plugin manifest for Claude Code/Codex/Cursor that always runs `plan` before anything, Raycast/Alfred launcher
 script, multilingual README later. Extends `docs/RELEASING.md` and the existing goreleaser workflow.
