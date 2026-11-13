@@ -129,3 +129,25 @@ Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/rec
 2. `allow` patterns are as narrow as possible. The recipe lint must pass (no protected roots, ≥ 2 components below `$HOME`, no forbidden argv flags).
 3. Fixture tests: one positive, one look-alike negative, one precondition failure.
 4. If native: a golden test of the tool's listing output, and dry-run argv where the tool supports it.
+
+## `match:` (implemented)
+
+An optional list of software a recipe covers, written `kind:identity`:
+
+| Kind | Identity | Found by |
+|---|---|---|
+| `bundle:` | a bundle ID, e.g. `bundle:com.docker.docker` | the app's `Info.plist` |
+| `app:` | an app name with no readable bundle ID, e.g. `app:LM Studio` | the app's folder name |
+| `brew:` | a Homebrew formula or cask, e.g. `brew:ollama` | `brew list` |
+| `npm:` | a global npm package, e.g. `npm:yarn` | `npm ls -g` |
+| `tool:` | a program on `PATH`, e.g. `tool:pip` | the executables in the folders on `PATH` that the user owns (`internal/inventory/tools.go`) |
+
+`macdoc doctor software` uses `match:` to show, for each installed program, the recipes that cover it (`covered_by`), or "advisory only" when none does. It never decides an action: a recipe is still the only source of one. `ParseMatch` in `internal/recipes/match.go` checks each entry, and a bad entry fails the catalog load.
+
+A recipe is covered only while the program is installed. For example, the Android recipes match `tool:avdmanager` and `tool:sdkmanager`, which only show when those tools are on `PATH`.
+
+**Migrated (36 recipes).** Npm, Homebrew, Docker, Xcode, Ollama, Gradle, the Android SDK tools, Homebrew, pip, uv, poetry, conda, CocoaPods, LM Studio and nvm now name their software. The Xcode and Docker bundle IDs, `bundle:com.apple.dt.Xcode`, `bundle:com.docker.docker`, and `bundle:com.google.android.studio`, are the publicly known values and were not checked on a Mac that has them installed. Check one with `plutil -extract CFBundleIdentifier raw <App>.app/Contents/Info.plist`.
+
+**Not migrated, on purpose.** These recipes clean up folders that belong to a project or to macOS, not to a program, so there is no software to match: `node.node_modules_stale`, `node.next_cache_stale`, `rn.native_build_stale`, `rn.ios_pods_stale`, `python.venv_stale`, `hf.cache_repo` (its model cache belongs to no single installed tool), and the `system`, `user`, `ios` and `tm` recipes.
+
+**Toolchain from match.** A recipe that matches known software may leave out `toolchain:`. The loader fills it in from `familyOf` in `internal/recipes/match.go`, a table that says which toolchain each known program belongs to. The 36 matched recipes no longer write their own label. The loader refuses a recipe whose named toolchain disagrees with its match, one whose match is unknown with no toolchain given, and one whose match spans two toolchains. The table is the one place the software-to-toolchain link is written. A program not listed there needs its recipe to name a toolchain itself, so discovery stays generic and only the grouping needs the table.

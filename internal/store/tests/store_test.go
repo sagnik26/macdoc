@@ -493,10 +493,10 @@ func count(t *testing.T, s *store.Store, table string) int {
 
 func TestPruneScans(t *testing.T) {
 	s := openTemp(t)
-	if err := s.PruneScans(-1); err == nil {
+	if err := s.PruneScansWeekly(-1, 0, time.Time{}); err == nil {
 		t.Error("PruneScans(-1) succeeded")
 	}
-	if err := s.PruneScans(3); err != nil { // empty db
+	if err := s.PruneScansWeekly(3, 0, time.Time{}); err != nil { // empty db
 		t.Fatal(err)
 	}
 	mk := func(i int, st model.ScanStatus) string {
@@ -519,7 +519,7 @@ func TestPruneScans(t *testing.T) {
 	i5 := mk(5, model.ScanIncomplete) // newer than newest complete: kept
 	r6 := mk(6, model.ScanRunning)
 
-	if err := s.PruneScans(2); err != nil {
+	if err := s.PruneScansWeekly(2, 0, time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range []string{c0, i1} {
@@ -541,7 +541,7 @@ func TestPruneScans(t *testing.T) {
 
 	// keep=0 drops every complete scan and incomplete scans older than the
 	// newest complete one; running scans stay.
-	if err := s.PruneScans(0); err != nil {
+	if err := s.PruneScansWeekly(0, 0, time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, s, "scans"); n != 3 { // r2, i5, r6
@@ -617,7 +617,7 @@ func TestClosedStore(t *testing.T) {
 	if _, err := s.History("/", 0); err == nil {
 		t.Error("History after Close succeeded")
 	}
-	if err := s.PruneScans(1); err == nil {
+	if err := s.PruneScansWeekly(1, 0, time.Time{}); err == nil {
 		t.Error("PruneScans after Close succeeded")
 	}
 }
@@ -725,9 +725,6 @@ func TestHelpers(t *testing.T) {
 			t.Errorf("depthOf(%q) = %d, want %d", p, got, want)
 		}
 	}
-	if got := store.EscapeLike(`a%b_c\d`); got != `a\%b\_c\\d` {
-		t.Errorf("escapeLike = %q", got)
-	}
 	if store.Fold("/A/Café") != "/a/café" {
 		t.Error("fold did not NFC + lowercase")
 	}
@@ -770,7 +767,7 @@ func TestDatabaseErrors(t *testing.T) {
 	mustFinish(t, s, id, model.ScanComplete, t0)
 	exec(`CREATE TRIGGER fail_delete BEFORE DELETE ON scans
 		BEGIN SELECT RAISE(ABORT, 'delete boom'); END`)
-	if err := s.PruneScans(0); err == nil || !strings.Contains(err.Error(), "delete boom") {
+	if err := s.PruneScansWeekly(0, 0, time.Time{}); err == nil || !strings.Contains(err.Error(), "delete boom") {
 		t.Errorf("PruneScans: %v", err)
 	}
 	exec(`DROP TRIGGER fail_delete`)

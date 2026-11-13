@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
@@ -60,18 +59,6 @@ func Lookup(name string) (Detector, bool) {
 	defer regMu.RUnlock()
 	d, ok := detectors[name]
 	return d, ok
-}
-
-// DetectorNames returns all registered detector names, sorted.
-func DetectorNames() []string {
-	regMu.RLock()
-	defer regMu.RUnlock()
-	names := make([]string, 0, len(detectors))
-	for n := range detectors {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // ExpandHome replaces a leading "~" or "~/" with home.

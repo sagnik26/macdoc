@@ -55,6 +55,7 @@ type OverviewResult struct {
 	TopLevel      []model.Node      `json:"top_level"`
 	DataVolume    model.Bytes       `json:"data_volume_used"`
 	Opportunities OpportunityResult `json:"opportunities"`
+	Software      *SoftwareSummary  `json:"software,omitempty"`   // nil when the scan has no software snapshot
 	Quarantine    *QuarantineNote   `json:"quarantine,omitempty"` // nil when it's empty
 	Warnings      []string          `json:"warnings,omitempty"`
 }
@@ -119,6 +120,11 @@ func Overview(ctx context.Context, o OverviewOptions) (OverviewResult, error) {
 		return res, err
 	}
 	res.Opportunities = opps
+	// The software summary is read from the stored snapshot; it never runs
+	// discovery, so the overview stays fast. Nil when there is no snapshot.
+	if sum, err := SoftwareSnapshot(sp, info.ID); err == nil {
+		res.Software = sum
+	}
 	res.Warnings = append(res.Warnings, opps.Warnings...)
 	if q, err := Quarantine(OpportunityOptions{Home: o.Home, Now: o.Now}); err == nil && len(q.Entries) > 0 {
 		res.Quarantine = &QuarantineNote{Entries: len(q.Entries), HeldBytes: q.HeldBytes, ExpiredCount: q.ExpiredCount, ExpiredBytes: q.ExpiredBytes}

@@ -32,7 +32,7 @@
 - id: npm.cache
   title: npm cache
   category: package-caches
-  toolchain: node
+  match: ["npm:npm"]
   risk: SAFE
   method: native
   detector: path
@@ -51,7 +51,7 @@
 - id: pnpm.store
   title: pnpm content store
   category: package-caches
-  toolchain: node
+  match: ["npm:pnpm"]
   risk: SAFE
   method: native
   detector: path
@@ -74,7 +74,7 @@
 - id: yarn.cache
   title: Yarn cache
   category: package-caches
-  toolchain: node
+  match: ["npm:yarn"]
   risk: SAFE
   method: native
   detector: path
@@ -92,7 +92,7 @@
 - id: nvm.old_versions
   title: Older Node.js version installed by nvm
   category: package-caches
-  toolchain: node
+  match: ["brew:nvm"]
   risk: CAUTION
   method: quarantine
   detector: nvm_old_versions

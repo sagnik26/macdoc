@@ -484,10 +484,6 @@ type Point struct {
 // PruneScans deletes all but the newest keep complete scans (and every
 // non-running incomplete scan older than the newest complete one), with their
 // nodes and unmeasured rows.
-func (s *Store) PruneScans(keep int) error {
-	return s.PruneScansWeekly(keep, 0, time.Time{})
-}
-
 // Week is the bucket PruneScansWeekly keeps one scan per.
 const Week = 7 * 24 * time.Hour
 
@@ -561,11 +557,6 @@ func DepthOf(p string) int {
 	}
 	return n
 }
-
-var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-
-// EscapeLike escapes LIKE wildcards and the escape character itself.
-func EscapeLike(s string) string { return likeEscaper.Replace(s) }
 
 // Times are stored as unix nanoseconds (INTEGER) and read back as UTC.
 func toDB(t time.Time) int64 { return t.UnixNano() }

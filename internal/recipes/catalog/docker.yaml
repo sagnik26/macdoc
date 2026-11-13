@@ -5,7 +5,7 @@
 - id: docker.build_cache
   title: Docker build cache
   category: containers
-  toolchain: docker
+  match: ["bundle:com.docker.docker"]
   risk: SAFE
   method: native
   detector: docker_df
@@ -24,7 +24,7 @@
 - id: docker.dangling_images
   title: Untagged Docker images
   category: containers
-  toolchain: docker
+  match: ["bundle:com.docker.docker"]
   risk: SAFE
   method: native
   detector: docker_dangling
@@ -44,8 +44,8 @@
 
 - id: docker.unused_images
   title: Docker images not used by any container
+  match: ["bundle:com.docker.docker"]
   category: containers
-  toolchain: docker
   risk: CAUTION
   method: native
   detector: docker_df
@@ -63,9 +63,9 @@
   confidence_notes: Includes the untagged images counted under docker.dangling_images.
 
 - id: docker.stopped_containers
+  match: ["bundle:com.docker.docker"]
   title: Stopped Docker containers
   category: containers
-  toolchain: docker
   risk: CAUTION
   method: native
   detector: docker_df
@@ -82,9 +82,9 @@
     volumes is kept.
 
 - id: docker.volumes
+  match: ["bundle:com.docker.docker"]
   title: Docker volumes
   category: containers
-  toolchain: docker
   risk: ADVISE
   method: advise
   detector: docker_df
@@ -103,9 +103,9 @@
     - "Press r in macdoc to rescan."
 
 - id: docker.raw_disk
+  match: ["bundle:com.docker.docker"]
   title: Docker Desktop disk image
   category: containers
-  toolchain: docker
   risk: ADVISE
   method: advise
   detector: path

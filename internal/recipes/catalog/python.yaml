@@ -4,7 +4,7 @@
 - id: pip.cache
   title: pip cache
   category: package-caches
-  toolchain: python
+  match: ["tool:pip"]
   risk: SAFE
   method: native
   detector: path
@@ -22,7 +22,7 @@
 - id: uv.cache
   title: uv cache
   category: package-caches
-  toolchain: python
+  match: ["tool:uv"]
   risk: SAFE
   method: native
   detector: path
@@ -40,7 +40,7 @@
 - id: poetry.cache
   title: Poetry cache
   category: package-caches
-  toolchain: python
+  match: ["tool:poetry"]
   risk: SAFE
   method: quarantine
   detector: path
@@ -57,7 +57,7 @@
 - id: conda.pkgs
   title: conda package cache
   category: package-caches
-  toolchain: python
+  match: ["tool:conda"]
   risk: SAFE
   method: native
   detector: conda_pkgs

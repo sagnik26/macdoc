@@ -4,7 +4,7 @@
 - id: xcode.derived_data
   title: Xcode DerivedData
   category: build-artifacts
-  toolchain: xcode
+  match: ["bundle:com.apple.dt.Xcode"]
   risk: SAFE
   method: quarantine
   detector: derived_data
@@ -22,7 +22,7 @@
 - id: xcode.device_support
   title: Xcode device support files
   category: simulators-emulators
-  toolchain: xcode
+  match: ["bundle:com.apple.dt.Xcode"]
   risk: SAFE
   method: quarantine
   detector: xcode_device_support
@@ -44,8 +44,8 @@
 
 - id: xcode.previews_cache
   title: Xcode SwiftUI Previews cache
+  match: ["bundle:com.apple.dt.Xcode"]
   category: build-artifacts
-  toolchain: xcode
   risk: SAFE
   method: quarantine
   detector: path
@@ -59,9 +59,9 @@
     takes longer to appear.
 
 - id: xcode.caches
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Xcode caches
   category: app-caches
-  toolchain: xcode
   risk: SAFE
   method: quarantine
   detector: path
@@ -75,9 +75,9 @@
     lookups slower for a while.
 
 - id: xcode.archives
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Xcode archives
   category: backups
-  toolchain: xcode
   risk: ADVISE
   method: advise
   detector: children
@@ -95,9 +95,9 @@
     - "Delete the rest there, then press r in macdoc to rescan."
 
 - id: xcode.simulators_unavailable
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Unavailable simulators
   category: simulators-emulators
-  toolchain: xcode
   risk: SAFE
   method: native
   detector: simctl_unavailable_devices
@@ -110,9 +110,9 @@
     data, which was already unusable.
 
 - id: xcode.sim_runtimes
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Simulator runtimes
   category: simulators-emulators
-  toolchain: xcode
   risk: CAUTION
   method: native
   detector: simctl_runtimes
@@ -125,9 +125,9 @@
     the simulators that use it unavailable until you download it again.
 
 - id: xcode.sim_runtimes_orphaned
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Leftover simulator runtime data
   category: simulators-emulators
-  toolchain: xcode
   risk: ADVISE
   method: advise
   detector: orphaned_sim_runtimes
@@ -144,9 +144,9 @@
     - "Press r in macdoc to rescan. You can uninstall Xcode again afterwards if you don't need it."
 
 - id: xcode.sim_devices_idle
+  match: ["bundle:com.apple.dt.Xcode"]
   title: Idle simulators
   category: simulators-emulators
-  toolchain: xcode
   risk: CAUTION
   method: native
   detector: simctl_idle_devices
@@ -163,7 +163,7 @@
 - id: cocoapods.cache
   title: CocoaPods cache
   category: package-caches
-  toolchain: cocoapods
+  match: ["tool:pod"]
   risk: SAFE
   method: native
   detector: cocoapods_cache

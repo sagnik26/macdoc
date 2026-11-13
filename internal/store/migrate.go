@@ -99,6 +99,36 @@ var Migrations = []string{
 		stdout      BLOB NOT NULL,
 		stderr      BLOB NOT NULL
 	);`,
+	// v7: the software found on this Mac in each scan, which folders belong to
+	// it, and how each discovery source did (docs/adr/0007). Rows go with
+	// their scan. installed is unix nanoseconds, 0 when unknown.
+	`CREATE TABLE software (
+		scan_id   TEXT NOT NULL REFERENCES scans (id) ON DELETE CASCADE,
+		id        TEXT NOT NULL,
+		name      TEXT NOT NULL,
+		kind      TEXT NOT NULL,
+		version   TEXT NOT NULL,
+		bundle_id TEXT NOT NULL,
+		source    TEXT NOT NULL,
+		installed INTEGER NOT NULL,
+		PRIMARY KEY (scan_id, id)
+	);
+	CREATE TABLE software_owner (
+		scan_id     TEXT NOT NULL REFERENCES scans (id) ON DELETE CASCADE,
+		path        TEXT NOT NULL,
+		software_id TEXT NOT NULL,
+		bytes       INTEGER NOT NULL,
+		confidence  REAL NOT NULL,
+		evidence    TEXT NOT NULL,
+		PRIMARY KEY (scan_id, path)
+	);
+	CREATE TABLE software_source (
+		scan_id TEXT NOT NULL REFERENCES scans (id) ON DELETE CASCADE,
+		source  TEXT NOT NULL,
+		state   TEXT NOT NULL,
+		reason  TEXT NOT NULL,
+		PRIMARY KEY (scan_id, source)
+	);`,
 }
 
 // migrate brings the schema up to len(Migrations). Each migration runs in its

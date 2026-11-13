@@ -228,10 +228,6 @@ func TestRegistry(t *testing.T) {
 	if _, ok := recipes.Lookup("children"); !ok {
 		t.Fatal("children not registered")
 	}
-	names := recipes.DetectorNames()
-	if len(names) < 2 {
-		t.Fatalf("names = %v", names)
-	}
 	defer func() {
 		if recover() == nil {
 			t.Error("duplicate recipes.Register did not panic")

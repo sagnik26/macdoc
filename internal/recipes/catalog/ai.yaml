@@ -4,7 +4,7 @@
 - id: ollama.model
   title: Ollama model
   category: ai-models
-  toolchain: ai
+  match: ["brew:ollama"]
   risk: CAUTION
   method: native
   detector: ollama_models
@@ -45,7 +45,7 @@
 - id: lmstudio.model
   title: LM Studio model
   category: ai-models
-  toolchain: ai
+  match: ["app:LM Studio"]
   risk: CAUTION
   method: quarantine
   detector: lmstudio_models

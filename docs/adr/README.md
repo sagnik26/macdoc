@@ -12,3 +12,4 @@ An accepted record is changed only by a new record that supersedes it.
 | [0004](0004-delete-right-after-the-quarantine-move.md) | A quarantine move is deleted right away so the space is freed | Accepted (owner decision, 2026-10-28) |
 | [0005](0005-size-by-allocated-blocks.md) | Sizes come from allocated blocks (`st_blocks`) | **Under review**: see S1 |
 | [0006](0006-tests-in-a-tests-folder.md) | Each package keeps its tests in `internal/<pkg>/tests/` | Accepted; layout under review |
+| [0007](0007-discovered-software-is-advisory.md) | Discovered software is advisory until a recipe matches it | Accepted (owner decision, 2026-11-13) |

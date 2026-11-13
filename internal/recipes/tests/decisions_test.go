@@ -1,7 +1,7 @@
 package tests
 
 // P3-W4 tests for the tech-lead decisions on the P3-R1 findings
-// (docs/tasks/P3-W4.md, D1–D16).
+// (D1–D16).
 
 import (
 	"context"

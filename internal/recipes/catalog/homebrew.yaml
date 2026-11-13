@@ -4,7 +4,7 @@
 - id: brew.cleanup
   title: Homebrew old versions and downloads
   category: package-caches
-  toolchain: homebrew
+  match: ["tool:brew"]
   risk: SAFE
   method: native
   detector: brew_cleanup
@@ -22,7 +22,7 @@
 - id: brew.autoremove
   title: Homebrew dependencies no longer needed
   category: package-caches
-  toolchain: homebrew
+  match: ["tool:brew"]
   risk: CAUTION
   method: native
   detector: brew_autoremove

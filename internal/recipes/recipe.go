@@ -19,12 +19,16 @@ import (
 
 // Recipe is one entry of the catalog (docs/RECIPE_CATALOG.md §1).
 type Recipe struct {
-	ID        string       `yaml:"id"`        // dotted, e.g. "xcode.derived_data"
-	Title     string       `yaml:"title"`     // short human label
-	Category  string       `yaml:"category"`  // one of Categories
-	Toolchain string       `yaml:"toolchain"` // one of Toolchains
-	Risk      model.Risk   `yaml:"risk"`      // base risk; context may raise it, never lower
-	Method    model.Method `yaml:"method"`    // native | quarantine | advise
+	ID        string `yaml:"id"`        // dotted, e.g. "xcode.derived_data"
+	Title     string `yaml:"title"`     // short human label
+	Category  string `yaml:"category"`  // one of Categories
+	Toolchain string `yaml:"toolchain"` // one of Toolchains
+	// Match names the software this recipe covers, as kind:identity (see
+	// MatchKinds). The software command uses it to say which installed
+	// programs macdoc can act on; it never decides an action.
+	Match  []string     `yaml:"match"`
+	Risk   model.Risk   `yaml:"risk"`   // base risk; context may raise it, never lower
+	Method model.Method `yaml:"method"` // native | quarantine | advise
 
 	Detector string            `yaml:"detector"` // registered detector name
 	Params   map[string]string `yaml:"params"`   // detector parameters ("~" expands to home)

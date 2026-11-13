@@ -65,6 +65,11 @@ func LoadFS(fsys fs.FS, dir string) (*Catalog, error) {
 	}
 	var errs []error
 	seen := map[string]bool{}
+	for i := range all {
+		if err := deriveToolchain(&all[i]); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	for _, r := range all {
 		if seen[r.ID] {
 			errs = append(errs, fmt.Errorf("recipe %s: duplicate id", r.ID))
@@ -182,6 +187,7 @@ func vocabulary(p *problems, r Recipe) {
 	if v, ok := r.Params["dirty_risk"]; ok && !slices.Contains([]model.Risk{model.RiskCaution, model.RiskRisky}, model.Risk(v)) {
 		p.add("params.dirty_risk must be CAUTION or RISKY")
 	}
+	matchProblems(p, r)
 }
 
 func risk(p *problems, r Recipe) {
