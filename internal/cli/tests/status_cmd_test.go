@@ -17,7 +17,7 @@ import (
 // notes about probes that couldn't run (the test runner answers none of them).
 func TestDoctorStatusText(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "status")
+	out, err := run(t, "vitals")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestDoctorStatusText(t *testing.T) {
 // --json has the envelope, the score, and no section for a probe that failed.
 func TestDoctorStatusJSON(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "status", "--json")
+	out, err := run(t, "vitals", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestDoctorStatusJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor status" || env.Data.Score < 0 || env.Data.Score > 100 || env.Data.Reasons == nil {
+	if env.Command != "vitals" || env.Data.Score < 0 || env.Data.Score > 100 || env.Data.Reasons == nil {
 		t.Errorf("envelope = %+v", env)
 	}
 	if env.Data.CPU != nil {
@@ -53,7 +53,7 @@ func TestDoctorStatusJSON(t *testing.T) {
 // An interval shorter than a reading takes is refused.
 func TestDoctorStatusRefusesAShortInterval(t *testing.T) {
 	cliFixture(t)
-	if _, err := run(t, "doctor", "status", "--watch", "--interval", "100ms"); err == nil || !strings.Contains(err.Error(), "--interval") {
+	if _, err := run(t, "vitals", "--watch", "--interval", "100ms"); err == nil || !strings.Contains(err.Error(), "--interval") {
 		t.Errorf("err = %v; want one naming --interval", err)
 	}
 }
@@ -66,7 +66,7 @@ func TestDoctorStatusWatchStreamsOneObjectPerLine(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"doctor", "status", "--watch", "--interval", "1s", "--json"})
+	cmd.SetArgs([]string{"vitals", "--watch", "--interval", "1s", "--json"})
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer cancel()
 	if err := cmd.ExecuteContext(ctx); err != nil {
@@ -80,7 +80,7 @@ func TestDoctorStatusWatchStreamsOneObjectPerLine(t *testing.T) {
 		var env struct {
 			Command string `json:"command"`
 		}
-		if err := json.Unmarshal([]byte(l), &env); err != nil || env.Command != "doctor status" {
+		if err := json.Unmarshal([]byte(l), &env); err != nil || env.Command != "vitals" {
 			t.Errorf("line is not one compact snapshot: %q (%v)", l, err)
 		}
 	}

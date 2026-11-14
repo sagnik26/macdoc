@@ -59,13 +59,13 @@ func TestRenderSlow(t *testing.T) {
 
 func TestSlowCommand(t *testing.T) {
 	cliFixture(t) // the fake cli.Runner fails every command: everything is unknown
-	out, err := run(t, "slow")
+	out, err := run(t, "vitals", "--memory")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, out, "Memory pressure couldn't be read", "Could not measure", "Nothing has been changed.")
 
-	out, err = run(t, "slow", "--json", "--days", "30")
+	out, err = run(t, "vitals", "--memory", "--json", "--days", "30")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,10 +76,10 @@ func TestSlowCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor slow" || env.Data.Swap.Days != 30 {
+	if env.Command != "vitals memory" || env.Data.Swap.Days != 30 {
 		t.Errorf("envelope = %+v", env)
 	}
-	if _, err := run(t, "slow", "--days", "0"); err == nil {
+	if _, err := run(t, "vitals", "--memory", "--days", "0"); err == nil {
 		t.Error("--days 0 accepted")
 	}
 }

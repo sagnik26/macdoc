@@ -18,14 +18,22 @@ func Maintenance(ctx context.Context, o OpportunityOptions) (OpportunityResult, 
 		}
 		o.Catalog = cat
 	}
-	o.OnRequest, o.MinBytes = true, -1
+	// Only the on-request recipes run, so this is quick and reads nothing else.
+	only := &recipes.Catalog{}
+	for _, r := range o.Catalog.Recipes {
+		if r.OnRequest {
+			only.Recipes = append(only.Recipes, r)
+		}
+	}
+	full := o.Catalog
+	o.Catalog, o.OnRequest, o.MinBytes = only, true, -1
 	res, err := Opportunities(ctx, o)
 	if err != nil {
 		return res, err
 	}
 	kept := []model.Opportunity{}
 	for _, op := range res.Opportunities {
-		if r, ok := o.Catalog.Get(op.RecipeID); ok && r.OnRequest {
+		if r, ok := full.Get(op.RecipeID); ok && r.OnRequest {
 			kept = append(kept, op)
 		}
 	}

@@ -35,7 +35,7 @@ func TestRenderTrend(t *testing.T) {
 	}
 	out := buf.String()
 	mustContain(t, out,
-		"macdoc doctor trend · 1 Sep 12:00 → 1 Oct 12:00",
+		"macdoc explore growth · 1 Sep 12:00 → 1 Oct 12:00",
 		"Scanned data +12.0 GB (100 GB → 112 GB)",
 		"Gradle                         4.0 GB    10.0 GB  +6.0 GB\n",
 		"AI models                     <105 MB     4.0 GB  +3.9 GB or more\n",
@@ -52,7 +52,7 @@ func TestRenderTrend(t *testing.T) {
 
 func TestTrendCommand(t *testing.T) {
 	home := cliFixture(t) // one scan
-	if _, err := run(t, "trend"); err == nil || !strings.Contains(err.Error(), "only one scan so far") {
+	if _, err := run(t, "explore", "--growth"); err == nil || !strings.Contains(err.Error(), "only one scan so far") {
 		t.Errorf("one scan: %v", err)
 	}
 	st, err := store.Open(store.DefaultPath(home))
@@ -65,13 +65,13 @@ func TestTrendCommand(t *testing.T) {
 	_ = st.FinishScan(id, model.ScanComplete, 102*gb, 1, at)
 	_ = st.Close()
 
-	out, err := run(t, "trend")
+	out, err := run(t, "explore", "--growth")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, out, "Scanned data +2.0 GB", "covers less than the 30 days", "Gradle", "+1.9 GB or more", "~/.gradle")
 
-	out, err = run(t, "trend", "--json", "--days", "7")
+	out, err = run(t, "explore", "--growth", "--json", "--days", "7")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +82,10 @@ func TestTrendCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor trend" || env.Data.Days != 7 || len(env.Data.Areas) != 1 {
+	if env.Command != "explore growth" || env.Data.Days != 7 || len(env.Data.Areas) != 1 {
 		t.Errorf("envelope = %+v", env)
 	}
-	if _, err := run(t, "trend", "--days", "400"); err == nil {
+	if _, err := run(t, "explore", "--growth", "--days", "400"); err == nil {
 		t.Error("--days 400 accepted")
 	}
 }

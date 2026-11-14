@@ -340,7 +340,7 @@ func TestRefreshScan(t *testing.T) {
 			// The fixture's previous scan measured 100 GB; this one sees a
 			// few folders, so it says it saw less and what to do.
 			if out["data"].(map[string]any)["saw_less_than_previous"] != true ||
-				!strings.Contains(strings.Join(warningTexts(out), " "), "macdoc doctor scan in Terminal") {
+				!strings.Contains(strings.Join(warningTexts(out), " "), "macdoc scan in Terminal") {
 				t.Errorf("no saw-less guidance: %v", out)
 			}
 			break

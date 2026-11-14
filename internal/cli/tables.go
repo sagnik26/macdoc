@@ -568,14 +568,14 @@ func (m TuiModel) spaceTables() string {
 // the stored snapshot. It says where to look for the full list.
 func softwareBlock(t *Theme, sw *engine.SoftwareSummary) string {
 	if sw == nil {
-		return t.block("Installed software", "", " Run macdoc doctor scan to see the software on this Mac.\n")
+		return t.block("Installed software", "", " Run macdoc scan to see the software on this Mac.\n")
 	}
 	s := display(*sw) // names come from the disk; clean them for the terminal
 	body := " " + s.Headline + "\n"
 	if len(s.NewNames) > 0 {
 		body += " New since the last scan: " + strings.Join(s.NewNames, ", ") + "\n"
 	}
-	return t.block("Installed software", "(macdoc doctor software for the list)", body)
+	return t.block("Installed software", "(macdoc retire for the list)", body)
 }
 
 func (m TuiModel) toolchainTables() string {

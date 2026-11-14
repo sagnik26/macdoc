@@ -12,7 +12,7 @@ import (
 
 func TestDoctorSoftwareText(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "software")
+	out, err := run(t, "retire")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestDoctorSoftwareText(t *testing.T) {
 
 func TestDoctorSoftwareJSON(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "software", "--json")
+	out, err := run(t, "retire", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestDoctorSoftwareJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor software" {
+	if env.Command != "retire" {
 		t.Errorf("command = %q", env.Command)
 	}
 	if !strings.Contains(out, `"software": [`) || !strings.Contains(out, `"unattributed": [`) || !strings.Contains(out, `"new": [`) {
@@ -51,7 +51,7 @@ func TestDoctorSoftwareNeedsAScan(t *testing.T) {
 	empty := t.TempDir()
 	cliFixture(t)
 	cli.UserHome = func() (string, error) { return empty, nil }
-	if _, err := run(t, "doctor", "software"); !errors.Is(err, engine.ErrNoScan) {
+	if _, err := run(t, "retire"); !errors.Is(err, engine.ErrNoScan) {
 		t.Errorf("err = %v, want ErrNoScan", err)
 	}
 }

@@ -44,7 +44,7 @@ const (
 	StepRank   OverviewStep = "rank"
 )
 
-// OverviewResult is everything `macdoc doctor` shows on one screen.
+// OverviewResult is everything `macdoc` shows on one screen.
 type OverviewResult struct {
 	Health        DoctorResult      `json:"health"`
 	Scan          model.ScanInfo    `json:"scan"`

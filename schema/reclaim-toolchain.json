@@ -1,28 +1,22 @@
 {
   "$defs": {
-    "engine.OpportunityResult": {
+    "cli.DevResult": {
       "properties": {
-        "opportunities": {
-          "items": {
-            "$ref": "#/$defs/model.Opportunity"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
         "scan": {
           "$ref": "#/$defs/model.ScanInfo"
         },
         "scan_age": {
           "type": "string"
         },
-        "totals": {
-          "additionalProperties": {
-            "type": "integer"
+        "toolchain": {
+          "type": "string"
+        },
+        "toolchains": {
+          "items": {
+            "$ref": "#/$defs/engine.ToolchainTotal"
           },
           "type": [
-            "object",
+            "array",
             "null"
           ]
         },
@@ -37,10 +31,34 @@
         }
       },
       "required": [
-        "opportunities",
         "scan",
         "scan_age",
-        "totals"
+        "toolchains"
+      ],
+      "type": "object"
+    },
+    "engine.ToolchainTotal": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "opportunities": {
+          "items": {
+            "$ref": "#/$defs/model.Opportunity"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "opportunities",
+        "toolchain"
       ],
       "type": "object"
     },
@@ -221,21 +239,21 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/wins.json",
+  "$id": "https://macdoc.local/schema/reclaim-toolchain.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "wins"
+      "const": "reclaim toolchain"
     },
     "data": {
-      "$ref": "#/$defs/engine.OpportunityResult"
+      "$ref": "#/$defs/cli.DevResult"
     },
     "generated_at": {
       "format": "date-time",
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -253,6 +271,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc wins --json",
+  "title": "macdoc reclaim toolchain --json",
   "type": "object"
 }

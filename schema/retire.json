@@ -256,11 +256,11 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/doctor-software.json",
+  "$id": "https://macdoc.local/schema/retire.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "doctor software"
+      "const": "retire"
     },
     "data": {
       "$ref": "#/$defs/engine.SoftwareResult"
@@ -270,7 +270,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -288,6 +288,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc doctor software --json",
+  "title": "macdoc retire --json",
   "type": "object"
 }

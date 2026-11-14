@@ -107,7 +107,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if strings.Contains(out, "@") {
 		t.Error("the @ toolchain shortcut was removed")
 	}
-	if strings.Contains(out, "More: macdoc doctor scan") {
+	if strings.Contains(out, "More: macdoc scan") {
 		t.Error("the dashboard should not print the CLI's More line")
 	}
 	if n := strings.Count(out, "\n"); n != 39 {
@@ -158,12 +158,12 @@ func TestTUIWideShowsDetailBesideList(t *testing.T) {
 
 func TestTUISlashCommands(t *testing.T) {
 	m := loaded(t, 100, 30)
-	m = step(t, m, keys("/", "sl")...)
+	m = step(t, m, keys("/", "vi")...)
 	out := m.View()
-	mustContain(t, out, "▸ /slow", "› /sl", "enter run", "tab complete")
+	mustContain(t, out, "▸ /vitals", "› /vi", "enter run", "tab complete")
 	m = step(t, m, keys("enter")...)
 	if m.Tab != 5 || m.InputMode != 0 { // 5 is the Health tab (tabHealth)
-		t.Fatalf("/sl should run /slow: tab=%d mode=%q", m.Tab, m.InputMode)
+		t.Fatalf("/vi should run /vitals: tab=%d mode=%q", m.Tab, m.InputMode)
 	}
 
 	// /explain is gone; the e key on a suggestion explains it instead.
@@ -293,7 +293,7 @@ func TestTUIWelcomeScreen(t *testing.T) {
 	out := m.View()
 	mustContain(t, out, "███╗   ███╗", "Why is my Mac full and slow?", "Last scan 2h ago · 128 GB in 1,031,292 files",
 		"▶ enter", "Check my Mac", "Fresh scan first", "Keys and commands", "How it works", "Explore", "Clean up",
-		"Read-only unless you confirm", "Nothing leaves your Mac", "From the shell", "macdoc doctor scan",
+		"Read-only unless you confirm", "Nothing leaves your Mac", "From the shell", "macdoc scan",
 		"enter start", "s fresh scan", "q quit")
 	if strings.Contains(out, "1 Overview") {
 		t.Error("the welcome screen has no tabs")
@@ -333,11 +333,11 @@ func TestTUIWelcomeActions(t *testing.T) {
 	m = step(t, m, keys("esc")...)
 	mustContain(t, m.View(), "How it works")
 
-	// A view command starts the dashboard on that view; /slow needs results.
+	// A view command starts the dashboard on that view; /vitals needs results.
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
-	m = step(t, m, keys("/", "slow", "enter")...)
+	m = step(t, m, keys("/", "vitals", "enter")...)
 	if m.Intro || m.Tab != 5 || !m.Loading {
-		t.Errorf("/slow from the welcome screen: intro=%v tab=%d loading=%v", m.Intro, m.Tab, m.Loading)
+		t.Errorf("/vitals from the welcome screen: intro=%v tab=%d loading=%v", m.Intro, m.Tab, m.Loading)
 	}
 
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
@@ -388,7 +388,7 @@ func TestTUIPaletteShowsEveryCommand(t *testing.T) {
 	for _, c := range cli.SlashCommands {
 		mustContain(t, out, "/"+c.Name)
 	}
-	if !strings.Contains(out, "/scan") || strings.Index(out, "/scan") > strings.Index(out, "/slow") {
+	if !strings.Contains(out, "/scan") || strings.Index(out, "/scan") > strings.Index(out, "/vitals") {
 		t.Error("/scan should be listed near the top")
 	}
 
@@ -435,7 +435,7 @@ func TestPicker_PreMarksSafeOnly(t *testing.T) {
 	}
 }
 
-// /installed reads the software inventory in the background and shows it in
+// /retire reads the software inventory in the background and shows it in
 // an overlay; esc closes it. Reading is replaced by a fake here.
 func TestTUIInstalledCommand(t *testing.T) {
 	deps := &cli.TuiDeps{Home: "/Users/me",
@@ -483,13 +483,13 @@ func softwareModel(t *testing.T) cli.TuiModel {
 	return step(t, m, tea.WindowSizeMsg{Width: 120, Height: 60}, cli.LoadedMsg{Data: tuiFixture()})
 }
 
-// openInstalled runs /installed and feeds back the inventory it reads. The
+// openInstalled runs /retire and feeds back the inventory it reads. The
 // read comes with a spinner tick in a batch, as the program delivers it.
 func openInstalled(t *testing.T, m cli.TuiModel) cli.TuiModel {
 	t.Helper()
-	next, cmd := m.RunCommand("/installed")
+	next, cmd := m.RunCommand("/retire")
 	if cmd == nil {
-		t.Fatal("/installed should read the inventory")
+		t.Fatal("/retire should read the inventory")
 	}
 	m = next.(cli.TuiModel)
 	msg := cmd()
@@ -566,9 +566,9 @@ func TestTUIInstalledEnterInDetailsStaysInView(t *testing.T) {
 // view doesn't reopen by itself.
 func TestTUIInstalledShowsLoadingState(t *testing.T) {
 	m := softwareModel(t)
-	next, cmd := m.RunCommand("/installed")
+	next, cmd := m.RunCommand("/retire")
 	if cmd == nil {
-		t.Fatal("/installed should start the read")
+		t.Fatal("/retire should start the read")
 	}
 	m = next.(cli.TuiModel)
 	mustContain(t, m.View(), "Reading installed software", "esc closes this view")
@@ -754,5 +754,53 @@ func TestTUILiveStatusWaitsBetweenReadings(t *testing.T) {
 	}
 	if *reads != 1 {
 		t.Errorf("took %d readings, want 1", *reads)
+	}
+}
+
+// The palette lists the new features, and each opens from the / command:
+// /status shows the Health tab's live block, /explore opens the explorer
+// (with an optional folder), /refresh lists the steps with their IDs.
+func TestTUIPaletteOpensTheNewFeatures(t *testing.T) {
+	names := map[string]bool{}
+	for _, c := range cli.SlashCommands {
+		names[c.Name] = true
+	}
+	for _, want := range []string{"vitals", "explore", "retire", "refresh"} {
+		if !names[want] {
+			t.Errorf("/%s is missing from the palette", want)
+		}
+	}
+
+	m, _ := statusModel(t)
+	next, _ := m.RunCommand("/vitals")
+	mustContain(t, next.(cli.TuiModel).View(), "Health")
+
+	em := exploreModel(t)
+	next, _ = em.RunCommand("/explore")
+	mustContain(t, next.(cli.TuiModel).View(), "▸ Caches/", "smaller items")
+	next, _ = em.RunCommand("/explore /Users/me/Caches")
+	mustContain(t, next.(cli.TuiModel).View(), "inner.db")
+
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
+		Maintenance: func(context.Context, *cli.TuiDeps) (engine.OpportunityResult, error) {
+			return engine.OpportunityResult{Opportunities: []model.Opportunity{
+				{ID: "O-dnsaaa", RecipeID: "maintenance.flush_dns", Title: "Flush the DNS cache"}}}, nil
+		}}
+	mm := step(t, cli.NewTUIModel(deps, cli.PlainLayoutTheme()), tea.WindowSizeMsg{Width: 120, Height: 40}, cli.LoadedMsg{Data: tuiFixture()})
+	next, _ = mm.RunCommand("/refresh")
+	mustContain(t, next.(cli.TuiModel).View(), "O-dnsaaa", "Flush the DNS cache", "macdoc apply <id>")
+}
+
+// Before the first check there is nothing to read, so each of the new
+// commands says so instead of opening an empty view.
+func TestTUINewCommandsNeedResults(t *testing.T) {
+	deps := &cli.TuiDeps{Home: "/Users/me"}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	for _, c := range []string{"/explore", "/refresh"} {
+		next, _ := m.RunCommand(c)
+		if f := next.(cli.TuiModel).Flash; !strings.Contains(f, "Check my Mac") && !strings.Contains(f, "Check your Mac") {
+			t.Errorf("%s: flash = %q; want a note to check the Mac first", c, f)
+		}
 	}
 }

@@ -4,8 +4,8 @@ Rules for AI coding agents working in this repository. People should read [CONTR
 
 ## Never, on this machine
 
-- Do not run `macdoc apply`, `macdoc quarantine purge` or `restore`, or any native cleanup command (`brew cleanup`, `docker … prune`, `xcrun simctl delete`, `npm cache clean`, and the like), unless the user asks for it in this session.
-- Read-only commands (`macdoc doctor …` including `doctor explore`, `doctor software`, `doctor status` and `doctor maintenance`, `scan`, `wins`, `slow`, `trend`) are fine to run for real. Listing maintenance steps is read-only; applying one is not.
+- Do not run `macdoc apply` (the one command that plans, confirms and applies) except with `--dry-run` when the user asks, and do not run `macdoc quarantine purge` or `restore`, or any native cleanup command (`brew cleanup`, `docker … prune`, `xcrun simctl delete`, `npm cache clean`, and the like), unless the user asks for it in this session.
+- Read-only commands (`macdoc reclaim`, `retire`, `refresh` (listing only), `explore`, `vitals`, `scan`, and bare `macdoc`) are fine to run for real. Listing maintenance steps is read-only; applying one is not.
 - Executor tests run only under `MACDOC_SANDBOX=<tmpdir>` with fixture trees from `t.TempDir()`. Never point an executor test at a real home directory.
 - Do not commit or push unless the user asks.
 

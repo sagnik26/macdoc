@@ -171,11 +171,11 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/doctor-trend.json",
+  "$id": "https://macdoc.local/schema/explore-growth.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "doctor trend"
+      "const": "explore growth"
     },
     "data": {
       "$ref": "#/$defs/engine.TrendResult"
@@ -185,7 +185,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -203,6 +203,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc doctor trend --json",
+  "title": "macdoc explore growth --json",
   "type": "object"
 }

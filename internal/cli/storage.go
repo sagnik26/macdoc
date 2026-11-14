@@ -35,7 +35,7 @@ func newStorageCmd(g *GlobalFlags) *cobra.Command {
 				return err
 			}
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "storage", res, res.Warnings)
+				return writeJSONWarn(cmd.OutOrStdout(), "reclaim categories", res, res.Warnings)
 			}
 			return RenderStorage(cmd.OutOrStdout(), res, large)
 		},
@@ -50,7 +50,7 @@ func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
-	b.WriteString(t.commandHeader("space", res.Scan.ID, res.ScanAge))
+	b.WriteString(t.commandHeader("reclaim categories", res.Scan.ID, res.ScanAge))
 
 	b.WriteString(" " + t.heading("Reclaimable, by category") + "\n")
 	if len(res.Categories) == 0 {
@@ -82,7 +82,7 @@ func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	}
 	b.WriteString("\n")
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc doctor wins · macdoc doctor dev"))
+	b.WriteString(t.footer("macdoc reclaim · macdoc reclaim"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

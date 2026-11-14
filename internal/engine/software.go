@@ -69,7 +69,7 @@ type SourceState struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// SoftwareResult is the data behind `macdoc doctor software`.
+// SoftwareResult is the data behind `macdoc retire`.
 type SoftwareResult struct {
 	Scan         model.ScanInfo  `json:"scan"`
 	ScanAge      string          `json:"scan_age"`

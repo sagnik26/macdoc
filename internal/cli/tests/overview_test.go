@@ -16,14 +16,14 @@ import (
 
 func TestOverviewCommand(t *testing.T) {
 	cliFixture(t) // fixture store already has a complete scan, so no scan runs
-	for _, args := range [][]string{nil, {"doctor"}} {
+	for _, args := range [][]string{nil} {
 		out, err := run(t, args...)
 		if err != nil {
 			t.Fatalf("%v: %v", args, err)
 		}
 		mustContain(t, out, "scan 2h ago", "What matters most", "Where your space is (Data volume, 100 GB measured)",
 			"Reclaimable", "Free & safe", "npm cache 3.0 GB", "Worth considering", "5 × Stale node_modules folder 15.0 GB",
-			"Your call", "size unknown", "macdoc doctor scan (rescan + full report)", "Nothing has been changed.")
+			"Your call", "size unknown", "macdoc scan (rescan + full report)", "Nothing has been changed.")
 		if strings.Contains(out, "is old. Run") {
 			t.Errorf("%v: 2h-old scan flagged stale", args)
 		}
@@ -32,7 +32,7 @@ func TestOverviewCommand(t *testing.T) {
 
 func TestOverviewJSON(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "--json")
+	out, err := run(t, "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestOverviewJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor" || env.Data.Scan.ID == "" || env.Data.Scanned || len(env.Data.Opportunities.Opportunities) == 0 {
+	if env.Command != "overview" || env.Data.Scan.ID == "" || env.Data.Scanned || len(env.Data.Opportunities.Opportunities) == 0 {
 		t.Errorf("overview JSON = %+v", env.Data)
 	}
 }
@@ -72,20 +72,36 @@ func TestRenderOverviewStaleAndEmpty(t *testing.T) {
 	mustContain(t, buf.String(), "scanned just now", "/Users 1 B")
 }
 
-func TestDoctorSectionsExist(t *testing.T) {
+// The command set is the five commands, scan and apply, with the helpers
+// under "More"; the old doctor and plan commands are gone.
+func TestCommandSet(t *testing.T) {
 	cmd := cli.NewRootCmd()
-	doctor, _, err := cmd.Find([]string{"doctor"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, s := range []string{"health", "space", "wins", "dev", "scan"} {
-		if c, _, err := doctor.Find([]string{s}); err != nil || c == doctor {
-			t.Errorf("section %q missing", s)
+	main := map[string]bool{}
+	more := map[string]bool{}
+	for _, c := range cmd.Commands() {
+		switch c.GroupID {
+		case "main":
+			main[c.Name()] = true
+		case "more":
+			more[c.Name()] = true
 		}
 	}
-	for _, gone := range []string{"wins", "dev", "explain", "scan"} {
+	for _, want := range []string{"reclaim", "retire", "refresh", "explore", "vitals", "scan", "apply"} {
+		if !main[want] {
+			t.Errorf("headline command %q missing", want)
+		}
+	}
+	if len(main) != 7 {
+		t.Errorf("headline commands = %v; want exactly the five, scan and apply", main)
+	}
+	for _, want := range []string{"quarantine", "log", "config", "mcp", "schedule", "version"} {
+		if !more[want] {
+			t.Errorf("%q missing from the More group", want)
+		}
+	}
+	for _, gone := range []string{"doctor", "plan", "wins", "dev", "space", "health", "slow", "trend", "projects", "software", "status", "maintenance"} {
 		if c, _, _ := cmd.Find([]string{gone}); c != cmd {
-			t.Errorf("top-level %q should be gone (it lives under doctor)", gone)
+			t.Errorf("%q should be gone", gone)
 		}
 	}
 }
@@ -98,7 +114,7 @@ func TestDoctorScanFullReport(t *testing.T) {
 	cli.ScanRoot = root
 	t.Cleanup(func() { cli.ScanRoot = old })
 
-	out, err := run(t, "doctor", "scan")
+	out, err := run(t, "scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +127,7 @@ func TestDoctorScanFullReport(t *testing.T) {
 		t.Error("--full no longer exists")
 	}
 
-	out, err = run(t, "doctor", "scan", "--json", "--foreground", "--workers", "2")
+	out, err = run(t, "scan", "--json", "--foreground", "--workers", "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,11 +138,11 @@ func TestDoctorScanFullReport(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor scan" || !env.Data.Overview.Scanned || env.Data.Overview.ScanSummary == nil ||
+	if env.Command != "scan" || !env.Data.Overview.Scanned || env.Data.Overview.ScanSummary == nil ||
 		len(env.Data.Overview.Opportunities.Opportunities) == 0 || len(env.Data.Space.Categories) == 0 || len(env.Data.Dev.Toolchains) == 0 {
 		t.Errorf("full JSON = %+v", env.Data)
 	}
-	for _, gone := range [][]string{{"doctor", "--full"}, {"doctor", "--scan"}, {"--scan"}, {"--no-color"}, {"--verbose"}} {
+	for _, gone := range [][]string{{"--scan"}, {"--no-color"}, {"--verbose"}} {
 		if _, err := run(t, gone...); err == nil {
 			t.Errorf("%v should be rejected (flag removed)", gone)
 		}

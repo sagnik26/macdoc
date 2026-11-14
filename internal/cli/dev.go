@@ -17,7 +17,7 @@ import (
 // toolchainAliases maps short names users are likely to type.
 var toolchainAliases = map[string]string{"brew": "homebrew"}
 
-// DevResult is the data behind `macdoc doctor dev`.
+// DevResult is the data behind `macdoc reclaim`.
 type DevResult struct {
 	Scan       model.ScanInfo          `json:"scan"`
 	ScanAge    string                  `json:"scan_age"`
@@ -45,7 +45,7 @@ func newDevCmd(g *GlobalFlags) *cobra.Command {
 			}
 			dev := BuildDevResult(res, tc)
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "dev", dev, dev.Warnings)
+				return writeJSONWarn(cmd.OutOrStdout(), "reclaim toolchain", dev, dev.Warnings)
 			}
 			return RenderDev(cmd.OutOrStdout(), dev, cat)
 		},
@@ -87,7 +87,7 @@ func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 	d = display(d) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
-	b.WriteString(t.commandHeader("dev", d.Scan.ID, d.ScanAge))
+	b.WriteString(t.commandHeader("reclaim", d.Scan.ID, d.ScanAge))
 	if len(d.Toolchains) == 0 {
 		if d.Toolchain != "" {
 			fmt.Fprintf(&b, " Nothing for %s in the latest scan.\n\n", d.Toolchain)
@@ -101,7 +101,7 @@ func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, d.Warnings)
-	b.WriteString(t.footer("macdoc plan <id…> (a dry run)"))
+	b.WriteString(t.footer("macdoc apply <id…> (shows the plan, then asks you to confirm)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

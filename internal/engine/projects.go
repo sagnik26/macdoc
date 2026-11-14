@@ -11,7 +11,7 @@ import (
 	"github.com/sagnik26/macdoc/internal/store"
 )
 
-// ProjectsResult is the data behind `macdoc doctor projects`.
+// ProjectsResult is the data behind `macdoc explore --projects`.
 type ProjectsResult struct {
 	Scan        model.ScanInfo         `json:"scan"`
 	ScanAge     string                 `json:"scan_age"`

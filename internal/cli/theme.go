@@ -321,12 +321,12 @@ func (t *Theme) pressure(p string) string {
 }
 
 // commandHeader is the first line of a section view, e.g.
-// "macdoc doctor wins · scan S-… · 2 hours ago".
+// "macdoc reclaim · scan S-… · 2 hours ago".
 func (t *Theme) commandHeader(section, scanID, age string) string {
 	if !t.on {
-		return fmt.Sprintf("macdoc doctor %s · scan %s · %s\n\n", section, scanID, age)
+		return fmt.Sprintf("macdoc %s · scan %s · %s\n\n", section, scanID, age)
 	}
-	return t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("doctor "+section)+
+	return t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render(section)+
 		t.muted.Render(" · scan ")+t.ID.Render(scanID)+t.muted.Render(" · "+age)) + "\n"
 }
 

@@ -46,11 +46,11 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/plan-list.json",
+  "$id": "https://macdoc.local/schema/apply-list.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "plan list"
+      "const": "apply list"
     },
     "data": {
       "items": {
@@ -66,7 +66,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -84,6 +84,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc plan list --json",
+  "title": "macdoc apply list --json",
   "type": "object"
 }

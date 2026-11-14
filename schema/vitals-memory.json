@@ -1,6 +1,71 @@
 {
   "$defs": {
-    "engine.StatusResult": {
+    "engine.DoctorResult": {
+      "properties": {
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/engine.Finding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "report": {
+          "$ref": "#/$defs/probe.Report"
+        }
+      },
+      "required": [
+        "findings",
+        "report"
+      ],
+      "type": "object"
+    },
+    "engine.Finding": {
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "title"
+      ],
+      "type": "object"
+    },
+    "engine.SlowGroup": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "dev": {
+          "type": "boolean"
+        },
+        "explain": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rss_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count",
+        "dev",
+        "name",
+        "rss_bytes"
+      ],
+      "type": "object"
+    },
+    "engine.SlowResult": {
       "properties": {
         "alerts": {
           "anyOf": [
@@ -12,47 +77,22 @@
             }
           ]
         },
-        "cpu": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/probe.CPU"
-            },
-            {
-              "type": "null"
-            }
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/engine.SlowGroup"
+          },
+          "type": [
+            "array",
+            "null"
           ]
         },
-        "disk_io": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/probe.DiskIO"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "health": {
+          "$ref": "#/$defs/engine.DoctorResult"
         },
-        "network": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/probe.NetworkRates"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "level": {
+          "type": "string"
         },
-        "power": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/probe.Power"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "reasons": {
+        "notes": {
           "items": {
             "type": "string"
           },
@@ -61,11 +101,23 @@
             "null"
           ]
         },
-        "report": {
-          "$ref": "#/$defs/probe.Report"
+        "summary": {
+          "type": "string"
         },
-        "score": {
-          "type": "integer"
+        "swap_history": {
+          "$ref": "#/$defs/engine.SwapHistory"
+        },
+        "tips": {
+          "items": {
+            "$ref": "#/$defs/engine.SlowTip"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "verdict": {
+          "type": "string"
         },
         "warnings": {
           "items": {
@@ -78,9 +130,65 @@
         }
       },
       "required": [
-        "reasons",
-        "report",
-        "score"
+        "groups",
+        "health",
+        "level",
+        "swap_history",
+        "verdict"
+      ],
+      "type": "object"
+    },
+    "engine.SlowTip": {
+      "properties": {
+        "group": {
+          "type": "string"
+        },
+        "rss_bytes": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "group",
+        "rss_bytes",
+        "text"
+      ],
+      "type": "object"
+    },
+    "engine.SwapHistory": {
+      "properties": {
+        "critical_samples": {
+          "type": "integer"
+        },
+        "days": {
+          "type": "integer"
+        },
+        "low_bytes": {
+          "type": "integer"
+        },
+        "peak_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "peak_bytes": {
+          "type": "integer"
+        },
+        "samples": {
+          "type": "integer"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "critical_samples",
+        "days",
+        "low_bytes",
+        "peak_bytes",
+        "samples"
       ],
       "type": "object"
     },
@@ -121,41 +229,6 @@
       ],
       "type": "object"
     },
-    "probe.CPU": {
-      "properties": {
-        "load_1": {
-          "type": "number"
-        },
-        "load_15": {
-          "type": "number"
-        },
-        "load_5": {
-          "type": "number"
-        },
-        "logical_cores": {
-          "type": "integer"
-        },
-        "system_percent": {
-          "type": "number"
-        },
-        "usage_percent": {
-          "type": "number"
-        },
-        "user_percent": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "load_1",
-        "load_15",
-        "load_5",
-        "logical_cores",
-        "system_percent",
-        "usage_percent",
-        "user_percent"
-      ],
-      "type": "object"
-    },
     "probe.Disk": {
       "properties": {
         "container_free_bytes": {
@@ -186,21 +259,6 @@
         "container_total_bytes",
         "purgeable_bytes",
         "volumes"
-      ],
-      "type": "object"
-    },
-    "probe.DiskIO": {
-      "properties": {
-        "mb_per_sec": {
-          "type": "number"
-        },
-        "transfers_per_sec": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "mb_per_sec",
-        "transfers_per_sec"
       ],
       "type": "object"
     },
@@ -271,60 +329,6 @@
         "pressure",
         "total_bytes",
         "wired_bytes"
-      ],
-      "type": "object"
-    },
-    "probe.NetworkRates": {
-      "properties": {
-        "in_bytes_per_sec": {
-          "type": "number"
-        },
-        "out_bytes_per_sec": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "in_bytes_per_sec",
-        "out_bytes_per_sec"
-      ],
-      "type": "object"
-    },
-    "probe.Power": {
-      "properties": {
-        "cycle_count": {
-          "type": "integer"
-        },
-        "health_percent": {
-          "type": "integer"
-        },
-        "on_battery": {
-          "type": "boolean"
-        },
-        "percent": {
-          "type": "integer"
-        },
-        "present": {
-          "type": "boolean"
-        },
-        "remaining": {
-          "type": "string"
-        },
-        "state": {
-          "type": "string"
-        },
-        "temperature_c": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "cycle_count",
-        "health_percent",
-        "on_battery",
-        "percent",
-        "present",
-        "remaining",
-        "state",
-        "temperature_c"
       ],
       "type": "object"
     },
@@ -516,21 +520,21 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/doctor-status.json",
+  "$id": "https://macdoc.local/schema/vitals-memory.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "doctor status"
+      "const": "vitals memory"
     },
     "data": {
-      "$ref": "#/$defs/engine.StatusResult"
+      "$ref": "#/$defs/engine.SlowResult"
     },
     "generated_at": {
       "format": "date-time",
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -548,6 +552,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc doctor status --json",
+  "title": "macdoc vitals memory --json",
   "type": "object"
 }

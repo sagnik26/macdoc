@@ -14,7 +14,7 @@ import (
 // the scan kept no detail on it says so instead of inventing a size.
 func TestDoctorExploreText(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "explore", "/definitely/not/in/the/scan")
+	out, err := run(t, "explore", "/definitely/not/in/the/scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestDoctorExploreText(t *testing.T) {
 // folder the scan didn't measure.
 func TestDoctorExploreJSON(t *testing.T) {
 	cliFixture(t)
-	out, err := run(t, "doctor", "explore", "/definitely/not/in/the/scan", "--json")
+	out, err := run(t, "explore", "/definitely/not/in/the/scan", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestDoctorExploreJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "doctor explore" || env.Data.Status != "unavailable" || env.Data.Bytes != nil {
+	if env.Command != "explore" || env.Data.Status != "unavailable" || env.Data.Bytes != nil {
 		t.Errorf("envelope = %+v", env)
 	}
 	if !strings.Contains(out, `"entries": [`) || !strings.Contains(out, `"largest_files": [`) {
@@ -47,7 +47,7 @@ func TestDoctorExploreJSON(t *testing.T) {
 // A relative path is refused: the path is only for looking, and must be clear.
 func TestDoctorExploreRefusesARelativePath(t *testing.T) {
 	cliFixture(t)
-	if _, err := run(t, "doctor", "explore", "relative/dir"); err == nil {
+	if _, err := run(t, "explore", "relative/dir"); err == nil {
 		t.Error("a relative path should be refused")
 	}
 }
@@ -56,7 +56,7 @@ func TestDoctorExploreNeedsAScan(t *testing.T) {
 	empty := t.TempDir()
 	cliFixture(t)
 	cli.UserHome = func() (string, error) { return empty, nil }
-	if _, err := run(t, "doctor", "explore"); !errors.Is(err, engine.ErrNoScan) {
+	if _, err := run(t, "explore"); !errors.Is(err, engine.ErrNoScan) {
 		t.Errorf("err = %v, want ErrNoScan", err)
 	}
 }

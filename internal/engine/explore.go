@@ -39,7 +39,7 @@ type ExploreEntry struct {
 	Share float64 `json:"share"`          // of the folder's bytes, 0 to 1
 }
 
-// ExploreResult is the data behind `macdoc doctor explore` and the dashboard's
+// ExploreResult is the data behind `macdoc explore` and the dashboard's
 // explorer. It is read from the latest scan only; nothing is measured again.
 type ExploreResult struct {
 	Scan    model.ScanInfo `json:"scan"`

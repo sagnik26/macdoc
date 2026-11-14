@@ -26,7 +26,7 @@ const minWatchInterval = time.Second
 // meterWidth is the width of the bars in the status view.
 const meterWidth = 20
 
-// newStatusCmd builds `macdoc doctor status`: what the Mac is doing now.
+// newStatusCmd builds `macdoc vitals`: what the Mac is doing now.
 // Read-only. With --watch it streams a snapshot every --interval until
 // interrupted, as newline-delimited JSON with --json.
 func newStatusCmd(g *GlobalFlags) *cobra.Command {
@@ -85,11 +85,11 @@ func writeStatus(w io.Writer, asJSON bool, res engine.StatusResult, stream bool)
 		return RenderStatus(w, res)
 	}
 	if !stream {
-		return writeJSONWarn(w, "doctor status", res, res.Warnings)
+		return writeJSONWarn(w, "vitals", res, res.Warnings)
 	}
 	return json.NewEncoder(w).Encode(model.Envelope{
 		SchemaVersion: model.SchemaVersion,
-		Command:       "doctor status",
+		Command:       "vitals",
 		GeneratedAt:   time.Now().UTC(),
 		Data:          res,
 		Warnings:      res.Warnings,

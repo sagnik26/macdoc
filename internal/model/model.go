@@ -6,7 +6,7 @@ package model
 import "time"
 
 // SchemaVersion is the version of every JSON document macdoc emits.
-const SchemaVersion = "2"
+const SchemaVersion = "3"
 
 // Risk is the safety class of an opportunity (docs/SAFETY_MODEL.md §2).
 type Risk string

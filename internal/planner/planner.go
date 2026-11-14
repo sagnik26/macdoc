@@ -80,7 +80,7 @@ func Parse(args []string) ([]string, error) {
 		}
 		id, ok := Normalize(a)
 		if !ok {
-			return nil, fmt.Errorf("%q isn't a suggestion ID (they look like O-ab12cd; see macdoc doctor wins)", a)
+			return nil, fmt.Errorf("%q isn't a suggestion ID (they look like O-ab12cd; see macdoc reclaim)", a)
 		}
 		if !seen[id] {
 			seen[id] = true
@@ -114,7 +114,7 @@ type Refusal struct {
 }
 
 // ReasonNotInScan is the refusal for an ID the latest scan doesn't have.
-const ReasonNotInScan = "not in the latest scan (IDs change after each scan; see macdoc doctor wins)"
+const ReasonNotInScan = "not in the latest scan (IDs change after each scan; see macdoc reclaim)"
 
 // ReasonExcluded is the refusal for an item whose recipe is excluded in settings.
 const ReasonExcluded = "excluded in your settings"
@@ -145,7 +145,7 @@ func Build(in Input, sel Selector) (model.Plan, []Refusal, error) {
 		in.Origin = model.OriginCLI
 	}
 	if age := in.Now.Sub(in.ScanFinished); age > Oldest {
-		return model.Plan{}, nil, fmt.Errorf(`%w (%d hours); run "macdoc doctor scan" first`, ErrStaleScan, int(age.Hours()))
+		return model.Plan{}, nil, fmt.Errorf(`%w (%d hours); run "macdoc scan" first`, ErrStaleScan, int(age.Hours()))
 	}
 	picked, refused := choose(in.Opportunities, sel, in.Excluded)
 

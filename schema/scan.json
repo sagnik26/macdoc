@@ -1,5 +1,93 @@
 {
   "$defs": {
+    "cli.DevResult": {
+      "properties": {
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "toolchain": {
+          "type": "string"
+        },
+        "toolchains": {
+          "items": {
+            "$ref": "#/$defs/engine.ToolchainTotal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "scan",
+        "scan_age",
+        "toolchains"
+      ],
+      "type": "object"
+    },
+    "cli.FullResult": {
+      "properties": {
+        "dev": {
+          "$ref": "#/$defs/cli.DevResult"
+        },
+        "overview": {
+          "$ref": "#/$defs/engine.OverviewResult"
+        },
+        "space": {
+          "$ref": "#/$defs/engine.StorageResult"
+        }
+      },
+      "required": [
+        "dev",
+        "overview",
+        "space"
+      ],
+      "type": "object"
+    },
+    "engine.CategoryTotal": {
+      "properties": {
+        "by_risk": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "category": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "unknown_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "by_risk",
+        "bytes",
+        "category",
+        "count"
+      ],
+      "type": "object"
+    },
     "engine.DoctorResult": {
       "properties": {
         "findings": {
@@ -272,6 +360,103 @@
         "owned_bytes",
         "programs",
         "scan_id"
+      ],
+      "type": "object"
+    },
+    "engine.StorageResult": {
+      "properties": {
+        "categories": {
+          "items": {
+            "$ref": "#/$defs/engine.CategoryTotal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "large": {
+          "items": {
+            "$ref": "#/$defs/model.Node"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "scan": {
+          "$ref": "#/$defs/model.ScanInfo"
+        },
+        "scan_age": {
+          "type": "string"
+        },
+        "system_data": {
+          "items": {
+            "$ref": "#/$defs/engine.SystemDataPart"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "categories",
+        "scan",
+        "scan_age",
+        "system_data"
+      ],
+      "type": "object"
+    },
+    "engine.SystemDataPart": {
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/model.Bytes"
+        },
+        "explain": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "explain",
+        "name"
+      ],
+      "type": "object"
+    },
+    "engine.ToolchainTotal": {
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "opportunities": {
+          "items": {
+            "$ref": "#/$defs/model.Opportunity"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "opportunities",
+        "toolchain"
       ],
       "type": "object"
     },
@@ -738,21 +923,21 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/doctor.json",
+  "$id": "https://macdoc.local/schema/scan.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "doctor"
+      "const": "scan"
     },
     "data": {
-      "$ref": "#/$defs/engine.OverviewResult"
+      "$ref": "#/$defs/cli.FullResult"
     },
     "generated_at": {
       "format": "date-time",
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -770,6 +955,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc doctor --json",
+  "title": "macdoc scan --json",
   "type": "object"
 }

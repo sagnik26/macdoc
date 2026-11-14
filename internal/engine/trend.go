@@ -51,7 +51,7 @@ type TrendFolder struct {
 	Change Range  `json:"change"`
 }
 
-// TrendResult is the data behind `macdoc doctor trend`.
+// TrendResult is the data behind `macdoc explore --growth`.
 type TrendResult struct {
 	From      model.ScanInfo `json:"from"`
 	To        model.ScanInfo `json:"to"`

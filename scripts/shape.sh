@@ -13,13 +13,13 @@
 # folder, so it never writes to macdoc's state.
 #
 # To also record the cost of a fresh scan, run it under time first:
-#   /usr/bin/time -l macdoc doctor scan > /dev/null
+#   /usr/bin/time -l macdoc scan > /dev/null
 # and add the "maximum resident set size" and "real" lines to what you share.
 set -euo pipefail
 
 db=${1:-"$HOME/Library/Application Support/macdoc/state.db"}
 if [ ! -f "$db" ]; then
-	echo "scanshape: no database at $db (run 'macdoc doctor scan' first)" >&2
+	echo "scanshape: no database at $db (run 'macdoc scan' first)" >&2
 	exit 1
 fi
 command -v sqlite3 >/dev/null || { echo "scanshape: sqlite3 is required" >&2; exit 1; }

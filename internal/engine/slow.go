@@ -38,7 +38,7 @@ type SwapHistory struct {
 	Critical int       `json:"critical_samples"` // samples with critical pressure
 }
 
-// SlowResult is the data behind `macdoc doctor slow`. It only explains; it
+// SlowResult is the data behind `macdoc vitals --memory`. It only explains; it
 // never acts on a process.
 type SlowResult struct {
 	Health  DoctorResult `json:"health"`

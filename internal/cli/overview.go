@@ -25,18 +25,18 @@ const overviewTopLevel = 5
 const overviewPerTier = 3
 
 // ScanRoot overrides the scan root; tests point it at a fixture tree so
-// `doctor scan` never crawls the real disk. Empty means the Data volume.
+// `macdoc scan` never crawls the real disk. Empty means the Data volume.
 var ScanRoot = ""
 
 // overviewMode selects the short overview or the full report.
 type overviewMode struct {
-	full       bool // every section (macdoc doctor scan)
+	full       bool // every section (macdoc scan)
 	rescan     bool // scan first
 	foreground bool // scan at normal priority
 	workers    int
 }
 
-// runOverview runs `macdoc` / `macdoc doctor` (short) and `macdoc doctor scan`
+// runOverview runs `macdoc` / `macdoc` (short) and `macdoc scan`
 // (rescan + full report).
 func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	home, err := UserHome()
@@ -80,7 +80,7 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	}
 	if !m.full {
 		if g.json {
-			return writeJSONWarn(cmd.OutOrStdout(), "doctor", res, res.Warnings)
+			return writeJSONWarn(cmd.OutOrStdout(), "overview", res, res.Warnings)
 		}
 		return RenderOverview(cmd.OutOrStdout(), res, cat)
 	}
@@ -96,12 +96,12 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	}
 	dev := BuildDevResult(res.Opportunities, "")
 	if g.json {
-		return writeJSONWarn(cmd.OutOrStdout(), "doctor scan", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
+		return writeJSONWarn(cmd.OutOrStdout(), "scan", FullResult{Overview: res, Space: space, Dev: dev}, res.Warnings)
 	}
 	return RenderFull(cmd.OutOrStdout(), res, space, dev, cat)
 }
 
-// FullResult is the `macdoc doctor scan --json` document.
+// FullResult is the `macdoc scan --json` document.
 type FullResult struct {
 	Overview engine.OverviewResult `json:"overview"`
 	Space    engine.StorageResult  `json:"space"`
@@ -160,7 +160,7 @@ func Background(lower func() error, w io.Writer) func(engine.OverviewStep) {
 	}
 }
 
-// RenderOverview writes the short `macdoc doctor` summary.
+// RenderOverview writes the short `macdoc` summary.
 func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
@@ -229,25 +229,25 @@ func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 		}
 	}
 	if res.ScanStale {
-		fmt.Fprintf(&b, "\n%s the scan is %s old. Run `macdoc doctor scan` to refresh.\n", t.warn.Render("Note:"), strings.TrimSuffix(res.ScanAge, " ago"))
+		fmt.Fprintf(&b, "\n%s the scan is %s old. Run `macdoc scan` to refresh.\n", t.warn.Render("Note:"), strings.TrimSuffix(res.ScanAge, " ago"))
 	}
 	if n := len(res.Warnings); n > 0 {
-		fmt.Fprintln(&b, t.muted.Render(fmt.Sprintf("\n%d note(s) about skipped items: macdoc doctor wins", n)))
+		fmt.Fprintln(&b, t.muted.Render(fmt.Sprintf("\n%d note(s) about skipped items: macdoc reclaim", n)))
 	}
 	if sw := res.Software; sw != nil {
 		line := "\nSoftware: " + sw.Headline
 		if len(sw.NewNames) > 0 {
 			line += fmt.Sprintf(" · %d new since the last scan", len(sw.NewNames))
 		}
-		b.WriteString(line + " (macdoc doctor software)\n")
+		b.WriteString(line + " (macdoc retire)\n")
 	}
 	switch {
 	case t.on:
-		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc doctor scan") + t.muted.Render(" (rescan + full report) · ") +
+		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc scan") + t.muted.Render(" (rescan + full report) · ") +
 			t.accent.Render("wins") + t.muted.Render(" (every item + ID) · ") +
 			t.accent.Render("space") + t.muted.Render(" · ") + t.accent.Render("health") + "\n")
 	default:
-		b.WriteString("\nMore: macdoc doctor scan (rescan + full report) · wins (every item + ID) · space · health\n")
+		b.WriteString("\nMore: macdoc scan (rescan + full report) · wins (every item + ID) · space · health\n")
 	}
 	b.WriteString(t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())

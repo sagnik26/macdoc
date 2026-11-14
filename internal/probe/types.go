@@ -80,7 +80,7 @@ type Snapshots struct {
 	Names []string `json:"names"` // e.g. "com.apple.TimeMachine.2026-10-27-101500.local"
 }
 
-// Report is everything `macdoc doctor` shows. A collector that fails leaves
+// Report is everything `macdoc` shows. A collector that fails leaves
 // its section zero-valued and appends a human-readable warning; it never
 // aborts the whole report.
 type Report struct {

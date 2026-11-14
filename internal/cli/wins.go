@@ -67,7 +67,7 @@ func newWinsCmd(g *GlobalFlags) *cobra.Command {
 				res = filterTier(res, risk)
 			}
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "wins", res, res.Warnings)
+				return writeJSONWarn(cmd.OutOrStdout(), "reclaim", res, res.Warnings)
 			}
 			return RenderWins(cmd.OutOrStdout(), res, cat, all, risk)
 		},
@@ -109,7 +109,7 @@ func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
-	b.WriteString(t.commandHeader("wins", res.Scan.ID, res.ScanAge))
+	b.WriteString(t.commandHeader("reclaim", res.Scan.ID, res.ScanAge))
 	if len(res.Opportunities) == 0 {
 		if only != "" {
 			fmt.Fprintf(&b, " Nothing in %q in the latest scan.\n", tierNames[only])
@@ -132,7 +132,7 @@ func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc plan <id…> (a dry run)"))
+	b.WriteString(t.footer("macdoc apply <id…> (shows the plan, then asks you to confirm)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }
@@ -176,7 +176,7 @@ func writeOpportunities(b *strings.Builder, t *Theme, ops []model.Opportunity, c
 			}
 			grouped[op.RecipeID] = true
 			title := fmt.Sprintf("%d × %s · %s", count[op.RecipeID], RecipeTitle(cat, op.RecipeID), engine.DecimalBytes(sum[op.RecipeID]))
-			fmt.Fprintf(b, "  %-8s  %8s  %s  %s\n", "", "", t.text.Render(fmt.Sprintf("%-44s", title)), t.muted.Render("(macdoc doctor wins --all)"))
+			fmt.Fprintf(b, "  %-8s  %8s  %s  %s\n", "", "", t.text.Render(fmt.Sprintf("%-44s", title)), t.muted.Render("(macdoc reclaim --all)"))
 			continue
 		}
 		writeOpportunity(b, t, op)

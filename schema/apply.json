@@ -1,30 +1,24 @@
 {
   "$defs": {
-    "engine.OpportunityResult": {
+    "engine.PlanResult": {
       "properties": {
-        "opportunities": {
+        "plan": {
+          "$ref": "#/$defs/model.Plan"
+        },
+        "refused": {
           "items": {
-            "$ref": "#/$defs/model.Opportunity"
+            "$ref": "#/$defs/planner.Refusal"
           },
           "type": [
             "array",
             "null"
           ]
         },
-        "scan": {
-          "$ref": "#/$defs/model.ScanInfo"
+        "snapshots": {
+          "$ref": "#/$defs/engine.SnapshotNote"
         },
-        "scan_age": {
+        "status": {
           "type": "string"
-        },
-        "totals": {
-          "additionalProperties": {
-            "type": "integer"
-          },
-          "type": [
-            "object",
-            "null"
-          ]
         },
         "warnings": {
           "items": {
@@ -37,74 +31,138 @@
         }
       },
       "required": [
-        "opportunities",
-        "scan",
-        "scan_age",
-        "totals"
+        "plan",
+        "refused",
+        "snapshots",
+        "status"
       ],
       "type": "object"
     },
-    "model.Bytes": {
+    "engine.SnapshotNote": {
       "properties": {
-        "reason": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        },
-        "value": {
+        "count": {
           "type": "integer"
         }
       },
       "required": [
-        "source",
-        "value"
+        "count"
       ],
       "type": "object"
     },
-    "model.Opportunity": {
+    "model.Fingerprint": {
       "properties": {
-        "bytes": {
-          "$ref": "#/$defs/model.Bytes"
+        "alloc_bytes": {
+          "type": "integer"
         },
-        "category": {
+        "dev": {
+          "type": "integer"
+        },
+        "ino": {
+          "type": "integer"
+        },
+        "mtime_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "alloc_bytes",
+        "dev",
+        "ino",
+        "mtime_ns"
+      ],
+      "type": "object"
+    },
+    "model.Plan": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
           "type": "string"
         },
-        "command": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "confidence": {
-          "type": "number"
-        },
-        "dry_run": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "explain": {
+        "expires_at": {
+          "format": "date-time",
           "type": "string"
         },
         "id": {
           "type": "string"
         },
-        "idle_days": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/model.PlanItem"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        },
+        "scan_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "total_bytes": {
           "type": "integer"
+        }
+      },
+      "required": [
+        "created_at",
+        "expires_at",
+        "id",
+        "items",
+        "origin",
+        "request",
+        "scan_id",
+        "schema_version",
+        "total_bytes"
+      ],
+      "type": "object"
+    },
+    "model.PlanItem": {
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "bytes_source": {
+          "type": "string"
+        },
+        "expected_bytes": {
+          "type": "integer"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/model.Fingerprint"
         },
         "method": {
           "type": "string"
         },
-        "note": {
+        "opportunity_id": {
           "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "privileged": {
+          "type": "boolean"
         },
         "recipe_id": {
           "type": "string"
@@ -118,43 +176,24 @@
         "risk_reason": {
           "type": "string"
         },
-        "scan_id": {
-          "type": "string"
-        },
-        "steps": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
         "target": {
           "type": "string"
         },
         "title": {
           "type": "string"
-        },
-        "toolchain": {
-          "type": "string"
         }
       },
       "required": [
-        "bytes",
-        "category",
-        "confidence",
-        "explain",
-        "id",
-        "idle_days",
+        "bytes_source",
+        "expected_bytes",
+        "fingerprint",
         "method",
+        "opportunity_id",
         "recipe_id",
         "restore",
         "risk",
-        "scan_id",
         "target",
-        "title",
-        "toolchain"
+        "title"
       ],
       "type": "object"
     },
@@ -175,67 +214,40 @@
       ],
       "type": "object"
     },
-    "model.ScanInfo": {
+    "planner.Refusal": {
       "properties": {
-        "finished_at": {
-          "format": "date-time",
-          "type": "string"
-        },
         "id": {
           "type": "string"
         },
-        "macdoc_version": {
+        "reason": {
           "type": "string"
         },
-        "root": {
+        "title": {
           "type": "string"
-        },
-        "started_at": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        },
-        "total_bytes": {
-          "type": "integer"
-        },
-        "total_files": {
-          "type": "integer"
-        },
-        "unmeasured_count": {
-          "type": "integer"
         }
       },
       "required": [
-        "finished_at",
         "id",
-        "macdoc_version",
-        "root",
-        "started_at",
-        "status",
-        "total_bytes",
-        "total_files",
-        "unmeasured_count"
+        "reason"
       ],
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/doctor-maintenance.json",
+  "$id": "https://macdoc.local/schema/apply.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "doctor maintenance"
+      "const": "apply"
     },
     "data": {
-      "$ref": "#/$defs/engine.OpportunityResult"
+      "$ref": "#/$defs/engine.PlanResult"
     },
     "generated_at": {
       "format": "date-time",
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -253,6 +265,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc doctor maintenance --json",
+  "title": "macdoc apply --json",
   "type": "object"
 }

@@ -45,7 +45,7 @@ type Recipe struct {
 	// executor's one privileged function ever runs it (ADR 0009).
 	Privileged bool `yaml:"privileged"`
 	// OnRequest keeps the recipe out of the usual suggestions. It is listed by
-	// `macdoc doctor maintenance` and can be planned by ID, because a
+	// `macdoc refresh` and can be planned by ID, because a
 	// maintenance step is something a person asks for, not space to reclaim.
 	OnRequest bool `yaml:"on_request"`
 

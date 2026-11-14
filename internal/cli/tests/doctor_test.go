@@ -67,12 +67,12 @@ func TestRenderDoctorUnmeasured(t *testing.T) {
 	}
 }
 
-func TestDoctorHealthJSON(t *testing.T) {
+func TestVitalsJSONWarnsWhenProbesFail(t *testing.T) {
 	old := cli.Runner
 	cli.Runner = &platform.Fake{} // every command errors -> warnings, never a failure
 	t.Cleanup(func() { cli.Runner = old })
 
-	for _, args := range [][]string{{"doctor", "health", "--json"}} {
+	for _, args := range [][]string{{"vitals", "--json"}} {
 		cmd := cli.NewRootCmd()
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
@@ -83,12 +83,12 @@ func TestDoctorHealthJSON(t *testing.T) {
 		var env struct {
 			SchemaVersion string              `json:"schema_version"`
 			Command       string              `json:"command"`
-			Data          engine.DoctorResult `json:"data"`
+			Data          engine.StatusResult `json:"data"`
 		}
 		if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 			t.Fatalf("%v: bad JSON: %v\n%s", args, err, buf.String())
 		}
-		if env.SchemaVersion != model.SchemaVersion || env.Command != "doctor health" {
+		if env.SchemaVersion != model.SchemaVersion || env.Command != "vitals" {
 			t.Errorf("%v: envelope = %+v", args, env)
 		}
 		if len(env.Data.Report.Warnings) == 0 {

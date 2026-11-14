@@ -27,7 +27,7 @@ type PlanOptions struct {
 	Precomputed *OpportunityResult
 }
 
-// PlanResult is the data behind `macdoc plan`.
+// PlanResult is the data behind `macdoc apply --dry-run`.
 type PlanResult struct {
 	Plan     model.Plan        `json:"plan"`
 	Status   planner.Status    `json:"status"`

@@ -48,7 +48,7 @@ type OpportunityOptions struct {
 	KeepExcluded bool
 }
 
-// OpportunityResult is the data behind `macdoc doctor wins`, `doctor dev` and `doctor explain`.
+// OpportunityResult is the data behind `macdoc reclaim`, `doctor dev` and `doctor explain`.
 type OpportunityResult struct {
 	Scan          model.ScanInfo       `json:"scan"`
 	ScanAge       string               `json:"scan_age"`      // e.g. "2h ago"
@@ -58,7 +58,7 @@ type OpportunityResult struct {
 }
 
 // ErrNoScan is returned when there is no complete scan to work from.
-var ErrNoScan = errors.New(`no scan yet. Run "macdoc doctor" (it scans automatically) or "macdoc doctor scan"`)
+var ErrNoScan = errors.New(`no scan yet. Run "macdoc" (it scans automatically) or "macdoc scan"`)
 
 // Tunables; variables so tests can shorten them.
 var (
@@ -124,7 +124,7 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	age := o.Now.Sub(scanTime(info))
 	res.ScanAge = FormatAge(age)
 	if age > staleScanAge {
-		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc doctor scan" to refresh`, int(age.Hours())))
+		res.Warnings = append(res.Warnings, fmt.Sprintf(`results are from a scan %d hours old; run "macdoc scan" to refresh`, int(age.Hours())))
 	}
 
 	nodes := NewScanNodes(st, info.ID)

@@ -21,7 +21,7 @@ func TestRenderProjects(t *testing.T) {
 	if err := cli.RenderProjects(&buf, cli.FilterProjects(sampleProjects(), 0), "/Users/me", 0); err != nil {
 		t.Fatal(err)
 	}
-	want := `macdoc doctor projects · scan S-TEST · 2h ago
+	want := `macdoc explore projects · scan S-TEST · 2h ago
 
  Projects ────────────────────────────────────────────────── 802 MB in 2
   ~/code/app
@@ -35,7 +35,7 @@ func TestRenderProjects(t *testing.T) {
  DerivedData of deleted projects ──────────────────────────────── 900 MB
      900 MB  ~/old/Gone.xcodeproj
 
- macdoc doctor wins · nothing has been changed
+ macdoc reclaim · nothing has been changed
 `
 	if got := buf.String(); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)

@@ -1,5 +1,5 @@
 # Maintenance steps: refresh a cache or restart a helper. They free no
-# measurable space, so they are only listed by `macdoc doctor maintenance`
+# measurable space, so they are only listed by `macdoc refresh`
 # (on_request) and are planned by ID like anything else. A privileged step
 # runs through the system's password prompt in Terminal (ADR 0009); each
 # command is pinned to the exact allow-list in internal/recipes/load.go.

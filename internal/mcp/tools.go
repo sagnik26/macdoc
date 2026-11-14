@@ -122,7 +122,7 @@ func FullDiskAccessWarning(unmeasured int) string {
 	return fmt.Sprintf("Full Disk Access is missing: macOS blocked %d places from this scan, so their sizes are unknown, not zero. "+
 		"The app running macdoc's tools (for example Claude) probably doesn't have Full Disk Access. "+
 		"To fix it: open System Settings › Privacy & Security › Full Disk Access, turn that app on, restart it, then call refresh_scan. "+
-		"Or ask the user to run macdoc doctor scan in Terminal, if Terminal has Full Disk Access.", unmeasured)
+		"Or ask the user to run macdoc scan in Terminal, if Terminal has Full Disk Access.", unmeasured)
 }
 
 func (s *Server) overview(ctx context.Context, _ *sdk.CallToolRequest, _ noInput) (*sdk.CallToolResult, any, error) {
@@ -134,12 +134,12 @@ func (s *Server) overview(ctx context.Context, _ *sdk.CallToolRequest, _ noInput
 		out["scan"], out["scan_age"] = info, age
 		if info.UnmeasuredCount > 0 {
 			out["scan_visibility"] = fmt.Sprintf("%d places couldn't be read in this scan: their sizes are unknown, not zero. "+
-				"A scan the user runs in Terminal (macdoc doctor scan, with Full Disk Access) usually sees more than one started from Claude.", info.UnmeasuredCount)
+				"A scan the user runs in Terminal (macdoc scan, with Full Disk Access) usually sees more than one started from Claude.", info.UnmeasuredCount)
 			warnings = append(warnings, FullDiskAccessWarning(info.UnmeasuredCount))
 		}
 	case errors.Is(err, store.ErrNoScan):
 		out["scan"] = nil
-		out["scan_age"] = "no scan yet: call refresh_scan, or ask the user to run macdoc doctor in Terminal (better: it has Full Disk Access)"
+		out["scan_age"] = "no scan yet: call refresh_scan, or ask the user to run macdoc in Terminal (better: it has Full Disk Access)"
 	default:
 		return toolError(err)
 	}
@@ -314,7 +314,7 @@ func SawLess(prev, cur model.ScanInfo) string {
 	}
 	return fmt.Sprintf("This scan saw less than the one before it: %s measured (before: %s), %d places it couldn't read (before: %d). "+
 		"A scan started from Claude has the Claude app's file permissions, which usually don't include Full Disk Access. "+
-		"Suggestions now come from this scan. For complete results, ask the user to run macdoc doctor scan in Terminal; these tools then read that scan.",
+		"Suggestions now come from this scan. For complete results, ask the user to run macdoc scan in Terminal; these tools then read that scan.",
 		engine.DecimalBytes(cur.TotalBytes), engine.DecimalBytes(prev.TotalBytes), cur.UnmeasuredCount, prev.UnmeasuredCount)
 }
 
@@ -363,10 +363,10 @@ func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in plan
 			when = "the latest scan is from " + a + ","
 		}
 		return toolError(fmt.Errorf("%s older than the %d hours a plan allows (max_age), so its IDs can't be planned. "+
-			"Call refresh_scan, or better ask the user to run macdoc doctor scan in Terminal, then call list_opportunities again: IDs change with every scan",
+			"Call refresh_scan, or better ask the user to run macdoc scan in Terminal, then call list_opportunities again: IDs change with every scan",
 			when, int(planner.Oldest.Hours())))
 	case errors.Is(err, engine.ErrNoScan):
-		return toolError(fmt.Errorf("%w: call refresh_scan, or ask the user to run macdoc doctor scan in Terminal, then list_opportunities", err))
+		return toolError(fmt.Errorf("%w: call refresh_scan, or ask the user to run macdoc scan in Terminal, then list_opportunities", err))
 	case err != nil:
 		return toolError(err)
 	}

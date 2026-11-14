@@ -18,7 +18,7 @@ func newTrendCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "trend",
 		Short: "What grew between scans: per area and the fastest-growing folders (read-only)",
-		Long: `macdoc doctor trend compares the latest scan with one from about --days ago
+		Long: `macdoc explore --growth compares the latest scan with one from about --days ago
 (or the oldest macdoc kept) and shows what grew: per area (Xcode, Gradle,
 Docker, …) and the folders that grew the most. It reads macdoc's stored scans
 only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
@@ -34,14 +34,14 @@ only. macdoc keeps the 10 newest scans plus one per week for 13 weeks.`,
 			res, err := engine.Trend(engine.TrendOptions{Home: home, Days: days})
 			switch {
 			case errors.Is(err, store.ErrNoScan):
-				return errors.New("no scan yet: run macdoc doctor scan, then again in a few days")
+				return errors.New("no scan yet: run macdoc scan, then again in a few days")
 			case errors.Is(err, engine.ErrNoHistory):
-				return errors.New("only one scan so far: trends need two. Run macdoc doctor scan again in a few days")
+				return errors.New("only one scan so far: trends need two. Run macdoc scan again in a few days")
 			case err != nil:
 				return err
 			}
 			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "doctor trend", res)
+				return writeJSON(cmd.OutOrStdout(), "explore growth", res)
 			}
 			return RenderTrend(cmd.OutOrStdout(), res, home)
 		},
@@ -57,9 +57,9 @@ func RenderTrend(w io.Writer, res engine.TrendResult, home string) error {
 	t := themeFor(w)
 	span := fmt.Sprintf("%s → %s", res.From.StartedAt.Local().Format("2 Jan 15:04"), res.To.StartedAt.Local().Format("2 Jan 15:04"))
 	if !t.on {
-		fmt.Fprintf(&b, "macdoc doctor trend · %s\n\n", span)
+		fmt.Fprintf(&b, "macdoc explore growth · %s\n\n", span)
 	} else {
-		b.WriteString(t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("doctor trend")+t.muted.Render(" · "+span)) + "\n")
+		b.WriteString(t.Card(t.brand.Render("◆ macdoc")+" "+t.Title.Render("explore growth")+t.muted.Render(" · "+span)) + "\n")
 	}
 	floor := engine.DecimalBytes(res.KeptFloor)
 
@@ -90,7 +90,7 @@ func RenderTrend(w io.Writer, res engine.TrendResult, home string) error {
 
 	fmt.Fprintf(&b, "\n %s\n", t.Wrap(t.faint.Render(fmt.Sprintf(
 		"Scans store folders of %s or more. A folder missing from a scan was smaller than that, so its size is shown as \"<%s\" and changes involving it as a lower bound (\"or more\").", floor, floor)), 1))
-	b.WriteString(t.footer("macdoc doctor wins"))
+	b.WriteString(t.footer("macdoc reclaim"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

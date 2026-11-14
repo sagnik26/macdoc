@@ -53,8 +53,10 @@ type slashCommand struct {
 var SlashCommands = []slashCommand{
 	{"overview", "", "health, space and reclaimable at a glance"},
 	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
-	{"slow", "", "why it feels slow: memory, swap and what uses it"},
-	{"installed", "", "installed software, its data folders and cleanups"},
+	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
+	{"explore", "[folder]", "where the space is inside a folder, from the last scan"},
+	{"retire", "", "installed software, its data folders and cleanups"},
+	{"refresh", "", "maintenance steps you can apply, such as flushing DNS"},
 	{"help", "", "keys and commands"},
 	{"quit", "", "leave macdoc"},
 }
@@ -126,6 +128,8 @@ type TuiDeps struct {
 	Software func(ctx context.Context, d *TuiDeps) (engine.SoftwareResult, error)
 	// Explore reads a folder of the latest scan for the explorer; nil uses the engine.
 	Explore func(ctx context.Context, d *TuiDeps, path string) (engine.ExploreResult, error)
+	// Maintenance lists the maintenance steps; nil uses the engine.
+	Maintenance func(ctx context.Context, d *TuiDeps) (engine.OpportunityResult, error)
 	// Status takes a live reading for the Health tab; nil uses the engine.
 	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
 }
@@ -187,6 +191,7 @@ const (
 	overlayHelp
 	overlaySoftware
 	overlayExplore
+	overlayMaintenance
 	OverlayPlan
 	OverlayRemove
 )
@@ -225,20 +230,21 @@ type TuiModel struct {
 	span     *spanState // the range walk and its results, shared by copies
 	Planning bool
 	Plan     *engine.PlanResult
-	// software: the last inventory shown in the /installed overlay
+	// software: the last inventory shown in the /retire overlay
 	software        *engine.SoftwareResult
 	softwareBusy    bool
 	softwareErr     error
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
-	softwareCursor  int                   // the highlighted row of the filtered list
-	softwareDetail  bool                  // the details of the highlighted program are open
-	explore         *engine.ExploreResult // the folder shown in the explorer
-	exploreCursor   int                   // the highlighted entry of that folder
-	status          *engine.StatusResult  // the last live reading, shown on the Health tab
-	statusBusy      bool                  // a live reading is running
-	statusWait      bool                  // a reading was just taken; the next waits for the tick
-	removing        *removeState          // the remove confirmation box, while open
+	softwareCursor  int                       // the highlighted row of the filtered list
+	softwareDetail  bool                      // the details of the highlighted program are open
+	explore         *engine.ExploreResult     // the folder shown in the explorer
+	exploreCursor   int                       // the highlighted entry of that folder
+	maint           *engine.OpportunityResult // the maintenance steps shown in /refresh
+	status          *engine.StatusResult      // the last live reading, shown on the Health tab
+	statusBusy      bool                      // a live reading is running
+	statusWait      bool                      // a reading was just taken; the next waits for the tick
+	removing        *removeState              // the remove confirmation box, while open
 
 	scroll  int
 	Overlay overlay
@@ -709,7 +715,7 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
 	views := map[string]tab{
-		"overview": tabOverview, "slow": tabHealth,
+		"overview": tabOverview, "vitals": tabHealth,
 	}
 	if v, ok := views[name]; ok {
 		m.setTab(v)
@@ -737,9 +743,21 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
 	case "apply":
 		return m.startApply(arg)
-	case "installed":
+	case "explore":
 		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /installed needs results."
+			m.Flash = "Choose “Check my Mac” first: /explore reads the latest scan."
+			return m, nil
+		}
+		return m.openExplore(arg)
+	case "refresh":
+		if m.Intro {
+			m.Flash = "Choose “Check my Mac” first: /refresh needs results."
+			return m, nil
+		}
+		return m.openMaintenance()
+	case "retire":
+		if m.Intro {
+			m.Flash = "Choose “Check my Mac” first: /retire needs results."
 			return m, nil
 		}
 		return m.startSoftware()
@@ -805,6 +823,8 @@ func (m TuiModel) View() string {
 		body = m.scrolled(m.HelpView())
 	case m.Overlay == overlayExplore:
 		body = m.scrolled(m.exploreBody())
+	case m.Overlay == overlayMaintenance:
+		body = m.scrolled(m.maintenanceBody())
 	case m.Overlay == overlaySoftware && m.softwareDetail:
 		body = m.scrolled(m.softwareDetailView())
 	case m.Overlay == overlaySoftware:

@@ -1,398 +1,382 @@
-# macdoc
+<div align="center">
+  <h1>macdoc</h1>
+  <p><b>Find out why your Mac is full and slow, clean up, uninstall, analyze disk and monitor your Mac. Free open-source CLI for developer Macs.</b></p>
+  <a href="https://github.com/sagnik26/macdoc/stargazers"><img src="https://img.shields.io/github/stars/sagnik26/macdoc?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/sagnik26/macdoc/releases"><img src="https://img.shields.io/github/v/release/sagnik26/macdoc?label=version&style=flat-square" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
+  <a href="https://github.com/sagnik26/macdoc/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sagnik26/macdoc/ci.yml?branch=main&label=CI&style=flat-square" alt="CI"></a>
+  <a href="https://github.com/sagnik26/macdoc/commits"><img src="https://img.shields.io/github/commit-activity/m/sagnik26/macdoc?style=flat-square" alt="Commits"></a>
+</div>
 
-> A safe, local-first macOS CLI that explains why a developer Mac is full and slow, and gets space back without surprises.
-
-**Status:** in development. It isn't released: there are no tags or binaries yet, so you build it from source. Diagnosis works end to end, you can make sealed dry-run cleanup plans, and you can remove items: press Enter on a suggestion in the dashboard and Enter again to confirm (each RISKY item needs its ID typed), or use `macdoc apply` in Terminal. Removed items are deleted, so the space is freed at once, and every change is in an audit log. · **Started:** 2026-10-26 · **Language:** Go 1.27 · `macdoc` is a working name.
-
----
-
-## What works today
-
-macdoc has **two everyday commands**:
-
-| Command | When to use it | What you get | Time |
-|---|---|---|---|
-| **`macdoc`** | Any time: "how is my Mac doing?" | **A welcome screen, then the interactive dashboard** (in a terminal): overview, a browsable table of suggestions with details, toolchains, projects, space (with what grew since an earlier scan) and health (with whether memory is slowing your Mac down). Nothing runs until you choose. Scans automatically only if there's no scan yet | instant, then ~7–15 s to load |
-| **`macdoc doctor scan`** | After installing or cleaning things, or when the summary says the scan is old | **Fresh scan + the full report:** everything in the summary, plus scan details, every health finding and the top apps, space by category with "System Data" decoded, big items no recipe covers, every suggestion with its ID, and per-toolchain totals | ~45 s–2 min (background priority) |
-
-`macdoc doctor` prints the **short summary** instead of opening the dashboard. Bare `macdoc` does the same when its output is piped, with `--json` or `--quiet`, or on `TERM=dumb`.
-
-### `macdoc`: the welcome screen
-`macdoc` opens on an introduction and **does nothing until you choose**. It shows:
-- The macdoc logo and a one-line description.
-- The last scan's age and size. On the first run it says a scan will happen.
-- A menu:
-  - **`enter`** check my Mac (loads the latest scan)
-  - **`s`** fresh scan first
-  - **`?`** keys and commands
-  - **`q`** quit
-- "How it works" in four steps: Check, Explore, Understand, Clean up.
-- macdoc's promises.
-- The shell commands, when the window is tall enough.
-
-`/` commands work here too: for example, `/slow` opens the dashboard on the Health view. Small windows get a compact layout.
-
-### `macdoc`: the dashboard
-```
+<p align="center">
+<pre>
  ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago · asks before removing
   1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space   6 Health
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
  SAFE 825 MB  ·  CAUTION 553 MB  ·  ADVICE 48.9 GB   item 1 of 12
  ╭───┬──────────┬─────────┬─────────┬────────────────────────────────┬──────────────────────────────╮
  │   │ ID       │    Size │ Risk    │ Suggestion                     │ Restore                      │
  ├───┼──────────┼─────────┼─────────┼────────────────────────────────┼──────────────────────────────┤
  │ ▶ │ O-gmyov5 │  394 MB │ SAFE    │ uv cache                       │ re-downloads on demand       │
- │   │ O-kcxrej │  412 MB │ SAFE    │ Homebrew old versions and dow… │ re-downloads on demand       │
  │   │ O-gg6lrb │  197 MB │ CAUTION │ Android build-tools 34.0.0     │ re-downloads on demand       │
  │   │ O-dkuv2w │ 33.7 GB │ ADVICE  │ Leftover iOS simulator runtim… │ Runtimes can be downloaded … │
  ╰───┴──────────┴─────────┴─────────┴────────────────────────────────┴──────────────────────────────╯
- enter remove • space mark • e explain • ↑↓ move • tab switch view • / commands • r rescan • ? help • q quit
-```
-- **Every list is a table:**
-  - Each table has a header row and a rounded border.
-  - Sizes and counts are right-aligned.
-  - Risk (`SAFE`, `CAUTION`, `RISKY`, `ADVICE`) and severity (`Critical`, `Warning`, `Info`) are spelled out, never shown by color alone.
-  - The selected row has a `▶` marker as well as a highlight.
-  - On narrow terminals only the long text columns shrink (cut with … or wrapped), so IDs, sizes and risk labels always show in full.
-- **What each view shows:**
-  - **Overview:** your Mac (disk, memory, pressure, swap, snapshots), the top findings, reclaimable space per tier, where your space is.
-  - **Suggestions:** every item.
-  - **Toolchains:** a summary plus one table per toolchain.
-  - **Projects:** every project with build folders: how long it's been idle (last commit, file change or build), their size, git state (clean or uncommitted changes) and the biggest folders. Projects in protected folders such as ~/Desktop are listed but never suggested.
-  - **Space:** by category with per-risk columns, **what grew** since a scan about 30 days old (areas and folders), "System Data" decoded, large items with no recipe.
-  - **Health:** **"Is memory slowing it down?"** (a verdict, the biggest users against your RAM, swap now and over the last days), findings with explanations, and the top memory users with what each one is.
-- **Views:** `tab`/`shift+tab` or `1`–`6`. On wide terminals (≥ 120 columns) the selected suggestion's details sit beside the table. On narrower ones, `e` opens them and `esc` goes back.
-- **`/` commands**, with completion (`tab` completes, `↑↓` picks): `/overview` `/scan` `/slow` `/installed` `/help` `/quit`. In `/installed`: `f` filters (with data, cleanable, new, all), `c` marks the cleanups in Suggestions, `↑↓` picks a program, `enter` shows its folders and cleanups, `esc` goes back. Plans and removal use the `p` and `a` keys on Suggestions; `/plan` and `/apply` still work when typed but aren't listed. Views are reached with `tab` or `1`–`6`.
-- **Scanning:** `r` or `/scan` rescans with a live progress bar (bytes, files, current folder, % of the last scan's size). `esc` stops a scan, and the previous results stay on screen.
-- **Footer:** shows the keys for the current context. `?` lists every key and command.
-- **Plans:** on Suggestions, `space` marks items (✓) and `p` seals a dry-run plan from them (or from the selected item). `/plan safe` plans a whole tier. The plan opens as a dry run with its ID. Making a plan changes nothing.
-- **Removing:** on Suggestions, press `enter` on an item (or mark several with `space` first). A box shows what will go and how much space comes back. Press `enter` again to remove it, or `esc` to cancel. RISKY items also ask you to type a short code. Each item is checked again just before it's removed and skipped if it changed. Removed items are deleted for good, so the space is freed at once; the result shows the measured free-space change. Advice-only items can't be removed (macdoc takes no action on them), so `enter` explains them.
-- **Plans the long way:** `p` seals a dry-run plan instead, and `a` runs `macdoc apply` on it in the terminal with the typed code. `q` quits.
+</pre>
+</p>
 
-**Colors:** a coral/cyan palette with green, yellow, orange and blue for the SAFE, CAUTION, RISKY and ADVISE tiers. It uses truecolor where available and falls back to 256 and then 16 colors automatically, with separate shades for light and dark terminals. `NO_COLOR=1` turns color off. `MACDOC_THEME=light|dark` overrides the background detection. Piped output and files are always plain text.
+> 💡 macdoc makes **no network calls and sends no telemetry**. It removes only what you approve at a real Terminal. Claude can propose plans through MCP, but can never apply one.
 
-### `macdoc doctor`: the short summary
-```
-$ macdoc doctor
-╭─────────────────────────────────────────────────────────────────────╮
-│ ◆ macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 9m ago │
-╰─────────────────────────────────────────────────────────────────────╯
+## Features
 
-Disk       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 194 GB / 245 GB used   51.3 GB free  (+3.4 GB purgeable)
-Memory     8.0 GB · pressure ● warn · 39% free · swap 3.6 GB used
-Snapshots  0 local Time Machine snapshot(s)
+- **All-in-one CLI toolkit**: Combines a storage doctor, an app cleaner, a disk explorer, and a system monitor in one terminal command
+- **Deep clean**: Finds caches, logs, build artifacts, installers, and leftovers from uninstalled apps, with an honest size and a restore cost for each
+- **Smart uninstaller**: Moves apps aside and finds the settings, caches, and background items they left behind
+- **Disk analyzer**: Shows where the space is inside any folder, with no rescan
+- **System maintenance**: Flushes DNS, frees inactive memory, and resets Quick Look through the system password prompt
+- **Live monitoring**: Shows real-time CPU, memory, disk I/O, network traffic, battery, and a health score with the reasons
 
-What matters most
-  1. ▲ 3.6 GB of swap in use.
-  2. ▲ Memory pressure is elevated.
-  3. • Google Chrome is using 1.6 GB of RAM.
+## Quick Start
 
-Where your space is (Data volume, 128 GB measured)
-  /Users 52.3 GB · /System 39.0 GB · /Library 19.0 GB · /opt 7.5 GB · /private 5.2 GB · 36.7 GB not visible (needs Full Disk Access)
+macdoc supports both Intel and Apple Silicon Macs.
 
-Reclaimable                              1.4 GB actionable · 48.9 GB advice
-  ● Free & safe           825 MB   Homebrew old versions and downloads 412 MB · uv cache 394 MB · 4 × Old app logs 19.6 MB
-  ● Worth considering     553 MB   2 × Old Android build-tools 392 MB · Node.js v20.20.2 (nvm) 161 MB · pip cache 8.2 KB
-  ● Your call            48.9 GB   2 × Leftover simulator runtime data 48.9 GB
-
-More: macdoc doctor scan (rescan + full report) · wins (every item + ID) · space · health
-✓ Nothing has been changed.
-```
-In a terminal it's colored: the disk bar turns yellow at 80% and red at 90%, tiers are color-coded, IDs are cyan, and commands are syntax-highlighted. The boxes, dots and colors only appear in a terminal.
-
-### `macdoc doctor scan`: the full report
-It rescans the Data volume at background priority, so your Mac stays responsive, with a live progress line. Ctrl-C keeps a partial scan. Then it prints every section in order:
-
-```
-OVERVIEW         the short summary above
-SCAN             files and bytes measured, how much of the volume was visible, where the space actually is, what couldn't be read
-HEALTH           every finding with its explanation, top memory users grouped by app/dev tool
-SPACE            reclaimable space by category, "System Data" decoded, big items no recipe covers
-ALL SUGGESTIONS  every item with its ID, size, restore cost and exact command
-BY TOOLCHAIN     totals for xcode, android, node, homebrew, docker, python, ai, system
-```
-Options: `--foreground` (faster, competes with your apps) and `--workers N`.
-
-### Single sections, when you only want one part
-These read the latest scan and don't rescan.
-
-| Command | Shows |
-|---|---|
-| `macdoc doctor health` | Disk, memory, swap, snapshots, every finding, top memory users |
-| `macdoc doctor slow [--days 7]` | Is memory what's slowing your Mac down? A verdict, the biggest users against your RAM with what each one is, and swap now and over the last days (each check stores a small sample). It never quits an app |
-| `macdoc doctor trend [--days 30]` | What grew between the latest scan and one about 30 days old: per area (Xcode, Gradle, Docker, …) and the folders that grew most |
-| `macdoc doctor space [--large]` | Reclaimable space by category and "System Data" decoded. `--large` adds big items no recipe covers |
-| `macdoc doctor wins [--all] [--tier safe\|caution\|risky\|advise]` | Every suggestion with its ID. `--all` lists repeated items individually |
-| `macdoc doctor dev [toolchain]` | Suggestions for one toolchain (xcode, android, node, homebrew, docker, python, ai, system) |
-| `macdoc doctor projects [--idle N]` | Your projects: idle days, build folders (node_modules, Pods, iOS/Android builds, .venv, .next, DerivedData), git state. `--idle 90` shows only projects idle 90+ days |
-| `macdoc doctor software` | Installed software (apps, Homebrew, npm) with the data folders that belong to each, the cleanup recipes that cover it (or "advisory only"), the largest folders under your home folder (three levels deep) that no software owns, wherever they are, and what is new since the previous scan. Read-only; `--json` lists everything. Stores a snapshot with the scan |
-| `macdoc doctor explore [path]` | Where the space is inside one folder, from the last scan: its biggest items with a share bar, a "smaller items" line so the sizes add up, and the biggest files below. `partial` when some paths couldn't be read; `unavailable` (no size) for a folder the scan kept no detail on. In the dashboard, press `enter` on the Space tab: `enter` opens a folder, `backspace` goes up. Read-only: a path here is only looked at, never a target |
-| `macdoc doctor maintenance` | Maintenance steps you can ask for: flush the DNS cache, restart the DNS responder, free inactive memory (`purge`), and reset the Quick Look cache. Read-only list; plan one by ID. The first three need your Mac password, which macOS asks for in Terminal (macdoc never sees it); each is confirmed on its own and never comes from a plan Claude proposed (ADR 0009) |
-| `macdoc doctor status [--watch --interval 2s]` | What the Mac is doing now: a 0 to 100 health score with the reasons it is lower, CPU and load, memory and swap, disk space and traffic, network rates, battery (percent, health, cycles, temperature) and the biggest memory users. Read-only. `--json` is one snapshot; with `--watch` it streams one compact JSON object per line. A probe that can't run leaves its section out (never zero) and adds a note. Zombie parents and processes using 80% of a core or more are listed under "Process alerts" (also in `doctor slow`); macdoc only reports them. The Health tab in the dashboard shows the same live block and refreshes it every 3 seconds while the tab is open |
-
-Data left in `~/Library` (caches, logs, saved state, web storage) by apps that are no longer installed is suggested as `apps.leftovers` (CAUTION, moved to quarantine, nothing is offered if the installed-app list can't be read). App bundles in `/Applications` and `~/Applications`, and Application Support leftovers, are offered as RISKY items with their own confirmation (ADR 0011).
-
-Homebrew suggestions (old versions and downloads, unused formulae) may be up to 10 minutes old: a repeat `doctor` command reuses brew's last dry run while Homebrew's own folders are unchanged, and `apply` always asks brew again.
-
-Every command supports `--json`, which outputs one versioned JSON document with top-level warnings. Its shape is frozen per command in [`schema/`](schema/) (JSON Schema, `schema_version` 2). `--quiet` hides the progress line. Other top-level commands: `macdoc version`, `macdoc config` (settings and your protected folders), `macdoc completion zsh|bash|fish`.
-
-### `macdoc plan`: a sealed dry run
-```
-$ macdoc plan --safe
-Plan P-ZDHP · 4 item(s) · 825 MB · expires in 30 min · made by you (macdoc plan --safe)
-
- SAFE ─────────────────────────────────────────────────────────── 825 MB
-  O-5wx6bf  Homebrew old versions and downloads             412 MB
-            → runs brew cleanup --prune=all
-            Not undoable by macdoc: re-downloads on demand. Homebrew downloads a version again if you reinstall it.
-  O-uz4vkv  Old app logs · Claude                          10.7 MB
-            → deletes ~/Library/Logs/Claude
-            Not undoable by macdoc: nothing to restore. Old logs aren't needed for apps to work.
-  …
- Freed right away: 825 MB
-
- Nothing has been changed.
- To apply it: macdoc apply P-ZDHP · expires 15:41
-```
-| Command | Does |
-|---|---|
-| `macdoc plan O-ab23cd O-k3m9pq` | Plans these suggestions (IDs from `macdoc doctor wins`; paths are refused) |
-| `macdoc plan --safe` · `--tier caution` · `--recipe <id>` | Plans a whole tier or recipe (advice-only items are never planned) |
-| `macdoc plan show <P-id>` | Shows a plan again with its status: pending, expired, applied or invalid |
-| `macdoc plan list` | Recent plans |
-
-A plan re-checks every target as it is now. It must still exist, not be a symlink, and pass the allowlist and protected-path rules; anything else is left out with a reason. It records each folder's fingerprint (device, inode, modification time, size) and the exact command or move, then seals it with SHA-256. The hash is stored in the plan file and in macdoc's database. Plans expire after 30 minutes. Editing a plan file by hand makes it invalid.
-
-### `macdoc apply`: carry out a plan, after you confirm
-```
-$ macdoc apply P-ZDHP
-… the dry run again …
- Type "ZDHP" to apply 4 item(s), 825 MB (SAFE: 4): ZDHP
-
- [1/4] O-5wx6bf Homebrew old versions and downloads … done
- [2/4] O-uz4vkv Old app logs · Claude … done
- …
- Plan P-ZDHP applied: 4 done · 0 skipped · 0 failed
- Free space change (measured): +806 MB
- Expected: 825 MB
- Every step is in the audit log: macdoc log
-```
-| Command | Does |
-|---|---|
-| `macdoc apply <P-id>` | Shows the dry run again and asks you to type the plan's code. RISKY items, and every item of a plan Claude proposed, are also confirmed one by one (default No). Needs a real Terminal: piped input is refused, and there's no `--yes` |
-| `macdoc quarantine` / `quarantine list` | Anything apply moved aside but couldn't delete (normally empty), how long each entry stays restorable, and what has expired |
-| `macdoc quarantine restore <Q-id>` | Moves a folder back where it was. It never overwrites: if something now exists there, it stops |
-| `macdoc quarantine purge --expired` · `purge <Q-id…>` | Permanently deletes entries, after you type `purge` in Terminal. Nothing is ever purged automatically |
-| `macdoc log` | Everything macdoc changed: plans, applies (each item done, skipped or failed, with the reason), restores and purges; `--json` entries carry a `run` ID. Set `MACDOC_TIMEOUT=<seconds>` or `MACDOC_TIMEOUT_<COMMAND>` (1 to 600) to change the 10 s limit on read-only commands |
-
-Right before touching each item, apply checks it again: it's still the same folder (same device and inode), its path still resolves the same way, the allowlist and protected-path rules still pass (with a freshly built policy), the preconditions hold (Xcode closed, emulator stopped, Docker running, …), and it holds no git repository or `.env` file. Anything that changed is skipped with a reason, and the rest continue. Folders are moved with `renameatx_np` relative to the opened parent folder, so a symlink swapped in at the last moment can't redirect the move. Native commands run with a fixed argv and no shell, and a tool identifier (a simulator, AVD or model) must still be in the tool's own listing.
-
-### Use it from Claude (`macdoc mcp`)
-Connect once:
-```bash
-claude mcp add macdoc -- macdoc mcp       # Claude Code
-```
-For Claude Desktop, add to `claude_desktop_config.json` under `"mcpServers"`: `"macdoc": {"command": "/Users/you/.local/bin/macdoc", "args": ["mcp"]}`.
-
-Then ask things like "why is my Mac slow?" or "what can I safely clean?". Claude can read the overview, suggestions, explanations, projects, the memory diagnosis and growth history, start a read-only rescan, and **propose** a plan. It gets back a plan ID and the command for you, e.g. `macdoc apply P-7F3K`; you run it in Terminal and confirm each item. Claude can't apply, delete, move or restore anything, pass a path, run a command or change settings. Claude can have at most 5 plans open and make 10 every 10 minutes. A scan started from Claude has the Claude app's file permissions, so it may see less than one from Terminal; when it does, Claude is told to suggest `macdoc doctor scan` in Terminal.
-
-## Quick start
-
-Requirements: macOS on Apple Silicon or Intel, and Go 1.27 or newer (`brew install go`). Optional: `golangci-lint` for `make lint`.
+**Install via Homebrew**
 
 ```bash
-git clone https://github.com/sagnik26/macdoc.git macdoc && cd macdoc
-make install               # builds and installs macdoc into ~/.local/bin
-                           # (make sure ~/.local/bin is on your PATH; or: make install BINDIR=/usr/local/bin)
-macdoc                     # interactive dashboard (scans automatically the first time)
-macdoc doctor              # the short summary, printed
-macdoc doctor scan         # fresh scan + the full report
+brew install sagnik26/macdoc/macdoc
 ```
-Once a release is published, `curl -fsSL https://raw.githubusercontent.com/sagnik26/macdoc/main/install.sh | sh` installs it to `~/.local/bin` after checking its sha256 (`MACDOC_VERSION`, `MACDOC_PREFIX` override). There are no released binaries yet (see [docs/RELEASING.md](docs/RELEASING.md) for how they will be built and checked). After changing the code, run `make install` again to update the installed `macdoc`. Running `macdoc version` shows the commit it was built from.
 
-Tab completion for zsh (bash and fish work the same way with `macdoc completion bash|fish`):
+**Or via script**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sagnik26/macdoc/main/install.sh | sh
+```
+
+The script checks the download's sha256 before installing to `~/.local/bin`, and never uses `sudo`.
+
+**With an AI agent**
+
+Tell your agent:
+
+> Install macdoc for me by reading https://raw.githubusercontent.com/sagnik26/macdoc/main/llms.txt
+
+Or give it the skill in [`skills/macdoc`](skills/macdoc/SKILL.md). With it, Claude Code and other agents run read-only checks and propose plans, and leave every apply to you in Terminal.
+
+```bash
+claude mcp add macdoc -- macdoc mcp
+```
+
+**Run**
+
+```bash
+macdoc                           # Interactive dashboard (type / for commands: /overview /scan /vitals /explore /retire /refresh)
+macdoc reclaim                   # Suggestions with their IDs, sizes and risk
+macdoc retire                    # Installed software and the data that belongs to it
+macdoc refresh                   # Maintenance steps (flush DNS, free memory, reset Quick Look)
+macdoc explore [path]            # Visual disk explorer (--growth, --projects)
+macdoc vitals                    # Live system health dashboard (--memory: is memory slowing your Mac?)
+macdoc scan                      # Rescan and print the full report
+macdoc apply <id…>               # Seal a plan, review it, and carry it out after you confirm in Terminal
+
+# More: log, quarantine, config, schedule, mcp, completion, version
+macdoc --help                    # Show help
+```
+
+**Preview safely**
+
+```bash
+macdoc reclaim                   # Read-only: see what could be reclaimed
+macdoc apply --safe --dry-run    # Dry run of every SAFE suggestion (changes nothing)
+macdoc apply O-ab23cd O-k3m9pq --dry-run   # Dry run of the suggestions you pick
+macdoc apply --recipe apps.leftovers --dry-run
+macdoc apply P-ZDHP              # Applies a sealed plan: shows it again, asks you to type its code
+macdoc apply --list              # Pending plans
+macdoc quarantine restore <id>   # Put a moved folder back
+macdoc log --json                # Activity as JSON, with a run ID per command
+```
+
+<details>
+<summary><strong>Other install options</strong></summary>
+
+To install a specific release, set `MACDOC_VERSION` to any tag from the [releases page](https://github.com/sagnik26/macdoc/releases), and `MACDOC_PREFIX` to install somewhere other than `~/.local`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sagnik26/macdoc/main/install.sh | MACDOC_VERSION=v0.1.0 MACDOC_PREFIX="$HOME/.local" sh
+```
+
+**Build from source**
+
+You need Go 1.27.4 or newer:
+
+```bash
+git clone https://github.com/sagnik26/macdoc.git && cd macdoc
+make install               # installs into ~/.local/bin (BINDIR=/usr/local/bin to change)
+```
+
+**Shell completion**
+
 ```bash
 mkdir -p ~/.zfunc && macdoc completion zsh > ~/.zfunc/_macdoc
 # then in ~/.zshrc, before compinit: fpath=(~/.zfunc $fpath)
 ```
 
-Settings: `macdoc config` shows them. `macdoc config protect ~/work/client` makes macdoc never suggest or remove anything in that folder; `macdoc config set plan_minutes 60` keeps plans valid longer. Settings can only make macdoc stricter or change timings. To turn off individual tasks, list recipe IDs in the settings file, e.g. `"excluded_recipes": ["maintenance.purge_memory", "maintenance.*"]` (a trailing `.*` matches a whole family). Excluded tasks disappear from listings and are refused when planning and applying; unknown or malformed entries are ignored with a note.
+`bash` and `fish` work the same way. macdoc is not notarized yet: if macOS blocks it, run `xattr -d com.apple.quarantine ~/.local/bin/macdoc`.
 
-**For complete results,** give your terminal app **Full Disk Access** (System Settings › Privacy & Security › Full Disk Access), then restart the terminal. Without it, macdoc reports how much space it couldn't see (about 36 GB on the dev Mac), and lists the locations.
+</details>
 
-Scan results live in `~/Library/Application Support/macdoc/state.db` (SQLite, mode 0600). The 10 newest scans are kept, plus one per week for 13 weeks (for `trend`).
+macdoc is only distributed through Homebrew, this repository and its [GitHub releases](https://github.com/sagnik26/macdoc/releases).
 
-### Known limitation: a suggestion's size is a floor, and the real gain can be higher
+## Safety
 
-On APFS, a file that is a clone of another shares its blocks with it, so deleting it frees less than its size (up to three times less in the experiment in `docs/experiments/S1-apfs-private-size`). For a suggestion made from the scan, macdoc therefore shows the space removing it is certain to free: the sum of the kernel's own per-file figure for the bytes a delete releases. That never overstates, but it can understate (the explanation then shows the range). A folder whose files are all clones of each other shows 0 (the space is released only when the last copy goes), and a file with more than one hard link counts as 0 because the kernel reports its full size for every link. Where a volume cannot report that figure (HFS+, exFAT), macdoc falls back to allocated blocks, the same thing `du` reports, as before. Sizes a tool reports (Docker, Homebrew, simctl) are shown as the tool gives them. `macdoc scan` and `doctor space` still show allocated blocks, since they describe what is on disk. The dashboard measures a folder whose files share space with copies in the background (`e` on Suggestions) and shows the range, "frees at least X and at most Y" ([docs/adr/0005](docs/adr/0005-size-by-allocated-blocks.md)); lists, totals and plans keep the lower figure. This affects what you decide to remove, not whether removal is safe.
+macdoc can remove files, so it validates paths, protects system and personal locations, and asks for confirmation at a real Terminal before anything is removed.
 
----
+- `reclaim`, `retire`, `refresh`, `explore`, `vitals` and `scan` are read-only, and `apply --dry-run` only seals a plan: review it before you apply it. `apply` always shows the plan and asks you to confirm in Terminal
+- Plans and tools take suggestion IDs, never paths, and there is no `--yes`: only a person at the Terminal approves a removal
+- Every action comes from a fixed recipe catalog with exact command allow-lists: no shell, no `docker system prune`, no `--volumes`
+- Each item is checked again right before it is touched; anything that changed is skipped and recorded, never "fixed up"
+- Folders go to a private quarantine first and are deleted through the same checks; `macdoc quarantine restore` puts one back while it is there
+- System folders, `~/Documents`, `~/Desktop`, iCloud, Mail, Keychains, `.ssh`, `.git`, `.env*` and database files are never touched. The one exception is an app bundle directly in `/Applications`, with its own confirmation
+- Administrator steps (flush DNS, free memory) run only through the system password prompt, from an exact list, and never from a plan Claude proposed
+- Every change is in the audit log (`macdoc log`) and the quarantine
 
-## What it is
+Review [SECURITY.md](SECURITY.md), [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for reporting guidance, safety boundaries, and what each defence is tested by.
 
-macdoc is a **storage doctor for developer Macs, with a built-in explanation of why the Mac is slow.** It:
+## Configuration
 
-- **Diagnoses** the machine: hardware, APFS container usage, purgeable space, local Time Machine snapshots, swap and memory pressure.
-- **Explains where storage went**, including the opaque "System Data" bucket, broken down by real causes: Xcode, Android, Node/React Native, Docker, Python, local AI models, Homebrew and stale projects.
-- **Finds reclaimable space.** Every item has an honest size (measured, tool-reported, estimated or unknown), a risk level (SAFE / CAUTION / RISKY / ADVISE), its idle time, and what it costs to get back.
-- **Plans cleanups as dry-runs first.** Nothing is removed until you review a sealed plan and confirm it (typed code in Terminal, or a second Enter in the dashboard).
-- **Cleans safely.** It uses each tool's own cleanup command, or moves a folder through macdoc's quarantine and deletes it there, so the space is freed at once and a crash never leaves a half-deleted folder. Every step is in an audit log.
-- **Connects to Claude** through a local MCP server (`macdoc mcp`). Claude can diagnose and *propose* plans, and only you can apply them.
+macdoc runs without configuration. Settings can only make it stricter or change timings. `macdoc config` shows them.
 
-It is **not** a "Mac cleaner" in the usual sense. There's no background daemon, no automatic deletion, no "RAM boosting", no killing processes, and no fake health score.
+- `macdoc config protect ~/work/client`: never suggest or remove anything in that folder
+- `macdoc config set plan_minutes 60`: keep plans valid longer (default 30)
+- `"excluded_recipes": ["maintenance.*"]` in the settings file turns off tasks by ID, or a whole family with a trailing `.*`
 
-## Why we need it
+These environment variables adapt macdoc to slow disks or stalled network mounts; raise a timeout only when macdoc reports that a command timed out:
 
-The target machine is an **8 GB MacBook used for full-stack and mobile development** (Xcode, Android Studio, React Native, Node.js, Homebrew, Docker, npm/pnpm/yarn, Python, local AI models). Machines like this fall into a predictable spiral:
-
-```
-Low RAM ──▶ heavy swap ──▶ swap files grow on disk ──▶ free space shrinks
-   ▲                                                         │
-   └──── macOS hangs, builds fail, updates won't install ◀───┘
-```
-
-Developer tooling quietly eats tens of gigabytes:
-
-| Source | Typical size |
-|---|---|
-| Docker Desktop disk image, build cache, images | 20–60 GB |
-| Xcode DerivedData, simulator runtimes, DeviceSupport, Archives | 20–80 GB |
-| Android emulators, system images, old SDKs, Gradle caches | 15–50 GB |
-| Local AI models (Ollama, Hugging Face, LM Studio) | 10–100 GB |
-| `node_modules`, Pods and build folders in idle projects | 5–40 GB |
-| Package-manager caches (npm, pnpm, yarn, pip, uv, CocoaPods, Homebrew) | 5–30 GB |
-| Local snapshots and swap, shown only as "System Data" | 5–30 GB |
-
-**Existing tools don't solve this well:**
-- **Finder's storage view** shows opaque buckets with no explanation.
-- **Generic cleaners** don't understand developer tooling, delete blindly, and use scare tactics.
-- **Manual cleanup** means remembering dozens of paths, and it's easy to delete something irreplaceable (Xcode Archives with dSYMs, Docker volumes).
-
-## Why we're building it this way
-
-1. **Developer-aware.** DerivedData is regenerable, but Archives hold irreplaceable dSYMs. A system image that no AVD uses is dead weight.
-2. **Honest numbers.** A suggestion shows the space removing it is certain to free (never more); disk usage shows allocated bytes, not logical size, with hard links counted once. Every number says where it came from, and unknown is never shown as 0.
-3. **Safety is the product.** Read-only by default. Actions come only from a fixed recipe catalog with exact command allow-lists, and never from arbitrary paths. There's a dry-run before anything happens, confirmation by a person at the terminal, a crash-safe quarantine step, and an audit log.
-4. **Built for low-RAM hardware.** Scans run in the macOS background priority band with bounded memory.
-5. **Ready for Claude without handing over control.** CI proves the MCP and engine code can never reach the deletion code.
-6. **Local-first and private.** No network calls from macdoc, no telemetry, no account.
-
----
-
-## Safety model, as implemented so far
-
-- **Path safety** (`internal/safety`):
-  - Canonicalization that rejects `..` and trailing `/`, resolves symlinked parents, normalizes Unicode and ignores case.
-  - Protected paths: system roots, `~/Documents`/`Desktop`/…, iCloud, Mail, Keychains, `.ssh`, `.git`, `.env*`, SQLite files and their sidecars, Containers/`com.apple.*`, parents of any protected folder, and other users' homes.
-  - **No cleanup target can be outside `$HOME`.**
-  - 99.5% coverage, fuzz-tested.
-- **Your protected folders** (`macdoc config protect <folder>`, `internal/config`): added on top of the built-in list, never replacing it. Suggestions, planning and the executor's last check all honor them, and an unreadable settings file stops those with an error instead of silently dropping a folder.
-- **Recipe lint** (`internal/recipes/load.go`), applied to every recipe at load time:
-  - Native and dry-run commands must **exactly match an allow-list** of 18 and 3 commands.
-  - Allow patterns must be `~`-relative and at least 2 deep, with no `..`, and can't reach protected folders.
-  - Preconditions use a strict character set.
-- **Classifier:**
-  - Drops a finding if the tool is missing, the identifier is unsafe or reserved (`all`, …), it fails `CheckTarget`, it was used too recently, or its age is unknown when a minimum idle time applies.
-  - Raises risk for anything changed in the last 7 days.
-  - Merges overlapping and duplicate findings.
-- **Detectors are read-only.** File reads go through a regular-file, non-blocking, size-capped reader. External commands go only through `platform.Runner`. Detectors never run package managers to discover things. (Querying pnpm/yarn once triggered Corepack downloads, so that's now forbidden.)
-- **Executor** (`internal/executor`, the only package that moves, deletes or runs mutating commands):
-  - Acts only on a plan that passes `planner.Verify`, after you type its code at a real terminal. Marking the plan applied is the lock, so a plan runs at most once, even after a crash.
-  - Re-checks every item right before acting; any change means the item is skipped and audited, never "fixed up".
-  - Folders go to `~/Library/Application Support/macdoc/quarantine/Q-XXXX/` (private, excluded from Spotlight and Time Machine), with a manifest written before the move, and are then purged right away through the same checks as `quarantine purge` (since 2026-10-28). A crash at any step leaves a restorable entry and a readable audit log (tested by killing a child process mid-move). If the purge is refused, the entry stays in quarantine and `macdoc quarantine` lists it.
-  - The only recursive delete is purging a quarantine entry that has macdoc's own record and manifest; a test pins every delete, rename and exec call site in the package.
-  - Every executor test runs under `MACDOC_SANDBOX`, and real native commands are refused in sandbox mode.
-- **Names from the disk are shown cleaned.** A folder name can hold terminal escapes or invisible characters. Human output and the dashboard drop them before printing, so a name can't redraw what you confirm, and MCP output drops them before Claude reads them. Planning and the executor always use the names as found.
-- **CI guards:** `importcheck` (MCP and the engine can't import the executor) and `forbidcheck` (no delete, rename, exec or shell calls outside the executor, aliased imports included). Both are verified against planted violations.
-
-Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
-
----
-
-## Architecture
-
-```
-macdoc (one Go binary)
-  cmd/macdoc            entry point
-  internal/cli          commands and rendering: the dashboard, `doctor` and its sections, plan, apply,
-                        quarantine, log, config, version
-  internal/engine       UI-agnostic core: Overview, Doctor, Slow, Trend, Scan, Opportunities (classifier/
-                        ranking), Storage, Projects, plans, audit and quarantine views
-  internal/probe        hardware, memory, swap, processes, APFS, snapshots (read-only, via Runner)
-  internal/scanner      parallel full crawl: allocated bytes, hard links once, bounded memory, background QoS
-  internal/store        SQLite state (scans, nodes, unmeasured paths, plans, quarantine, vitals), pure Go
-  internal/recipes      recipe schema, loader + safety lint, detectors, catalog/*.yaml (49 recipes)
-  internal/projects     project discovery, idle time, git state (read-only git)
-  internal/planner      sealed, expiring dry-run plans (IDs only, never paths) and Verify
-  internal/precond      preconditions: app not running, emulator stopped, Docker reachable, …
-  internal/audit        append-only JSONL audit log
-  internal/quarantine   quarantine manifests and entry states (read-only)
-  internal/config       settings file: timings and extra protected folders (add-only)
-  internal/safety       canonicalization + protected-path policy
-  internal/pathfold     the one definition of "the same name" (case and Unicode folding) used by every path comparison
-  internal/fsread       capped, non-blocking regular-file reader for detectors
-  internal/textsafe     cleans names from the disk before you or Claude see them (escapes, invisible characters)
-  internal/sandbox      MACDOC_SANDBOX for executor tests (fails closed)
-  internal/platform     read-only command Runner (+ fake), darwin cgo shim for purgeable space
-  internal/model        shared types: Opportunity, Plan, Node, Envelope …
-  internal/executor     the ONLY package allowed to delete, move or run mutating commands
-  internal/mcp          MCP server (`macdoc mcp`): read + propose plans; may never import the executor
-  internal/testutil     fstree fixture builder for fake home directories
-  tools/forbidcheck     AST guard against delete/exec/shell calls outside the executor
-  scripts/              import, forbidden-call and threat-model guards; shape.sh (the shape of a scan, no paths)
-  schema/*.json         frozen JSON Schema for every --json command (contract-tested)
-```
-
-The CLI and the MCP server are two front doors over the same engine. See [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md).
-
-## Development
+- `MACDOC_TIMEOUT` (10): seconds allowed for each read-only command (1 to 600)
+- `MACDOC_TIMEOUT_<COMMAND>`: the same for one command, for example `MACDOC_TIMEOUT_TOP=30`
 
 ```bash
-make build        # ./bin/macdoc
-make install      # build + copy to ~/.local/bin (BINDIR=… to change)
-make test         # go test -race ./...
-make cover        # coverage across packages (tests live in internal/<pkg>/tests/)
-make lint         # golangci-lint (0 issues required)
-make importcheck  # MCP/engine must not reach the executor
-make forbidcheck  # no delete/exec/shell outside internal/executor
-make threatcheck  # every test the threat model and decision records name still exists
-make vulncheck    # govulncheck (known vulnerabilities in what the module calls)
-make check        # test, lint, importcheck, forbidcheck and threatcheck
-make fuzz         # fuzz the path-safety layer
+MACDOC_TIMEOUT=30 macdoc scan
 ```
 
-New code is held to Google Go style (doc comments on exported names, naming) and to complexity limits (cognitive 25, cyclomatic 15). The older code is checked only where a change touches it, relative to `origin/main`, while the backlog is cleared. CI also runs `make vulncheck`; a tag builds the release archives (see [docs/RELEASING.md](docs/RELEASING.md)).
+For complete results, give your terminal app **Full Disk Access** (System Settings › Privacy & Security), then restart it. Without it, macdoc reports how much space it couldn't see.
 
-Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). The safety rules are in [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and the decision records in [docs/adr/](docs/adr/README.md).
+## Features in Detail
 
-### How it's being built
-A **tech-lead Claude session** writes the contracts, and delegates bounded tasks to **headless worker Claude sessions** that run in visible tmux panes, each in its own git worktree. The tech lead verifies every task independently (tests, lint, guards, real-Mac runs, planted violations). **Red-team reviewers** attack the safety-critical code, and every finding becomes a test. Workers can only write inside their worktree, use a narrow command allowlist, and keep the Mac awake while running. Details are in [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md).
+The examples below are shortened. Available items, sizes, and restore costs depend on your Mac.
 
-## Documents
+### Reclaim
 
-| File | What's in it |
-|---|---|
-| [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Architecture, phases, tasks, acceptance criteria, testing, risks, carry-overs |
-| [docs/RELEASING.md](docs/RELEASING.md) | Cutting a release, a dry run, and how to rebuild a tag and compare hashes |
-| [docs/adr/](docs/adr/README.md) | Decision records: why approval is terminal-only, IDs not paths, one mutating package, delete-after-move, sizing by blocks, the test layout |
-| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, adversaries, trust boundaries and, for each defense, the tests that fail without it (checked by `make threatcheck`) |
-| [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) | Risk classes, protected paths, the plan → confirm → apply → verify lifecycle, quarantine, audit, threat model |
-| [docs/RECIPE_CATALOG.md](docs/RECIPE_CATALOG.md) | Recipe schema, catalog intent, allowed native commands, how to add a recipe |
-| [docs/CLI_UX.md](docs/CLI_UX.md) | Commands, report mockups, tone rules, JSON contract |
-| [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | Phase 8–9: MCP tools, the Claude-to-terminal handoff, prompt-injection hardening |
-| [docs/BUILD_STRATEGY.md](docs/BUILD_STRATEGY.md) | One engine with two front doors, and the safety-first build order |
-| [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) | Tech lead + worker agents, permissions, verification, checkpoints |
-| [docs/experiments/](docs/experiments/) | Reproducible experiments with their code and results: APFS sizing, mutation testing, test-only exports, the node-prefix query |
+`macdoc reclaim` lists known-safe caches, logs, developer artifacts, and leftovers from apps that are no longer installed, grouped by risk. `macdoc apply` seals what you pick as a plan, shows the dry run, and removes it after you type the plan's code. Add `--dry-run` to only seal and show it; `macdoc apply P-ZDHP` applies a plan that already exists, including one Claude proposed.
 
-## Decisions locked
+```text
+$ macdoc reclaim
 
-| Topic | Decision |
-|---|---|
-| Scope | MVP B (diagnosis, dry-run planner, terminal-confirmed apply, audit log), then C (Claude via local MCP) as a pure addition |
-| Default mode | Read-only. Read-only commands never delete anything, including expired quarantine |
-| Removal | The owning tool's native command first (from an exact allow-list). Otherwise a move into macdoc's quarantine, deleted right away so the space is freed (2026-10-28; originally held for 7 days) |
-| Targets | Never outside `$HOME` by path. Anything outside home is only ever touched through native tool commands |
-| Scanning | Full crawl of the Data volume, background priority, streaming aggregation, bounded memory |
-| Language | Go. Single binary, with an optional cgo shim for purgeable space |
-| Audience | Personal first, open-source later. Recipes are data-driven |
-| Claude boundary | Claude can diagnose and propose plans. Only a human at a real terminal can apply them. The MCP code can't reach the deletion code (CI import guard), and no MCP tool acts on the Mac |
+ Free & safe ──────────────────────────────────────────────────── 6.7 MB
+  O-qgqse7    6.7 MB  Homebrew old versions and downloads           re-downloads on demand
+                      → brew cleanup --prune=all
+
+ Worth considering ──────────────────────────────────── 279 MB + unknown
+  O-heri2j    161 MB  Node.js v20.20.2 (nvm)                        re-downloads on demand
+  O-yzbseg    3.2 MB  Data left by com.example.chat (HTTPStorages)  The app isn't installed
+                      4 × Background item whose program is gone
+
+ Your call (advice only) ──────────────────────────────────────── 8.8 GB
+  O-okj5vt    8.8 GB  Leftover iOS simulator runtime downloads      Runtimes can be downloaded again
+
+$ macdoc apply --safe --dry-run
+Plan P-ZDHP · 1 item(s) · 6.7 MB · expires in 30 min · made by you
+
+ Nothing has been changed.
+ To apply it: macdoc apply P-ZDHP · expires 15:41
+
+$ macdoc apply P-ZDHP
+ Type "ZDHP" to apply 1 item(s), 6.7 MB (SAFE: 1): ZDHP
+ Plan P-ZDHP applied: 1 done · 0 skipped · 0 failed
+ Free space change (measured): +6.4 MB
+```
+
+CAUTION and RISKY items, and every item of a plan Claude proposed, are confirmed one by one. Piped input is refused.
+
+`macdoc reclaim` also finds installer files (`.dmg`, `.pkg`, `.mpkg`, `.iso`, `.xip`) and archives in Downloads that haven't changed for a month, and suggests them as CAUTION items that can be downloaded again. Other large downloads, which may be the only copy, are advice only.
+
+<details>
+<summary><strong>Installer example</strong></summary>
+
+```text
+$ macdoc reclaim
+
+ Worth considering ──────────────────────────────────── 279 MB + unknown
+  O-puaajd    111 MB  Old installer or archive                      re-downloads on demand
+```
+
+</details>
+
+### Retire
+
+Apps appear as suggestions, together with the settings, caches, and background items an uninstalled app left behind. `macdoc retire` shows each program with the data folders that belong to it and the cleanups that cover it.
+
+An app is moved aside only when it is not running, and each one needs its own confirmation. Apple's apps and Mac App Store apps are never offered. The app's settings and caches are kept until nothing installed owns them, and then macdoc offers them as leftovers.
+
+```text
+$ macdoc reclaim --tier risky
+
+ Needs care ─────────────────────────────────────────── 4.4 GB + unknown
+  O-hzyl53   1.5 GB  Google Chrome (app)               re-downloads on demand
+  O-ywvjll   1.1 GB  Cursor (app)                       re-downloads on demand
+  O-chlpcv   549 MB  Wispr Flow (app)                   re-downloads on demand
+```
+
+`macdoc retire` also reports which universal apps still carry an Intel slice and about how many bytes it takes. This is advice only: macdoc doesn't remove the slice, because re-signing a thinned Developer-ID app makes Gatekeeper reject it ([ADR 0010](docs/adr/0010-slimming-universal-apps.md)).
+
+### Refresh
+
+`macdoc refresh` lists maintenance steps you can ask for: flush the DNS cache, restart the DNS responder, free inactive memory, and reset Quick Look. They are planned and applied through `macdoc apply`, like any other suggestion. Steps that need administrator rights say so in the dry run, and macOS asks for your password in Terminal; macdoc never sees it.
+
+```text
+$ macdoc refresh
+
+  O-anezgn  Reset the Quick Look cache
+  O-pauohd  Restart the Quick Look server
+  O-6jyde4  Flush the DNS cache  needs your Mac password
+  O-evcipg  Restart the DNS responder  needs your Mac password
+  O-p5h3jz  Free inactive memory  needs your Mac password
+
+$ macdoc apply O-6jyde4
+ CAUTION ────────────────────────────────────────────────────────── 0 B
+  O-6jyde4  Flush the DNS cache
+            → runs dscacheutil -flushcache
+            Needs administrator rights: macOS asks for your password in Terminal.
+ Nothing has been changed.
+```
+
+### Explore
+
+`macdoc explore [path]` shows where the space is inside one folder from the latest scan, biggest items first, with a share bar and a "smaller items" line so the sizes add up. It never rescans and never takes a path as a cleanup target. A size marked `partial` means some paths couldn't be read.
+
+```text
+$ macdoc explore
+
+ /Users/you · 53.5 GB · partial
+  1 path below could not be read (grant Full Disk Access and rescan), so sizes here are lower bounds
+ ╭───────────────┬─────────┬──────────────────┬───────╮
+ │ Name          │    Size │ Share            │     % │
+ ├───────────────┼─────────┼──────────────────┼───────┤
+ │ Library/      │ 43.7 GB │ █████████████░░░ │ 81.7% │
+ │ .local/       │  2.4 GB │ █░░░░░░░░░░░░░░░ │  4.4% │
+ │ Desktop/      │  1.6 GB │ ░░░░░░░░░░░░░░░░ │  2.9% │
+ │ Downloads/    │  729 MB │ ░░░░░░░░░░░░░░░░ │  1.4% │
+ ╰───────────────┴─────────┴──────────────────┴───────╯
+```
+
+In the dashboard, press `enter` on the Space tab to open the explorer: `↑↓` move, `enter` opens a folder, `backspace` goes up.
+
+`macdoc explore --projects` finds rebuildable project artifacts such as `node_modules`, Pods, iOS and Android builds, `.venv`, `.next`, and DerivedData. It groups them by project with how long the project has been idle and its git state. Projects with uncommitted changes raise the risk, and projects in protected folders are listed but never touched.
+
+<details>
+<summary><strong>Projects example</strong></summary>
+
+```text
+$ macdoc explore --projects
+
+ Projects ────────────────────────────────────────────────── 1.3 GB in 5
+  ~/work/backend · python
+    idle 11 days (file change) · 465 MB · git clean
+    .venv 465 MB
+  ~/work/release-tool · node
+    idle 13 days (file change) · 416 MB · git clean
+    node_modules 416 MB
+```
+
+</details>
+
+`macdoc explore --growth [--days 30]` shows what grew since an earlier scan, per well-known area and by folder.
+
+### Vitals
+
+`macdoc vitals` is a read-only dashboard for system pressure, disk activity, network traffic, power, and processes, with a 0 to 100 health score and the reasons it is lower.
+
+```text
+$ macdoc vitals
+
+ Health 80 / 100 · MacBookAir10,1 M1
+  -10 memory pressure is warn
+  -10 swap use is 120% of RAM
+
+ Now
+  CPU      ██████░░░░░░░░░░░░░░  31.5%   load 4.57 / 3.94 / 5.08 (8 cores)
+  Memory   ██████████████░░░░░░    70%   5.6 GB of 8.0 GB, pressure warn, swap 9.6 GB
+  Disk     ██████████████░░░░░░  68.7%   76.8 GB free of 245 GB, 34.4 MB/s
+  Network  down 674 B/s   up 252 B/s
+  Power    █████████░░░░░░░░░░░    44%   on battery, discharging, 3:31 left · health 100%, 289 cycles
+
+ Biggest memory users
+ ╭───────────────┬─────────┬───────────╮
+ │ Group         │  Memory │ Processes │
+ ├───────────────┼─────────┼───────────┤
+ │ Google Chrome │  2.0 GB │        71 │
+ │ Cursor        │  427 MB │        18 │
+ ╰───────────────┴─────────┴───────────╯
+```
+
+The Health tab in the dashboard shows the same live block and refreshes it every 3 seconds while it is open.
+
+<details>
+<summary><strong>JSON, NDJSON, and process alerts</strong></summary>
+
+- `macdoc vitals --json` returns a one-time status snapshot as JSON
+- `macdoc vitals --watch --interval 2s --json` streams newline-delimited JSON
+- `macdoc explore --json` returns a folder report with `status`: `complete`, `partial`, or `unavailable`
+- `macdoc log --json` returns activity as JSON; entries carry a `run` ID shared by everything one command did
+- Every command supports `--json`, and its shape is frozen in [`schema/`](schema/)
+
+```text
+$ macdoc vitals --json
+{
+  "score": 80,
+  "reasons": ["-10 memory pressure is warn", "-10 swap use is 120% of RAM"],
+  "cpu": { "usage_percent": 29.7, "load_1": 3.75 },
+  "alerts": { "zombie_parents": [], "busy_processes": [] }
+}
+```
+
+A section that couldn't be read (CPU, power, and so on) is left out with a note, never shown as zero. Process alerts are read-only: macdoc lists zombie parents and processes using 80% of a core or more, and never ends a process.
+
+</details>
+
+`macdoc vitals --memory [--days 7] [--tips]` answers "Is memory slowing my Mac down?" with a verdict, the biggest users against RAM, and swap over the window.
+
+## Quick Launchers
+
+<details>
+<summary><strong>Raycast and Alfred setup</strong></summary>
+
+The launchers only run the read-only `macdoc vitals` and `macdoc vitals --memory`. They never plan, apply, or delete.
+
+**Raycast:**
+
+1. Open **Raycast Settings > Extensions > Script Commands**.
+2. Add the repository's `launchers/raycast` folder as a script directory.
+3. Run **Reload Script Directories** in Raycast.
+
+**Alfred:**
+
+1. In an Alfred workflow add a Keyword input (for example `macdoc`) with an argument.
+2. Connect a Run Script action: language `/bin/sh`, with argv, script `/path/to/launchers/alfred/macdoc.sh "$1"`.
+3. Connect a Large Type or Copy to Clipboard output.
+
+</details>
+
+## Community
+
+Thanks to everyone who helped build macdoc: see the [contributors](https://github.com/sagnik26/macdoc/graphs/contributors).
+
+Rules for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents should read [AGENTS.md](AGENTS.md) first, because macdoc deletes files on people's Macs.
+
+## Support
+
+- If macdoc helped you, give it a star and [share it](https://github.com/sagnik26/macdoc)
+- Open an [issue](https://github.com/sagnik26/macdoc/issues) for anything that looks wrong or unsafe
+- For a security problem, follow [SECURITY.md](SECURITY.md) instead of opening a public issue
+- Product requirements are in [docs/PRD.md](docs/PRD.md); design notes, the recipe catalog, and the decision records are in [docs/](docs/ARCHITECTURE.md)
+
+## License
+
+macdoc is open source under the MIT license; see [LICENSE](LICENSE).

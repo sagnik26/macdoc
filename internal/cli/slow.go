@@ -19,7 +19,7 @@ func newSlowCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "slow",
 		Short: "Why your Mac feels slow: memory pressure, swap and the biggest memory users (read-only)",
-		Long: `macdoc doctor slow explains whether memory is what's slowing your Mac down:
+		Long: `macdoc vitals --memory explains whether memory is what's slowing your Mac down:
 memory pressure, swap now and over the last days, and which apps use the most
 memory and why. It only explains: it never quits or changes an app.
 
@@ -39,7 +39,7 @@ database, so the swap history fills in as you use macdoc.`,
 				res.Tips = engine.TipsFor(res.Groups)
 			}
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "doctor slow", res, slices.Concat(res.Health.Report.Warnings, res.Warnings))
+				return writeJSONWarn(cmd.OutOrStdout(), "vitals memory", res, slices.Concat(res.Health.Report.Warnings, res.Warnings))
 			}
 			return RenderSlow(cmd.OutOrStdout(), res, time.Now())
 		},

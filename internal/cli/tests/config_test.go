@@ -32,7 +32,7 @@ func TestConfigCommand(t *testing.T) {
 	mustContain(t, out, "plan_minutes               45", "(default 30, 5–120)", "  ~/code/a\n")
 
 	// A protected folder drops its suggestions: ~/code/a/node_modules is gone.
-	out, err = run(t, "wins", "--all")
+	out, err = run(t, "reclaim", "--all")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,7 +38,7 @@ type SystemDataPart struct {
 	Explain string      `json:"explain"`
 }
 
-// StorageResult is the data behind `macdoc doctor space`.
+// StorageResult is the data behind `macdoc reclaim --categories`.
 type StorageResult struct {
 	Scan       model.ScanInfo   `json:"scan"`
 	ScanAge    string           `json:"scan_age"`

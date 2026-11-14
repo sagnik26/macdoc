@@ -7,7 +7,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | Field | Purpose |
 |---|---|
 | `id` | Stable dotted ID, e.g. `xcode.derived_data` |
-| `category` / `toolchain` | For `doctor space` and `doctor dev` grouping |
+| `category` / `toolchain` | For `reclaim --categories` and `reclaim --toolchains` grouping |
 | `detector` | Named Go detector + params (glob roots, tool listing) |
 | `allow` | Path patterns the target **must** match after canonicalization |
 | `keep_files` | Small files the scanner must keep so a detector can see them: a literal `~`-relative folder and an extension, like `~/Downloads/*.dmg` (case-insensitive, files directly in that folder, any size). A bad entry fails the catalog load |
@@ -16,7 +16,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `native.argv` | Fixed argv. Placeholders only for identifiers validated against the tool's own listing |
 | `native.dry_run_argv` | Tool's own dry-run if it has one (e.g. `brew cleanup -n`) |
 | `privileged` | `true` for a native step that needs administrator rights. The argv must exactly match `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`). Run only by `internal/executor/privileged.go` through the OS password prompt; never in a plan Claude proposed (ADR 0009) |
-| `on_request` | `true` to keep the recipe out of scans, wins and MCP listings. It is shown only by `macdoc doctor maintenance` and planned by ID |
+| `on_request` | `true` to keep the recipe out of scans, reclaim and MCP listings. It is shown only by `macdoc refresh` and planned by ID |
 | `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean`, `no_installed_app` |
 | `staleness` | Signal + threshold (e.g. `mtime_max > 60d`) |
 | `restore` | How it comes back plus cost: `rebuild` / `redownload:<GB>` / `irreplaceable` |
@@ -127,7 +127,7 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `apps.launch_agent_unload` | A user LaunchAgent whose program no longer exists: `launchctl remove <label>` | CAUTION | N | none | Nothing to start again |
 | `apps.launch_agent_file` | The plist of that same background item, moved aside | CAUTION | Q | none | Nothing to start again |
 | `swap.explain` | VM volume / swap files | ADVISE | A (explains swap and what reduces it) | n/a | n/a |
-| `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `doctor space --large`) | n/a | Unknown |
+| `crawl.unknown_large` | Any large dir or file with no recipe | ADVISE | A (shown in `reclaim --categories`) | n/a | Unknown |
 
 ### Detector `app_leftovers` and precondition `no_installed_app`
 
@@ -157,7 +157,7 @@ An optional list of software a recipe covers, written `kind:identity`:
 | `npm:` | a global npm package, e.g. `npm:yarn` | `npm ls -g` |
 | `tool:` | a program on `PATH`, e.g. `tool:pip` | the executables in the folders on `PATH` that the user owns (`internal/inventory/tools.go`) |
 
-`macdoc doctor software` uses `match:` to show, for each installed program, the recipes that cover it (`covered_by`), or "advisory only" when none does. It never decides an action: a recipe is still the only source of one. `ParseMatch` in `internal/recipes/match.go` checks each entry, and a bad entry fails the catalog load.
+`macdoc retire` uses `match:` to show, for each installed program, the recipes that cover it (`covered_by`), or "advisory only" when none does. It never decides an action: a recipe is still the only source of one. `ParseMatch` in `internal/recipes/match.go` checks each entry, and a bad entry fails the catalog load.
 
 A recipe is covered only while the program is installed. For example, the Android recipes match `tool:avdmanager` and `tool:sdkmanager`, which only show when those tools are on `PATH`.
 

@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/platform"
@@ -14,51 +11,6 @@ import (
 
 // Runner is the command Runner used by read-only commands; tests replace it.
 var Runner platform.Runner = platform.Exec{}
-
-// newDoctorCmd builds `macdoc doctor`: the one command that shows everything,
-// with sections underneath it for detail.
-func newDoctorCmd(g *GlobalFlags) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "doctor",
-		Short: "Everything at once: health, where your space is, and what you can reclaim (read-only)",
-		Long: `macdoc doctor shows one overview: disk and memory health, where your space
-is, and what you could reclaim, ranked by safety. It scans only if there is
-no scan yet. Use a section for more detail:
-
-  macdoc doctor health          disk, memory, swap, top apps
-  macdoc doctor slow            why it feels slow: memory, swap and what uses it
-  macdoc doctor trend           what grew since an earlier scan
-  macdoc doctor space           space by category, "System Data" decoded
-  macdoc doctor wins            every suggestion with its ID
-  macdoc doctor dev [toolchain] suggestions per developer toolchain
-  macdoc doctor projects        projects: idle days, build folders, git state
-  macdoc doctor software        installed software and the data it leaves behind
-  macdoc doctor explore [path]  where the space is inside one folder (from the last scan)
-  macdoc doctor status          live CPU, memory, disk, network and battery, with a health score
-  macdoc doctor scan            rescan, then show the full report (every section)`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runOverview(cmd, g, overviewMode{})
-		},
-	}
-
-	health := &cobra.Command{
-		Use:   "health",
-		Short: "Disk, memory, swap, snapshots and top memory users (read-only)",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			res := engine.Doctor(context.Background(), Runner)
-			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "doctor health", res)
-			}
-			return RenderDoctor(cmd.OutOrStdout(), res)
-		},
-	}
-	space := newStorageCmd(g)
-	space.Use = "space"
-	cmd.AddCommand(health, newSlowCmd(g), newTrendCmd(g), space, newWinsCmd(g), newDevCmd(g), newProjectsCmd(g), newSoftwareCmd(g), newExploreCmd(g), newStatusCmd(g), newMaintenanceCmd(g), newScanCmd(g))
-	return cmd
-}
 
 // writeVitals writes the header and the disk, memory and snapshot lines.
 func writeVitals(b *strings.Builder, t *Theme, res engine.DoctorResult, extra string) {
@@ -127,7 +79,7 @@ func writeFindings(b *strings.Builder, t *Theme, fs []engine.Finding, max int, d
 	}
 	for i, f := range fs {
 		if max > 0 && i == max {
-			fmt.Fprintln(b, t.muted.Render(fmt.Sprintf("  … %d more (macdoc doctor health)", len(fs)-max)))
+			fmt.Fprintln(b, t.muted.Render(fmt.Sprintf("  … %d more (macdoc vitals)", len(fs)-max)))
 			break
 		}
 		fmt.Fprintf(b, "  %s %s %s\n", t.muted.Render(fmt.Sprintf("%d.", i+1)), t.sev(f.Severity), t.text.Render(f.Title))
@@ -137,7 +89,7 @@ func writeFindings(b *strings.Builder, t *Theme, fs []engine.Finding, max int, d
 	}
 }
 
-// RenderDoctor renders `macdoc doctor health`.
+// RenderDoctor renders `macdoc vitals`.
 func RenderDoctor(w io.Writer, res engine.DoctorResult) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder

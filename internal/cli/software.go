@@ -19,12 +19,12 @@ import (
 // softwareListLimit caps the rows shown for each list; --json has them all.
 const softwareListLimit = 25
 
-// newSoftwareCmd builds `macdoc doctor software`: what is installed, which
+// newSoftwareCmd builds `macdoc retire`: what is installed, which
 // folders belong to it, and what is new since the last scan (read-only).
-func newSoftwareCmd(g *GlobalFlags) *cobra.Command {
+func newRetireCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
-		Use:   "software",
-		Short: "Installed software, the data folders that belong to it, and what is new since the last scan (read-only)",
+		Use:   "retire",
+		Short: "Installed apps and the data that belongs to them: what you can retire (read-only)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, err := UserHome()
@@ -36,7 +36,7 @@ func newSoftwareCmd(g *GlobalFlags) *cobra.Command {
 				return err
 			}
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "doctor software", res, res.Warnings)
+				return writeJSONWarn(cmd.OutOrStdout(), "retire", res, res.Warnings)
 			}
 			return RenderSoftware(cmd.OutOrStdout(), res)
 		},
@@ -48,7 +48,7 @@ func RenderSoftware(w io.Writer, res engine.SoftwareResult) error {
 	res = display(res) // names and paths come from the disk; clean them for the terminal
 	var b strings.Builder
 	t := themeFor(w)
-	b.WriteString(t.commandHeader("software", res.Scan.ID, res.ScanAge))
+	b.WriteString(t.commandHeader("retire", res.Scan.ID, res.ScanAge))
 
 	isNew := map[string]bool{}
 	for _, id := range res.New {
@@ -61,7 +61,7 @@ func RenderSoftware(w io.Writer, res engine.SoftwareResult) error {
 	}
 	for i, sw := range res.Software {
 		if i == softwareListLimit {
-			fmt.Fprintf(&b, "  … and %d more (macdoc doctor software --json lists them all)\n", len(res.Software)-i)
+			fmt.Fprintf(&b, "  … and %d more (macdoc retire --json lists them all)\n", len(res.Software)-i)
 			break
 		}
 		size := "no data folder found"
@@ -177,7 +177,7 @@ func (m TuiModel) softwareLoadingView() string {
 // softwareFailedView says why the inventory couldn't be read.
 func (m TuiModel) softwareFailedView() string {
 	return "\n  " + m.t.warn.Render("Couldn't read installed software: "+m.softwareErr.Error()) + "\n  " +
-		m.t.muted.Render("esc to close, then run /installed again.") + "\n"
+		m.t.muted.Render("esc to close, then run /retire again.") + "\n"
 }
 
 // softwareLoaded shows the inventory in an overlay, or why it couldn't be read.

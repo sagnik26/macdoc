@@ -39,96 +39,63 @@ func preconditionLabel(p string) string {
 	return p
 }
 
-func newPlanCmd(g *GlobalFlags) *cobra.Command {
-	var safe bool
-	var tier, recipe string
-	cmd := &cobra.Command{
-		Use:   "plan [O-id...]",
-		Short: "Make a sealed dry-run plan from suggestion IDs (changes nothing)",
-		Long: `macdoc plan writes down exactly what a cleanup would do, as a dry run, and
-seals it. Nothing on your Mac changes. A plan expires after 30 minutes.
-
-  macdoc plan O-ab12cd O-k3m9pq    the suggestions with these IDs
-  macdoc plan --safe               every SAFE suggestion
-  macdoc plan --tier caution       every suggestion of one tier
-  macdoc plan --recipe <id>        every suggestion of one recipe
-  macdoc plan show P-7F3K          a plan again, with its status
-  macdoc plan list                 recent plans
-
-Plans take suggestion IDs from "macdoc doctor wins", never paths.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			sel, err := PlanSelector(args, safe, tier, recipe)
-			if err != nil {
-				return err
-			}
-			home, err := UserHome()
-			if err != nil {
-				return err
-			}
-			cat, err := LoadCatalog()
-			if err != nil {
-				return err
-			}
-			if sel.Recipe != "" {
-				if _, ok := cat.Get(sel.Recipe); !ok {
-					return fmt.Errorf("unknown recipe %q (see docs/RECIPE_CATALOG.md for the recipe IDs)", sel.Recipe)
-				}
-			}
-			res, err := engine.CreatePlan(context.Background(), engine.PlanOptions{
-				OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat},
-				Selector:           sel,
-			})
-			return finishPlan(cmd.OutOrStdout(), g, res, home, err)
-		},
+// sealPlan seals a plan from the selection, as `macdoc apply --dry-run` does,
+// and returns it with the home folder it was made for.
+func sealPlan(g *GlobalFlags, sel planner.Selector) (engine.PlanResult, string, error) {
+	home, err := UserHome()
+	if err != nil {
+		return engine.PlanResult{}, "", err
 	}
-	cmd.Flags().BoolVar(&safe, "safe", false, "every SAFE suggestion")
-	cmd.Flags().StringVar(&tier, "tier", "", "every suggestion of one tier: safe, caution or risky")
-	cmd.Flags().StringVar(&recipe, "recipe", "", "every suggestion of one recipe, e.g. xcode.derived_data")
+	cat, err := LoadCatalog()
+	if err != nil {
+		return engine.PlanResult{}, "", err
+	}
+	if sel.Recipe != "" {
+		if _, ok := cat.Get(sel.Recipe); !ok {
+			return engine.PlanResult{}, "", fmt.Errorf("unknown recipe %q (see docs/RECIPE_CATALOG.md for the recipe IDs)", sel.Recipe)
+		}
+	}
+	res, err := engine.CreatePlan(context.Background(), engine.PlanOptions{
+		OpportunityOptions: engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat},
+		Selector:           sel,
+	})
+	return res, home, err
+}
 
-	show := &cobra.Command{
-		Use:   "show <P-id>",
-		Short: "Show a plan again, with its status (changes nothing)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := UserHome()
-			if err != nil {
-				return err
-			}
-			cat, err := LoadCatalog()
-			if err != nil {
-				return err
-			}
-			res, err := engine.ShowPlan(context.Background(), engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat}, strings.ToUpper(args[0]))
-			if err != nil {
-				return err
-			}
-			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "plan show", res, res.Warnings)
-			}
-			return RenderPlan(cmd.OutOrStdout(), res, home, time.Now())
-		},
+// showPlan prints a stored plan again, with its status (changes nothing).
+func showPlan(cmd *cobra.Command, g *GlobalFlags, id string) error {
+	home, err := UserHome()
+	if err != nil {
+		return err
 	}
-	list := &cobra.Command{
-		Use:   "list",
-		Short: "Recent plans and their status (changes nothing)",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := UserHome()
-			if err != nil {
-				return err
-			}
-			recs, err := engine.ListPlans(engine.OpportunityOptions{Home: home}, 20)
-			if err != nil {
-				return err
-			}
-			if g.json {
-				return writeJSON(cmd.OutOrStdout(), "plan list", recs)
-			}
-			return renderPlanList(cmd.OutOrStdout(), recs, time.Now())
-		},
+	cat, err := LoadCatalog()
+	if err != nil {
+		return err
 	}
-	cmd.AddCommand(show, list)
-	return cmd
+	res, err := engine.ShowPlan(context.Background(), engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat}, strings.ToUpper(id))
+	if err != nil {
+		return err
+	}
+	if g.json {
+		return writeJSONWarn(cmd.OutOrStdout(), "apply show", res, res.Warnings)
+	}
+	return RenderPlan(cmd.OutOrStdout(), res, home, time.Now())
+}
+
+// listPlans prints the recent plans and their status (changes nothing).
+func listPlans(cmd *cobra.Command, g *GlobalFlags) error {
+	home, err := UserHome()
+	if err != nil {
+		return err
+	}
+	recs, err := engine.ListPlans(engine.OpportunityOptions{Home: home}, 20)
+	if err != nil {
+		return err
+	}
+	if g.json {
+		return writeJSON(cmd.OutOrStdout(), "apply list", recs)
+	}
+	return renderPlanList(cmd.OutOrStdout(), recs, time.Now())
 }
 
 // PlanSelector turns arguments and flags into exactly one selector.
@@ -141,7 +108,7 @@ func PlanSelector(args []string, safe bool, tier, recipe string) (planner.Select
 	}
 	switch {
 	case n == 0:
-		return planner.Selector{}, errors.New(`say what to plan: suggestion IDs (macdoc plan O-ab12cd), --safe, --tier or --recipe`)
+		return planner.Selector{}, errors.New(`say what to apply: suggestion IDs (macdoc apply O-ab12cd), --safe, --tier or --recipe`)
 	case n > 1:
 		return planner.Selector{}, errors.New("use one of: suggestion IDs, --safe, --tier, --recipe")
 	case len(args) > 0:
@@ -167,7 +134,7 @@ func finishPlan(w io.Writer, g *GlobalFlags, res engine.PlanResult, home string,
 	switch {
 	case errors.Is(err, planner.ErrNothing):
 		if g.json {
-			_ = writeJSONWarn(w, "plan", res, res.Warnings)
+			_ = writeJSONWarn(w, "apply", res, res.Warnings)
 		} else {
 			var b strings.Builder
 			writeRefused(&b, themeFor(w), res.Refused)
@@ -177,7 +144,7 @@ func finishPlan(w io.Writer, g *GlobalFlags, res engine.PlanResult, home string,
 	case err != nil:
 		return err
 	case g.json:
-		return writeJSONWarn(w, "plan", res, res.Warnings)
+		return writeJSONWarn(w, "apply", res, res.Warnings)
 	}
 	return RenderPlan(w, res, home, time.Now())
 }
@@ -240,7 +207,7 @@ func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 	if left := p.ExpiresAt.Sub(now); left > 0 {
 		expiry = fmt.Sprintf("expires in %d min", int((left+time.Minute-1)/time.Minute))
 	}
-	origin := "made by you (" + "macdoc plan " + p.Request + ")"
+	origin := "made by you (macdoc apply " + p.Request + ")"
 	if p.Origin == model.OriginClaude {
 		origin = "proposed by Claude " + ProposedAt(p.CreatedAt)
 	}
@@ -253,7 +220,7 @@ func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 	}
 	switch res.Status {
 	case planner.Expired:
-		out += " " + t.warn.Render("This plan has expired. Make a new one with macdoc plan.") + "\n\n"
+		out += " " + t.warn.Render("This plan has expired. Make a new one with macdoc apply.") + "\n\n"
 	case planner.Applied:
 		out += " " + t.muted.Render("This plan was already applied.") + "\n\n"
 	case planner.Invalid:
@@ -320,7 +287,7 @@ func renderPlanList(w io.Writer, recs []store.PlanRecord, now time.Time) error {
 	var b strings.Builder
 	t := themeFor(w)
 	if len(recs) == 0 {
-		b.WriteString(" No plans yet. Make one with macdoc plan --safe or macdoc plan <O-id>.\n")
+		b.WriteString(" No plans yet. Make one with macdoc apply --safe or macdoc apply <O-id>.\n")
 	}
 	for _, r := range recs {
 		status := string(r.Status)

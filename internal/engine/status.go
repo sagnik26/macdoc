@@ -19,7 +19,7 @@ type StatusOptions struct {
 	Interval time.Duration   // how long traffic is measured over; default 1s
 }
 
-// StatusResult is the data behind `macdoc doctor status`: what the Mac is
+// StatusResult is the data behind `macdoc vitals`: what the Mac is
 // doing right now. Each live section is a pointer that is absent when its
 // probe failed, so an unknown value is never shown as zero.
 type StatusResult struct {

@@ -228,11 +228,11 @@
       "type": "object"
     }
   },
-  "$id": "https://macdoc.local/schema/projects.json",
+  "$id": "https://macdoc.local/schema/explore-projects.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "command": {
-      "const": "projects"
+      "const": "explore projects"
     },
     "data": {
       "$ref": "#/$defs/engine.ProjectsResult"
@@ -242,7 +242,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "warnings": {
       "items": {
@@ -260,6 +260,6 @@
     "generated_at",
     "data"
   ],
-  "title": "macdoc projects --json",
+  "title": "macdoc explore projects --json",
   "type": "object"
 }

@@ -14,24 +14,24 @@ import (
 
 func TestStorageCommand(t *testing.T) {
 	home := cliFixture(t)
-	out, err := run(t, "space")
+	out, err := run(t, "reclaim", "--categories")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "macdoc doctor space · scan S-", "Reclaimable, by category", "package-caches", "18.0 GB+", "7 item(s)",
+	mustContain(t, out, "macdoc reclaim categories · scan S-", "Reclaimable, by category", "package-caches", "18.0 GB+", "7 item(s)",
 		"SAFE 3.0 GB · CAUTION 15.0 GB", `"System Data", decoded`, "Local Time Machine snapshots", "—  unknown (",
 		" Notes\n", "nothing has been changed")
 	if strings.Contains(out, "Large items") {
 		t.Error("large shown without --large")
 	}
 
-	out, err = run(t, "space", "--large")
+	out, err = run(t, "reclaim", "--categories", "--large")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, out, "Large items with no recipe (≥ 1 GB): advice only, review manually", "4.0 GB  "+filepath.Join(home, "big.iso"))
 
-	out, err = run(t, "space", "--large", "--json")
+	out, err = run(t, "reclaim", "--categories", "--large", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestStorageCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	if env.Command != "storage" || len(env.Data.Large) != 1 || len(env.Data.SystemData) == 0 || len(env.Data.Categories) != 1 {
+	if env.Command != "reclaim categories" || len(env.Data.Large) != 1 || len(env.Data.SystemData) == 0 || len(env.Data.Categories) != 1 {
 		t.Errorf("envelope = %+v", env)
 	}
 }

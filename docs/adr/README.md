@@ -17,3 +17,4 @@ An accepted record is changed only by a new record that supersedes it.
 | [0009](0009-privileged-maintenance-steps.md) | Privileged maintenance steps run only through the OS password prompt, from an exact allow-list | Accepted (owner decision, 2026-11-13) |
 | [0010](0010-slimming-universal-apps.md) | macdoc reports slimmable universal apps and never removes slices or re-signs apps | Accepted (experiment S6, 2026-11-14) |
 | [0011](0011-app-bundles-and-support-folders.md) | App bundles directly in `/Applications` and Application Support leftovers may be moved, through one exact pattern and RISKY recipes | Accepted (owner decision, 2026-11-14) |
+| [0012](0012-five-commands-and-one-apply.md) | The CLI is bare `macdoc` plus `reclaim`, `retire`, `refresh`, `explore`, `vitals` and `scan`, with one `apply` that plans, confirms and applies; `doctor` and `plan` are removed | Accepted (owner decision, 2026-11-14) |

@@ -50,7 +50,7 @@ func TestRenderPlan(t *testing.T) {
 	if err := cli.RenderPlan(&buf, samplePlan(), "/Users/me", planNow.Add(5*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	want := `Plan P-7F3K · 4 item(s) · 566 MB · expires in 25 min · made by you (macdoc plan --safe)
+	want := `Plan P-7F3K · 4 item(s) · 566 MB · expires in 25 min · made by you (macdoc apply --safe)
 
  SAFE ─────────────────────────────────────────────────────────── 406 MB
   O-brewaa  Homebrew old versions                           400 MB
@@ -182,7 +182,7 @@ func TestPlanSelector(t *testing.T) {
 		tier, recipe string
 		want         string
 	}{
-		"nothing": {want: "say what to plan"},
+		"nothing": {want: "say what to apply"},
 		"two":     {args: []string{"O-abcdef"}, safe: true, want: "use one of"},
 		"path":    {args: []string{"/Users/me/Library/Caches"}, want: "never paths"},
 		"advise":  {tier: "advise", want: "advice-only"},

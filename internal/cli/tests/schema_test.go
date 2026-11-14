@@ -37,22 +37,21 @@ var updateSchemas = flag.Bool("update", false, "rewrite schema/*.json from the G
 // jsonCommands maps each envelope command name to its data type.
 var jsonCommands = map[string]any{
 	"version":            map[string]string{},
-	"doctor":             engine.OverviewResult{},
-	"doctor scan":        cli.FullResult{},
-	"doctor software":    engine.SoftwareResult{},
-	"doctor explore":     engine.ExploreResult{},
-	"doctor status":      engine.StatusResult{},
-	"doctor maintenance": engine.OpportunityResult{},
-	"doctor health":      engine.DoctorResult{},
-	"doctor slow":        engine.SlowResult{},
-	"doctor trend":       engine.TrendResult{},
-	"storage":            engine.StorageResult{},
-	"wins":               engine.OpportunityResult{},
-	"dev":                cli.DevResult{},
-	"projects":           engine.ProjectsResult{},
-	"plan":               engine.PlanResult{},
-	"plan show":          engine.PlanResult{},
-	"plan list":          []store.PlanRecord{},
+	"overview":           engine.OverviewResult{},
+	"scan":               cli.FullResult{},
+	"reclaim":            engine.OpportunityResult{},
+	"reclaim toolchain":  cli.DevResult{},
+	"reclaim categories": engine.StorageResult{},
+	"retire":             engine.SoftwareResult{},
+	"refresh":            engine.OpportunityResult{},
+	"explore":            engine.ExploreResult{},
+	"explore growth":     engine.TrendResult{},
+	"explore projects":   engine.ProjectsResult{},
+	"vitals":             engine.StatusResult{},
+	"vitals memory":      engine.SlowResult{},
+	"apply":              engine.PlanResult{},
+	"apply show":         engine.PlanResult{},
+	"apply list":         []store.PlanRecord{},
 	"schedule enable":    cli.ScheduleResult{},
 	"schedule disable":   cli.ScheduleResult{},
 	"log":                engine.AuditResult{},
@@ -129,8 +128,8 @@ func TestEveryJSONCommandHasASchema(t *testing.T) {
 func TestJSONOutputMatchesSchema(t *testing.T) {
 	cliFixture(t)
 	for _, args := range [][]string{
-		{"version"}, {"doctor"}, {"health"}, {"slow"}, {"wins", "--all"}, {"dev"}, {"space"},
-		{"doctor", "projects"}, {"doctor", "software"}, {"doctor", "explore", "/nowhere"}, {"doctor", "status"}, {"config"}, {"log"}, {"plan", "list"}, {"quarantine", "list"},
+		{"version"}, {}, {"vitals"}, {"vitals", "--memory"}, {"reclaim", "--all"}, {"reclaim", "--toolchains"}, {"reclaim", "--categories"},
+		{"explore", "--projects"}, {"retire"}, {"refresh"}, {"explore", "/nowhere"}, {"config"}, {"log"}, {"apply", "--list"}, {"quarantine", "list"},
 	} {
 		out, err := run(t, append(args, "--json")...)
 		if err != nil {

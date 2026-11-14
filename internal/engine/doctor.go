@@ -26,7 +26,7 @@ type Finding struct {
 	Detail   string   `json:"detail,omitempty"`
 }
 
-// DoctorResult is the data behind `macdoc doctor`.
+// DoctorResult is the data behind `macdoc`.
 type DoctorResult struct {
 	Report   probe.Report `json:"report"`
 	Findings []Finding    `json:"findings"`
@@ -88,7 +88,7 @@ func Findings(rep probe.Report) []Finding {
 		case free < criticalFreeBytes:
 			fs = append(fs, Finding{SeverityCritical,
 				fmt.Sprintf("Only %s free on disk.", DecimalBytes(free)),
-				"Below 5 GB, macOS updates fail and apps can hang. Run `macdoc doctor` to see what can be reclaimed."})
+				"Below 5 GB, macOS updates fail and apps can hang. Run `macdoc` to see what can be reclaimed."})
 		case free < lowFreeBytes:
 			fs = append(fs, Finding{SeverityWarn,
 				fmt.Sprintf("Free space is under 10 GB (%s).", DecimalBytes(free)),

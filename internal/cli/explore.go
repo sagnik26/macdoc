@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -16,10 +17,10 @@ import (
 // exploreBarWidth is the width of the share bar in the explorer tables.
 const exploreBarWidth = 16
 
-// newExploreCmd builds `macdoc doctor explore [path]`: what the latest scan
+// newFolderCmd builds the folder view of `macdoc explore [path]`: what the latest scan
 // knows about one folder, biggest items first. Read-only; the path is only
 // looked at, never a target.
-func newExploreCmd(g *GlobalFlags) *cobra.Command {
+func newFolderCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "explore [path]",
 		Short: "Where the space is inside one folder, from the latest scan (read-only)",
@@ -38,7 +39,7 @@ func newExploreCmd(g *GlobalFlags) *cobra.Command {
 				return err
 			}
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "doctor explore", res, nil)
+				return writeJSONWarn(cmd.OutOrStdout(), "explore", res, nil)
 			}
 			return RenderExplore(cmd.OutOrStdout(), res, home)
 		},
@@ -218,4 +219,42 @@ func (m *TuiModel) scrollToMarker(body string) {
 		}
 		return
 	}
+}
+
+// newExploreCmd builds `macdoc explore [folder]`: where the space is. By
+// default it is the folder explorer; --growth shows what grew between scans
+// and --projects lists projects with their build folders. All read-only.
+func newExploreCmd(g *GlobalFlags) *cobra.Command {
+	folder, trend, projects := newFolderCmd(g), newTrendCmd(g), newProjectsCmd(g)
+	var growth, byProject bool
+	cmd := &cobra.Command{
+		Use:   "explore [folder]",
+		Short: "Where your space is: folders, what grew, and project build folders (read-only)",
+		Long: `macdoc explore shows where the space is, from the latest scan:
+
+  macdoc explore [folder]      the biggest items inside one folder
+  macdoc explore --growth      what grew since an earlier scan
+  macdoc explore --projects    your projects, idle days, build folders and git state
+
+It reads stored scans only and never takes a folder as a cleanup target.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch {
+			case growth && byProject:
+				return errors.New("use --growth or --projects, not both")
+			case (growth || byProject) && len(args) > 0:
+				return errors.New("--growth and --projects take no folder")
+			case growth:
+				return trend.RunE(cmd, nil)
+			case byProject:
+				return projects.RunE(cmd, nil)
+			}
+			return folder.RunE(cmd, args)
+		},
+	}
+	cmd.Flags().BoolVar(&growth, "growth", false, "show what grew since an earlier scan")
+	cmd.Flags().BoolVar(&byProject, "projects", false, "list projects with idle days, build folders and git state")
+	cmd.Flags().AddFlagSet(trend.Flags())    // --days
+	cmd.Flags().AddFlagSet(projects.Flags()) // --idle
+	return cmd
 }

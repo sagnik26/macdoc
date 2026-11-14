@@ -36,14 +36,23 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "output JSON")
 	root.PersistentFlags().BoolVarP(&g.quiet, "quiet", "q", false, "minimal output")
 
-	doctor := newDoctorCmd(g)
-	root.AddCommand(newVersionCmd(g), doctor, newPlanCmd(g), newApplyCmd(g), newQuarantineCmd(g), newLogCmd(g), newConfigCmd(g), newMCPCmd(), newScheduleCmd(g))
+	root.AddGroup(&cobra.Group{ID: "main", Title: "Commands:"}, &cobra.Group{ID: "more", Title: "More:"})
+	root.SetHelpCommandGroupID("more")
+	root.SetCompletionCommandGroupID("more")
+	for _, c := range []*cobra.Command{newReclaimCmd(g), newRetireCmd(g), newRefreshCmd(g), newExploreCmd(g), newVitalsCmd(g), newScanCmd(g), newApplyCmd(g)} {
+		c.GroupID = "main"
+		root.AddCommand(c)
+	}
+	for _, c := range []*cobra.Command{newQuarantineCmd(g), newLogCmd(g), newConfigCmd(g), newMCPCmd(), newScheduleCmd(g), newVersionCmd(g)} {
+		c.GroupID = "more"
+		root.AddCommand(c)
+	}
 	// Bare `macdoc` opens the dashboard in an interactive terminal and is
-	// `macdoc doctor` everywhere else (pipes, --json, --quiet, TERM=dumb).
+	// the overview summary everywhere else (pipes, --json, --quiet, TERM=dumb).
 	root.Args = cobra.NoArgs
 	root.RunE = func(cmd *cobra.Command, args []string) error {
 		if g.json || g.quiet || !interactive(cmd) {
-			return doctor.RunE(cmd, args)
+			return runOverview(cmd, g, overviewMode{})
 		}
 		home, err := UserHome()
 		if err != nil {

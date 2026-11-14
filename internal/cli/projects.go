@@ -35,7 +35,7 @@ func newProjectsCmd(g *GlobalFlags) *cobra.Command {
 			}
 			res = FilterProjects(res, idle)
 			if g.json {
-				return writeJSONWarn(cmd.OutOrStdout(), "projects", res, res.Warnings)
+				return writeJSONWarn(cmd.OutOrStdout(), "explore projects", res, res.Warnings)
 			}
 			return RenderProjects(cmd.OutOrStdout(), res, home, idle)
 		},
@@ -64,7 +64,7 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
-	b.WriteString(t.commandHeader("projects", res.Scan.ID, res.ScanAge))
+	b.WriteString(t.commandHeader("explore projects", res.Scan.ID, res.ScanAge))
 
 	var total int64
 	for _, p := range res.Projects {
@@ -115,7 +115,7 @@ func RenderProjects(w io.Writer, res engine.ProjectsResult, home string, idle in
 	}
 
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc doctor wins"))
+	b.WriteString(t.footer("macdoc reclaim"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }
