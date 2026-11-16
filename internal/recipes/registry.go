@@ -83,6 +83,7 @@ var ToolInstalled = func(name string) bool {
 func init() {
 	Register("children", DetectChildren)
 	Register("path", DetectPath)
+	Register("paths", DetectPaths)
 }
 
 // DetectChildren emits one finding per kept direct child of params["dir"]
@@ -155,6 +156,33 @@ func DetectPath(_ context.Context, env Env, r Recipe) ([]Finding, error) {
 		}
 	}
 	return nil, nil
+}
+
+// DetectPaths emits one finding for each folder listed in params["paths"]
+// (comma-separated, "~" allowed) that the scan kept. A folder that is missing
+// or that the scan did not keep gives nothing. Sizing is as in DetectPath.
+func DetectPaths(_ context.Context, env Env, r Recipe) ([]Finding, error) {
+	raw := r.Params["paths"]
+	if strings.TrimSpace(raw) == "" {
+		return nil, fmt.Errorf("recipe %s: detector paths needs params.paths", r.ID)
+	}
+	if env.Nodes == nil {
+		return nil, nil
+	}
+	var out []Finding
+	for _, p := range strings.Split(raw, ",") {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		one := r
+		one.Params = map[string]string{"path": p, "size": r.Params["size"]}
+		fs, err := DetectPath(context.Background(), env, one)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fs...)
+	}
+	return out, nil
 }
 
 // nodeFinding converts a scan node into a finding sized by the scan. The size

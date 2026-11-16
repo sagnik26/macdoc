@@ -370,71 +370,6 @@ func (m TuiModel) foldersTable(nodes []model.Node, limit, w int) string {
 		})
 }
 
-func (m TuiModel) healthTables() string {
-	t, w := m.t, m.w-2
-	h := m.Data.Res.Health
-	rep := h.Report
-	var b strings.Builder
-	b.WriteString("\n")
-	if m.status != nil {
-		b.WriteString(statusBlocks(t, display(*m.status), false))
-		b.WriteString("\n")
-	}
-	b.WriteString(t.block("Your Mac", "", m.vitalsTable(w)))
-	b.WriteString("\n")
-	b.WriteString(m.slowBlock())
-	b.WriteString("\n")
-	if len(h.Findings) == 0 {
-		b.WriteString(t.block("Findings", "", " "+t.Ok.Render("Nothing urgent.")+" Disk, memory and swap look healthy.\n"))
-	} else {
-		b.WriteString(t.block("Findings", "", m.findingsTable(h.Findings, w, true)))
-	}
-	if groups := m.Data.Slow.Groups; len(groups) > 0 {
-		var rows [][]string
-		for _, g := range groups {
-			rows = append(rows, []string{g.Name, engine.BinaryBytes(g.RSSBytes), fmt.Sprint(max(1, g.Count)), g.Explain})
-		}
-		b.WriteString("\n")
-		b.WriteString(t.block("Top memory users", "resident memory; shared memory can count twice", t.Grid(
-			[]Column{{Title: "App or tool"}, {Title: "Memory", Right: true}, {Title: "Processes", Right: true}, {Title: "What it is", Wrap: true}}, rows, w,
-			func(_, c int) *lipgloss.Style {
-				switch c {
-				case 1:
-					return ptr(t.size)
-				case 3:
-					return ptr(t.muted)
-				}
-				return nil
-			})))
-	}
-	if len(rep.Warnings) > 0 {
-		var rows [][]string
-		for _, wn := range rep.Warnings {
-			rows = append(rows, []string{wn})
-		}
-		b.WriteString("\n")
-		b.WriteString(t.block("Could not measure", "", t.Grid([]Column{{Title: "What and why", Wrap: true}}, rows, w,
-			func(_, _ int) *lipgloss.Style { return ptr(t.muted) })))
-	}
-	return b.String()
-}
-
-// slowBlock answers "is memory slowing it down?" with the swap history.
-func (m TuiModel) slowBlock() string {
-	t := m.t
-	s := m.Data.Slow
-	var b strings.Builder
-	fmt.Fprintf(&b, " %s %s\n", t.sev(s.Level), t.text.Render(s.Verdict))
-	if s.Summary != "" {
-		fmt.Fprintf(&b, "   %s\n", t.muted.Render("Biggest users: "+s.Summary))
-	}
-	fmt.Fprintf(&b, "   %s %s\n", t.muted.Render("Swap:"), swapLine(t, s, NowFunc()))
-	for _, n := range s.Notes {
-		fmt.Fprintf(&b, " %s %s\n", t.sev(engine.SeverityWarn), t.text.Render(n))
-	}
-	return t.block("Is memory slowing it down?", "", b.String())
-}
-
 // trendBlock is what grew between the latest scan and one about 30 days old.
 func (m TuiModel) trendBlock(w int) string {
 	t := m.t
@@ -625,7 +560,9 @@ func (m TuiModel) toolchainTables() string {
 // compact drops the restore Column (the details beside the list show it).
 func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) string {
 	t := m.t
-	cols := []Column{{Title: " "}, {Title: "ID"}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Flex: true}}
+	// The ID is not a column: nobody types it here. A RISKY item's ID shows in
+	// the removal box, where it must be typed.
+	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Flex: true}}
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
 		mark := " "
@@ -637,19 +574,17 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		case m.Marked[op.ID]:
 			mark = "✓"
 		}
-		rows[i] = []string{mark, op.ID, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, Truncate(RestoreNote(op), 30)}
+		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, Truncate(RestoreNote(op), 30)}
 	}
 	if compact {
-		cols = cols[:5]
+		cols = cols[:4]
 		for i := range rows {
-			rows[i] = rows[i][:5]
+			rows[i] = rows[i][:4]
 		}
-	}
-	if sel < 0 {
-		cols, rows = cols[1:], dropFirst(rows)
 	}
 	off := 0
 	if sel < 0 {
+		cols, rows = cols[1:], dropFirst(rows)
 		off = 1
 	}
 	return t.Grid(cols, rows, w, func(r, c int) *lipgloss.Style {
@@ -659,12 +594,10 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		case 0:
 			s = t.brand.Bold(true)
 		case 1:
-			s = t.ID
-		case 2:
 			s = t.size
-		case 3:
+		case 2:
 			s = t.riskStyle(ops[r].Risk).Bold(true)
-		case 5:
+		case 4:
 			s = t.muted
 		default:
 			s = t.text

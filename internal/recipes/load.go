@@ -205,6 +205,9 @@ func vocabulary(p *problems, r Recipe) {
 }
 
 func risk(p *problems, r Recipe) {
+	if r.Regenerable && r.Risk != model.RiskSafe {
+		p.add("regenerable is only for SAFE recipes")
+	}
 	switch r.Risk {
 	case model.RiskSafe, model.RiskCaution, model.RiskRisky, model.RiskAdvise:
 	default:

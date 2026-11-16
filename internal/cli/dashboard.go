@@ -39,10 +39,11 @@ const (
 	tabToolchains
 	tabProjects
 	TabSpace
-	tabHealth
 )
 
-var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space", "Health"}
+// The tabs belong to the scan view only. Every other command (reclaim, apply,
+// vitals, explore, refresh, retire) opens its own page without them.
+var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space"}
 
 // slashCommand is one entry of the / palette.
 type slashCommand struct {
@@ -51,14 +52,12 @@ type slashCommand struct {
 
 // SlashCommands is the / palette, in display order.
 var SlashCommands = []slashCommand{
-	{"overview", "", "health, space and reclaimable at a glance"},
-	{"scan", "", "rescan the disk, then refresh every view (Esc stops it)"},
+	{"scan", "", "scan again, or keep the last data (asks which; esc stops a scan)"},
+	{"reclaim", "", "choose which risk types to clean (a checkbox list), then confirm"},
 	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
 	{"explore", "[folder]", "where the space is inside a folder, from the last scan"},
 	{"retire", "", "installed software, its data folders and cleanups"},
 	{"refresh", "", "maintenance steps you can apply, such as flushing DNS"},
-	{"help", "", "keys and commands"},
-	{"quit", "", "leave macdoc"},
 }
 
 // stepLabels describe the loading stages.
@@ -130,7 +129,9 @@ type TuiDeps struct {
 	Explore func(ctx context.Context, d *TuiDeps, path string) (engine.ExploreResult, error)
 	// Maintenance lists the maintenance steps; nil uses the engine.
 	Maintenance func(ctx context.Context, d *TuiDeps) (engine.OpportunityResult, error)
-	// Status takes a live reading for the Health tab; nil uses the engine.
+	// Plans lists the stored plans for /apply; nil uses the engine.
+	Plans func(d *TuiDeps) ([]store.PlanRecord, error)
+	// Status takes a live reading for /vitals; nil uses the engine.
 	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
 }
 
@@ -192,6 +193,9 @@ const (
 	overlaySoftware
 	overlayExplore
 	overlayMaintenance
+	overlayScan
+	overlayReclaim
+	overlayVitals
 	OverlayPlan
 	OverlayRemove
 )
@@ -239,11 +243,21 @@ type TuiModel struct {
 	softwareCursor  int                       // the highlighted row of the filtered list
 	softwareDetail  bool                      // the details of the highlighted program are open
 	explore         *engine.ExploreResult     // the folder shown in the explorer
-	exploreCursor   int                       // the highlighted entry of that folder
+	picker          *TierPicker               // the /reclaim checkbox list
 	maint           *engine.OpportunityResult // the maintenance steps shown in /refresh
-	status          *engine.StatusResult      // the last live reading, shown on the Health tab
+	maintCursor     int                       // the highlighted maintenance step
+	claude          []store.PlanRecord        // plans Claude proposed that can still be applied, newest first
+	treeRoot        *treeNode                 // the folder tree shown in /explore
+	treeCursor      int                       // the highlighted row of that tree
+	status          *engine.StatusResult      // the last live reading, shown by /vitals
 	statusBusy      bool                      // a live reading is running
 	statusWait      bool                      // a reading was just taken; the next waits for the tick
+	statusAt        time.Time                 // when the last reading finished
+	hist            vitalsHist                // the recent readings behind the arrows
+	vitalsWhy       bool                      // /vitals shows how it decides memory is slowing the Mac down
+	clockOn         bool                      // the once-a-second clock for "updated Ns ago" is running
+	pending         string                    // a command waiting for the latest scan to load
+	sealForApply    bool                      // hand the plan being sealed to apply as soon as it exists
 	removing        *removeState              // the remove confirmation box, while open
 
 	scroll  int
@@ -259,6 +273,7 @@ type TuiModel struct {
 	// welcome screen
 	Intro       bool
 	introPick   int
+	scanPick    int // the highlighted choice on the scan page: 0 last scan, 1 scan again
 	IntroStatus IntroStatus
 }
 
@@ -445,6 +460,9 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusWait = false
 		return m, nil
 
+	case statusClockMsg:
+		return m.clockTick()
+
 	case AppliedMsg:
 		return m.applied(msg)
 
@@ -482,6 +500,7 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 		clear(m.Marked) // IDs belong to a scan
 		m.span.reset()
 		m.preMarkSafe()
+		m.refreshClaudePlans()
 		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
 	case m.Stopping || errors.Is(msg.Err, context.Canceled):
 		if m.Data != nil {
@@ -497,7 +516,29 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.Stopping = false
+	if p := m.pending; p != "" {
+		m.pending = ""
+		if m.Data != nil {
+			return m.RunCommand(p)
+		}
+		if msg.Err != nil {
+			m.Flash = "Couldn't read your Mac: " + msg.Err.Error()
+		}
+	}
 	return m, nil
+}
+
+// loadThen reads the latest scan (scanning only when there is none) and then
+// runs line, so a command that needs it starts by itself instead of asking
+// the person to check the Mac first. The welcome screen stays underneath, so
+// closing the command's page comes back to it.
+func (m TuiModel) loadThen(line string) (tea.Model, tea.Cmd) {
+	if m.Loading {
+		return m, nil
+	}
+	m.pending = line
+	cmd := m.StartLoad(false)
+	return m, cmd
 }
 
 func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -527,6 +568,14 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.Overlay == overlayReclaim {
+		return m.reclaimKey(msg)
+	}
+	if m.Overlay == overlayMaintenance {
+		if next, cmd, ok := m.maintenanceKey(k); ok {
+			return next, cmd
+		}
+	}
 	if m.Overlay == overlaySoftware {
 		if next, cmd, ok := m.softwareKey(k); ok {
 			return next, cmd
@@ -536,6 +585,15 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if next, cmd, ok := m.exploreKey(k); ok {
 			return next, cmd
 		}
+	}
+	if m.Overlay == overlayScan {
+		if next, cmd, ok := m.scanKey(k); ok {
+			return next, cmd
+		}
+	}
+	if m.Overlay == overlayVitals && k == "w" {
+		m.vitalsWhy = !m.vitalsWhy
+		return m, nil
 	}
 	if m.Overlay != OverlayNone {
 		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
@@ -567,7 +625,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setTab((m.Tab + 1) % tab(len(tabTitles)))
 	case "shift+tab", "left", "h":
 		m.setTab((m.Tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
-	case "1", "2", "3", "4", "5", "6":
+	case "1", "2", "3", "4", "5":
 		m.setTab(tab(k[0] - '1'))
 	case "r":
 		return m, m.StartLoad(true)
@@ -589,6 +647,10 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case " ":
 		if m.Tab == TabSuggestions {
 			m.toggleMark()
+		}
+	case "a":
+		if m.Tab == TabSuggestions && len(m.claude) > 0 {
+			return m.startApply(m.claude[0].ID)
 		}
 	case "p":
 		if m.Tab == TabSuggestions {
@@ -714,21 +776,24 @@ func (m TuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(line, "/"), " ")
 	arg = strings.TrimSpace(arg)
-	views := map[string]tab{
-		"overview": tabOverview, "vitals": tabHealth,
-	}
-	if v, ok := views[name]; ok {
-		m.setTab(v)
-		if m.Intro { // a view from the welcome screen starts the dashboard there
+	if name == "overview" { // typed only: the 1 key does the same
+		m.setTab(tabOverview)
+		if m.Intro { // the scan view starts the dashboard from the welcome screen
 			return m, m.leaveIntro(false)
 		}
 		return m, nil
 	}
 	switch name {
 	case "":
+	case "vitals":
+		return m.openVitals()
+	case "reclaim":
+		if m.Data == nil {
+			return m.loadThen(line) // runs on its own: it reads the latest scan, scanning only if there is none
+		}
+		return m.openReclaimPicker()
 	case "scan":
-		m.Intro = false
-		return m, m.StartLoad(true)
+		return m.askScan()
 	case "plan":
 		if m.Intro {
 			m.Flash = "Choose “Check my Mac” first: /plan needs results."
@@ -742,23 +807,27 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 		}
 		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
 	case "apply":
-		return m.startApply(arg)
-	case "explore":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /explore reads the latest scan."
-			return m, nil
+		if arg != "" {
+			return m.startApply(arg)
 		}
+		// There is no plans page: the suggestions are where cleaning starts.
+		if m.Data == nil {
+			return m.loadThen(line)
+		}
+		m.Overlay, m.scroll = OverlayNone, 0
+		m.setTab(TabSuggestions)
+		m.Flash = "Press enter on a suggestion to clean it; you confirm before anything is removed."
+		if len(m.claude) > 0 {
+			m.Flash = "Claude's plan " + m.claude[0].ID + " is waiting: press a to review and apply it in Terminal."
+		}
+		return m, nil
+	case "explore":
 		return m.openExplore(arg)
 	case "refresh":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /refresh needs results."
-			return m, nil
-		}
 		return m.openMaintenance()
 	case "retire":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /retire needs results."
-			return m, nil
+		if m.Data == nil {
+			return m.loadThen(line)
 		}
 		return m.startSoftware()
 	case "help":
@@ -783,6 +852,9 @@ func (m TuiModel) Items() []model.Opportunity {
 
 func (m TuiModel) bodyHeight() int {
 	h := m.h - 4 // header, tabs, rule, footer
+	if m.pageTitle() != "" {
+		h = m.h - 3 // header, rule, footer: a page has no tabs
+	}
 	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
 		h -= 2 + end - start
@@ -810,8 +882,12 @@ func (m TuiModel) View() string {
 		}
 		return b.String()
 	}
-	b.WriteString(m.headerView() + "\n")
-	if m.Overlay == OverlayNone { // the tabs can't be used from an overlay, so they're left out
+	if page := m.pageTitle(); page != "" {
+		// Every command except the scan view is a page of its own: its title,
+		// no tabs and nothing about the scan.
+		b.WriteString(m.pageHeader(page) + "\n")
+	} else {
+		b.WriteString(m.headerView() + "\n")
 		b.WriteString(m.tabsView() + "\n")
 	}
 
@@ -825,6 +901,12 @@ func (m TuiModel) View() string {
 		body = m.scrolled(m.exploreBody())
 	case m.Overlay == overlayMaintenance:
 		body = m.scrolled(m.maintenanceBody())
+	case m.Overlay == overlayScan:
+		body = m.scanBody()
+	case m.Overlay == overlayReclaim:
+		body = m.reclaimBody()
+	case m.Overlay == overlayVitals:
+		body = m.scrolled(m.vitalsBody())
 	case m.Overlay == overlaySoftware && m.softwareDetail:
 		body = m.scrolled(m.softwareDetailView())
 	case m.Overlay == overlaySoftware:
@@ -903,6 +985,33 @@ func (m TuiModel) headerView() string {
 	return left + strings.Repeat(" ", gap) + r
 }
 
+// pageTitle names the page the person is on, or "" in the scan view, which is
+// the only one with tabs.
+func (m TuiModel) pageTitle() string {
+	titles := map[overlay]string{
+		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore", overlayMaintenance: "Refresh",
+		overlayScan: "Scan", overlayReclaim: "Reclaim", overlayVitals: "Vitals",
+		OverlayPlan: "Plan", OverlayRemove: "Reclaim",
+	}
+	if t, ok := titles[m.Overlay]; ok {
+		return t
+	}
+	if m.Loading && m.pending != "" {
+		name, _, _ := strings.Cut(strings.TrimPrefix(m.pending, "/"), " ")
+		return strings.ToUpper(name[:1]) + name[1:]
+	}
+	return ""
+}
+
+// pageHeader is the top of a page: the brand, the page's title and a rule.
+func (m TuiModel) pageHeader(title string) string {
+	t := m.t
+	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.Title.Render(title)
+	r := t.Ok.Render("asks before removing") + " "
+	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
+	return left + strings.Repeat(" ", gap) + r + "\n" + t.rule(m.w)
+}
+
 func (m TuiModel) tabsView() string {
 	t := m.t
 	var parts []string
@@ -922,19 +1031,39 @@ func (m TuiModel) footerView() string {
 	var keys []key.Binding
 	switch {
 	case m.InputMode != 0:
-		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel}
+		// /help and /quit are not listed in the menu; they are shown here and
+		// still work when typed.
+		keys = []key.Binding{m.keys.Run, m.keys.Complete, m.keys.Move, m.keys.Cancel,
+			key.NewBinding(key.WithKeys("/help"), key.WithHelp("/help", "help")),
+			key.NewBinding(key.WithKeys("/quit"), key.WithHelp("/quit", "quit"))}
 	case m.Loading:
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
 	case m.Overlay == OverlayRemove:
 		keys = nil
 	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
+	case m.Overlay == overlayReclaim:
+		keys = nil // the checkbox list shows its own keys
+	case m.Overlay == overlayScan:
+		keys = []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "choose")),
+			key.NewBinding(key.WithKeys("down"), key.WithHelp("↑↓", "move")),
+			m.keys.Back, m.keys.Quit,
+		}
 	case m.Overlay == overlayExplore:
 		keys = []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open folder")),
-			key.NewBinding(key.WithKeys("backspace"), key.WithHelp("backspace", "up")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter/→", "open")),
+			key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "close")),
+			key.NewBinding(key.WithKeys("backspace"), key.WithHelp("backspace", "parent folder")),
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
+	case m.Overlay == overlayMaintenance:
+		keys = []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply this step")),
+			m.keys.Move, m.keys.Back, m.keys.Quit,
+		}
+	case m.Overlay == overlayVitals:
+		keys = []key.Binding{key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "how it decides")), m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareDetail:
@@ -1042,8 +1171,6 @@ func (m TuiModel) textView() string {
 		return m.projectTables()
 	case TabSpace:
 		return m.spaceTables()
-	case tabHealth:
-		return m.healthTables()
 	}
 	return m.overviewTables()
 }
@@ -1097,13 +1224,20 @@ func (m TuiModel) listView(ops []model.Opportunity, w, h int) string {
 				t.size.Render(tierTotal(m.Data.Res.Opportunities.Totals[tier], tierOps)))
 		}
 	}
+	claude := m.claudeLine()
 	rowsFit := max(1, h-6) // blank, totals, table top border, header, header rule, bottom border
+	if claude != "" {
+		rowsFit = max(1, rowsFit-1)
+	}
 	start := max(0, min(m.Cursor-rowsFit/2, len(ops)-rowsFit))
 	end := min(len(ops), start+rowsFit)
 	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.Cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
 	if note := m.markedNote(); note != "" {
 		head += "   " + note
+	}
+	if claude != "" {
+		head += "\n" + claude
 	}
 	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w), " ")
 }
@@ -1128,7 +1262,7 @@ func (m TuiModel) HelpView() string {
 	var b strings.Builder
 	b.WriteString("\n " + t.heading("Keys") + "\n")
 	keys := [][2]string{
-		{"tab / shift+tab, 1–6", "switch view"},
+		{"tab / shift+tab, 1–5", "switch tab (the scan view)"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
 		{"space", "mark several suggestions to remove together"},
@@ -1136,6 +1270,7 @@ func (m TuiModel) HelpView() string {
 		{"p", "seal a dry-run plan instead (marked, or the selected one)"},
 		{"a  (on a plan)", "apply it here in the terminal, after you confirm"},
 		{"/", "command palette"},
+		{"?", "this help"},
 		{"r", "rescan the disk"},
 		{"esc", "stop a scan · close"},
 		{"q, ctrl+c", "quit"},

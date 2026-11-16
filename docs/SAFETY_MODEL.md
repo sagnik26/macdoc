@@ -21,7 +21,7 @@
 | **ADVISE-ONLY** | macdoc explains how to do it yourself and never acts | n/a | n/a |
 | **BLOCKED** | Never actionable under any input | n/a | n/a |
 
-Upgrades: a recipe's risk is **raised** by context, never lowered. Examples: a project with uncommitted changes, an item modified in the last 7 days, the owning app running, or low classification confidence.
+Upgrades: a recipe's risk is **raised** by context, never lowered. Examples: a project with uncommitted changes, an item modified in the last 7 days, the owning app running, or low classification confidence. The one exemption is a recipe marked `regenerable` (a plain cache, SAFE only): recent use does not raise it, since `reclaim` would otherwise find nothing on a Mac in daily use; its preconditions still apply.
 
 Reading a project's git state (Phase 4) must not change the repository or run code from it. Only `git status --porcelain` and `git log -1 --format=%ct` are used, each with `--no-optional-locks` (so the index isn't rewritten), `-c core.fsmonitor=false` (a repo's config can't start a program) and `-c core.untrackedCache=false`, through the read-only `platform.Runner` with a timeout. If the state can't be confirmed, the risk is raised as if there were uncommitted changes.
 
@@ -77,6 +77,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 
 - **As built (Phase 6):** apply checks stdin and stdout with `isatty` (ioctl), so pipes and `/dev/null` are refused. There is no `--yes` at all, not even for SAFE-only plans. The confirmation code is the plan ID's four characters. A Claude-origin plan asks `[y/N]` for every item, every time.
 - **Dashboard remove (2026-10-28, the user's decision):** Enter on a suggestion (or on marked ones) seals a plan and opens a box listing each item, its size and the total. A second Enter removes SAFE and CAUTION items. Each RISKY item needs its own confirmation: its ID is typed, one item after another, in plan order, and the last Enter removes. Esc cancels. The dashboard only runs in a real terminal, and the removal checks stdin and stdout with `isatty` again. Dashboard plans are always user-origin.
+- **`reclaim` chooser (2026-11-16, the owner's decision, ADR 0013):** at a real terminal (isatty on stdin and stdout, not `--json`, `--quiet` or `--dry-run`), `macdoc reclaim` lists everything by risk, then asks "What do you want to clean?" with a row each for SAFE, CAUTION, RISKY and ADVICE. The person types the risk types (`safe`, `caution`, `risky`, `all`) and presses Enter, which seals a plan and runs it through the executor with every re-check, the quarantine-then-delete step and the audit. Enter alone is SAFE only; `n` or an answer it does not understand changes nothing. CAUTION is cleaned only when named. RISKY is cleaned only when named and keeps apply's full confirmation (plan shown, y/N per RISKY item, the plan's code typed), so one Enter never approves RISKY. ADVICE can never be chosen, and `all` excludes it. `--tier X` skips the question and cleans only that tier on Enter. Administrator steps and Claude-origin plans are never cleaned this way. There is still no `--yes`.
 
 ### 4.3 Re-validate (per item, immediately before acting)
 1. The plan hash matches the store and the plan hasn't expired.

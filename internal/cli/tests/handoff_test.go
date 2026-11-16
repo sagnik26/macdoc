@@ -13,7 +13,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/planner"
+	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // sealed is a dashboard showing a freshly sealed plan.
@@ -61,8 +63,10 @@ func TestTUIApplyCommand(t *testing.T) {
 		next, cmd := m.RunCommand(line)
 		return next.(cli.TuiModel), cmd
 	}
-	if got, cmd := run("/apply"); cmd != nil || !strings.Contains(got.Flash, "Usage: /apply") {
-		t.Errorf("/apply with no plan: %q", got.Flash)
+	m.Deps.Plans = func(*cli.TuiDeps) ([]store.PlanRecord, error) { return nil, nil }
+	// With no plans waiting, /apply goes to the suggestions; nothing is handed off.
+	if got, cmd := run("/apply"); cmd != nil || got.Overlay != cli.OverlayNone || got.Tab != cli.TabSuggestions || !strings.Contains(got.Flash, "Press enter on a suggestion") {
+		t.Errorf("/apply with no plans: overlay %d tab %d flash %q", got.Overlay, got.Tab, got.Flash)
 	}
 	if got, cmd := run("/apply ../etc"); cmd != nil || !strings.Contains(got.Flash, "isn't a plan ID") {
 		t.Errorf("/apply with a path: %q", got.Flash)
@@ -71,8 +75,48 @@ func TestTUIApplyCommand(t *testing.T) {
 		t.Error("/apply P-id should hand off")
 	}
 	mustContain(t, m.HelpView(), "apply it here in the terminal", "Nothing is removed until you confirm", "code typed")
-	if strings.Contains(m.HelpView(), "/apply") { // hidden from the palette; the a key stays
-		t.Error("/apply should not be listed in the palette")
+	if !strings.Contains(m.HelpView(), "/reclaim") || strings.Contains(m.HelpView(), "/apply") {
+		t.Error("/reclaim is listed in the palette; /apply is typed-only")
+	}
+	if strings.Contains(m.HelpView(), "/quit") {
+		t.Error("/quit is shown in the footer, not the palette")
+	}
+}
+
+// There is no plans page. A plan Claude proposed and that can still be applied
+// shows as one line on the Suggestions tab, and a hands it to apply. Plans the
+// person made, expired ones and applied ones are not listed.
+func TestTUIClaudePlanLine(t *testing.T) {
+	now := time.Now()
+	plans := []store.PlanRecord{
+		{ID: "P-MINE", Origin: model.OriginCLI, CreatedAt: now, ExpiresAt: now.Add(25 * time.Minute), Items: 4, TotalBytes: 1e9, Status: store.PlanPending},
+		{ID: "P-OLDC", Origin: model.OriginClaude, CreatedAt: now.Add(-3 * time.Hour), ExpiresAt: now.Add(-150 * time.Minute), Items: 1, TotalBytes: 1e9, Status: store.PlanPending},
+		{ID: "P-DONE", Origin: model.OriginClaude, CreatedAt: now, ExpiresAt: now.Add(20 * time.Minute), Items: 2, TotalBytes: 2e9, Status: store.PlanApplied},
+		{ID: "P-7F3K", Origin: model.OriginClaude, CreatedAt: now.Add(-5 * time.Minute), ExpiresAt: now.Add(25 * time.Minute), Items: 3, TotalBytes: 12e9, Status: store.PlanPending},
+	}
+	m := loaded(t, 120, 40)
+	m.Deps.Plans = func(*cli.TuiDeps) ([]store.PlanRecord, error) { return plans, nil }
+	m = step(t, m, cli.LoadedMsg{Data: tuiFixture()})
+	m = step(t, m, keys("tab")...)
+	mustContain(t, m.View(), "Claude proposed a plan: 3 items, 12.0 GB", "apply it in Terminal")
+	for _, gone := range []string{"P-MINE", "P-OLDC", "P-DONE", "Apply ◀"} {
+		if strings.Contains(m.View(), gone) {
+			t.Errorf("the suggestions tab should not list %q", gone)
+		}
+	}
+	if _, cmd := m.Update(keys("a")[0]); cmd == nil {
+		t.Error("a should hand Claude's plan to apply")
+	}
+	// Without a plan from Claude there is no line and a does nothing.
+	none := loaded(t, 120, 40)
+	none.Deps.Plans = func(*cli.TuiDeps) ([]store.PlanRecord, error) { return plans[:3], nil }
+	none = step(t, none, cli.LoadedMsg{Data: tuiFixture()})
+	none = step(t, none, keys("tab")...)
+	if strings.Contains(none.View(), "Claude proposed") {
+		t.Error("no line without a waiting plan from Claude")
+	}
+	if _, cmd := none.Update(keys("a")[0]); cmd != nil {
+		t.Error("a with no plan from Claude should do nothing")
 	}
 }
 

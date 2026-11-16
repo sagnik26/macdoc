@@ -122,3 +122,21 @@ func TestSlowSummary(t *testing.T) {
 		t.Errorf("unknown RAM summarized: %q", got)
 	}
 }
+
+// SlowChecks reports swap and free disk against their limits, and says
+// "unknown" for a disk it could not read instead of showing zero.
+func TestSlowChecks(t *testing.T) {
+	rep := probe.Report{Swap: probe.Swap{UsedBytes: 3 << 30},
+		Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 8e9}}
+	got := engine.SlowChecks(rep)
+	if len(got) != 2 || !got[0].Tripped || got[0].Flag != "high" || !got[1].Tripped || got[1].Flag != "low" {
+		t.Fatalf("both should be tripped: %+v", got)
+	}
+	rep = probe.Report{Swap: probe.Swap{UsedBytes: 1 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 200e9}}
+	if got := engine.SlowChecks(rep); got[0].Tripped || got[1].Tripped {
+		t.Errorf("a quiet Mac trips nothing: %+v", got)
+	}
+	if got := engine.SlowChecks(probe.Report{}); got[1].Value != "unknown" || got[1].Tripped {
+		t.Errorf("an unreadable disk is unknown, not zero or low: %+v", got[1])
+	}
+}

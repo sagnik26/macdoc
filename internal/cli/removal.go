@@ -139,8 +139,7 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.Err == nil:
 		m.removing = &removeState{Res: msg.Res, view: display(msg.Res)}
-		m.Overlay, m.scroll = OverlayRemove, 0
-		clear(m.Marked)
+		m.Overlay, m.scroll = OverlayRemove, 0 // marks stay: esc must give them back
 	case errors.Is(msg.Err, planner.ErrNothing):
 		reason := "none of them can be removed right now"
 		if len(msg.Res.Refused) > 0 {
@@ -249,6 +248,7 @@ func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 	for _, it := range rep.Items {
 		if it.Outcome == executor.OutcomeDone {
 			done[it.Item.OpportunityID] = true
+			delete(m.Marked, it.Item.OpportunityID) // gone from the list; the rest stay marked
 		}
 	}
 	if m.Data != nil {

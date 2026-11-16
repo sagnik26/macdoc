@@ -829,3 +829,28 @@ func TestFindingMinRisk(t *testing.T) {
 		t.Errorf("recent: %s (%q)", op.Risk, op.RiskReason)
 	}
 }
+
+// A SAFE item used in the last 7 days becomes CAUTION, unless its recipe is a
+// regenerable cache: an active Mac rewrites its caches all the time. The
+// exemption never lowers a risk, and a detector's own MinRisk still applies.
+func TestRegenerableCachesStaySafeWhenRecentlyUsed(t *testing.T) {
+	home := t.TempDir()
+	policy, err := safety.NewPolicy(home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	f := recipes.Finding{Title: "x", Bytes: model.Bytes{Value: 5_000_000, Source: model.SourceMeasured}, LastUsed: now.Add(-24 * time.Hour)}
+	plain := recipes.Recipe{ID: "t.plain", Risk: model.RiskSafe, Method: model.MethodAdvise}
+	cache := recipes.Recipe{ID: "t.cache", Risk: model.RiskSafe, Method: model.MethodAdvise, Regenerable: true}
+	if op, _, _ := engine.Classify(plain, f, "S-1", now, policy, 1); op.Risk != model.RiskCaution {
+		t.Errorf("an ordinary SAFE item used yesterday is %s, want CAUTION", op.Risk)
+	}
+	if op, _, _ := engine.Classify(cache, f, "S-1", now, policy, 1); op.Risk != model.RiskSafe || op.RiskReason != "" {
+		t.Errorf("a regenerable cache used yesterday is %s (%q), want SAFE", op.Risk, op.RiskReason)
+	}
+	f.MinRisk, f.RiskReason = model.RiskCaution, "dirty"
+	if op, _, _ := engine.Classify(cache, f, "S-1", now, policy, 1); op.Risk != model.RiskCaution || op.RiskReason != "dirty" {
+		t.Errorf("a detector's MinRisk must still raise a regenerable cache: %s (%q)", op.Risk, op.RiskReason)
+	}
+}

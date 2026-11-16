@@ -68,7 +68,7 @@ var (
 
 const (
 	staleScanAge = 6 * time.Hour
-	recentChange = 7 // days: a SAFE item changed more recently becomes CAUTION
+	recentChange = 7 // days: a SAFE item changed more recently becomes CAUTION, unless its recipe is Regenerable
 	// minShownBytes is the default MinBytes: smaller items aren't worth a
 	// decision. Items of unknown size are always shown.
 	minShownBytes = 1_000_000
@@ -372,7 +372,7 @@ func Classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 			return op, "", false
 		}
 	}
-	if op.Risk == model.RiskSafe && op.IdleDays >= 0 && op.IdleDays < recentChange {
+	if op.Risk == model.RiskSafe && !r.Regenerable && op.IdleDays >= 0 && op.IdleDays < recentChange {
 		op.Risk, op.RiskReason = model.RiskCaution, "it changed in the last 7 days"
 	}
 	if f.MinRisk != "" && tierIndex(f.MinRisk) > tierIndex(op.Risk) && f.MinRisk != model.RiskAdvise {

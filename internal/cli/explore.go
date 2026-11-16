@@ -142,83 +142,133 @@ func (d *TuiDeps) explore(ctx context.Context, path string) (engine.ExploreResul
 	return engine.Explore(ctx, engine.ExploreOptions{Home: d.Home, Path: path})
 }
 
-// openExplore opens the explorer overlay on path ("" is home). It reads the
-// stored scan only, so it is quick and never blocks on the disk.
+// openExplore opens the explorer page on path ("" is home). It reads the
+// stored scan only, so it is quick, never blocks on the disk and needs no
+// dashboard data of its own.
 func (m TuiModel) openExplore(path string) (tea.Model, tea.Cmd) {
-	if m.Data == nil {
-		m.Flash = "Check your Mac first: the explorer reads the latest scan."
-		return m, nil
-	}
 	res, err := m.Deps.explore(context.Background(), path)
 	if err != nil {
 		m.Flash = "Couldn't open the explorer: " + err.Error()
 		return m, nil
 	}
-	m.explore, m.exploreCursor = &res, 0
+	m.explore, m.treeRoot, m.treeCursor = &res, newTree(res), 0
 	m.Overlay, m.scroll = overlayExplore, 0
 	return m, nil
 }
 
-// exploreKey handles the explorer's keys. ok is false for keys it doesn't use,
-// which then fall through to the overlay's usual keys (esc and q close it).
+// exploreKey handles the folder tree's keys. ok is false for keys it doesn't
+// use, which then fall through to the page's usual keys (esc and q close it).
 func (m TuiModel) exploreKey(k string) (tea.Model, tea.Cmd, bool) {
-	if m.explore == nil {
+	if m.explore == nil || m.treeRoot == nil {
 		return m, nil, false
 	}
-	n := len(m.explore.Entries)
+	rows := m.treeRoot.visible()
+	m.treeCursor = max(0, min(m.treeCursor, len(rows)-1))
+	var cur *treeNode
+	if len(rows) > 0 {
+		cur = rows[m.treeCursor]
+	}
 	switch k {
 	case "up", "k":
-		m.exploreCursor = max(0, m.exploreCursor-1)
-		m.scrollToMarker(m.exploreBody())
-		return m, nil, true
+		m.treeCursor = max(0, m.treeCursor-1)
 	case "down", "j":
-		m.exploreCursor = min(max(0, n-1), m.exploreCursor+1)
-		m.scrollToMarker(m.exploreBody())
-		return m, nil, true
-	case "enter":
-		if n == 0 || m.exploreCursor >= n {
+		m.treeCursor = min(max(0, len(rows)-1), m.treeCursor+1)
+	case "enter", "right", "l":
+		if cur == nil {
 			return m, nil, true
 		}
-		e := m.explore.Entries[m.exploreCursor]
-		if e.Kind != "dir" {
-			m.Flash = "Only folders open. The biggest files below are listed at the bottom."
+		if !cur.expandable() {
+			m.Flash = "Only folders open. Files and the “other” rows have nothing inside."
 			return m, nil, true
 		}
-		next, cmd := m.openExplore(e.Path)
-		return next, cmd, true
-	case "backspace", "h", "left":
+		if k == "enter" && cur.open {
+			cur.open = false
+		} else {
+			m.openNode(cur)
+		}
+	case "left", "h":
+		switch {
+		case cur == nil:
+		case cur.open:
+			cur.open = false
+		case cur.parent != nil && cur.parent != m.treeRoot:
+			m.treeCursor = m.treeRoot.indexOf(cur.parent)
+		}
+	case "backspace":
 		if m.explore.Parent == "" {
 			return m, nil, true
 		}
 		next, cmd := m.openExplore(m.explore.Parent)
 		return next, cmd, true
+	default:
+		return m, nil, false
 	}
-	return m, nil, false
+	m.scrollToLine(m.exploreHead() + m.treeCursor)
+	return m, nil, true
 }
 
-// exploreBody is the explorer overlay's text.
+// openNode opens a folder of the tree, reading what is inside it from the
+// scan the first time.
+func (m TuiModel) openNode(n *treeNode) {
+	if !n.loaded {
+		res, err := m.Deps.explore(context.Background(), n.e.Path)
+		n.fill(res, err)
+	}
+	n.open = true
+}
+
+// exploreHead is how many lines of the page come before the first row of the
+// tree: a blank line, the folder's title, a blank line and the note, if any.
+func (m TuiModel) exploreHead() int {
+	if m.explore != nil && m.explore.Note != "" {
+		return 4
+	}
+	return 3
+}
+
+// exploreBody is the explorer page's text: the folder as a tree.
 func (m TuiModel) exploreBody() string {
-	if m.explore == nil {
+	if m.explore == nil || m.treeRoot == nil {
 		return ""
 	}
-	return "\n" + exploreBlocks(m.t, m.w-2, m.Deps.Home, display(*m.explore), m.exploreCursor)
+	res := display(*m.explore)
+	t := m.t
+	title := TildePath(m.Deps.Home, res.Path)
+	var b strings.Builder
+	b.WriteString("\n")
+	if res.Bytes == nil {
+		b.WriteString(" " + t.heading(title) + " " + t.muted.Render("· "+res.Status) + "\n\n")
+		b.WriteString(" " + t.text.Render(res.Note) + "\n")
+		return b.String()
+	}
+	b.WriteString(" " + t.heading(title) + " " + t.muted.Render("· "+engine.DecimalBytes(*res.Bytes)+" · "+res.Status+" · scan "+res.ScanAge) + "\n\n")
+	if res.Note != "" {
+		b.WriteString(" " + t.muted.Render(res.Note) + "\n")
+	}
+	b.WriteString(m.treeView(m.w - 2))
+	return b.String()
 }
 
 // scrollToMarker scrolls the view so the line with the ▸ marker is on screen.
 func (m *TuiModel) scrollToMarker(body string) {
 	for i, line := range strings.Split(body, "\n") {
-		if !strings.Contains(line, "▸ ") {
-			continue
+		if strings.Contains(line, "▸ ") {
+			m.scrollToLine(i)
+			return
 		}
-		h := m.bodyHeight()
-		switch {
-		case i < m.scroll:
-			m.scroll = i
-		case i >= m.scroll+h:
-			m.scroll = i - h + 1
-		}
-		return
 	}
+}
+
+// scrollToLine scrolls the page so line i is on screen.
+func (m *TuiModel) scrollToLine(i int) {
+	h := m.bodyHeight()
+	switch {
+	case i < m.scroll:
+		m.scroll = i
+	case i >= m.scroll+h:
+		m.scroll = i - h + 1
+	}
+	m.scroll = max(0, m.scroll)
 }
 
 // newExploreCmd builds `macdoc explore [folder]`: where the space is. By

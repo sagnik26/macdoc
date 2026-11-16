@@ -136,7 +136,12 @@ func (m TuiModel) startPlan(sel *planner.Selector) (tea.Model, tea.Cmd) {
 // planned shows a sealed plan, or why none was made.
 func (m TuiModel) planned(msg PlanMsg) (tea.Model, tea.Cmd) {
 	m.Planning = false
+	handOff := m.sealForApply // a refresh step: apply it as soon as it is sealed
+	m.sealForApply = false
 	switch {
+	case msg.Err == nil && handOff:
+		m.Flash = ""
+		return m.startApply(msg.Res.Plan.ID)
 	case msg.Err == nil:
 		m.Plan = &msg.Res
 		m.Overlay, m.scroll = OverlayPlan, 0

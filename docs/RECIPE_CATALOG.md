@@ -16,6 +16,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `native.argv` | Fixed argv. Placeholders only for identifiers validated against the tool's own listing |
 | `native.dry_run_argv` | Tool's own dry-run if it has one (e.g. `brew cleanup -n`) |
 | `privileged` | `true` for a native step that needs administrator rights. The argv must exactly match `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`). Run only by `internal/executor/privileged.go` through the OS password prompt; never in a plan Claude proposed (ADR 0009) |
+| `regenerable` | `true` on a SAFE recipe whose data the tool simply rebuilds (a cache). Using it recently does not raise it to CAUTION (the 7-day rule), because an active Mac rewrites caches all the time; preconditions such as "app not running" still apply. Lint refuses it on any other tier |
 | `on_request` | `true` to keep the recipe out of scans, reclaim and MCP listings. It is shown only by `macdoc refresh` and planned by ID |
 | `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean`, `no_installed_app` |
 | `staleness` | Signal + threshold (e.g. `mtime_max > 60d`) |
@@ -108,6 +109,22 @@ Recipe lint forbids `--volumes` and `system prune` in any argv.
 | `hf.cache_repo` | Whole HF cache repos idle > 60d | CAUTION | Q | none | Re-download (size shown) |
 | `lmstudio.model` | `~/.lmstudio/models/**` (or `~/.cache/lm-studio/models`) idle > 60d | CAUTION | Q | LM Studio not running | Re-download |
 | `ai.duplicate_models` | Same weights (size + partial hash) present in two or more tools | ADVISE | A (which copy to keep, and why) | n/a | n/a |
+
+### Browser caches (SAFE, `reclaim` on Enter)
+
+| Family | Target | Risk | Method | Restore |
+|---|---|---|---|---|
+| Browser caches | Cache folders of Safari, Chrome, Edge, Brave, Arc and Firefox. Caches only: never profiles, history, cookies, passwords or extensions | SAFE | Q, browser not running | Pages reload and re-cache |
+
+The exact list is in `internal/recipes/catalog/browsers.yaml`.
+
+### Developer caches (SAFE, `reclaim` on Enter)
+
+| Family | Target | Risk | Method | Restore |
+|---|---|---|---|---|
+| Developer caches | Go build cache, Cargo registry, Bun, Deno, Composer, Swift PM, node-gyp and pre-commit caches, VS Code and Cursor caches, JetBrains logs only (JetBrains caches and AI CLI caches are deliberately excluded) | SAFE | Q or native per recipe | Re-downloaded or rebuilt on demand |
+
+The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 
 ### System and general
 

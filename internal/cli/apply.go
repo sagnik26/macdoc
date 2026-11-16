@@ -154,6 +154,34 @@ func applyGuide(cmd *cobra.Command, g *GlobalFlags) error {
 // after the typed confirmation. It is the only path from the CLI to the
 // executor's Apply.
 func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
+	return runApply(cmd, d, arg, typedConfirm, true)
+}
+
+// confirmFunc is how a plan is approved at the terminal. It returns what was
+// approved and whether the person confirmed; nothing runs unless it did.
+type confirmFunc func(rd *bufio.Reader, out io.Writer, t *Theme, p model.Plan) (executor.Approvals, bool, error)
+
+// typedConfirm is apply's confirmation: y/N for RISKY items, administrator
+// steps and Claude-proposed plans, then the plan's typed code.
+func typedConfirm(rd *bufio.Reader, out io.Writer, t *Theme, p model.Plan) (executor.Approvals, bool, error) {
+	approved, err := ConfirmItems(rd, out, t, p)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(approved) == 0 {
+		_, _ = fmt.Fprintln(out, " "+t.done("Nothing approved. Nothing has been changed."))
+		return nil, false, nil
+	}
+	if !confirmCode(rd, out, t, p, approved) {
+		_, _ = fmt.Fprintln(out, " "+t.done("Not confirmed. Nothing has been changed."))
+		return nil, false, nil
+	}
+	return approved, true, nil
+}
+
+// runApply is RunApply with the confirmation step and whether to show the
+// plan first as parameters. It still checks for a real terminal itself.
+func runApply(cmd *cobra.Command, d ApplyDeps, arg string, confirm confirmFunc, showPlan bool) error {
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
 	if !planner.Valid(id) {
@@ -171,8 +199,10 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	if err != nil {
 		return err
 	}
-	if err := renderApplyPlan(out, res, d.Home, d.Now()); err != nil {
-		return err
+	if showPlan {
+		if err := renderApplyPlan(out, res, d.Home, d.Now()); err != nil {
+			return err
+		}
 	}
 	switch res.Status {
 	case planner.Expired:
@@ -185,17 +215,9 @@ func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 
 	t := themeFor(out)
 	rd := bufio.NewReader(in)
-	approved, err := ConfirmItems(rd, out, t, res.Plan)
-	if err != nil {
+	approved, ok, err := confirm(rd, out, t, res.Plan)
+	if err != nil || !ok {
 		return err
-	}
-	if len(approved) == 0 {
-		_, _ = fmt.Fprintln(out, " "+t.done("Nothing approved. Nothing has been changed."))
-		return nil
-	}
-	if !confirmCode(rd, out, t, res.Plan, approved) {
-		_, _ = fmt.Fprintln(out, " "+t.done("Not confirmed. Nothing has been changed."))
-		return nil
 	}
 
 	st, err := store.Open(store.DefaultPath(d.Home))

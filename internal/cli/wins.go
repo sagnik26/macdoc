@@ -106,6 +106,12 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 // RenderWins writes the suggestions in the human format; all lists repeated
 // items individually and only restricts the output to one tier.
 func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
+	return renderWinsList(w, res, cat, all, only, "macdoc apply <id…> (shows the plan, then asks you to confirm)")
+}
+
+// renderWinsList is RenderWins with the footer as a parameter ("" for none),
+// so the clean-on-Enter flow can put its own prompt there.
+func renderWinsList(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk, footer string) error {
 	res = display(res) // disk-sourced text, cleaned for the terminal (display)
 	var b strings.Builder
 	t := themeFor(w)
@@ -132,7 +138,9 @@ func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog,
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc apply <id…> (shows the plan, then asks you to confirm)"))
+	if footer != "" {
+		b.WriteString(t.footer(footer))
+	}
 	_, err := io.WriteString(w, b.String())
 	return err
 }

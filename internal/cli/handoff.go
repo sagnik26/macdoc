@@ -87,6 +87,7 @@ func (m TuiModel) startApply(id string) (tea.Model, tea.Cmd) {
 
 // applied is the dashboard coming back from apply.
 func (m TuiModel) applied(msg AppliedMsg) (tea.Model, tea.Cmd) {
+	from := m.Overlay
 	m.Overlay, m.scroll = OverlayNone, 0
 	if m.Plan != nil && m.Plan.Plan.ID == msg.ID {
 		m.Plan = nil
@@ -95,6 +96,15 @@ func (m TuiModel) applied(msg AppliedMsg) (tea.Model, tea.Cmd) {
 		m.Flash = "Couldn't hand the terminal to apply: " + msg.Err.Error()
 		return m, nil
 	}
-	m.Flash = "Back from macdoc apply " + msg.ID + ". What happened is in macdoc log. Press r to rescan for fresh numbers."
+	flash := "Back from macdoc apply " + msg.ID + ". What happened is in macdoc log."
+	m.refreshClaudePlans()          // the plan just applied is no longer waiting
+	if from == overlayMaintenance { // the refresh page again
+		next, cmd := m.openMaintenance()
+		if nm, ok := next.(TuiModel); ok && nm.Overlay == overlayMaintenance {
+			nm.Flash = flash
+			return nm, cmd
+		}
+	}
+	m.Flash = flash + " Press r to rescan for fresh numbers."
 	return m, nil
 }

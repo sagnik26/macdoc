@@ -7,11 +7,12 @@ macdoc scans your Mac, shows where space and memory go, and suggests cleanups fr
 ## Commands
 
 Read-only (safe to run any time):
-- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]`, `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
+- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]` (read-only without a terminal; at a real terminal it asks which risk types to clean (Enter alone is SAFE only; RISKY keeps apply's confirmations), which agents must never answer), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
 - Every command supports `--json` (schemas in `schema/`).
 
 Plans and removal (Terminal, person only):
 - `macdoc apply --dry-run <O-ids>` seals a dry-run plan from opportunity IDs (never paths). It changes nothing.
+- `macdoc apply` remains for specific IDs, other tiers and sealed or Claude-proposed plans.
 - `macdoc apply <O-ids|--safe|--tier T|--recipe R|P-id>` seals a plan, shows the dry run and asks per item before removing. There is no `--yes`. Agents must not run it, except with `--dry-run` on request.
 - `macdoc quarantine restore|purge` also belong to the person.
 

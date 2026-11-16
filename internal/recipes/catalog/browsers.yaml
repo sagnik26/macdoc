@@ -1,0 +1,106 @@
+# Web browser caches. Caches only: profiles, history, cookies, bookmarks and
+# saved passwords live under Application Support and are never listed here.
+# Schema: internal/recipes/recipe.go.
+
+- id: browser.safari
+  title: Safari cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/com.apple.Safari"}
+  allow: ["~/Library/Caches/com.apple.Safari"]
+  preconditions: ["app_not_running:Safari"]
+  restore:
+    kind: redownload
+    note: Safari downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Safari keeps copies of pages, images and scripts here so sites load faster. Quit Safari first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+
+- id: browser.chrome
+  title: Google Chrome cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/Google/Chrome"}
+  allow: ["~/Library/Caches/Google/Chrome"]
+  preconditions: ["app_not_running:Google Chrome"]
+  restore:
+    kind: redownload
+    note: Chrome downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Chrome keeps copies of pages, images and scripts here so sites load faster. Quit Google Chrome first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+
+- id: browser.edge
+  title: Microsoft Edge cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/Microsoft Edge"}
+  allow: ["~/Library/Caches/Microsoft Edge"]
+  preconditions: ["app_not_running:Microsoft Edge"]
+  restore:
+    kind: redownload
+    note: Edge downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Edge keeps copies of pages, images and scripts here so sites load faster. Quit Microsoft Edge first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+
+- id: browser.brave
+  title: Brave cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/BraveSoftware"}
+  allow: ["~/Library/Caches/BraveSoftware"]
+  preconditions: ["app_not_running:Brave Browser"]
+  restore:
+    kind: redownload
+    note: Brave downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Brave keeps copies of pages, images and scripts here so sites load faster. Quit Brave Browser first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+
+- id: browser.arc
+  title: Arc cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/company.thebrowser.Browser"}
+  allow: ["~/Library/Caches/company.thebrowser.Browser"]
+  preconditions: ["app_not_running:Arc"]
+  restore:
+    kind: redownload
+    note: Arc downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Arc keeps copies of pages, images and scripts here so sites load faster. Quit Arc first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+
+- id: browser.firefox
+  title: Firefox cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/Firefox"}
+  allow: ["~/Library/Caches/Firefox"]
+  preconditions: ["app_not_running:Firefox"]
+  restore:
+    kind: redownload
+    note: Firefox downloads pages and images again as you browse; pages may load slower at first.
+  explain: >-
+    Firefox keeps copies of pages, images and scripts here so sites load faster. Quit Firefox first. Your bookmarks, history, passwords, cookies and open tabs are stored elsewhere and are not touched.
+

@@ -168,3 +168,24 @@ func TestTUIRemoveAdviceExplains(t *testing.T) {
 	}
 	t.Skip("no advice-only item in the fixture")
 }
+
+// The suggestions that were ticked stay ticked when the confirmation box is
+// opened and canceled; only the items that were removed lose their tick.
+func TestTUIRemoveCancelKeepsTheTicks(t *testing.T) {
+	ops := loaded(t, 120, 40).Items()
+	m, _ := removeTUI(t, model.PlanItem{OpportunityID: ops[0].ID, Title: "Logs", ExpectedBytes: 1, BytesSource: model.SourceMeasured,
+		Risk: model.RiskSafe, Method: model.MethodQuarantine, Target: "/Users/me/Library/Logs/X"})
+	m.Marked[ops[0].ID], m.Marked[ops[1].ID] = true, true
+
+	m = press(t, m, "enter")
+	m = press(t, m, "esc")
+	if !m.Marked[ops[0].ID] || !m.Marked[ops[1].ID] {
+		t.Fatalf("esc should keep the ticks: %v", m.Marked)
+	}
+
+	m = press(t, m, "enter")
+	m = press(t, m, "enter")
+	if m.Marked[ops[0].ID] || !m.Marked[ops[1].ID] {
+		t.Errorf("only the removed item should lose its tick: %v", m.Marked)
+	}
+}

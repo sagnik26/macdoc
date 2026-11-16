@@ -32,19 +32,23 @@ func loadIntroStatus(home string) IntroStatus {
 }
 
 type introAction struct {
-	key, label, desc string
+	cmd, desc string
 }
 
+// introActions are the commands the welcome screen offers, each with what it
+// does in a few words. Enter runs the highlighted one.
 func (m TuiModel) introActions() []introAction {
-	check := "Health, where your space went, and ranked cleanup suggestions"
+	scan := "Check your whole Mac: health, where space went, ranked suggestions"
 	if !m.IntroStatus.HasScan {
-		check = "First run: scans your disk once (about 1–2 min), then shows everything"
+		scan = "First run: scans your disk once (1–2 min), then shows everything"
 	}
 	return []introAction{
-		{"enter", "Check my Mac", check},
-		{"s", "Fresh scan first", "Rescan the disk, then show everything (about 1–2 min)"},
-		{"?", "Keys and commands", "Everything you can do in the dashboard"},
-		{"q", "Quit", "Leave without doing anything"},
+		{"scan", scan},
+		{"reclaim", "See what can be cleaned and choose which risk types to clean"},
+		{"retire", "Installed software, its data folders and cleanups"},
+		{"refresh", "Maintenance steps, such as flushing DNS, one Apply away"},
+		{"explore", "Where the space is, as a folder tree you can open"},
+		{"vitals", "Live CPU, memory, disk, network and battery"},
 	}
 }
 
@@ -94,51 +98,7 @@ func (m TuiModel) introView() string {
 	blocks = append(blocks, t.text.Render("Why is my Mac full and slow? macdoc explains it,")+"\n"+
 		t.text.Render("and helps you get space back without surprises."))
 
-	// What macdoc already knows.
-	st := m.IntroStatus
-	status := t.warn.Render("● ") + t.muted.Render("No scan yet. Your first check scans the disk once.")
-	if st.HasScan {
-		status = t.Ok.Render("● ") + t.muted.Render(fmt.Sprintf("Last scan %s · %s in %s files", st.Age,
-			engine.DecimalBytes(st.Bytes), groupDigits(st.Files)))
-	}
-	blocks = append(blocks, status)
-
-	// Actions. Narrow screens show only the selected action's description,
-	// under the box.
 	compact := m.w < 104
-	var ab strings.Builder
-	for i, a := range m.introActions() {
-		k := t.accent.Render(fmt.Sprintf("%-6s", a.key))
-		desc := ""
-		if !compact {
-			desc = "  " + a.desc
-		}
-		if i == m.introPick {
-			fmt.Fprintf(&ab, "%s %s %s%s\n", t.brand.Render("▶"), k, t.Title.Render(fmt.Sprintf("%-18s", a.label)), t.text.Render(desc))
-		} else {
-			fmt.Fprintf(&ab, "  %s %s%s\n", k, t.text.Render(fmt.Sprintf("%-18s", a.label)), t.muted.Render(desc))
-		}
-	}
-	actions := strings.TrimRight(t.Card(strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")...), "\n")
-	if compact {
-		actions += "\n " + t.muted.Render(Truncate(m.introActions()[m.introPick].desc, m.w-4))
-	}
-	blocks = append(blocks, actions)
-
-	// How it works.
-	steps := []struct{ n, title, desc string }{
-		{"1", "Check", "health, where your space went, what's safe to reclaim"},
-		{"2", "Explore", "Overview · Suggestions · Toolchains · Projects · Space · Health"},
-		{"3", "Understand", "enter on a suggestion: what it is, its risk, how to undo"},
-		{"4", "Clean up", "soon: dry-run plans you confirm yourself in Terminal"},
-	}
-	var sb strings.Builder
-	sb.WriteString(t.heading("How it works") + "\n")
-	for _, s := range steps {
-		fmt.Fprintf(&sb, " %s %s %s\n", t.r.NewStyle().Background(colBrand).Foreground(colOnBadge).Bold(true).Render(" "+s.n+" "),
-			t.Title.Render(fmt.Sprintf("%-11s", s.title)), t.muted.Render(Truncate(s.desc, max(10, m.w-20))))
-	}
-	blocks = append(blocks, strings.TrimRight(sb.String(), "\n"))
 
 	// Promises.
 	promises := []string{"Read-only unless you confirm", "Nothing leaves your Mac", "Every cleanup can be explained first"}
@@ -152,14 +112,36 @@ func (m TuiModel) introView() string {
 	}
 	blocks = append(blocks, strings.Join(pp, sep))
 
-	// From the shell.
-	shell := t.heading("From the shell") + "\n" +
-		" " + t.Command([]string{"macdoc", "reclaim"}) + t.muted.Render("             what you can get back") + "\n" +
-		" " + t.Command([]string{"macdoc", "scan"}) + t.muted.Render("                rescan + full report") + "\n" +
-		" " + t.Command([]string{"macdoc", "--json"}) + t.muted.Render("              machine-readable output")
-	if m.h >= 40 {
-		blocks = append(blocks, shell)
+	// What macdoc already knows.
+	st := m.IntroStatus
+	status := t.warn.Render("● ") + t.muted.Render("No scan yet. Your first check scans the disk once.")
+	if st.HasScan {
+		status = t.Ok.Render("● ") + t.muted.Render(fmt.Sprintf("Last scan %s · %s in %s files", st.Age,
+			engine.DecimalBytes(st.Bytes), groupDigits(st.Files)))
 	}
+	blocks = append(blocks, status)
+
+	// Commands, each with a short explanation; ↑↓ choose and Enter runs one.
+	// Narrow screens show only the highlighted command's explanation, under the
+	// box.
+	var ab strings.Builder
+	for i, a := range m.introActions() {
+		name := fmt.Sprintf("%-9s", a.cmd)
+		desc := ""
+		if !compact {
+			desc = "  " + a.desc
+		}
+		if i == m.introPick {
+			fmt.Fprintf(&ab, "%s %s%s\n", t.brand.Render("▶"), t.Title.Render(name), t.text.Render(desc))
+		} else {
+			fmt.Fprintf(&ab, "  %s%s\n", t.accent.Render(name), t.muted.Render(desc))
+		}
+	}
+	actions := strings.TrimRight(t.Card(strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")...), "\n")
+	if compact {
+		actions += "\n " + t.muted.Render(Truncate(m.introActions()[m.introPick].desc, m.w-4))
+	}
+	blocks = append(blocks, actions)
 
 	// Center the Column of blocks horizontally.
 	body := strings.Join(blocks, "\n\n")
@@ -192,27 +174,13 @@ func (m TuiModel) updateIntroKey(k string) (tea.Model, tea.Cmd) {
 	case "down", "j", "tab":
 		m.introPick = (m.introPick + 1) % n
 	case "enter", " ":
-		return m.introChoose(m.introActions()[m.introPick].key)
-	case "s", "?":
-		return m.introChoose(k)
+		return m.RunCommand(m.introActions()[m.introPick].cmd)
+	case "?":
+		m.Overlay, m.scroll = overlayHelp, 0
 	case "/":
 		m.InputMode, m.pick = '/', 0
 		m.input.SetValue("")
 		m.input.Focus()
-	}
-	return m, nil
-}
-
-func (m TuiModel) introChoose(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	case "enter":
-		return m, m.leaveIntro(false)
-	case "s":
-		return m, m.leaveIntro(true)
-	case "?":
-		m.Overlay, m.scroll = overlayHelp, 0
-	case "q":
-		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -225,7 +193,7 @@ func (m *TuiModel) leaveIntro(rescan bool) tea.Cmd {
 }
 
 func (m TuiModel) introFooter() string {
-	keys := [][2]string{{"enter", "start"}, {"↑↓", "choose"}, {"s", "fresh scan"}, {"/", "commands"}, {"?", "help"}, {"q", "quit"}}
+	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"?", "help"}, {"q", "quit"}}
 	var parts []string
 	for _, k := range keys {
 		parts = append(parts, m.t.accent.Render(k[0])+" "+m.t.muted.Render(k[1]))

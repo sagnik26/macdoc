@@ -67,13 +67,13 @@ claude mcp add macdoc -- macdoc mcp
 **Run**
 
 ```bash
-macdoc                           # Interactive dashboard (type / for commands: /overview /scan /vitals /explore /retire /refresh)
-macdoc reclaim                   # Suggestions with their IDs, sizes and risk
+macdoc                           # Interactive dashboard (type / for commands: /scan /reclaim /vitals /explore /retire /refresh)
+macdoc reclaim                   # Lists cleanups by risk; at a Terminal, pick which risk types to clean
 macdoc retire                    # Installed software and the data that belongs to it
 macdoc refresh                   # Maintenance steps (flush DNS, free memory, reset Quick Look)
 macdoc explore [path]            # Visual disk explorer (--growth, --projects)
 macdoc vitals                    # Live system health dashboard (--memory: is memory slowing your Mac?)
-macdoc scan                      # Rescan and print the full report
+macdoc scan                      # Fresh scan or last data (it asks), then the full report; --fresh / --last skip the question
 macdoc apply <id…>               # Seal a plan, review it, and carry it out after you confirm in Terminal
 
 # More: log, quarantine, config, schedule, mcp, completion, version
@@ -83,7 +83,7 @@ macdoc --help                    # Show help
 **Preview safely**
 
 ```bash
-macdoc reclaim                   # Read-only: see what could be reclaimed
+macdoc reclaim                   # See what could be reclaimed; at a Terminal, tick what to clean, then Enter
 macdoc apply --safe --dry-run    # Dry run of every SAFE suggestion (changes nothing)
 macdoc apply O-ab23cd O-k3m9pq --dry-run   # Dry run of the suggestions you pick
 macdoc apply --recipe apps.leftovers --dry-run
@@ -128,7 +128,7 @@ macdoc is only distributed through Homebrew, this repository and its [GitHub rel
 
 macdoc can remove files, so it validates paths, protects system and personal locations, and asks for confirmation at a real Terminal before anything is removed.
 
-- `reclaim`, `retire`, `refresh`, `explore`, `vitals` and `scan` are read-only, and `apply --dry-run` only seals a plan: review it before you apply it. `apply` always shows the plan and asks you to confirm in Terminal
+- `retire`, `refresh`, `explore`, `vitals` and `scan` are read-only, and `reclaim` is read-only unless you choose risk types and press Enter at its prompt in a real Terminal (SAFE only by default; RISKY keeps apply's confirmations), and `apply --dry-run` only seals a plan: review it before you apply it. `apply` always shows the plan and asks you to confirm in Terminal
 - Plans and tools take suggestion IDs, never paths, and there is no `--yes`: only a person at the Terminal approves a removal
 - Every action comes from a fixed recipe catalog with exact command allow-lists: no shell, no `docker system prune`, no `--volumes`
 - Each item is checked again right before it is touched; anything that changed is skipped and recorded, never "fixed up"
@@ -164,7 +164,7 @@ The examples below are shortened. Available items, sizes, and restore costs depe
 
 ### Reclaim
 
-`macdoc reclaim` lists known-safe caches, logs, developer artifacts, and leftovers from apps that are no longer installed, grouped by risk. `macdoc apply` seals what you pick as a plan, shows the dry run, and removes it after you type the plan's code. Add `--dry-run` to only seal and show it; `macdoc apply P-ZDHP` applies a plan that already exists, including one Claude proposed.
+`macdoc reclaim` is the one-step cleaner. At a real Terminal it lists everything by risk, then asks "What do you want to clean?" with a row each for SAFE, CAUTION, RISKY and ADVICE (item count, size, a short note). Tick the risk types to clean in a checkbox list (↑↓ move, space ticks, `a` ticks all, Enter starts the cleanup, Esc cancels; SAFE starts ticked and ADVICE can never be ticked). Where there is no raw terminal it asks you to type `safe`, `caution`, `risky` or `all` instead. CAUTION is cleaned only when you name it. RISKY is cleaned only when you name it, and then keeps `apply`'s full confirmation (the plan is shown, each RISKY item asks y/N, and you type the plan's code), so one Enter never approves RISKY. ADVICE rows are shown but can never be chosen, and `all` never includes them. Every cleanup runs with every re-check, quarantine step and audit entry. Piped, with `--json`, `--quiet` or `--dry-run`, it only lists. `macdoc reclaim <toolchain>` limits the list and the cleaning; `--tier X` skips the question and cleans only that tier on Enter; `--toolchains` and `--categories` are read-only reports. Administrator steps and Claude-proposed plans are never cleaned this way, and there is no `--yes`. `macdoc apply` remains for specific IDs, other tiers, and sealed or Claude-proposed plans: it seals what you pick as a plan, shows the dry run, and removes it after you type the plan's code. Add `--dry-run` to only seal and show it; `macdoc apply P-ZDHP` applies a plan that already exists, including one Claude proposed.
 
 ```text
 $ macdoc reclaim
@@ -266,7 +266,7 @@ $ macdoc explore
  ╰───────────────┴─────────┴──────────────────┴───────╯
 ```
 
-In the dashboard, press `enter` on the Space tab to open the explorer: `↑↓` move, `enter` opens a folder, `backspace` goes up.
+In the dashboard, `/explore` (or `enter` on the Space tab) opens the explorer as a folder tree: `↑↓` move, `→` or `enter` opens a folder in place, `←` closes it, `backspace` goes up one folder.
 
 `macdoc explore --projects` finds rebuildable project artifacts such as `node_modules`, Pods, iOS and Android builds, `.venv`, `.next`, and DerivedData. It groups them by project with how long the project has been idle and its git state. Projects with uncommitted changes raise the risk, and projects in protected folders are listed but never touched.
 
@@ -316,7 +316,7 @@ $ macdoc vitals
  ╰───────────────┴─────────┴───────────╯
 ```
 
-The Health tab in the dashboard shows the same live block and refreshes it every 3 seconds while it is open.
+`/vitals` in the dashboard is a page of its own with the same live block, refreshed every 3 seconds while it is open, with a "Live · updated Ns ago" line and an arrow after each number for the way it moved. It needs no scan, and memory shows as a red alert only when it is what slows your Mac down.
 
 <details>
 <summary><strong>JSON, NDJSON, and process alerts</strong></summary>

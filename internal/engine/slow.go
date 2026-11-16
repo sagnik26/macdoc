@@ -174,6 +174,29 @@ func SlowVerdict(rep probe.Report) (Severity, string) {
 	return SeverityInfo, "Memory pressure couldn't be read (see warnings)."
 }
 
+// SlowCheck is one fact SlowVerdict weighs, for showing why an alert appears.
+type SlowCheck struct {
+	Name    string `json:"name"`
+	Value   string `json:"value"`   // what was measured, "unknown" if it couldn't be
+	Limit   string `json:"limit"`   // where it counts as a problem
+	Flag    string `json:"flag"`    // "high" or "low"
+	Tripped bool   `json:"tripped"` // past the limit right now
+}
+
+// SlowChecks lists the measured facts behind SlowVerdict besides memory
+// pressure itself: swap in use and free disk space. The alert needs pressure at
+// warn or critical, or both of these tripped at once.
+func SlowChecks(rep probe.Report) []SlowCheck {
+	swap := SlowCheck{Name: "Swap in use", Value: BinaryBytes(rep.Swap.UsedBytes), Limit: "from " + BinaryBytes(highSwapBytes),
+		Flag: "high", Tripped: rep.Swap.UsedBytes >= highSwapBytes}
+	disk := SlowCheck{Name: "Free disk", Value: "unknown", Limit: "under " + DecimalBytes(lowFreeBytes), Flag: "low"}
+	if rep.Disk.ContainerTotalBytes > 0 {
+		disk.Value = DecimalBytes(rep.Disk.ContainerFreeBytes)
+		disk.Tripped = rep.Disk.ContainerFreeBytes < lowFreeBytes
+	}
+	return []SlowCheck{swap, disk}
+}
+
 // SlowSummary names the biggest users against the size of RAM, e.g.
 // "Docker 3.1 GB and Android Emulator 2.4 GB on 8.0 GB of RAM".
 func SlowSummary(rep probe.Report) string {

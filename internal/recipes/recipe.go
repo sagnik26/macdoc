@@ -44,6 +44,13 @@ type Recipe struct {
 	// rights. Its argv must be one of PrivilegedArgvAllowed; only the
 	// executor's one privileged function ever runs it (ADR 0009).
 	Privileged bool `yaml:"privileged"`
+	// Regenerable marks a SAFE recipe whose data the tool simply rebuilds
+	// (a cache). Being used recently doesn't raise its risk to CAUTION, as it
+	// does for other SAFE items: an active Mac rewrites its caches all the
+	// time, so the 7-day rule would hide every one of them. It is valid only
+	// on SAFE recipes, and preconditions (an app that must be closed) still
+	// apply.
+	Regenerable bool `yaml:"regenerable"`
 	// OnRequest keeps the recipe out of the usual suggestions. It is listed by
 	// `macdoc refresh` and can be planned by ID, because a
 	// maintenance step is something a person asks for, not space to reclaim.

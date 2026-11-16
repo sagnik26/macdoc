@@ -8,13 +8,15 @@
   risk: CAUTION
   method: quarantine
   detector: app_caches
-  # exclude: children of ~/Library/Caches owned by other recipes.
+  # exclude: children of ~/Library/Caches owned by other recipes, and folders a
+  # tool runs from (Playwright, Cypress, Puppeteer and Camoufox keep their
+  # downloaded browsers there; removing them breaks the tool).
   params:
     dir: "~/Library/Caches"
     min_bytes: "524288000"
     # Google and JetBrains: Android Studio's caches are their own recipe, and
     # JetBrains IDEs keep Local History (unrecoverable) under Caches.
-    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew,Google,JetBrains"
+    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew,Google,JetBrains,go-build,deno,composer,org.swift.swiftpm,node-gyp,Microsoft Edge,BraveSoftware,company.thebrowser.Browser,Firefox,ms-playwright,ms-playwright-go,ms-playwright-mcp,Cypress,puppeteer,camoufox"
   allow: ["~/Library/Caches/*"]
   keep_children_of: ["~/Library/Caches"]
   stale_days: 14

@@ -1,0 +1,182 @@
+# Caches of developer tools and editors that rebuild or download again.
+# Schema: internal/recipes/recipe.go.
+
+- id: go.build_cache
+  title: Go build cache
+  category: build-artifacts
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/go-build"}
+  allow: ["~/Library/Caches/go-build"]
+  restore:
+    kind: rebuild
+    note: Go rebuilds packages on the next build, which is slower the first time.
+  explain: >-
+    Go keeps compiled packages here to speed up builds. It recompiles whatever is missing.
+
+- id: cargo.registry_cache
+  title: Cargo registry cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.cargo/registry/cache"}
+  allow: ["~/.cargo/registry/cache"]
+  restore:
+    kind: redownload
+    note: Cargo downloads the crate files again when a build needs them.
+  explain: >-
+    Cargo keeps the downloaded .crate files here. It fetches them again from the registry when a build needs them. Your installed tools and source checkouts are not in this folder.
+
+- id: bun.cache
+  title: Bun package cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.bun/install/cache"}
+  allow: ["~/.bun/install/cache"]
+  restore:
+    kind: redownload
+    note: Bun downloads packages again on the next install.
+  explain: >-
+    Bun keeps downloaded packages here so installs are fast. Moving it aside doesn't affect existing projects.
+
+- id: deno.cache
+  title: Deno cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/deno"}
+  allow: ["~/Library/Caches/deno"]
+  restore:
+    kind: redownload
+    note: Deno downloads modules again when a script needs them.
+  explain: >-
+    Deno keeps downloaded modules and compiled output here. It fetches and compiles them again when needed.
+
+- id: composer.cache
+  title: Composer cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/composer"}
+  allow: ["~/Library/Caches/composer"]
+  restore:
+    kind: redownload
+    note: Composer downloads packages again on the next install.
+  explain: >-
+    Composer keeps downloaded package archives here. Existing vendor folders aren't affected.
+
+- id: swiftpm.cache
+  title: Swift package cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/org.swift.swiftpm"}
+  allow: ["~/Library/Caches/org.swift.swiftpm"]
+  restore:
+    kind: redownload
+    note: Swift Package Manager fetches packages again when a project resolves them.
+  explain: >-
+    Swift Package Manager keeps cloned package repositories and manifests here. It fetches them again when a project needs them.
+
+- id: nodegyp.cache
+  title: node-gyp cache
+  category: build-artifacts
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Caches/node-gyp"}
+  allow: ["~/Library/Caches/node-gyp"]
+  restore:
+    kind: redownload
+    note: node-gyp downloads the Node headers again the next time a native module builds.
+  explain: >-
+    node-gyp keeps the Node header files it needs to build native modules. It downloads them again when needed.
+
+- id: precommit.cache
+  title: pre-commit cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.cache/pre-commit"}
+  allow: ["~/.cache/pre-commit"]
+  restore:
+    kind: rebuild
+    note: pre-commit sets up its hook environments again on the next run, which takes a while.
+  explain: >-
+    pre-commit keeps a clone and environment for each hook here. It builds them again the next time hooks run.
+
+- id: vscode.cache
+  title: VS Code cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Code/Cache,~/Library/Application Support/Code/CachedData,~/Library/Application Support/Code/Code Cache,~/Library/Application Support/Code/GPUCache"}
+  allow: ["~/Library/Application Support/Code/Cache", "~/Library/Application Support/Code/CachedData", "~/Library/Application Support/Code/Code Cache", "~/Library/Application Support/Code/GPUCache"]
+  preconditions: ["app_not_running:Visual Studio Code"]
+  restore:
+    kind: rebuild
+    note: Visual Studio Code rebuilds these caches as you use it.
+  explain: >-
+    Visual Studio Code keeps caches of web content, compiled code and graphics here. Quit it first. Settings, extensions, workspaces and unsaved work are stored elsewhere and are not touched.
+
+- id: cursor.cache
+  title: Cursor cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Cursor/Cache,~/Library/Application Support/Cursor/CachedData,~/Library/Application Support/Cursor/Code Cache,~/Library/Application Support/Cursor/GPUCache"}
+  allow: ["~/Library/Application Support/Cursor/Cache", "~/Library/Application Support/Cursor/CachedData", "~/Library/Application Support/Cursor/Code Cache", "~/Library/Application Support/Cursor/GPUCache"]
+  preconditions: ["app_not_running:Cursor"]
+  restore:
+    kind: rebuild
+    note: Cursor rebuilds these caches as you use it.
+  explain: >-
+    Cursor keeps caches of web content, compiled code and graphics here. Quit it first. Settings, extensions, workspaces and unsaved work are stored elsewhere and are not touched.
+
+- id: jetbrains.logs
+  title: Old JetBrains IDE logs
+  category: logs
+  toolchain: system
+  risk: SAFE
+  method: quarantine
+  detector: children
+  params: {dir: "~/Library/Logs/JetBrains"}
+  allow: ["~/Library/Logs/JetBrains/*"]
+  keep_children_of: ["~/Library/Logs/JetBrains"]
+  stale_days: 30
+  restore:
+    kind: none
+    note: Old logs aren't needed; the IDE writes new ones.
+  explain: >-
+    JetBrains IDEs write a log folder for each IDE version. Folders that haven't changed in a month are rarely needed. Only logs are listed; Local History, which lives under Caches, is never touched.
+
