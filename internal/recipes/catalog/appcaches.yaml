@@ -1,0 +1,278 @@
+# Caches of desktop apps built on Chromium (Electron): web content, compiled
+# code and graphics shaders the app rebuilds. Only the cache folders under the
+# app's Application Support folder are listed; settings, logins, messages,
+# notes, vaults and downloads are stored elsewhere and are never matched.
+# Schema: internal/recipes/recipe.go.
+
+- id: slack.cache
+  title: Slack cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Slack/Cache,~/Library/Application Support/Slack/Code Cache,~/Library/Application Support/Slack/GPUCache,~/Library/Application Support/Slack/DawnCache,~/Library/Application Support/Slack/DawnGraphiteCache,~/Library/Application Support/Slack/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Slack/Cache", "~/Library/Application Support/Slack/Code Cache", "~/Library/Application Support/Slack/GPUCache", "~/Library/Application Support/Slack/DawnCache", "~/Library/Application Support/Slack/DawnGraphiteCache", "~/Library/Application Support/Slack/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Slack"]
+  restore:
+    kind: rebuild
+    note: Slack rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Slack keeps caches of web content, compiled code and graphics here. Quit Slack first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: discord.cache
+  title: Discord cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/discord/Cache,~/Library/Application Support/discord/Code Cache,~/Library/Application Support/discord/GPUCache,~/Library/Application Support/discord/DawnCache,~/Library/Application Support/discord/DawnGraphiteCache,~/Library/Application Support/discord/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/discord/Cache", "~/Library/Application Support/discord/Code Cache", "~/Library/Application Support/discord/GPUCache", "~/Library/Application Support/discord/DawnCache", "~/Library/Application Support/discord/DawnGraphiteCache", "~/Library/Application Support/discord/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Discord"]
+  restore:
+    kind: rebuild
+    note: Discord rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Discord keeps caches of web content, compiled code and graphics here. Quit Discord first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: notion.cache
+  title: Notion cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Notion/Cache,~/Library/Application Support/Notion/Code Cache,~/Library/Application Support/Notion/GPUCache,~/Library/Application Support/Notion/DawnCache,~/Library/Application Support/Notion/DawnGraphiteCache,~/Library/Application Support/Notion/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Notion/Cache", "~/Library/Application Support/Notion/Code Cache", "~/Library/Application Support/Notion/GPUCache", "~/Library/Application Support/Notion/DawnCache", "~/Library/Application Support/Notion/DawnGraphiteCache", "~/Library/Application Support/Notion/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Notion"]
+  restore:
+    kind: rebuild
+    note: Notion rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Notion keeps caches of web content, compiled code and graphics here. Quit Notion first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: figma.cache
+  title: Figma cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Figma/Cache,~/Library/Application Support/Figma/Code Cache,~/Library/Application Support/Figma/GPUCache,~/Library/Application Support/Figma/DawnCache,~/Library/Application Support/Figma/DawnGraphiteCache,~/Library/Application Support/Figma/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Figma/Cache", "~/Library/Application Support/Figma/Code Cache", "~/Library/Application Support/Figma/GPUCache", "~/Library/Application Support/Figma/DawnCache", "~/Library/Application Support/Figma/DawnGraphiteCache", "~/Library/Application Support/Figma/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Figma"]
+  restore:
+    kind: rebuild
+    note: Figma rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Figma keeps caches of web content, compiled code and graphics here. Quit Figma first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: postman.cache
+  title: Postman cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Postman/Cache,~/Library/Application Support/Postman/Code Cache,~/Library/Application Support/Postman/GPUCache,~/Library/Application Support/Postman/DawnCache,~/Library/Application Support/Postman/DawnGraphiteCache,~/Library/Application Support/Postman/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Postman/Cache", "~/Library/Application Support/Postman/Code Cache", "~/Library/Application Support/Postman/GPUCache", "~/Library/Application Support/Postman/DawnCache", "~/Library/Application Support/Postman/DawnGraphiteCache", "~/Library/Application Support/Postman/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Postman"]
+  restore:
+    kind: rebuild
+    note: Postman rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Postman keeps caches of web content, compiled code and graphics here. Quit Postman first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: obsidian.cache
+  title: Obsidian cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/obsidian/Cache,~/Library/Application Support/obsidian/Code Cache,~/Library/Application Support/obsidian/GPUCache,~/Library/Application Support/obsidian/DawnCache,~/Library/Application Support/obsidian/DawnGraphiteCache,~/Library/Application Support/obsidian/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/obsidian/Cache", "~/Library/Application Support/obsidian/Code Cache", "~/Library/Application Support/obsidian/GPUCache", "~/Library/Application Support/obsidian/DawnCache", "~/Library/Application Support/obsidian/DawnGraphiteCache", "~/Library/Application Support/obsidian/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Obsidian"]
+  restore:
+    kind: rebuild
+    note: Obsidian rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Obsidian keeps caches of web content, compiled code and graphics here. Quit Obsidian first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: claude.cache
+  title: Claude desktop cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Claude/Cache,~/Library/Application Support/Claude/Code Cache,~/Library/Application Support/Claude/GPUCache,~/Library/Application Support/Claude/DawnCache,~/Library/Application Support/Claude/DawnGraphiteCache,~/Library/Application Support/Claude/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Claude/Cache", "~/Library/Application Support/Claude/Code Cache", "~/Library/Application Support/Claude/GPUCache", "~/Library/Application Support/Claude/DawnCache", "~/Library/Application Support/Claude/DawnGraphiteCache", "~/Library/Application Support/Claude/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Claude"]
+  restore:
+    kind: rebuild
+    note: Claude rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Claude keeps caches of web content, compiled code and graphics here. Quit Claude first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: whatsapp.cache
+  title: WhatsApp cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/WhatsApp/Cache,~/Library/Application Support/WhatsApp/Code Cache,~/Library/Application Support/WhatsApp/GPUCache,~/Library/Application Support/WhatsApp/DawnCache,~/Library/Application Support/WhatsApp/DawnGraphiteCache,~/Library/Application Support/WhatsApp/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/WhatsApp/Cache", "~/Library/Application Support/WhatsApp/Code Cache", "~/Library/Application Support/WhatsApp/GPUCache", "~/Library/Application Support/WhatsApp/DawnCache", "~/Library/Application Support/WhatsApp/DawnGraphiteCache", "~/Library/Application Support/WhatsApp/DawnWebGPUCache"]
+  preconditions: ["app_not_running:WhatsApp"]
+  restore:
+    kind: rebuild
+    note: WhatsApp rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    WhatsApp keeps caches of web content, compiled code and graphics here. Quit WhatsApp first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: teams.cache
+  title: Microsoft Teams (classic) cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Microsoft/Teams/Cache,~/Library/Application Support/Microsoft/Teams/Code Cache,~/Library/Application Support/Microsoft/Teams/GPUCache,~/Library/Application Support/Microsoft/Teams/DawnCache,~/Library/Application Support/Microsoft/Teams/DawnGraphiteCache,~/Library/Application Support/Microsoft/Teams/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Microsoft/Teams/Cache", "~/Library/Application Support/Microsoft/Teams/Code Cache", "~/Library/Application Support/Microsoft/Teams/GPUCache", "~/Library/Application Support/Microsoft/Teams/DawnCache", "~/Library/Application Support/Microsoft/Teams/DawnGraphiteCache", "~/Library/Application Support/Microsoft/Teams/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Microsoft Teams"]
+  restore:
+    kind: rebuild
+    note: Microsoft Teams rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Microsoft Teams keeps caches of web content, compiled code and graphics here. Quit Microsoft Teams first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: github_desktop.cache
+  title: GitHub Desktop cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/GitHub Desktop/Cache,~/Library/Application Support/GitHub Desktop/Code Cache,~/Library/Application Support/GitHub Desktop/GPUCache,~/Library/Application Support/GitHub Desktop/DawnCache,~/Library/Application Support/GitHub Desktop/DawnGraphiteCache,~/Library/Application Support/GitHub Desktop/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/GitHub Desktop/Cache", "~/Library/Application Support/GitHub Desktop/Code Cache", "~/Library/Application Support/GitHub Desktop/GPUCache", "~/Library/Application Support/GitHub Desktop/DawnCache", "~/Library/Application Support/GitHub Desktop/DawnGraphiteCache", "~/Library/Application Support/GitHub Desktop/DawnWebGPUCache"]
+  preconditions: ["app_not_running:GitHub Desktop"]
+  restore:
+    kind: rebuild
+    note: GitHub Desktop rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    GitHub Desktop keeps caches of web content, compiled code and graphics here. Quit GitHub Desktop first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: mongodb_compass.cache
+  title: MongoDB Compass cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/MongoDB Compass/Cache,~/Library/Application Support/MongoDB Compass/Code Cache,~/Library/Application Support/MongoDB Compass/GPUCache,~/Library/Application Support/MongoDB Compass/DawnCache,~/Library/Application Support/MongoDB Compass/DawnGraphiteCache,~/Library/Application Support/MongoDB Compass/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/MongoDB Compass/Cache", "~/Library/Application Support/MongoDB Compass/Code Cache", "~/Library/Application Support/MongoDB Compass/GPUCache", "~/Library/Application Support/MongoDB Compass/DawnCache", "~/Library/Application Support/MongoDB Compass/DawnGraphiteCache", "~/Library/Application Support/MongoDB Compass/DawnWebGPUCache"]
+  preconditions: ["app_not_running:MongoDB Compass"]
+  restore:
+    kind: rebuild
+    note: MongoDB Compass rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    MongoDB Compass keeps caches of web content, compiled code and graphics here. Quit MongoDB Compass first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: antigravity.cache
+  title: Antigravity cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Antigravity/Cache,~/Library/Application Support/Antigravity/Code Cache,~/Library/Application Support/Antigravity/GPUCache,~/Library/Application Support/Antigravity/DawnCache,~/Library/Application Support/Antigravity/DawnGraphiteCache,~/Library/Application Support/Antigravity/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Antigravity/Cache", "~/Library/Application Support/Antigravity/Code Cache", "~/Library/Application Support/Antigravity/GPUCache", "~/Library/Application Support/Antigravity/DawnCache", "~/Library/Application Support/Antigravity/DawnGraphiteCache", "~/Library/Application Support/Antigravity/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Antigravity"]
+  restore:
+    kind: rebuild
+    note: Antigravity rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Antigravity keeps caches of web content, compiled code and graphics here. Quit Antigravity first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: kiro.cache
+  title: Kiro cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Kiro/Cache,~/Library/Application Support/Kiro/Code Cache,~/Library/Application Support/Kiro/GPUCache,~/Library/Application Support/Kiro/DawnCache,~/Library/Application Support/Kiro/DawnGraphiteCache,~/Library/Application Support/Kiro/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Kiro/Cache", "~/Library/Application Support/Kiro/Code Cache", "~/Library/Application Support/Kiro/GPUCache", "~/Library/Application Support/Kiro/DawnCache", "~/Library/Application Support/Kiro/DawnGraphiteCache", "~/Library/Application Support/Kiro/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Kiro"]
+  restore:
+    kind: rebuild
+    note: Kiro rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Kiro keeps caches of web content, compiled code and graphics here. Quit Kiro first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: trae.cache
+  title: Trae cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Trae/Cache,~/Library/Application Support/Trae/Code Cache,~/Library/Application Support/Trae/GPUCache,~/Library/Application Support/Trae/DawnCache,~/Library/Application Support/Trae/DawnGraphiteCache,~/Library/Application Support/Trae/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Trae/Cache", "~/Library/Application Support/Trae/Code Cache", "~/Library/Application Support/Trae/GPUCache", "~/Library/Application Support/Trae/DawnCache", "~/Library/Application Support/Trae/DawnGraphiteCache", "~/Library/Application Support/Trae/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Trae"]
+  restore:
+    kind: rebuild
+    note: Trae rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Trae keeps caches of web content, compiled code and graphics here. Quit Trae first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: wispr_flow.cache
+  title: Wispr Flow cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Wispr Flow/Cache,~/Library/Application Support/Wispr Flow/Code Cache,~/Library/Application Support/Wispr Flow/GPUCache,~/Library/Application Support/Wispr Flow/DawnCache,~/Library/Application Support/Wispr Flow/DawnGraphiteCache,~/Library/Application Support/Wispr Flow/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Wispr Flow/Cache", "~/Library/Application Support/Wispr Flow/Code Cache", "~/Library/Application Support/Wispr Flow/GPUCache", "~/Library/Application Support/Wispr Flow/DawnCache", "~/Library/Application Support/Wispr Flow/DawnGraphiteCache", "~/Library/Application Support/Wispr Flow/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Wispr Flow"]
+  restore:
+    kind: rebuild
+    note: Wispr Flow rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Wispr Flow keeps caches of web content, compiled code and graphics here. Quit Wispr Flow first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+# Spotify keeps its cache in Application Support, and the same folder can hold
+# songs you saved for offline listening, so this one is CAUTION, not SAFE.
+- id: spotify.cache
+  title: Spotify cache and offline downloads
+  category: app-caches
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: path
+  params: {path: "~/Library/Application Support/Spotify/PersistentCache"}
+  allow: ["~/Library/Application Support/Spotify/PersistentCache"]
+  preconditions: ["app_not_running:Spotify"]
+  restore:
+    kind: redownload
+    note: Spotify rebuilds its cache as you listen. Songs you saved for offline listening are downloaded again when you turn the download on.
+  explain: >-
+    Spotify keeps streamed songs, album art and other cached data here. Quit Spotify first. The same folder can hold songs you saved for offline listening, so you may need to download them again. Your account, playlists and settings are stored elsewhere and are not touched.

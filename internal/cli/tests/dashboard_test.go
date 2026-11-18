@@ -1027,7 +1027,7 @@ func TestTUIReclaimOpensTheCheckboxList(t *testing.T) {
 	if got.Overlay == cli.OverlayNone {
 		t.Fatalf("overlay %d; want the checkbox list", got.Overlay)
 	}
-	mustContain(t, got.View(), "Reclaim", "What do you want to clean?", "[x] SAFE", "[ ] CAUTION", "[-] ADVICE", "enter/space tick", "[ Clean 2 items")
+	mustContain(t, got.View(), "Reclaim", "What do you want to clean?", "[x] SAFE", "[ ] CAUTION", "enter/space tick", "Clean 2 items")
 	if strings.Contains(got.View(), "1 Overview") {
 		t.Error("the reclaim page has no tabs")
 	}
@@ -1109,17 +1109,17 @@ func TestTUIReclaimEscChangesNothing(t *testing.T) {
 	}
 }
 
-// /reclaim puts the checkbox list and its Clean button first, then the full
-// table of every suggestion, whatever is ticked.
-func TestTUIReclaimListFirstThenFullTable(t *testing.T) {
+// /reclaim shows the full table of every suggestion first, then the checkbox
+// list and its Clean button underneath, whatever is ticked.
+func TestTUIReclaimTableFirstThenList(t *testing.T) {
 	m := loaded(t, 110, 40)
 	next, _ := m.RunCommand("/reclaim")
 	m = next.(cli.TuiModel)
 	out := m.View()
-	mustContain(t, out, "What do you want to clean?", "[ Clean 2 items", "SAFE 25.2 GB", "Xcode DerivedData", "Docker build cache",
+	mustContain(t, out, "What do you want to clean?", "Clean 2 items", "SAFE 25.2 GB", "Xcode DerivedData", "Docker build cache",
 		"Android system image", "Lost data", "│ Suggestion")
-	if strings.Index(out, "What do you want to clean?") > strings.Index(out, "Docker build cache") {
-		t.Error("the list should come before the table")
+	if strings.Index(out, "What do you want to clean?") < strings.Index(out, "Docker build cache") {
+		t.Error("the list should come after the table")
 	}
 	if strings.Contains(out, "1 Overview") {
 		t.Error("the reclaim page shows no tabs")
@@ -1127,9 +1127,9 @@ func TestTUIReclaimListFirstThenFullTable(t *testing.T) {
 
 	// Ticking and unticking changes the button, not the table.
 	m = step(t, m, keys("down", "down", " ")...)
-	mustContain(t, m.View(), "[ Clean 4 items", "Android system image", "Xcode DerivedData")
+	mustContain(t, m.View(), "Clean 4 items", "Android system image", "Xcode DerivedData")
 	m = step(t, m, keys(" ", "up", "up", " ")...)
-	mustContain(t, m.View(), "[ Clean: nothing ticked ]", "Android system image", "Xcode DerivedData", "Lost data")
+	mustContain(t, m.View(), "Clean: nothing ticked", "Android system image", "Xcode DerivedData", "Lost data")
 	for _, gone := range []string{"preview, not ticked", "▶"} {
 		if strings.Contains(m.View(), gone) {
 			t.Errorf("the table has no previews or cursor, but shows %q", gone)
@@ -1188,4 +1188,26 @@ func TestTUIVitalsExplainsTheAlert(t *testing.T) {
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 10, Pressure: probe.PressureWarn}}}}
 	m = step(t, m, tight)
 	mustContain(t, m.View(), "slowing your Mac down", "How macdoc decides", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
+}
+
+// reclaim cleans caches, junk and what removed apps left behind. It never
+// lists an app that is still installed: that is for retire. The scan view
+// keeps showing it.
+func TestTUIReclaimLeavesInstalledAppsToRetire(t *testing.T) {
+	m := loaded(t, 120, 40)
+	app := model.Opportunity{ID: "O-app001", RecipeID: "apps.system_bundle", Title: "Zoom app in /Applications", Risk: model.RiskRisky,
+		Method: model.MethodQuarantine, Bytes: model.Bytes{Value: 300_000_000, Source: model.SourceMeasured}}
+	left := model.Opportunity{ID: "O-app002", RecipeID: "apps.leftovers", Title: "Data left by Zoom", Risk: model.RiskCaution,
+		Method: model.MethodQuarantine, Bytes: model.Bytes{Value: 50_000_000, Source: model.SourceMeasured}}
+	ops := &m.Data.Res.Opportunities.Opportunities
+	*ops = append(*ops, app, left)
+
+	next, _ := m.RunCommand("/reclaim")
+	out := next.(cli.TuiModel).View()
+	mustContain(t, out, "Data left by Zoom", "Android system image")
+	if strings.Contains(out, "Zoom app in /Applications") {
+		t.Error("an installed app must not be listed in reclaim")
+	}
+	scan := step(t, m, keys("tab")...)
+	mustContain(t, scan.View(), "Zoom app in /Applications")
 }

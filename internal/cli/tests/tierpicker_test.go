@@ -48,11 +48,10 @@ func ticked(m cli.TierPicker) string {
 	return strings.Join(s, ",")
 }
 
-// SAFE starts ticked, the others do not, and ADVICE is shown but marked as not
-// removable.
+// SAFE starts ticked, the others do not, and advice-only items have no row.
 func TestTierPickerStartsWithSafeTicked(t *testing.T) {
 	m := cli.NewTierPicker(cli.PlainTheme(), pickerRows(false))
-	mustContain(t, m.View(), "[x] SAFE", "[ ] CAUTION", "[ ] RISKY", "[-] ADVICE", "2 items", "enter/space tick", "[ Clean 2 items")
+	mustContain(t, m.View(), "[x] SAFE", "[ ] CAUTION", "[ ] RISKY", "2 items", "enter/space tick", "Clean 2 items")
 	if got := ticked(m); got != "SAFE" {
 		t.Errorf("ticked = %q, want SAFE", got)
 	}
@@ -81,31 +80,35 @@ func TestTierPickerTicksAndSubmits(t *testing.T) {
 	if m.Done() || ticked(m) != "SAFE,CAUTION" {
 		t.Fatalf("enter again should untick: done %v ticked %q", m.Done(), ticked(m))
 	}
-	// Down to the Clean button (past ADVICE); Enter there submits.
-	m = pickerPress(t, m, keys("down", "down")...)
-	mustContain(t, m.View(), "▸ [ Clean 3 items")
+	// Down to the Clean button; Enter there submits.
+	m = pickerPress(t, m, keys("down")...)
+	mustContain(t, m.View(), "▸ ", "Clean 3 items", "┏", "┗")
 	m = pickerPress(t, m, keys("enter")[0])
 	if !m.Done() || m.Canceled() || ticked(m) != "SAFE,CAUTION" {
 		t.Errorf("enter on Clean: done %v canceled %v ticked %q", m.Done(), m.Canceled(), ticked(m))
 	}
 }
 
-// ADVICE can never be ticked and says why; neither can an empty row. "a"
+// ADVICE can never be ticked and says why. An empty RISKY row isn't shown at
+// all (reclaim leaves installed apps to retire). "a"
 // ticks every row that can be cleaned (never ADVICE) and a second "a" unticks.
 func TestTierPickerAdviceAndEmptyRowsCannotBeTicked(t *testing.T) {
-	m := cli.NewTierPicker(cli.PlainTheme(), pickerRows(true))
-	m = pickerPress(t, m, keys("down", "down", "down")...) // CAUTION, RISKY (empty), ADVICE
+	rows := pickerRows(true) // TierChoices gives no ADVICE row; the picker still refuses one if it is given
+	if strings.Contains(cli.NewTierPicker(cli.PlainTheme(), rows).View(), "ADVICE") {
+		t.Error("an ADVICE row is shown")
+	}
+	rows = append(rows, cli.TierChoice{Risk: model.RiskAdvise, Note: "macdoc can't remove these",
+		Items: []model.Opportunity{{ID: "O-advi01", Risk: model.RiskAdvise, Method: model.MethodAdvise, Title: "x"}}})
+	m := cli.NewTierPicker(cli.PlainTheme(), rows)
+	if strings.Contains(m.View(), "RISKY") {
+		t.Error("an empty RISKY row is shown")
+	}
+	m = pickerPress(t, m, keys("down", "down")...) // CAUTION, ADVICE
 	m = pickerPress(t, m, keys(" ")[0])
 	mustContain(t, m.View(), "can't remove advice-only", "[-] ADVICE")
 	if got := ticked(m); got != "SAFE" {
 		t.Errorf("ADVICE was ticked: %q", got)
 	}
-	m = pickerPress(t, m, keys("up")[0], keys(" ")[0])
-	mustContain(t, m.View(), "nothing to clean in RISKY")
-	if strings.Contains(ticked(m), "RISKY") {
-		t.Error("an empty RISKY row was ticked")
-	}
-
 	m = pickerPress(t, m, keys("a")[0])
 	if got := ticked(m); got != "SAFE,CAUTION" {
 		t.Errorf("a should tick SAFE and CAUTION only: %q", got)
@@ -120,7 +123,7 @@ func TestTierPickerAdviceAndEmptyRowsCannotBeTicked(t *testing.T) {
 func TestTierPickerNeedsAChoiceAndCancels(t *testing.T) {
 	m := cli.NewTierPicker(cli.PlainTheme(), pickerRows(false))
 	m = pickerPress(t, m, keys(" ")[0]) // untick SAFE
-	mustContain(t, m.View(), "[ Clean: nothing ticked ]")
+	mustContain(t, m.View(), "Clean: nothing ticked")
 	m = pickerPress(t, m, keys("down", "down", "down", "down", "enter")...) // to the Clean button, then Enter
 	if m.Done() {
 		t.Error("Clean with nothing ticked should not submit")

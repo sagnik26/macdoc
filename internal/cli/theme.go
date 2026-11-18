@@ -41,17 +41,18 @@ func pc(dark, dark256, dark16, light, light256, light16 string) lipgloss.Termina
 }
 
 var (
-	colBrand  = pc("#E8875F", "173", "3", "#C15F3C", "167", "1")
-	colText   = pc("#ECECEC", "255", "15", "#1C1C1C", "234", "0")
-	colMuted  = pc("#9A9A9A", "247", "7", "#6C6C6C", "242", "8")
-	colFaint  = pc("#4E4E4E", "239", "8", "#C6C6C6", "251", "7")
-	colCyan   = pc("#67D4F1", "81", "14", "#00799E", "31", "6")
-	colGreen  = pc("#6BD68A", "78", "10", "#1E8A4C", "29", "2")
-	colYellow = pc("#F2CC60", "221", "11", "#9A6D00", "136", "3")
-	colOrange = pc("#F4A261", "215", "9", "#C2570C", "166", "1")
-	colRed    = pc("#F26B6B", "203", "9", "#C62828", "160", "1")
-	colBlue   = pc("#8FB3FF", "111", "12", "#2457C5", "26", "4")
-	colViolet = pc("#C3A6FF", "183", "13", "#6B3FC4", "98", "5")
+	colBrand      = pc("#E8875F", "173", "3", "#C15F3C", "167", "1")
+	colText       = pc("#ECECEC", "255", "15", "#1C1C1C", "234", "0")
+	colMuted      = pc("#9A9A9A", "247", "7", "#6C6C6C", "242", "8")
+	colFaint      = pc("#4E4E4E", "239", "8", "#C6C6C6", "251", "7")
+	colCyan       = pc("#67D4F1", "81", "14", "#00799E", "31", "6")
+	colGreen      = pc("#6BD68A", "78", "10", "#1E8A4C", "29", "2")
+	colYellow     = pc("#F2CC60", "221", "11", "#9A6D00", "136", "3")
+	colOrange     = pc("#F4A261", "215", "9", "#C2570C", "166", "1")
+	colRed        = pc("#F26B6B", "203", "9", "#C62828", "160", "1")
+	colDarkViolet = pc("#8B5CF6", "99", "5", "#4C1D95", "54", "5")
+	colBlue       = pc("#8FB3FF", "111", "12", "#2457C5", "26", "4")
+	colViolet     = pc("#C3A6FF", "183", "13", "#6B3FC4", "98", "5")
 	// colSelect is the selected-row background: a quiet tint that keeps
 	// every foreground color readable.
 	colSelect = pc("#2F3340", "236", "8", "#E3E7F2", "254", "7")

@@ -64,6 +64,7 @@ func cleanOneTier(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	if err != nil {
 		return err
 	}
+	res = forReclaim(res)
 	pick, other := splitForCleaning(res, o)
 	t := themeFor(out)
 	if len(pick) == 0 {
@@ -237,10 +238,11 @@ func cleanChosen(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	if err != nil {
 		return err
 	}
+	res = forReclaim(res)
 	res.Opportunities = forToolchain(res.Opportunities, o.toolchain)
 	rows := TierChoices(res.Opportunities)
 	t := themeFor(out)
-	if len(rows[0].Items)+len(rows[1].Items)+len(rows[2].Items) == 0 {
+	if cleanableCount(rows) == 0 {
 		_, _ = fmt.Fprintln(out, t.done("Nothing here macdoc can clean."))
 		return nil
 	}
@@ -264,6 +266,36 @@ func cleanChosen(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	return sealAndClean(cmd, g, pick, risky)
 }
 
+// installedAppRecipes are the recipes that remove an app that is still
+// installed. reclaim leaves them to `retire`, the way Mole's clean leaves them
+// to its uninstall: reclaim cleans caches, junk and what removed apps left
+// behind, and never an app you still have.
+var installedAppRecipes = map[string]bool{"apps.user_bundle": true, "apps.system_bundle": true}
+
+// forReclaim drops the installed-app items from a result and recomputes its
+// tier totals to match, so the numbers shown never include them.
+func forReclaim(res engine.OpportunityResult) engine.OpportunityResult {
+	res.Opportunities = withoutInstalledApps(res.Opportunities)
+	res.Totals = map[model.Risk]int64{}
+	for _, op := range res.Opportunities {
+		if op.Bytes.Source != model.SourceUnknown {
+			res.Totals[op.Risk] += op.Bytes.Value
+		}
+	}
+	return res
+}
+
+// withoutInstalledApps returns ops without the items that remove an installed app.
+func withoutInstalledApps(ops []model.Opportunity) []model.Opportunity {
+	out := make([]model.Opportunity, 0, len(ops))
+	for _, op := range ops {
+		if !installedAppRecipes[op.RecipeID] {
+			out = append(out, op)
+		}
+	}
+	return out
+}
+
 // forToolchain keeps the items of one toolchain, or all of them for "".
 func forToolchain(ops []model.Opportunity, toolchain string) []model.Opportunity {
 	if toolchain == "" {
@@ -281,7 +313,7 @@ func forToolchain(ops []model.Opportunity, toolchain string) []model.Opportunity
 // chosenItems returns the items of the chosen risk types, and whether any of
 // them is RISKY (which needs apply's full confirmation).
 func chosenItems(rows []TierChoice, tiers []model.Risk) (pick []model.Opportunity, risky bool) {
-	for _, r := range rows[:3] {
+	for _, r := range rows {
 		if !slices.Contains(tiers, r.Risk) {
 			continue
 		}
@@ -318,23 +350,46 @@ func sealAndClean(cmd *cobra.Command, g *GlobalFlags, pick []model.Opportunity, 
 }
 
 // TierChoices groups the actionable items by risk type (SAFE, CAUTION, RISKY)
-// and puts the advice-only ones last, in a fixed order.
+// in a fixed order. Advice-only items have no row: macdoc can't remove them,
+// and the list above shows them under "Your call".
 func TierChoices(ops []model.Opportunity) []TierChoice {
 	rows := []TierChoice{
 		{Risk: model.RiskSafe, Note: "caches and files the tools rebuild"},
 		{Risk: model.RiskCaution, Note: "worth a look first; apps should be closed"},
-		{Risk: model.RiskRisky, Note: "may include apps; each one is confirmed on its own"},
-		{Risk: model.RiskAdvise, Note: "macdoc can't remove these; see macdoc reclaim --tier advise"},
+		{Risk: model.RiskRisky, Note: "may include app data; each one is confirmed on its own"},
 	}
 	for _, op := range ops {
 		for i := range rows {
-			advice := op.Method == model.MethodAdvise
-			if (advice && rows[i].Risk == model.RiskAdvise) || (!advice && op.Risk == rows[i].Risk) {
+			if op.Method != model.MethodAdvise && op.Risk == rows[i].Risk {
 				rows[i].Items = append(rows[i].Items, op)
 			}
 		}
 	}
-	return rows
+	return withoutEmptyRisky(rows)
+}
+
+// cleanableCount is how many items the rows can clean.
+func cleanableCount(rows []TierChoice) int {
+	n := 0
+	for _, r := range rows {
+		if r.Risk != model.RiskAdvise {
+			n += len(r.Items)
+		}
+	}
+	return n
+}
+
+// withoutEmptyRisky drops the RISKY row when nothing is in it: reclaim leaves
+// installed apps to retire, so most Macs have no RISKY item to offer.
+func withoutEmptyRisky(rows []TierChoice) []TierChoice {
+	out := rows[:0:0]
+	for _, r := range rows {
+		if r.Risk == model.RiskRisky && len(r.Items) == 0 {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // writeChooser prints the "what do you want to clean?" section and its prompt.

@@ -153,7 +153,6 @@ func TestPathRecipes(t *testing.T) {
 		{Path: w2Home + "/Library/Caches/pip", Bytes: 300 << 20},
 		{Path: w2Home + "/.cache/uv", Bytes: 200 << 20},
 		{Path: w2Home + "/Library/Caches/pypoetry", Bytes: 150 << 20},
-		{Path: w2Home + "/.Trash", Bytes: 2 << 30},
 		{Path: w2Home + "/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw", Kind: model.NodeFile, Bytes: 20 << 30},
 		{Path: w2Home + "/Library/Caches/pip-tools", Bytes: 500 << 20}, // look-alike
 	}
@@ -161,12 +160,44 @@ func TestPathRecipes(t *testing.T) {
 		"pip.cache":       "/Library/Caches/pip",
 		"uv.cache":        "/.cache/uv",
 		"poetry.cache":    "/Library/Caches/pypoetry",
-		"user.trash":      "/.Trash",
 		"docker.raw_disk": "/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw",
 	} {
 		fs, err := w2Run(t, id, recipes.Env{Nodes: nodes})
 		w2WantTargets(t, fs, err, w2Home+want)
 	}
+}
+
+// The Trash lists the items in it, not the folder itself, and nothing that only
+// looks like it.
+func TestTrashItems(t *testing.T) {
+	nodes := fakeNodes{
+		{Path: w2Home + "/.Trash", Bytes: 3 << 30},
+		{Path: w2Home + "/.Trash/big.dmg", Kind: model.NodeFile, Bytes: 2 << 30},
+		{Path: w2Home + "/.Trash/old project", Bytes: 1 << 30},
+		{Path: w2Home + "/.Trash-old/other.dmg", Kind: model.NodeFile, Bytes: 1 << 30},
+		{Path: w2Home + "/Library/.Trash/x", Bytes: 1 << 30},
+	}
+	fs, err := w2Run(t, "user.trash", recipes.Env{Nodes: nodes})
+	w2WantTargets(t, fs, err, w2Home+"/.Trash/big.dmg", w2Home+"/.Trash/old project")
+}
+
+// Only the small state files directly in CrashReporter that have not changed
+// for 30 days are listed.
+func TestCrashReporterFiles(t *testing.T) {
+	d := w2Home + "/Library/Application Support/CrashReporter"
+	nodes := fakeNodes{
+		{Path: d + "/Intervals_AAAA.plist", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(90)},
+		{Path: d + "/Preview_AAAA.plist", Kind: model.NodeFile, Bytes: 2048, MtimeMax: w2DaysAgo(45)},
+		{Path: d + "/Intervals_NEW.plist", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(2)}, // recent
+		{Path: d + "/old/deep.plist", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(90)},     // not directly in the folder
+		{Path: d + "/folder", Bytes: 4096, MtimeMax: w2DaysAgo(90)},                                   // a folder
+		{Path: d + "/setup.dmg", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(90)},          // installers are another recipe
+		{Path: w2Home + "/Library/Application Support/CrashReporter-old/x.plist", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(90)},
+		{Path: w2Home + "/Library/Application Support/Other/x.plist", Kind: model.NodeFile, Bytes: 4096, MtimeMax: w2DaysAgo(90)},
+	}
+	fs, err := w2Run(t, "user.crash_reporter", recipes.Env{Nodes: nodes})
+	w2WantTargets(t, fs, err, d+"/Intervals_AAAA.plist", d+"/Preview_AAAA.plist")
+	checkTargets(t, w2Home, "user.crash_reporter", fs)
 }
 
 func TestAppCaches(t *testing.T) {
@@ -175,22 +206,23 @@ func TestAppCaches(t *testing.T) {
 		{Path: c, Bytes: 10 << 30},
 		{Path: c + "/com.spotify.client", Bytes: 2 << 30, MtimeMax: w2DaysAgo(1)},
 		{Path: c + "/Google", Bytes: 600 << 20},
-		{Path: c + "/com.apple.Safari", Bytes: 3 << 30},              // Apple
-		{Path: c + "/COM.APPLE.bird", Bytes: 3 << 30},                // Apple, case-insensitive
-		{Path: c + "/com.apple.dt.Xcode", Bytes: 3 << 30},            // xcode.caches
-		{Path: c + "/Yarn", Bytes: 3 << 30},                          // yarn.cache
-		{Path: c + "/pip", Bytes: 3 << 30},                           // pip.cache
-		{Path: c + "/pypoetry", Bytes: 3 << 30},                      // poetry.cache
-		{Path: c + "/CocoaPods", Bytes: 3 << 30},                     // cocoapods.cache
-		{Path: c + "/Homebrew", Bytes: 3 << 30},                      // brew.cleanup
-		{Path: c + "/com.small.app", Bytes: 400 << 20},               // below 500 MB
-		{Path: c + "/big.bin", Kind: model.NodeFile, Bytes: 1 << 30}, // a file, not an app cache
-		{Path: c + "/com.spotify.client/Data", Bytes: 2 << 30},       // grandchild
+		{Path: c + "/com.apple.Safari", Bytes: 3 << 30},                      // Apple
+		{Path: c + "/COM.APPLE.bird", Bytes: 3 << 30},                        // Apple, case-insensitive
+		{Path: c + "/com.apple.dt.Xcode", Bytes: 3 << 30},                    // xcode.caches
+		{Path: c + "/Yarn", Bytes: 3 << 30},                                  // yarn.cache
+		{Path: c + "/pip", Bytes: 3 << 30},                                   // pip.cache
+		{Path: c + "/pypoetry", Bytes: 3 << 30},                              // poetry.cache
+		{Path: c + "/CocoaPods", Bytes: 3 << 30},                             // cocoapods.cache
+		{Path: c + "/Homebrew", Bytes: 3 << 30},                              // brew.cleanup
+		{Path: c + "/com.small.app", Bytes: 40 << 20},                        // below 50 MB
+		{Path: c + "/com.mid.app", Bytes: 400 << 20, MtimeMax: w2DaysAgo(1)}, // listed since the threshold is 50 MB
+		{Path: c + "/big.bin", Kind: model.NodeFile, Bytes: 1 << 30},         // a file, not an app cache
+		{Path: c + "/com.spotify.client/Data", Bytes: 2 << 30},               // grandchild
 	}
 	fs, err := w2Run(t, "user.app_caches", recipes.Env{Nodes: nodes})
 	// Google is excluded since P3-W4 D10 (android_studio.old_versions_data
 	// owns Caches/Google/AndroidStudio*).
-	w2WantTargets(t, fs, err, c+"/com.spotify.client")
+	w2WantTargets(t, fs, err, c+"/com.spotify.client", c+"/com.mid.app")
 	for _, f := range fs {
 		if f.Title == "" || f.Bytes.Source != model.SourceMeasured {
 			t.Errorf("finding %+v", f)

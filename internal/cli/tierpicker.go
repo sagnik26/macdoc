@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/sagnik26/macdoc/internal/model"
 )
@@ -196,16 +197,28 @@ func (m TierPicker) cleanButton() string {
 			items = append(items, r.Items...)
 		}
 	}
-	cursor := "  "
-	if m.cursor == len(m.rows) {
-		cursor = t.accent.Render("▸ ")
+	focused := m.cursor == len(m.rows)
+	label, color, border := "Clean: nothing ticked", colMuted, lipgloss.RoundedBorder()
+	if len(items) > 0 {
+		label = fmt.Sprintf("Clean %d %s · %s", len(items), plural(len(items), "item", "items"), sizeSummary(items))
+		color = colDarkViolet
 	}
-	if len(items) == 0 {
-		return "  " + cursor + t.muted.Render("[ Clean: nothing ticked ]")
+	if focused && len(items) > 0 {
+		border = lipgloss.ThickBorder() // a heavier frame while the cursor is on it
 	}
-	label := fmt.Sprintf("[ Clean %d %s · %s ]", len(items), plural(len(items), "item", "items"), sizeSummary(items))
-	if m.cursor == len(m.rows) {
-		return "  " + cursor + t.Ok.Bold(true).Render(label)
+	// A framed button in dark violet (its own color, so it isn't mistaken for a
+	// row); the arrow marks the middle line when the cursor is on it.
+	st := t.r.NewStyle().Border(border).BorderForeground(color).Foreground(color).Padding(0, 2)
+	if focused {
+		st = st.Bold(true)
 	}
-	return "  " + cursor + t.text.Render(label)
+	lines := strings.Split(st.Render(label), "\n")
+	pad := []string{"  ", "  ", "  "}
+	if focused {
+		pad[len(lines)/2] = t.accent.Render("▸ ")
+	}
+	for i, l := range lines {
+		lines[i] = "  " + pad[min(i, 2)] + l
+	}
+	return strings.Join(lines, "\n")
 }

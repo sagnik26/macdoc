@@ -1,0 +1,23 @@
+# Caches of sandboxed apps. macOS keeps each sandboxed app's data in
+# ~/Library/Containers/<bundle id>/Data; only its Library/Caches folder is
+# listed here, never Documents, Application Support, Preferences or anything
+# else in the container. Apple's own containers are skipped.
+# Schema: internal/recipes/recipe.go.
+
+- id: app.container_caches
+  title: Cache of a sandboxed app
+  category: app-caches
+  toolchain: system
+  risk: CAUTION
+  method: quarantine
+  detector: container_caches
+  params: {dir: "~/Library/Containers", min_bytes: "52428800"}
+  allow: ["~/Library/Containers/*/Data/Library/Caches"]
+  restore:
+    kind: rebuild
+    note: The app rebuilds its cache as you use it; it may start a little slower.
+  explain: >-
+    Sandboxed apps keep their caches inside their own container. They recreate
+    them when they are missing. Quit the app first. Only the Caches folder is
+    moved aside; the app's documents, settings and data in the same container
+    are not touched. Apple's apps are not included.

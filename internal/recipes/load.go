@@ -248,9 +248,26 @@ func quarantine(p *problems, r Recipe) {
 	if r.Native != nil {
 		p.add("quarantine recipes must not have native")
 	}
-	if r.Restore.Kind == model.RestoreIrreplaceable {
+	if r.Restore.Kind == model.RestoreIrreplaceable && !quarantinedTrash(r) {
 		p.add("irreplaceable data must be advise-only")
 	}
+}
+
+// quarantinedTrash is the one carve-out from "irreplaceable data is advice
+// only": items in the Trash, which a person already chose to throw away. They
+// are moved into macdoc's quarantine first, so they stay restorable until it
+// expires. The recipe must be CAUTION, say how to get them back, and allow
+// nothing outside ~/.Trash/.
+func quarantinedTrash(r Recipe) bool {
+	if r.Risk != model.RiskCaution || strings.TrimSpace(r.Restore.Note) == "" || len(r.Allow) == 0 {
+		return false
+	}
+	for _, pat := range r.Allow {
+		if !strings.HasPrefix(pat, "~/.Trash/") {
+			return false
+		}
+	}
+	return true
 }
 
 func native(p *problems, r Recipe) {
@@ -282,6 +299,9 @@ func allows(p *problems, r Recipe) {
 			continue // the one exception to the protected-overlap rule (ADR 0011)
 		}
 		err := lintPattern(pat)
+		if err == nil && pat == containerCachePattern && r.Method == model.MethodQuarantine && r.Risk == model.RiskCaution && r.Detector == "container_caches" {
+			continue // the second exception to the protected-overlap rule: see containerCachePattern
+		}
 		if err == nil {
 			err = LintAllowProtected(pat)
 		}
@@ -421,6 +441,15 @@ var projectTreePatterns = []string{
 // both of them at plan and apply time, and the leftovers detector only offers
 // bundle-identifier names, which neither is (ADR 0011).
 const supportPattern = "~/Library/Application Support/*"
+
+// containerCachePattern is the Caches folder of every sandboxed app's
+// container. The bundle-ID wildcard could in theory match Apple's protected
+// containers (com.apple.*), which the lint cannot rule out, so this one pattern
+// is exempt from the overlap rule, and only for a CAUTION quarantine recipe
+// that uses the container_caches detector. That detector never offers a
+// com.apple.* container, and CheckTarget refuses Apple's containers again at
+// plan and apply time.
+const containerCachePattern = "~/Library/Containers/*/Data/Library/Caches"
 
 // protectedNameSamples are names a final pattern component must not be able
 // to match: what IsProtected protects by name anywhere in home.

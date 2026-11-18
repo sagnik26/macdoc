@@ -13,10 +13,10 @@
   # downloaded browsers there; removing them breaks the tool).
   params:
     dir: "~/Library/Caches"
-    min_bytes: "524288000"
+    min_bytes: "52428800"
     # Google and JetBrains: Android Studio's caches are their own recipe, and
     # JetBrains IDEs keep Local History (unrecoverable) under Caches.
-    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew,Google,JetBrains,go-build,deno,composer,org.swift.swiftpm,node-gyp,Microsoft Edge,BraveSoftware,company.thebrowser.Browser,Firefox,ms-playwright,ms-playwright-go,ms-playwright-mcp,Cypress,puppeteer,camoufox"
+    exclude: "com.apple.dt.Xcode,CocoaPods,Yarn,pip,pypoetry,Homebrew,Google,JetBrains,go-build,deno,composer,org.swift.swiftpm,node-gyp,Microsoft Edge,BraveSoftware,company.thebrowser.Browser,Firefox,zig,ms-playwright,ms-playwright-go,ms-playwright-mcp,Cypress,puppeteer,camoufox"
   allow: ["~/Library/Caches/*"]
   keep_children_of: ["~/Library/Caches"]
   stale_days: 14
@@ -51,19 +51,23 @@
   title: Trash
   category: system
   toolchain: system
-  risk: ADVISE
-  method: advise
-  detector: path
-  params: {path: "~/.Trash"}
+  risk: CAUTION
+  method: quarantine
+  detector: children
+  # Each item in the Trash that the scan keeps (100 MB or more) is its own
+  # suggestion. Smaller items stay; Finder's Empty Trash removes everything.
+  # This is the one irreplaceable recipe the loader accepts as cleanable: see
+  # quarantinedTrash in internal/recipes/load.go.
+  params: {dir: "~/.Trash", min_bytes: "1"}
+  allow: ["~/.Trash/*"]
   restore:
     kind: irreplaceable
-    note: Files are gone once the Trash is emptied.
+    note: Moved aside into macdoc's quarantine first, so you can restore it until the quarantine expires; after that it is gone.
   explain: >-
-    Files you move to the Trash still use disk space until it's emptied.
-    Review it and choose Empty Trash in Finder.
-  steps:
-    - "Open the Trash in Finder and check nothing in it is still needed."
-    - "Choose Finder › Empty Trash, then press r in macdoc to rescan."
+    Files you move to the Trash still use disk space until the Trash is
+    emptied. macdoc moves what you choose into its own quarantine instead of
+    deleting it at once, so a mistake can be undone for a while. Look through
+    the Trash first: anything you might still need should be put back.
 
 - id: user.downloads_large_old
   title: Old installer or archive
@@ -158,3 +162,48 @@
     - "Usually nothing: macOS removes them on its own when space runs low."
     - "To see them: `tmutil listlocalsnapshots /`"
     - "To free the space now, run a Time Machine backup; older local snapshots are thinned afterwards."
+
+
+- id: tm.incomplete_backups
+  title: Incomplete Time Machine backup
+  category: backups
+  toolchain: system
+  risk: ADVISE
+  method: advise
+  detector: incomplete_backups
+  restore:
+    kind: irreplaceable
+    note: An interrupted backup is not a usable backup.
+  explain: >-
+    When a Time Machine backup is interrupted, it can leave a folder ending in
+    .inProgress on the backup disk. macdoc found one. Time Machine usually
+    reuses or removes it after the next successful backup. Removing one by hand
+    needs administrator rights, so macdoc only tells you about it.
+  confidence_notes: Time Machine doesn't report how much space an interrupted backup uses.
+  steps:
+    - "Usually nothing: let Time Machine finish a full backup; it cleans up interrupted ones itself."
+    - "To see them: open the backup disk in Finder, then Backups.backupdb and your Mac's folder; interrupted backups end in .inProgress."
+    - "To delete one now, use Time Machine's own tools (tmutil delete needs administrator rights, so run it yourself in Terminal)."
+
+- id: user.crash_reporter
+  title: Old crash reporter files
+  category: logs
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: downloads_large_old
+  # Reuses the old-files detector: files directly in the folder that haven't
+  # changed for 30 days. The scan keeps the .plist files at any size.
+  params: {dir: "~/Library/Application Support/CrashReporter", min_bytes: "1", files: other}
+  allow: ["~/Library/Application Support/CrashReporter/*"]
+  keep_files: ["~/Library/Application Support/CrashReporter/*.plist"]
+  stale_days: 30
+  restore:
+    kind: rebuild
+    note: macOS writes these small files again the next time an app crashes.
+  explain: >-
+    macOS keeps a small record per app in this folder to decide when to offer
+    to send a crash report. Ones that haven't changed in a month are not
+    needed; macOS recreates them when it needs them. They are tiny, so this
+    frees very little.

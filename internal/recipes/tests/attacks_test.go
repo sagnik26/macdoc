@@ -76,6 +76,7 @@ func r1Fixtures(t *testing.T) map[string]platform.Result {
 		"xcrun simctl runtime list -j":                       {Stdout: readFixture(t, "w1_simctl_runtime_list.json")},
 		"xcrun --find simctl":                                {Stdout: []byte("/usr/bin/simctl\n")},
 		"tmutil listlocalsnapshots /":                        {Stdout: readFixture(t, "w2_tmutil_snapshots.txt")},
+		"tmutil destinationinfo":                             {Stdout: []byte("Name : Backup\nMount Point : /nonexistent\n")},
 		"conda clean --all --dry-run":                        {Stdout: readFixture(t, "w2_conda_clean_dry_run.txt")},
 		"ollama list":                                        {Stdout: readFixture(t, "w2_ollama_list.txt")},
 	}
@@ -91,6 +92,7 @@ var r1ReadOnlyCommands = []string{
 	"xcrun simctl runtime list -j",
 	"xcrun --find simctl",
 	"tmutil listlocalsnapshots /",
+	"tmutil destinationinfo",
 	"conda clean --all --dry-run",
 	"ollama list",
 }

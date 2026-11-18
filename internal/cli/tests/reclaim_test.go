@@ -62,7 +62,7 @@ func TestReclaimEnterCleansSafeItems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	mustContain(t, out, "Safe cache", "What do you want to clean?", "SAFE", "CAUTION", "RISKY", "ADVICE", "can't remove", "Cleaning SAFE: 1 item", "applied: 1 done")
+	mustContain(t, out, "Safe cache", "What do you want to clean?", "SAFE", "CAUTION", "RISKY", "Cleaning SAFE: 1 item", "applied: 1 done")
 	if present(safe) {
 		t.Error("the SAFE folder is still there after Enter")
 	}
@@ -262,4 +262,41 @@ func TestReclaimAdviceCannotBeCleaned(t *testing.T) {
 	if !present(safe) || !present(caution) || !present(risky) {
 		t.Error("something was cleaned on an answer that chose nothing")
 	}
+}
+
+// reclaim never lists an app that is still installed (that is for retire), in
+// any view: the list, --json, a tier view and the toolchain view. The data a
+// removed app left behind is still listed.
+func TestReclaimLeavesInstalledAppsToRetire(t *testing.T) {
+	home, _, _, _ := reclaimFixture(t)
+	app := filepath.Join(home, "code", "Zoom.app")
+	left := filepath.Join(home, "code", "zoom-leftover")
+	for _, p := range []string{app, left} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "f"), make([]byte, 4096), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cat, _ := cli.LoadCatalog()
+	cat.Recipes = append(cat.Recipes,
+		cliRecipe("apps.system_bundle", "Zoom app installed in Applications", model.RiskRisky, model.MethodQuarantine, model.RestoreRedownload),
+		cliRecipe("apps.leftovers", "Data left by Zoom", model.RiskCaution, model.MethodQuarantine, model.RestoreRedownload))
+	cliMu.Lock()
+	cliFindings["apps.system_bundle"] = []recipes.Finding{{Target: app, Bytes: measured(gb)}}
+	cliFindings["apps.leftovers"] = []recipes.Finding{{Target: left, Bytes: measured(gb)}}
+	cliMu.Unlock()
+	termOn(t, false)
+	for _, args := range [][]string{{"reclaim"}, {"reclaim", "--json"}, {"reclaim", "--tier", "risky"}, {"reclaim", "--all"}} {
+		out, err := runWithInput(t, "", args...)
+		if err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+		if strings.Contains(out, "Zoom app installed") {
+			t.Errorf("%v listed an installed app:\n%s", args, out)
+		}
+	}
+	out, _ := runWithInput(t, "", "reclaim")
+	mustContain(t, out, "Data left by Zoom")
 }

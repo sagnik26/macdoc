@@ -39,7 +39,7 @@ something irreplaceable (Xcode Archives, Docker volumes).
 | Command | Job |
 |---|---|
 | `macdoc` | Interactive dashboard (overview summary when piped, `--json` or `--quiet`) |
-| `macdoc reclaim [toolchain]` | What can be got back, ranked by safety, with IDs; at a terminal, you choose which risk types to clean (Enter alone: SAFE) (`--toolchains`, `--categories`, `--tier`, `--all`) |
+| `macdoc reclaim [toolchain]` | What can be got back, ranked by safety, with IDs; at a terminal, you tick which risk types to clean and press Enter on the Clean button (typed answer: Enter alone is SAFE) (`--toolchains`, `--categories`, `--tier`, `--all`) |
 | `macdoc retire` | Installed apps and the data that belongs to them |
 | `macdoc refresh` | Maintenance steps: flush DNS, restart the DNS responder, free memory, reset Quick Look |
 | `macdoc explore [folder]` | Where the space is; `--growth` (what grew), `--projects` (idle projects and build folders) |
@@ -48,7 +48,7 @@ something irreplaceable (Xcode Archives, Docker volumes).
 | `macdoc apply` | Plan, confirm and apply in one step; `--dry-run`, `--list`, `--show`, or a plan ID |
 | More | `log`, `quarantine`, `config`, `schedule`, `mcp`, `completion`, `version` |
 
-The dashboard `/` menu mirrors this: `/scan /reclaim /apply /vitals /explore /retire /refresh`; help and quit are in the footer (`?`, `q`, and typed `/help`, `/quit`).
+The dashboard `/` menu mirrors this: `/scan /reclaim /vitals /explore /retire /refresh` (`/apply P-id` still works when typed); help and quit are in the footer (`?`, `q`, and typed `/help`, `/quit`).
 
 ## 5. Functional requirements
 
@@ -60,7 +60,7 @@ data folders; live status; zombie and busy-process alerts (never ended).
 suggestion has an ID, risk (SAFE, CAUTION, RISKY, ADVISE), size with its source, idle time and restore cost.
 Anything no recipe covers is advice-only.
 
-**F3. Reclaim and apply.** At a real terminal `reclaim` lists everything by risk and asks "What do you want to clean?" (SAFE, CAUTION, RISKY, ADVICE rows); the person types the risk types and presses Enter, and Enter alone cleans SAFE only. CAUTION and RISKY are cleaned only when named, RISKY keeps apply's per-item y/N and typed code, ADVICE can never be chosen, and an answer it does not understand cancels (not at a terminal, with `--json`, `--quiet` or `--dry-run` it only lists; ADR 0013). `apply` is for specific IDs, other tiers and sealed or Claude-proposed plans: it seals a plan (expires in 30 minutes), shows it, and applies it after the person types the
+**F3. Reclaim and apply.** At a real terminal `reclaim` lists everything by risk and asks "What do you want to clean?" (a row each for SAFE, CAUTION and RISKY; RISKY only when something is in it); the person ticks the risk types (Enter or space) and presses Enter on the separate Clean button, which is the only thing that starts the cleanup; with a typed answer, Enter alone cleans SAFE only. It covers what a deep clean covers without administrator rights (caches and logs of browsers, developer tools and desktop apps, sandboxed app caches, cached restore files, the Trash as a CAUTION item moved into quarantine first) and what removed apps left behind, but never an app that is still installed (that is `retire`); interrupted Time Machine backups are advice only. CAUTION and RISKY are cleaned only when named, RISKY keeps apply's per-item y/N and typed code, advice-only items have no row and can never be chosen, and an answer it does not understand cancels (not at a terminal, with `--json`, `--quiet` or `--dry-run` it only lists; ADR 0013). `apply` is for specific IDs, other tiers and sealed or Claude-proposed plans: it seals a plan (expires in 30 minutes), shows it, and applies it after the person types the
 plan's code at a real Terminal. RISKY items, administrator steps and every item of a Claude-proposed plan are also
 confirmed one by one. Each item is re-checked right before it is touched; a change means skip and record.
 

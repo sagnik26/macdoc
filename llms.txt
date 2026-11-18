@@ -7,7 +7,7 @@ macdoc scans your Mac, shows where space and memory go, and suggests cleanups fr
 ## Commands
 
 Read-only (safe to run any time):
-- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]` (read-only without a terminal; at a real terminal it asks which risk types to clean (Enter alone is SAFE only; RISKY keeps apply's confirmations), which agents must never answer), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
+- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]` (read-only without a terminal; at a real terminal it asks which risk types to clean (tick the boxes, then Enter on the Clean button; a typed answer of Enter alone is SAFE only; RISKY keeps apply's confirmations), which agents must never answer; it never offers an installed app, that is `retire`), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
 - Every command supports `--json` (schemas in `schema/`).
 
 Plans and removal (Terminal, person only):

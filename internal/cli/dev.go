@@ -43,7 +43,7 @@ func newDevCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dev := BuildDevResult(res, tc)
+			dev := BuildDevResult(forReclaim(res), tc)
 			if g.json {
 				return writeJSONWarn(cmd.OutOrStdout(), "reclaim toolchain", dev, dev.Warnings)
 			}

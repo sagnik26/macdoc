@@ -63,6 +63,7 @@ func newWinsCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			res = forReclaim(res) // installed apps are for retire
 			if risk != "" {
 				res = filterTier(res, risk)
 			}

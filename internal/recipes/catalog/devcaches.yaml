@@ -137,8 +137,8 @@
   regenerable: true
   method: quarantine
   detector: paths
-  params: {paths: "~/Library/Application Support/Code/Cache,~/Library/Application Support/Code/CachedData,~/Library/Application Support/Code/Code Cache,~/Library/Application Support/Code/GPUCache"}
-  allow: ["~/Library/Application Support/Code/Cache", "~/Library/Application Support/Code/CachedData", "~/Library/Application Support/Code/Code Cache", "~/Library/Application Support/Code/GPUCache"]
+  params: {paths: "~/Library/Application Support/Code/Cache,~/Library/Application Support/Code/CachedData,~/Library/Application Support/Code/Code Cache,~/Library/Application Support/Code/GPUCache,~/Library/Application Support/Code/DawnCache,~/Library/Application Support/Code/DawnGraphiteCache,~/Library/Application Support/Code/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Code/Cache", "~/Library/Application Support/Code/CachedData", "~/Library/Application Support/Code/Code Cache", "~/Library/Application Support/Code/GPUCache", "~/Library/Application Support/Code/DawnCache", "~/Library/Application Support/Code/DawnGraphiteCache", "~/Library/Application Support/Code/DawnWebGPUCache"]
   preconditions: ["app_not_running:Visual Studio Code"]
   restore:
     kind: rebuild
@@ -154,8 +154,8 @@
   regenerable: true
   method: quarantine
   detector: paths
-  params: {paths: "~/Library/Application Support/Cursor/Cache,~/Library/Application Support/Cursor/CachedData,~/Library/Application Support/Cursor/Code Cache,~/Library/Application Support/Cursor/GPUCache"}
-  allow: ["~/Library/Application Support/Cursor/Cache", "~/Library/Application Support/Cursor/CachedData", "~/Library/Application Support/Cursor/Code Cache", "~/Library/Application Support/Cursor/GPUCache"]
+  params: {paths: "~/Library/Application Support/Cursor/Cache,~/Library/Application Support/Cursor/CachedData,~/Library/Application Support/Cursor/Code Cache,~/Library/Application Support/Cursor/GPUCache,~/Library/Application Support/Cursor/DawnCache,~/Library/Application Support/Cursor/DawnGraphiteCache,~/Library/Application Support/Cursor/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Cursor/Cache", "~/Library/Application Support/Cursor/CachedData", "~/Library/Application Support/Cursor/Code Cache", "~/Library/Application Support/Cursor/GPUCache", "~/Library/Application Support/Cursor/DawnCache", "~/Library/Application Support/Cursor/DawnGraphiteCache", "~/Library/Application Support/Cursor/DawnWebGPUCache"]
   preconditions: ["app_not_running:Cursor"]
   restore:
     kind: rebuild
@@ -180,3 +180,114 @@
   explain: >-
     JetBrains IDEs write a log folder for each IDE version. Folders that haven't changed in a month are rarely needed. Only logs are listed; Local History, which lives under Caches, is never touched.
 
+- id: rustup.downloads
+  title: Rustup download cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.rustup/downloads"}
+  allow: ["~/.rustup/downloads"]
+  restore:
+    kind: redownload
+    note: Rustup downloads toolchain files again when it needs them.
+  explain: >-
+    Rustup keeps the archives it downloaded while installing toolchains here. Your installed toolchains are in a different folder and are not touched.
+
+- id: bundler.cache
+  title: Ruby Bundler cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.bundle/cache"}
+  allow: ["~/.bundle/cache"]
+  restore:
+    kind: redownload
+    note: Bundler downloads gems again on the next install.
+  explain: >-
+    Bundler keeps downloaded gem files here. Your installed gems and project Gemfiles are not touched.
+
+- id: terraform.plugin_cache
+  title: Terraform plugin cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.terraform.d/plugin-cache"}
+  allow: ["~/.terraform.d/plugin-cache"]
+  restore:
+    kind: redownload
+    note: Terraform downloads providers again on the next init.
+  explain: >-
+    Terraform keeps downloaded provider plugins here so projects can share them. Your configurations and state files are not in this folder.
+
+- id: pub.hosted_cache
+  title: Dart and Flutter package cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.pub-cache/hosted"}
+  allow: ["~/.pub-cache/hosted"]
+  restore:
+    kind: redownload
+    note: Dart downloads packages again on the next pub get.
+  explain: >-
+    Dart and Flutter keep downloaded packages here. Tools you installed with pub global activate are in a different folder and are not touched.
+
+- id: zig.cache
+  title: Zig cache
+  category: build-artifacts
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/.cache/zig,~/Library/Caches/zig"}
+  allow: ["~/.cache/zig", "~/Library/Caches/zig"]
+  restore:
+    kind: rebuild
+    note: Zig rebuilds what it needs on the next build, which is slower the first time.
+  explain: >-
+    Zig keeps compiled build outputs here to speed up builds. It rebuilds whatever is missing.
+
+- id: bazel.cache
+  title: Bazel cache
+  category: build-artifacts
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.cache/bazel"}
+  allow: ["~/.cache/bazel"]
+  restore:
+    kind: rebuild
+    note: Bazel downloads and rebuilds on the next build, which can take a while.
+  explain: >-
+    Bazel keeps build outputs and downloaded dependencies here. The first build after this takes longer. Your source code is not in this folder.
+
+- id: ios.firmware_cache
+  title: Cached iPhone and iPad restore files
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/iTunes/iPhone Software Updates,~/Library/iTunes/iPad Software Updates,~/Library/iTunes/iPod Software Updates,~/Library/iTunes/Apple TV Software Updates"}
+  allow: ["~/Library/iTunes/iPhone Software Updates", "~/Library/iTunes/iPad Software Updates", "~/Library/iTunes/iPod Software Updates", "~/Library/iTunes/Apple TV Software Updates"]
+  restore:
+    kind: redownload
+    note: Finder downloads the restore file again the next time you restore or update that device.
+  explain: >-
+    Finder keeps the iOS and iPadOS restore files (.ipsw) it downloaded here. They are large and can be downloaded again. Your device backups are in a different folder (see the device backups suggestion) and are not touched.

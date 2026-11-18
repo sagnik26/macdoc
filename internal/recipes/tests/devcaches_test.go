@@ -49,9 +49,37 @@ func newCacheCases() []cacheCase {
 	for _, e := range []struct{ id, app, dir string }{{"vscode.cache", "Visual Studio Code", "Code"}, {"cursor.cache", "Cursor", "Cursor"}} {
 		root := sup + "/" + e.dir
 		cs = append(cs, cacheCase{e.id, e.app,
-			[]string{root + "/Cache", root + "/CachedData", root + "/Code Cache", root + "/GPUCache"},
+			[]string{root + "/Cache", root + "/CachedData", root + "/Code Cache", root + "/GPUCache", root + "/DawnCache", root + "/DawnGraphiteCache", root + "/DawnWebGPUCache"},
 			[]string{root + "/User", root + "/Backups", root + "/User/workspaceStorage", root + "/Cookies", root + "/Local Storage", root + "/CachedExtensionVSIXs"}})
 	}
+	// Chromium-based desktop apps: only the cache folders, never the app's
+	// settings, logins, messages, notes or vaults.
+	for _, e := range []struct{ id, app, dir string }{
+		{"slack.cache", "Slack", "Slack"}, {"discord.cache", "Discord", "discord"}, {"notion.cache", "Notion", "Notion"},
+		{"figma.cache", "Figma", "Figma"}, {"postman.cache", "Postman", "Postman"}, {"obsidian.cache", "Obsidian", "obsidian"},
+		{"claude.cache", "Claude", "Claude"}, {"whatsapp.cache", "WhatsApp", "WhatsApp"},
+		{"github_desktop.cache", "GitHub Desktop", "GitHub Desktop"}, {"mongodb_compass.cache", "MongoDB Compass", "MongoDB Compass"},
+		{"antigravity.cache", "Antigravity", "Antigravity"}, {"kiro.cache", "Kiro", "Kiro"}, {"trae.cache", "Trae", "Trae"},
+		{"wispr_flow.cache", "Wispr Flow", "Wispr Flow"}, {"teams.cache", "Microsoft Teams", "Microsoft/Teams"},
+	} {
+		root := sup + "/" + e.dir
+		var own []string
+		for _, f := range []string{"Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache"} {
+			own = append(own, root+"/"+f)
+		}
+		cs = append(cs, cacheCase{e.id, e.app, own,
+			[]string{root + "/Local Storage", root + "/IndexedDB", root + "/Cookies", root + "/User Data", root + "/Service Worker/Database", root + "/Cache-old"}})
+	}
+	cs = append(cs,
+		cacheCase{"rustup.downloads", "", []string{w2Home + "/.rustup/downloads"}, []string{w2Home + "/.rustup/toolchains", w2Home + "/.rustup/downloads-old"}},
+		cacheCase{"bundler.cache", "", []string{w2Home + "/.bundle/cache"}, []string{w2Home + "/.bundle/config", w2Home + "/.bundle/cache-old"}},
+		cacheCase{"terraform.plugin_cache", "", []string{w2Home + "/.terraform.d/plugin-cache"}, []string{w2Home + "/.terraform.d/credentials.tfrc.json", w2Home + "/.terraform.d/plugin-cache-old"}},
+		cacheCase{"pub.hosted_cache", "", []string{w2Home + "/.pub-cache/hosted"}, []string{w2Home + "/.pub-cache/global_packages", w2Home + "/.pub-cache/hosted-old"}},
+		cacheCase{"zig.cache", "", []string{w2Home + "/.cache/zig", w2Home + cachesDir + "/zig"}, []string{w2Home + "/.cache/zig-old", w2Home + cachesDir + "/zigbee"}},
+		cacheCase{"bazel.cache", "", []string{w2Home + "/.cache/bazel"}, []string{w2Home + "/.cache/bazelisk", w2Home + "/.cache/bazel-old"}},
+		cacheCase{"ios.firmware_cache", "", []string{w2Home + "/Library/iTunes/iPhone Software Updates", w2Home + "/Library/iTunes/iPad Software Updates", w2Home + "/Library/iTunes/iPod Software Updates", w2Home + "/Library/iTunes/Apple TV Software Updates"},
+			[]string{w2Home + "/Library/iTunes/iTunes Media", w2Home + "/Library/iTunes/iPhone Software Updates Old", w2Home + "/Library/Application Support/MobileSync/Backup"}},
+	)
 	return cs
 }
 

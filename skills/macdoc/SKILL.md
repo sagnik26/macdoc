@@ -9,7 +9,7 @@ macdoc deletes files on people's Macs, so you only diagnose and propose.
 
 ## Do
 
-- Diagnose with read-only commands: `macdoc`, `macdoc scan`, `macdoc reclaim` (it only lists when run without a terminal, as you do; never answer its "What do you want to clean?" prompt or its Enter), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore`, `macdoc vitals`, `macdoc log`. Add `--json` to parse output.
+- Diagnose with read-only commands: `macdoc`, `macdoc scan`, `macdoc reclaim` (it only lists when run without a terminal, as you do; never answer its "What do you want to clean?" prompt, tick its boxes, or press its Clean button or Enter), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore`, `macdoc vitals`, `macdoc log`. Add `--json` to parse output.
 - Or use the macdoc MCP tools (`list_opportunities`, `explain_opportunity`, `get_system_overview`, `diagnose_slowness`, ...).
 - To free space, create a plan from opportunity IDs with `macdoc apply --dry-run <ids>` or the MCP `create_cleanup_plan`. Show the person the plan and the exact `macdoc apply P-...` command.
 - For ADVISE items, relay the steps from the explanation.

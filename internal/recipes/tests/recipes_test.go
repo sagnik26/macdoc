@@ -32,6 +32,14 @@ func TestValidateOK(t *testing.T) {
 	if err := recipes.Validate(n); err != nil {
 		t.Fatal(err)
 	}
+	// The Trash is the one irreplaceable recipe that may be cleaned: CAUTION,
+	// quarantined, with a restore note, and nothing allowed outside ~/.Trash/.
+	tr := validRecipe()
+	tr.Risk, tr.Allow, tr.KeepChildrenOf, tr.Params = model.RiskCaution, []string{"~/.Trash/*"}, nil, map[string]string{"dir": "~/.Trash"}
+	tr.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "Kept in quarantine until it expires."}
+	if err := recipes.Validate(tr); err != nil {
+		t.Fatalf("the quarantined Trash should be accepted: %v", err)
+	}
 	a := validRecipe()
 	a.Method, a.Risk, a.Allow = model.MethodAdvise, model.RiskAdvise, nil
 	if err := recipes.Validate(a); err != nil {
@@ -41,16 +49,31 @@ func TestValidateOK(t *testing.T) {
 
 func TestValidateRejects(t *testing.T) {
 	cases := map[string]func(*recipes.Recipe){
-		"no dot id":             func(r *recipes.Recipe) { r.ID = "cache" },
-		"no explain":            func(r *recipes.Recipe) { r.Explain = "" },
-		"category":              func(r *recipes.Recipe) { r.Category = "junk" },
-		"toolchain":             func(r *recipes.Recipe) { r.Toolchain = "rust" },
-		"blocked risk":          func(r *recipes.Recipe) { r.Risk = model.RiskBlocked },
-		"detector":              func(r *recipes.Recipe) { r.Detector = "nope" },
-		"restore":               func(r *recipes.Recipe) { r.Restore.Kind = "" },
-		"stale":                 func(r *recipes.Recipe) { r.StaleDays = -1 },
-		"quarantine no allow":   func(r *recipes.Recipe) { r.Allow = nil },
-		"quarantine irreplace":  func(r *recipes.Recipe) { r.Restore.Kind = model.RestoreIrreplaceable },
+		"no dot id":            func(r *recipes.Recipe) { r.ID = "cache" },
+		"no explain":           func(r *recipes.Recipe) { r.Explain = "" },
+		"category":             func(r *recipes.Recipe) { r.Category = "junk" },
+		"toolchain":            func(r *recipes.Recipe) { r.Toolchain = "rust" },
+		"blocked risk":         func(r *recipes.Recipe) { r.Risk = model.RiskBlocked },
+		"detector":             func(r *recipes.Recipe) { r.Detector = "nope" },
+		"restore":              func(r *recipes.Recipe) { r.Restore.Kind = "" },
+		"stale":                func(r *recipes.Recipe) { r.StaleDays = -1 },
+		"quarantine no allow":  func(r *recipes.Recipe) { r.Allow = nil },
+		"quarantine irreplace": func(r *recipes.Recipe) { r.Restore.Kind = model.RestoreIrreplaceable },
+		"irreplaceable not Trash": func(r *recipes.Recipe) {
+			r.Risk, r.Restore = model.RiskCaution, model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
+		},
+		"irreplaceable Trash SAFE": func(r *recipes.Recipe) {
+			r.Allow, r.KeepChildrenOf = []string{"~/.Trash/*"}, nil
+			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
+		},
+		"irreplaceable Trash no note": func(r *recipes.Recipe) {
+			r.Risk, r.Allow, r.KeepChildrenOf = model.RiskCaution, []string{"~/.Trash/*"}, nil
+			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable}
+		},
+		"irreplaceable Trash plus other": func(r *recipes.Recipe) {
+			r.Risk, r.Allow, r.KeepChildrenOf = model.RiskCaution, []string{"~/.Trash/*", "~/Library/Caches/test/*"}, nil
+			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
+		},
 		"quarantine+native":     func(r *recipes.Recipe) { r.Native = &recipes.Native{Argv: []string{"brew", "cleanup"}} },
 		"allow outside home":    func(r *recipes.Recipe) { r.Allow = []string{"/opt/homebrew/*"} },
 		"allow dotdot":          func(r *recipes.Recipe) { r.Allow = []string{"~/Library/../Documents/*"} },
@@ -153,6 +176,37 @@ func TestEmbeddedCatalogLoads(t *testing.T) {
 	for _, r := range c.Recipes {
 		if strings.HasPrefix(r.ID, "test.") {
 			t.Errorf("test recipe %s in catalog", r.ID)
+		}
+	}
+}
+
+// The folders that path, paths and container_caches recipes name are kept at
+// any size, so a small cache is seen; look-alikes and anything with a glob or
+// ".." in the recipe are not.
+func TestKeepFuncKeepsRecipeFolders(t *testing.T) {
+	c := &recipes.Catalog{Recipes: []recipes.Recipe{
+		{Detector: "path", Params: map[string]string{"path": "~/.rustup/downloads"}},
+		{Detector: "paths", Params: map[string]string{"paths": "~/Library/Application Support/Slack/Cache, ~/.cache/zig,~/x/*/y,~/a/../b"}},
+		{Detector: "container_caches", Params: map[string]string{"dir": "~/Library/Containers"}},
+	}}
+	keep := recipes.KeepFunc(c, "/Users/me")
+	for p, want := range map[string]bool{
+		"/Users/me/.rustup/downloads":                                       true,
+		"/Users/ME/.RUSTUP/Downloads":                                       true,
+		"/Users/me/.rustup/downloads/x":                                     false,
+		"/Users/me/.rustup/toolchains":                                      false,
+		"/Users/me/Library/Application Support/Slack/Cache":                 true,
+		"/Users/me/.cache/zig":                                              true,
+		"/Users/me/x/q/y":                                                   false, // a glob in a recipe is never kept
+		"/Users/me/b":                                                       false,
+		"/Users/me/Library/Containers/com.vendor.app/Data/Library/Caches":   true,
+		"/Users/me/Library/Containers/com.vendor.app/Data/Library":          false,
+		"/Users/me/Library/Containers/com.vendor.app/Data/Library/Caches/x": false,
+		"/Users/me/Library/Containers/com.vendor.app/Library/Caches":        false,
+		"/Users/me/Library/Caches/com.vendor.app":                           false,
+	} {
+		if keep(p) != want {
+			t.Errorf("keep(%q) = %v", p, !want)
 		}
 	}
 }
