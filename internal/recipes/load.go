@@ -253,6 +253,10 @@ func quarantine(p *problems, r Recipe) {
 	}
 }
 
+// trashFolder is the Trash, the one folder keep_children_of may name only one
+// level below home, and only for a recipe that passes quarantinedTrash.
+const trashFolder = "~/.Trash"
+
 // quarantinedTrash is the one carve-out from "irreplaceable data is advice
 // only": items in the Trash, which a person already chose to throw away. They
 // are moved into macdoc's quarantine first, so they stay restorable until it
@@ -321,6 +325,9 @@ func appsAllow(p *problems, r Recipe) {
 
 func children(p *problems, r Recipe) {
 	for _, pat := range r.KeepChildrenOf {
+		if pat == trashFolder && r.Method == model.MethodQuarantine && quarantinedTrash(r) {
+			continue // the one 1-deep folder: so small items in the Trash are seen
+		}
 		if err := lintPattern(pat); err != nil || strings.Contains(pat, "*") {
 			p.add("keep_children_of %q must be a literal ~-relative directory at least 2 deep", pat)
 		}

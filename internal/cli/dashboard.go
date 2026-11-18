@@ -160,7 +160,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Plan, Apply, Remove         key.Binding
+	Run, Complete, Cancel, Mark, Plan, Apply, Remove, Hide   key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -180,6 +180,7 @@ func newKeyMap() keyMap {
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
 		Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
+		Hide:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "hide this kind")),
 		Apply:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "apply (you confirm in Terminal)")),
 	}
 }
@@ -648,6 +649,10 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Tab == TabSuggestions {
 			m.toggleMark()
 		}
+	case "x":
+		if m.Tab == TabSuggestions && !m.Detail {
+			return m.hideCurrent()
+		}
 	case "a":
 		if m.Tab == TabSuggestions && len(m.claude) > 0 {
 			return m.startApply(m.claude[0].ID)
@@ -1081,7 +1086,7 @@ func (m TuiModel) footerView() string {
 	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions:
-		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
 	}

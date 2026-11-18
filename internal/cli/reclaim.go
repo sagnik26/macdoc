@@ -23,6 +23,7 @@ size and what it costs to get back.
   macdoc reclaim --toolchains  space per developer toolchain
   macdoc reclaim xcode         one toolchain (xcode, android, node, homebrew, docker, python, ai, system)
   macdoc reclaim --categories  space by category, "System Data" decoded
+  macdoc reclaim --small       also the items that would free under 1 MB
 
 At a terminal it then asks which risk types to clean with a checkbox list:
 up and down move, space ticks, a ticks all, Enter starts the cleanup and esc
@@ -59,7 +60,7 @@ For specific items or a sealed plan use macdoc apply.`,
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "only list what would be cleaned, even at a terminal")
 	cmd.Flags().BoolVar(&toolchains, "toolchains", false, "space per developer toolchain")
 	cmd.Flags().BoolVar(&categories, "categories", false, "space by category, with \"System Data\" decoded")
-	cmd.Flags().AddFlagSet(wins.Flags())  // --all, --tier
+	cmd.Flags().AddFlagSet(wins.Flags())  // --all, --tier, --small
 	cmd.Flags().AddFlagSet(space.Flags()) // --large
 	return cmd
 }

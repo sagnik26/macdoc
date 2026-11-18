@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
@@ -36,6 +37,8 @@ func newConfigCmd(g *GlobalFlags) *cobra.Command {
   macdoc config set <setting> <number>  change a setting (0 restores the default)
   macdoc config protect <folder>        never touch this folder or anything in it
   macdoc config unprotect <folder>      undo a protect (built-in ones stay)
+  macdoc config hide <id>               never list this suggestion again (an O-id from the list, or a recipe id like user.trash)
+  macdoc config unhide <recipe id>      show it again
   macdoc config path                    where the settings file is`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -125,6 +128,32 @@ func newConfigCmd(g *GlobalFlags) *cobra.Command {
 			return fmt.Sprintf("%s is no longer in your protected list.", args[0]), nil
 		}),
 	}
+	hide := &cobra.Command{
+		Use:   "hide <id>",
+		Short: "Never list this suggestion again (it can only hide, never add)",
+		Args:  cobra.ExactArgs(1),
+		RunE: edit(func(c *config.Config, args []string) (string, error) {
+			id, err := recipeIDFor(args[0])
+			if err != nil {
+				return "", err
+			}
+			if err := c.Exclude(id); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Hidden: %s. macdoc won't list it. Show it again with macdoc config unhide %s.", id, id), nil
+		}),
+	}
+	unhide := &cobra.Command{
+		Use:   "unhide <recipe id>",
+		Short: "Undo a hide",
+		Args:  cobra.ExactArgs(1),
+		RunE: edit(func(c *config.Config, args []string) (string, error) {
+			if err := c.Include(args[0]); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%s is listed again.", args[0]), nil
+		}),
+	}
 	path := &cobra.Command{
 		Use:   "path",
 		Short: "Print where the settings file is",
@@ -138,8 +167,40 @@ func newConfigCmd(g *GlobalFlags) *cobra.Command {
 			return err
 		},
 	}
-	cmd.AddCommand(set, protect, unprotect, path)
+	cmd.AddCommand(set, protect, unprotect, hide, unhide, path)
 	return cmd
+}
+
+// recipeIDFor turns what a person typed to hide into a recipe ID: a recipe ID
+// (or "prefix.*") that matches a recipe in the catalog, or an O-… ID from the
+// latest list, which is looked up to its recipe. Anything else is refused, so
+// a typo can't silently hide nothing.
+func recipeIDFor(arg string) (string, error) {
+	arg = strings.TrimSpace(arg)
+	cat, err := LoadCatalog()
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(strings.ToUpper(arg), "O-") {
+		res, _, err := loadOpportunities(context.Background(), smallBytes)
+		if err != nil {
+			return "", err
+		}
+		for _, op := range res.Opportunities {
+			if strings.EqualFold(op.ID, arg) {
+				return op.RecipeID, nil
+			}
+		}
+		return "", fmt.Errorf("%s isn't in the latest list; use macdoc reclaim --small, or pass a recipe id like user.trash", arg)
+	}
+	var known []string
+	for _, r := range cat.Recipes {
+		known = append(known, r.ID)
+	}
+	if len(config.Config{ExcludedRecipes: config.ExcludeList{arg}}.UnknownExcludes(known)) > 0 {
+		return "", fmt.Errorf("%q matches no recipe; use an O-… ID from macdoc reclaim, or a recipe id like user.trash", arg)
+	}
+	return arg, nil
 }
 
 func renderConfig(w io.Writer, c config.Config, v ConfigView) error {
@@ -164,9 +225,9 @@ func renderConfig(w io.Writer, c config.Config, v ConfigView) error {
 	for _, p := range v.Protect {
 		fmt.Fprintf(&b, "  %s\n", t.text.Render(p))
 	}
-	fmt.Fprintf(&b, "\n%s\n", t.heading("Turned off tasks"))
+	fmt.Fprintf(&b, "\n%s\n", t.heading("Hidden suggestions (macdoc config unhide <recipe id>)"))
 	if len(v.Excluded) == 0 {
-		b.WriteString(t.muted.Render(`  None. Add "excluded_recipes": ["maintenance.purge_memory", "maintenance.*"] to the settings file.`) + "\n")
+		b.WriteString(t.muted.Render(`  None. Hide a suggestion with macdoc config hide <id>, or add "excluded_recipes": ["maintenance.*"] to the settings file.`) + "\n")
 	}
 	for _, e := range v.Excluded {
 		fmt.Fprintf(&b, "  %s\n", t.text.Render(e))

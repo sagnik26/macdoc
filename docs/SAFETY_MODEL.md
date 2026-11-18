@@ -42,6 +42,7 @@ Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.
 - Docker **volumes** (advise-only listing)
 - `~/Library/Application Support/MobileSync/Backup` (advise-only: Finder › device › Manage Backups)
 - macdoc's own state directory, except quarantine purge by manifest
+- Suggestions you hide with `macdoc config hide <id>` (or the dashboard's `x`) are stored as `excluded_recipes`. Hiding only removes a kind of suggestion from view; it can never add, enable or loosen anything, and the list says how many items are hidden. The `~/.Trash` carve-out (ADR 0013) lets the one quarantined-Trash recipe name `~/.Trash` as `keep_children_of`, so small Trash items are seen.
 - Folders you add with `macdoc config protect <folder>` (stored as `protect` in `~/Library/Application Support/macdoc/config.json`, Phase 7). They only add protection: the built-in list above can't be changed or removed. Opportunities, planning and the executor's re-check all read them, so a folder protected after a plan was made is still refused at apply. An unreadable or invalid settings file stops opportunities, planning and apply with an error rather than dropping a protected folder. Paths with a `..` component are rejected. The future MCP server must never expose `config` (unprotecting loosens safety).
 
 The home directory itself, any top-level home folder, and any path with fewer than 2 components below `$HOME` (e.g. `~/.gradle` itself) can never be a target, even if a recipe glob matched it.

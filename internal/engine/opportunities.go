@@ -138,12 +138,13 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	runs := runDetectors(ctx, env, o.Catalog.Recipes)
 
 	var ops []model.Opportunity
-	unknownIdleCount, tiny := 0, 0
+	unknownIdleCount, tiny, hidden := 0, 0, 0
 	for _, run := range runs {
 		if run.recipe.OnRequest && !o.OnRequest {
 			continue
 		}
 		if !o.KeepExcluded && cfg.Excludes(run.recipe.ID) {
+			hidden += len(run.findings)
 			continue
 		}
 		if run.err != "" {
@@ -169,7 +170,10 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 		}
 	}
 	if tiny > 0 {
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) that would free under 1 MB not shown", tiny))
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) that would free under 1 MB not shown (macdoc reclaim --small lists them)", tiny))
+	}
+	if hidden > 0 {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) hidden by your settings (macdoc config unhide <recipe id> shows them again)", hidden))
 	}
 	if unknownIdleCount > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d item(s) skipped because their last use is unknown", unknownIdleCount))

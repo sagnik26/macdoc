@@ -291,3 +291,67 @@
     note: Finder downloads the restore file again the next time you restore or update that device.
   explain: >-
     Finder keeps the iOS and iPadOS restore files (.ipsw) it downloaded here. They are large and can be downloaded again. Your device backups are in a different folder (see the device backups suggestion) and are not touched.
+
+- id: hex.cache
+  title: Hex package cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.hex/packages"}
+  allow: ["~/.hex/packages"]
+  restore:
+    kind: redownload
+    note: Hex downloads packages again on the next mix deps.get.
+  explain: >-
+    Hex (Elixir) keeps the packages it downloaded here. Your installed dependencies and project files are not touched.
+
+- id: opam.download_cache
+  title: OCaml opam download cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.opam/download-cache"}
+  allow: ["~/.opam/download-cache"]
+  restore:
+    kind: redownload
+    note: opam downloads sources again when it needs them.
+  explain: >-
+    opam keeps the source archives it downloaded here. Your installed switches and packages are in a different folder and are not touched.
+
+- id: rbenv.cache
+  title: rbenv download cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.rbenv/cache"}
+  allow: ["~/.rbenv/cache"]
+  restore:
+    kind: redownload
+    note: rbenv downloads Ruby source archives again on the next install.
+  explain: >-
+    rbenv keeps the Ruby source archives it downloaded here. Your installed Ruby versions are in a different folder and are not touched.
+
+- id: pyenv.cache
+  title: pyenv download cache
+  category: package-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: path
+  params: {path: "~/.pyenv/cache"}
+  allow: ["~/.pyenv/cache"]
+  restore:
+    kind: redownload
+    note: pyenv downloads Python archives again on the next install.
+  explain: >-
+    pyenv keeps the Python source archives it downloaded here. Your installed Python versions are in a different folder and are not touched.

@@ -61,6 +61,9 @@ func newCacheCases() []cacheCase {
 		{"github_desktop.cache", "GitHub Desktop", "GitHub Desktop"}, {"mongodb_compass.cache", "MongoDB Compass", "MongoDB Compass"},
 		{"antigravity.cache", "Antigravity", "Antigravity"}, {"kiro.cache", "Kiro", "Kiro"}, {"trae.cache", "Trae", "Trae"},
 		{"wispr_flow.cache", "Wispr Flow", "Wispr Flow"}, {"teams.cache", "Microsoft Teams", "Microsoft/Teams"},
+		{"logseq.cache", "Logseq", "Logseq"}, {"insomnia.cache", "Insomnia", "Insomnia"}, {"linear.cache", "Linear", "Linear"},
+		{"windsurf.cache", "Windsurf", "Windsurf"}, {"bruno.cache", "Bruno", "bruno"}, {"gitkraken.cache", "GitKraken", "GitKraken"},
+		{"todoist.cache", "Todoist", "Todoist"},
 	} {
 		root := sup + "/" + e.dir
 		var own []string
@@ -76,6 +79,10 @@ func newCacheCases() []cacheCase {
 		cacheCase{"terraform.plugin_cache", "", []string{w2Home + "/.terraform.d/plugin-cache"}, []string{w2Home + "/.terraform.d/credentials.tfrc.json", w2Home + "/.terraform.d/plugin-cache-old"}},
 		cacheCase{"pub.hosted_cache", "", []string{w2Home + "/.pub-cache/hosted"}, []string{w2Home + "/.pub-cache/global_packages", w2Home + "/.pub-cache/hosted-old"}},
 		cacheCase{"zig.cache", "", []string{w2Home + "/.cache/zig", w2Home + cachesDir + "/zig"}, []string{w2Home + "/.cache/zig-old", w2Home + cachesDir + "/zigbee"}},
+		cacheCase{"hex.cache", "", []string{w2Home + "/.hex/packages"}, []string{w2Home + "/.hex/hex.config", w2Home + "/.hex/packages-old"}},
+		cacheCase{"opam.download_cache", "", []string{w2Home + "/.opam/download-cache"}, []string{w2Home + "/.opam/default", w2Home + "/.opam/download-cache-old"}},
+		cacheCase{"rbenv.cache", "", []string{w2Home + "/.rbenv/cache"}, []string{w2Home + "/.rbenv/versions", w2Home + "/.rbenv/cache-old"}},
+		cacheCase{"pyenv.cache", "", []string{w2Home + "/.pyenv/cache"}, []string{w2Home + "/.pyenv/versions", w2Home + "/.pyenv/cache-old"}},
 		cacheCase{"bazel.cache", "", []string{w2Home + "/.cache/bazel"}, []string{w2Home + "/.cache/bazelisk", w2Home + "/.cache/bazel-old"}},
 		cacheCase{"ios.firmware_cache", "", []string{w2Home + "/Library/iTunes/iPhone Software Updates", w2Home + "/Library/iTunes/iPad Software Updates", w2Home + "/Library/iTunes/iPod Software Updates", w2Home + "/Library/iTunes/Apple TV Software Updates"},
 			[]string{w2Home + "/Library/iTunes/iTunes Media", w2Home + "/Library/iTunes/iPhone Software Updates Old", w2Home + "/Library/Application Support/MobileSync/Backup"}},

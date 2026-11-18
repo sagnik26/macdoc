@@ -122,15 +122,15 @@ The exact list is in `internal/recipes/catalog/browsers.yaml`.
 
 | Family | Target | Risk | Method | Restore |
 |---|---|---|---|---|
-| Chromium-based apps | The `Cache`, `Code Cache`, `GPUCache`, `DawnCache`, `DawnGraphiteCache` and `DawnWebGPUCache` folders under the Application Support folder of Slack, Discord, Notion, Figma, Postman, Obsidian, Claude, WhatsApp, GitHub Desktop, MongoDB Compass, Antigravity, Kiro, Trae and Wispr Flow. Spotify's `PersistentCache` is its own CAUTION recipe (`spotify.cache`) because that folder can hold songs saved for offline listening. Microsoft Teams and Zoom need no recipe of their own: new Teams keeps its cache in its container (`app.container_caches`) and Zoom's is under `~/Library/Caches` (`user.app_caches`). Never settings, logins, messages, notes, vaults or downloads | SAFE | Q, app not running | The app rebuilds them as you use it |
+| Chromium-based apps | The `Cache`, `Code Cache`, `GPUCache`, `DawnCache`, `DawnGraphiteCache` and `DawnWebGPUCache` folders under the Application Support folder of Slack, Discord, Notion, Figma, Postman, Obsidian, Claude, WhatsApp, GitHub Desktop, MongoDB Compass, Antigravity, Kiro, Trae, Wispr Flow, Logseq, Insomnia, Linear, Windsurf, Bruno, GitKraken and Todoist. Spotify's `PersistentCache` is its own CAUTION recipe (`spotify.cache`) because that folder can hold songs saved for offline listening. Microsoft Teams and Zoom need no recipe of their own: new Teams keeps its cache in its container (`app.container_caches`) and Zoom's is under `~/Library/Caches` (`user.app_caches`). Never settings, logins, messages, notes, vaults or downloads | SAFE | Q, app not running | The app rebuilds them as you use it |
 
-The exact list is in `internal/recipes/catalog/appcaches.yaml`. The scan keeps the folders that `path` and `paths` recipes name, each sandboxed app's `Data/Library/Caches` (for `app.container_caches`) and the children of `~/Library/Caches` at any size (`recipes.KeepFunc`), so a small cache is seen; sizes under 1 MB are then hidden from the list. The one exception is the Trash: its items are seen only at 100 MB or more, because the loader allows `keep_children_of` only two folders deep. Caches directly under `~/Library/Caches` are listed by `user.app_caches`.
+The exact list is in `internal/recipes/catalog/appcaches.yaml`. The scan keeps the folders that `path` and `paths` recipes name, each sandboxed app's `Data/Library/Caches` (for `app.container_caches`) and the children of `~/Library/Caches` at any size (`recipes.KeepFunc`), so a small cache is seen; sizes under 1 MB are then hidden from the list. The Trash is kept the same way: its one-level `keep_children_of: ["~/.Trash"]` is allowed only for the quarantined-Trash recipe (`quarantinedTrash` in `load.go`), so every direct child of `~/.Trash` is seen. Items that would free under 1 MB are counted in a note; `macdoc reclaim --small` lists them. Caches directly under `~/Library/Caches` are listed by `user.app_caches`.
 
 ### Developer caches (SAFE, `reclaim` on Enter)
 
 | Family | Target | Risk | Method | Restore |
 |---|---|---|---|---|
-| Developer caches | Go build cache, Cargo registry, Bun, Deno, Composer, Swift PM, node-gyp and pre-commit caches, VS Code and Cursor caches, Rustup downloads, Ruby Bundler, Terraform plugins, Dart/Flutter hosted packages, Zig and Bazel caches, cached iPhone/iPad restore files (`ios.firmware_cache`), JetBrains logs only (JetBrains caches and AI CLI caches are deliberately excluded) | SAFE | Q or native per recipe | Re-downloaded or rebuilt on demand |
+| Developer caches | Go build cache, Cargo registry, Bun, Deno, Composer, Swift PM, node-gyp and pre-commit caches, VS Code and Cursor caches, Rustup downloads, Ruby Bundler, Terraform plugins, Dart/Flutter hosted packages, Zig and Bazel caches, Hex, opam, rbenv and pyenv download caches, cached iPhone/iPad restore files (`ios.firmware_cache`), JetBrains logs only (JetBrains caches and AI CLI caches are deliberately excluded) | SAFE | Q or native per recipe | Re-downloaded or rebuilt on demand |
 
 The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 
@@ -143,7 +143,7 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 | `user.app_caches` | `~/Library/Caches/<bundle-id>` for non-Apple apps, 50 MB or more | CAUTION | Q | That app not running | Regenerated |
 | `app.container_caches` | `~/Library/Containers/<bundle-id>/Data/Library/Caches` of sandboxed non-Apple apps, 50 MB or more. Only that folder, never the rest of the container (`container_caches` detector; `catalog/containers.yaml`) | CAUTION | Q | none (quit the app first) | Regenerated |
 | `user.logs` | `~/Library/Logs/**` older than 30d, > 100 MB total | SAFE | Q | none | n/a |
-| `user.trash` | Items in `~/.Trash` of 100 MB or more (smaller ones stay until Finder empties the Trash) | CAUTION | Q (moved into macdoc's quarantine first) | none | Restorable from quarantine until it expires, then gone |
+| `user.trash` | Each item in `~/.Trash`, any size (under 1 MB with `--small`) | CAUTION | Q (moved into macdoc's quarantine first) | none | Restorable from quarantine until it expires, then gone |
 | `user.downloads_large_old` | `~/Downloads` installers and archives of at least 20 MB (`.dmg .pkg .mpkg .iso .xip` at any size, other archives from 100 MB) not changed in 30 days | CAUTION | Q | none | Re-download if available |
 | `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
@@ -161,6 +161,20 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 `app_leftovers` takes two params: `dirs`, a comma-separated list of `~`-relative folders to look in, and `min_bytes`, the smallest folder size to offer (1 MB for `apps.leftovers`). A folder qualifies only if its name is a reverse-DNS bundle ID (see `recipes.LeftoverID`) and no installed app or LaunchAgent/LaunchDaemon plist owns it: the IDs are equal, or one is the other plus `.something`. If the installed-app list can't be read, the detector returns an error and offers nothing. `apps.support_leftovers` uses the same detector on `~/Library/Application Support` with a 180-day age; its allow pattern `~/Library/Application Support/*` is accepted by the lint only for a RISKY quarantine `app_leftovers` recipe, and macdoc's own folder and `MobileSync` can never match (ADR 0011). App bundles directly in `/Applications` are covered only by `apps.system_bundle` (`docs/SAFETY_MODEL.md` §3).
 
 `no_installed_app` runs right before the move. It fails if the folder's bundle ID is owned by an installed app now, or if the list can't be read, so the item is skipped and audited.
+
+## 2b. What `reclaim` does not do, and the rule behind each
+
+`mo clean` cleans some things `macdoc reclaim` does not. Each is held back by a rule, not forgotten:
+
+| Not done | Rule that stops it |
+|---|---|
+| System caches and logs (`/Library/Caches`, `/private/var/log`) | Protected paths (`docs/SAFETY_MODEL.md` §3: `/Library`, `/private`, everything outside `$HOME`) and ADR 0009 (administrator rights only for three fixed commands that take no path) |
+| Orphaned LaunchDaemons and helper tools | The same two rules (`/Library/LaunchDaemons`, `/Library/PrivilegedHelperTools`) |
+| Deleting interrupted Time Machine backups | ADR 0009: `tmutil delete` needs a path and administrator rights; the recipe is advice only |
+| `.DS_Store` files | The recipe lint rejects a pattern that overlaps protected folders such as Documents and Desktop, where Finder writes most of them |
+| A `--yes` flag | ADR 0001: only a person at a real terminal approves a removal |
+
+Changing any of these is an owner decision recorded in a new ADR, not a recipe edit.
 
 ## 2a. Allowed native commands
 

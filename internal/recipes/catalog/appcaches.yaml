@@ -259,6 +259,125 @@
   explain: >-
     Wispr Flow keeps caches of web content, compiled code and graphics here. Quit Wispr Flow first. Your account, settings, messages and files are stored elsewhere and are not touched.
 
+- id: logseq.cache
+  title: Logseq cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Logseq/Cache,~/Library/Application Support/Logseq/Code Cache,~/Library/Application Support/Logseq/GPUCache,~/Library/Application Support/Logseq/DawnCache,~/Library/Application Support/Logseq/DawnGraphiteCache,~/Library/Application Support/Logseq/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Logseq/Cache", "~/Library/Application Support/Logseq/Code Cache", "~/Library/Application Support/Logseq/GPUCache", "~/Library/Application Support/Logseq/DawnCache", "~/Library/Application Support/Logseq/DawnGraphiteCache", "~/Library/Application Support/Logseq/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Logseq"]
+  restore:
+    kind: rebuild
+    note: Logseq rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Logseq keeps caches of web content, compiled code and graphics here. Quit Logseq first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: insomnia.cache
+  title: Insomnia cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Insomnia/Cache,~/Library/Application Support/Insomnia/Code Cache,~/Library/Application Support/Insomnia/GPUCache,~/Library/Application Support/Insomnia/DawnCache,~/Library/Application Support/Insomnia/DawnGraphiteCache,~/Library/Application Support/Insomnia/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Insomnia/Cache", "~/Library/Application Support/Insomnia/Code Cache", "~/Library/Application Support/Insomnia/GPUCache", "~/Library/Application Support/Insomnia/DawnCache", "~/Library/Application Support/Insomnia/DawnGraphiteCache", "~/Library/Application Support/Insomnia/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Insomnia"]
+  restore:
+    kind: rebuild
+    note: Insomnia rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Insomnia keeps caches of web content, compiled code and graphics here. Quit Insomnia first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: linear.cache
+  title: Linear cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Linear/Cache,~/Library/Application Support/Linear/Code Cache,~/Library/Application Support/Linear/GPUCache,~/Library/Application Support/Linear/DawnCache,~/Library/Application Support/Linear/DawnGraphiteCache,~/Library/Application Support/Linear/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Linear/Cache", "~/Library/Application Support/Linear/Code Cache", "~/Library/Application Support/Linear/GPUCache", "~/Library/Application Support/Linear/DawnCache", "~/Library/Application Support/Linear/DawnGraphiteCache", "~/Library/Application Support/Linear/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Linear"]
+  restore:
+    kind: rebuild
+    note: Linear rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Linear keeps caches of web content, compiled code and graphics here. Quit Linear first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: windsurf.cache
+  title: Windsurf cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Windsurf/Cache,~/Library/Application Support/Windsurf/Code Cache,~/Library/Application Support/Windsurf/GPUCache,~/Library/Application Support/Windsurf/DawnCache,~/Library/Application Support/Windsurf/DawnGraphiteCache,~/Library/Application Support/Windsurf/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Windsurf/Cache", "~/Library/Application Support/Windsurf/Code Cache", "~/Library/Application Support/Windsurf/GPUCache", "~/Library/Application Support/Windsurf/DawnCache", "~/Library/Application Support/Windsurf/DawnGraphiteCache", "~/Library/Application Support/Windsurf/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Windsurf"]
+  restore:
+    kind: rebuild
+    note: Windsurf rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Windsurf keeps caches of web content, compiled code and graphics here. Quit Windsurf first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: bruno.cache
+  title: Bruno cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/bruno/Cache,~/Library/Application Support/bruno/Code Cache,~/Library/Application Support/bruno/GPUCache,~/Library/Application Support/bruno/DawnCache,~/Library/Application Support/bruno/DawnGraphiteCache,~/Library/Application Support/bruno/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/bruno/Cache", "~/Library/Application Support/bruno/Code Cache", "~/Library/Application Support/bruno/GPUCache", "~/Library/Application Support/bruno/DawnCache", "~/Library/Application Support/bruno/DawnGraphiteCache", "~/Library/Application Support/bruno/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Bruno"]
+  restore:
+    kind: rebuild
+    note: Bruno rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Bruno keeps caches of web content, compiled code and graphics here. Quit Bruno first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: gitkraken.cache
+  title: GitKraken cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/GitKraken/Cache,~/Library/Application Support/GitKraken/Code Cache,~/Library/Application Support/GitKraken/GPUCache,~/Library/Application Support/GitKraken/DawnCache,~/Library/Application Support/GitKraken/DawnGraphiteCache,~/Library/Application Support/GitKraken/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/GitKraken/Cache", "~/Library/Application Support/GitKraken/Code Cache", "~/Library/Application Support/GitKraken/GPUCache", "~/Library/Application Support/GitKraken/DawnCache", "~/Library/Application Support/GitKraken/DawnGraphiteCache", "~/Library/Application Support/GitKraken/DawnWebGPUCache"]
+  preconditions: ["app_not_running:GitKraken"]
+  restore:
+    kind: rebuild
+    note: GitKraken rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    GitKraken keeps caches of web content, compiled code and graphics here. Quit GitKraken first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
+- id: todoist.cache
+  title: Todoist cache
+  category: app-caches
+  toolchain: system
+  risk: SAFE
+  regenerable: true
+  method: quarantine
+  detector: paths
+  params: {paths: "~/Library/Application Support/Todoist/Cache,~/Library/Application Support/Todoist/Code Cache,~/Library/Application Support/Todoist/GPUCache,~/Library/Application Support/Todoist/DawnCache,~/Library/Application Support/Todoist/DawnGraphiteCache,~/Library/Application Support/Todoist/DawnWebGPUCache"}
+  allow: ["~/Library/Application Support/Todoist/Cache", "~/Library/Application Support/Todoist/Code Cache", "~/Library/Application Support/Todoist/GPUCache", "~/Library/Application Support/Todoist/DawnCache", "~/Library/Application Support/Todoist/DawnGraphiteCache", "~/Library/Application Support/Todoist/DawnWebGPUCache"]
+  preconditions: ["app_not_running:Todoist"]
+  restore:
+    kind: rebuild
+    note: Todoist rebuilds these caches as you use it; it may start a little slower.
+  explain: >-
+    Todoist keeps caches of web content, compiled code and graphics here. Quit Todoist first. Your account, settings, messages and files are stored elsewhere and are not touched.
+
 # Spotify keeps its cache in Application Support, and the same folder can hold
 # songs you saved for offline listening, so this one is CAUTION, not SAFE.
 - id: spotify.cache

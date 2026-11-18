@@ -33,8 +33,22 @@ var tierNames = map[model.Risk]string{
 	model.RiskAdvise:  "Your call (advice only)",
 }
 
+// smallBytes is the smallest item --small shows: any item with at least one
+// byte, so empty folders stay out.
+const smallBytes = 1
+
+// minBytesFor is the size floor for a command: the engine's default (1 MB),
+// or one byte when --small was given.
+func minBytesFor(cmd *cobra.Command) int64 {
+	if small, _ := cmd.Flags().GetBool("small"); small {
+		return smallBytes
+	}
+	return 0
+}
+
 // loadOpportunities runs the engine with the real home, catalog and Runner.
-func loadOpportunities(ctx context.Context) (engine.OpportunityResult, *recipes.Catalog, error) {
+// minBytes is the size floor (0 for the default of 1 MB).
+func loadOpportunities(ctx context.Context, minBytes int64) (engine.OpportunityResult, *recipes.Catalog, error) {
 	home, err := UserHome()
 	if err != nil {
 		return engine.OpportunityResult{}, nil, err
@@ -43,7 +57,7 @@ func loadOpportunities(ctx context.Context) (engine.OpportunityResult, *recipes.
 	if err != nil {
 		return engine.OpportunityResult{}, nil, err
 	}
-	res, err := engine.Opportunities(ctx, engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat})
+	res, err := engine.Opportunities(ctx, engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat, MinBytes: minBytes})
 	return res, cat, err
 }
 
@@ -59,7 +73,7 @@ func newWinsCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, cat, err := loadOpportunities(context.Background())
+			res, cat, err := loadOpportunities(context.Background(), minBytesFor(cmd))
 			if err != nil {
 				return err
 			}
@@ -74,6 +88,7 @@ func newWinsCmd(g *GlobalFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "list every item instead of grouping repeated ones")
+	cmd.Flags().Bool("small", false, "also list items that would free under 1 MB")
 	cmd.Flags().StringVar(&tier, "tier", "", "only one tier: safe, caution, risky or advise")
 	return cmd
 }

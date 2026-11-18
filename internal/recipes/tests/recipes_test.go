@@ -35,7 +35,7 @@ func TestValidateOK(t *testing.T) {
 	// The Trash is the one irreplaceable recipe that may be cleaned: CAUTION,
 	// quarantined, with a restore note, and nothing allowed outside ~/.Trash/.
 	tr := validRecipe()
-	tr.Risk, tr.Allow, tr.KeepChildrenOf, tr.Params = model.RiskCaution, []string{"~/.Trash/*"}, nil, map[string]string{"dir": "~/.Trash"}
+	tr.Risk, tr.Allow, tr.KeepChildrenOf, tr.Params = model.RiskCaution, []string{"~/.Trash/*"}, []string{"~/.Trash"}, map[string]string{"dir": "~/.Trash"}
 	tr.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "Kept in quarantine until it expires."}
 	if err := recipes.Validate(tr); err != nil {
 		t.Fatalf("the quarantined Trash should be accepted: %v", err)
@@ -72,6 +72,20 @@ func TestValidateRejects(t *testing.T) {
 		},
 		"irreplaceable Trash plus other": func(r *recipes.Recipe) {
 			r.Risk, r.Allow, r.KeepChildrenOf = model.RiskCaution, []string{"~/.Trash/*", "~/Library/Caches/test/*"}, nil
+			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
+		},
+		// ~/.Trash is the one 1-deep keep_children_of, and only for the Trash.
+		"keep Trash for a cache": func(r *recipes.Recipe) { r.KeepChildrenOf = []string{"~/.Trash"} },
+		"keep Trash SAFE Trash": func(r *recipes.Recipe) {
+			r.Allow, r.KeepChildrenOf = []string{"~/.Trash/*"}, []string{"~/.Trash"}
+			r.Restore = model.Restore{Kind: model.RestoreRedownload, Note: "x"}
+		},
+		"keep Trash plus another folder": func(r *recipes.Recipe) {
+			r.Risk, r.Allow, r.KeepChildrenOf = model.RiskCaution, []string{"~/.Trash/*"}, []string{"~/.Trash", "~/Downloads"}
+			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
+		},
+		"keep Trash with other allow": func(r *recipes.Recipe) {
+			r.Risk, r.Allow, r.KeepChildrenOf = model.RiskCaution, []string{"~/.Trash/*", "~/Library/Caches/test/*"}, []string{"~/.Trash"}
 			r.Restore = model.Restore{Kind: model.RestoreIrreplaceable, Note: "x"}
 		},
 		"quarantine+native":     func(r *recipes.Recipe) { r.Native = &recipes.Native{Argv: []string{"brew", "cleanup"}} },
@@ -204,6 +218,27 @@ func TestKeepFuncKeepsRecipeFolders(t *testing.T) {
 		"/Users/me/Library/Containers/com.vendor.app/Data/Library/Caches/x": false,
 		"/Users/me/Library/Containers/com.vendor.app/Library/Caches":        false,
 		"/Users/me/Library/Caches/com.vendor.app":                           false,
+	} {
+		if keep(p) != want {
+			t.Errorf("keep(%q) = %v", p, !want)
+		}
+	}
+}
+
+// The Trash recipe makes the scan keep every direct child of ~/.Trash, so a
+// small item there is seen, and nothing deeper or beside it.
+func TestKeepFuncKeepsTrashItems(t *testing.T) {
+	c, err := recipes.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keep := recipes.KeepFunc(c, "/Users/me")
+	for p, want := range map[string]bool{
+		"/Users/me/.Trash":          true,
+		"/Users/me/.Trash/notes.md": true,
+		"/Users/me/.Trash/x/inner":  false,
+		"/Users/me/.Trashy":         false,
+		"/Users/me/Documents/a.md":  false,
 	} {
 		if keep(p) != want {
 			t.Errorf("keep(%q) = %v", p, !want)

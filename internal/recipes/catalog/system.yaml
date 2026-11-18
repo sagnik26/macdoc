@@ -54,11 +54,12 @@
   risk: CAUTION
   method: quarantine
   detector: children
-  # Each item in the Trash that the scan keeps (100 MB or more) is its own
-  # suggestion. Smaller items stay; Finder's Empty Trash removes everything.
-  # This is the one irreplaceable recipe the loader accepts as cleanable: see
-  # quarantinedTrash in internal/recipes/load.go.
+  # Each item in the Trash is its own suggestion, whatever its size (the scan
+  # keeps every direct child of ~/.Trash). Items under 1 MB are listed with
+  # macdoc reclaim --small. This is the one irreplaceable recipe the loader
+  # accepts as cleanable: see quarantinedTrash in internal/recipes/load.go.
   params: {dir: "~/.Trash", min_bytes: "1"}
+  keep_children_of: ["~/.Trash"]
   allow: ["~/.Trash/*"]
   restore:
     kind: irreplaceable

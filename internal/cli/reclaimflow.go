@@ -60,7 +60,7 @@ func cleanOneTier(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	if err := ensureFreshScan(cmd, home); err != nil {
 		return err
 	}
-	res, cat, err := loadOpportunities(context.Background())
+	res, cat, err := loadOpportunities(context.Background(), minBytesFor(cmd))
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func cleanChosen(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	if err := ensureFreshScan(cmd, home); err != nil {
 		return err
 	}
-	res, cat, err := loadOpportunities(context.Background())
+	res, cat, err := loadOpportunities(context.Background(), minBytesFor(cmd))
 	if err != nil {
 		return err
 	}

@@ -80,7 +80,7 @@ deletes, moves, restores or takes a path.
 
 **F8. Output and automation.** Every command has `--json` with a frozen schema (`schema/`, `schema_version` 3);
 `vitals --watch --json` streams NDJSON; settings can only make macdoc stricter (`config protect`,
-`excluded_recipes`, timeouts through `MACDOC_TIMEOUT*`).
+`config hide` / `excluded_recipes`, timeouts through `MACDOC_TIMEOUT*`).
 
 **F9. Distribution.** Homebrew tap (`brew install sagnik26/macdoc/macdoc`), a checksum-verified `install.sh`,
 `llms.txt`, an agent skill, and Raycast and Alfred launchers.

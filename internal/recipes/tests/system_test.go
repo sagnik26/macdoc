@@ -174,11 +174,12 @@ func TestTrashItems(t *testing.T) {
 		{Path: w2Home + "/.Trash", Bytes: 3 << 30},
 		{Path: w2Home + "/.Trash/big.dmg", Kind: model.NodeFile, Bytes: 2 << 30},
 		{Path: w2Home + "/.Trash/old project", Bytes: 1 << 30},
+		{Path: w2Home + "/.Trash/receipt.pdf", Kind: model.NodeFile, Bytes: 200 << 10}, // small items are listed too
 		{Path: w2Home + "/.Trash-old/other.dmg", Kind: model.NodeFile, Bytes: 1 << 30},
 		{Path: w2Home + "/Library/.Trash/x", Bytes: 1 << 30},
 	}
 	fs, err := w2Run(t, "user.trash", recipes.Env{Nodes: nodes})
-	w2WantTargets(t, fs, err, w2Home+"/.Trash/big.dmg", w2Home+"/.Trash/old project")
+	w2WantTargets(t, fs, err, w2Home+"/.Trash/big.dmg", w2Home+"/.Trash/old project", w2Home+"/.Trash/receipt.pdf")
 }
 
 // Only the small state files directly in CrashReporter that have not changed

@@ -72,6 +72,30 @@ func validExclude(s string) bool {
 	return !strings.HasPrefix(s, ".") && !strings.HasSuffix(s, ".") && !strings.Contains(s, "..")
 }
 
+// Exclude turns off a recipe ID (or "prefix.*"): macdoc stops listing,
+// planning and applying it. Adding one twice is a no-op. It can only subtract.
+func (c *Config) Exclude(id string) error {
+	id = strings.TrimSpace(id)
+	if !validExclude(id) {
+		return fmt.Errorf("%q isn't a recipe ID (like user.trash, or a family like maintenance.*)", id)
+	}
+	if !slices.Contains(c.ExcludedRecipes, id) {
+		c.ExcludedRecipes = append(c.ExcludedRecipes, id)
+	}
+	return nil
+}
+
+// Include undoes Exclude.
+func (c *Config) Include(id string) error {
+	id = strings.TrimSpace(id)
+	i := slices.Index(c.ExcludedRecipes, id)
+	if i < 0 {
+		return fmt.Errorf("%s isn't turned off", id)
+	}
+	c.ExcludedRecipes = slices.Delete(c.ExcludedRecipes, i, i+1)
+	return nil
+}
+
 // Excludes reports whether the recipe ID is excluded by the settings. An
 // entry matches the exact ID, or with a trailing ".*" every ID under that
 // prefix ("maintenance.*" matches "maintenance.purge_memory", not

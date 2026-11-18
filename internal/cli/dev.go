@@ -39,7 +39,7 @@ func newDevCmd(g *GlobalFlags) *cobra.Command {
 					return err
 				}
 			}
-			res, cat, err := loadOpportunities(context.Background())
+			res, cat, err := loadOpportunities(context.Background(), minBytesFor(cmd))
 			if err != nil {
 				return err
 			}
