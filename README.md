@@ -131,6 +131,17 @@ macdoc can remove files, so it validates paths, protects system and personal loc
 
 Review [SECURITY.md](SECURITY.md), [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for reporting guidance, safety boundaries, and what each defence is tested by.
 
+### Colors
+
+macdoc draws in color only when the terminal supports it. The palette adapts to a
+light or dark background (detected from the terminal), and to 16, 256 or
+truecolor terminals. Risk is always written out (SAFE, CAUTION, RISKY), never
+shown by color alone.
+
+- `NO_COLOR=1` turns color off; piped output, files and `--quiet` are always plain
+  text with no escape sequences.
+- `MACDOC_THEME=light` or `MACDOC_THEME=dark` skips background detection.
+
 ## Configuration
 
 macdoc runs without configuration. Settings can only make it stricter or change timings. `macdoc config` shows them.

@@ -1,5 +1,9 @@
 # macdoc UI migration plan: Charm v2 stack and Bubbles components
 
+> **Status (2026-11-24):** all phases are implemented in the working tree; the decisions are
+> recorded in [ADR 0016](adr/0016-charm-v2-and-terminal-palette.md). Still manual: screenshots
+> and a check in macOS Terminal, iTerm2 and one more terminal, light and dark.
+
 Goal: move macdoc's terminal UI from Bubble Tea / Bubbles / Lip Gloss v1 to
 v2, and replace hand-built interactive components with Bubbles v2
 components, styled per `docs/DESIGN_SYSTEM.md`.
@@ -125,7 +129,8 @@ components do not run there.
    `MACDOC_THEME`).
 2. Update `docs/CLI_UX.md` if it describes colors or key hints.
 3. Add an ADR: why v2, the plain-mode approach, and the table decision.
-4. Run `make vulncheck` and a full `make check`; compare binary size.
+4. Run `make vulncheck` and a full `make check`; compare binary size. Result: `govulncheck`
+   reports no vulnerabilities; the binary grew from 16,203,490 to 17,244,786 bytes (+6.4%).
 5. Update `go.mod` dependabot groups for the new `charm.land` modules.
 
 ## Risks to watch

@@ -21,3 +21,4 @@ An accepted record is changed only by a new record that supersedes it.
 | [0013](0013-reclaim-cleans-on-enter.md) | `macdoc reclaim` cleans SAFE items after a single Enter at a real terminal; elsewhere it only lists; RISKY, administrator and Claude-origin items still go through `apply` | Accepted (owner decision, 2026-11-16) |
 | [0014](0014-reclaim-system-cleanup.md) | `reclaim` may clean named system locations, sweep `.DS_Store` and run with `--yes`, under named limits | Accepted (owner decision, 2026-11-18); all five clauses implemented |
 | [0015](0015-no-refresh-plan-apply-mcp-plans.md) | No `refresh`, no `apply` or `/plan`, no MCP plan tools: macdoc cleans on its own, asks, or only suggests | Accepted (owner decision, 2026-11-24); implemented |
+| [0016](0016-charm-v2-and-terminal-palette.md) | The terminal UI moves to Charm v2 with its own palette; the Suggestions table and the tier picker stay custom | Accepted (owner decision, 2026-11-24); implemented |
