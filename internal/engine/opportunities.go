@@ -362,6 +362,16 @@ func Classify(r recipes.Recipe, f recipes.Finding, scanID string, now time.Time,
 		if err := policy.CheckTarget(f.Target, r.Allow); err != nil {
 			return op, fmt.Sprintf("%s: skipped %s: %v", r.ID, f.Target, err), false
 		}
+	case model.MethodSystem:
+		if err := policy.CheckSystemTarget(f.Target, recipes.SystemKindOf(r)); err != nil {
+			// Most items in a system folder belong to other users or to
+			// macOS; leaving them out is normal, so it isn't a warning.
+			return op, "", false
+		}
+	case model.MethodSweep:
+		if err := policy.CheckSweepRoot(f.Target); err != nil {
+			return op, fmt.Sprintf("%s: skipped %s: %v", r.ID, f.Target, err), false
+		}
 	}
 
 	if !f.LastUsed.IsZero() {

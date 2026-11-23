@@ -221,6 +221,26 @@ func vet(p model.Plan, cat *recipes.Catalog, pol *safety.Policy) error {
 			if err := pol.CheckTarget(it.Target, r.Allow); err != nil {
 				return bad("targets a path the safety rules refuse")
 			}
+		case model.MethodSystem:
+			if len(it.Argv) != 0 || !it.Privileged {
+				return bad("is a system removal without its administrator-rights mark, or with a command attached")
+			}
+			if p.Origin == model.OriginClaude {
+				return bad("is a system removal in a plan Claude proposed")
+			}
+			if err := pol.CheckSystemTarget(it.Target, recipes.SystemKindOf(r)); err != nil {
+				return bad("targets a path the safety rules refuse")
+			}
+		case model.MethodSweep:
+			if len(it.Argv) != 0 {
+				return bad("is a sweep with a command attached")
+			}
+			if p.Origin == model.OriginClaude {
+				return bad("is a sweep in a plan Claude proposed")
+			}
+			if err := pol.CheckSweepRoot(it.Target); err != nil {
+				return bad("targets a path the safety rules refuse")
+			}
 		default:
 			return bad("has an unknown method")
 		}

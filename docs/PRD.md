@@ -44,7 +44,7 @@ something irreplaceable (Xcode Archives, Docker volumes).
 | `macdoc refresh` | Maintenance steps: flush DNS, restart the DNS responder, free memory, reset Quick Look |
 | `macdoc explore [folder]` | Where the space is; `--growth` (what grew), `--projects` (idle projects and build folders) |
 | `macdoc vitals` | Live CPU, memory, disk, network, battery and a 0 to 100 health score; `--memory`, `--watch` |
-| `macdoc scan` | Fresh scan or the last data (it asks in a terminal; `--fresh` / `--last` skip the question), then the full report |
+| `macdoc scan` | A fresh scan (no question, no reuse of the last one), then the full report |
 | `macdoc apply` | Plan, confirm and apply in one step; `--dry-run`, `--list`, `--show`, or a plan ID |
 | More | `log`, `quarantine`, `config`, `schedule`, `mcp`, `completion`, `version` |
 
@@ -89,7 +89,7 @@ deletes, moves, restores or takes a path.
 
 1. Only `internal/executor` deletes, moves or runs mutating commands; MCP, engine and planner never import it.
 2. Plans and tools take IDs, never paths.
-3. Only a person at a real terminal approves a removal; there is no `--yes`.
+3. Only a person at a real terminal approves a removal; `apply` has no `--yes`; the one exception is `reclaim --tier safe|caution --yes` for quarantine moves (ADR 0014).
 4. Native commands use a fixed argv from a recipe: no shell, no `docker system prune`; `sudo` appears only in
    `internal/executor/privileged.go`, for the exact allow-list, never from a Claude plan.
 5. Re-check every item immediately before acting; never "fix up" a target.

@@ -168,6 +168,10 @@ type Env struct {
 	// AppsFolder stands in for /Applications when set. Tests use it so a
 	// detector never reads the real folder.
 	AppsFolder string
+	// SystemBase, when set, is put in front of the system folders the
+	// ADR 0014 detectors read (/Library/Caches and the like). Tests use it so
+	// a detector never reads the real /Library.
+	SystemBase string
 }
 
 // Detector finds instances of a recipe. A detector that can't run (tool not

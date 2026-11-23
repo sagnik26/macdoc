@@ -30,7 +30,7 @@ var tierNames = map[model.Risk]string{
 	model.RiskSafe:    "Free & safe",
 	model.RiskCaution: "Worth considering",
 	model.RiskRisky:   "Needs care",
-	model.RiskAdvise:  "Your call (advice only)",
+	model.RiskAdvise:  "Do it yourself (macdoc can't clean these)",
 }
 
 // smallBytes is the smallest item --small shows: any item with at least one
@@ -209,11 +209,50 @@ func writeOpportunities(b *strings.Builder, t *Theme, ops []model.Opportunity, c
 
 // writeOpportunity renders one line, plus the native command below it.
 func writeOpportunity(b *strings.Builder, t *Theme, op model.Opportunity) {
+	// The restore text is wrapped under its column, never cut off.
+	lines := wrapWords(restoreText(op), restoreWidth)
+	first := ""
+	if len(lines) > 0 {
+		first = lines[0]
+	}
 	fmt.Fprintf(b, "  %s  %s  %s  %s\n", t.ID.Render(fmt.Sprintf("%-8s", op.ID)), t.size.Render(fmt.Sprintf("%8s", sizeCell(op.Bytes))),
-		t.text.Render(fmt.Sprintf("%-44s", Truncate(op.Title, 44))), t.muted.Render(RestoreNote(op)))
+		t.text.Render(fmt.Sprintf("%-44s", Truncate(op.Title, 44))), t.muted.Render(first))
+	for _, l := range lines[min(1, len(lines)):] {
+		fmt.Fprintf(b, "  %-8s  %8s  %-44s  %s\n", "", "", "", t.muted.Render(l))
+	}
 	if op.Method == model.MethodNative && len(op.Command) > 0 {
 		fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render("→"), t.Command(op.Command))
 	}
+	if op.Method == model.MethodAdvise {
+		for i, step := range op.Steps {
+			fmt.Fprintf(b, "  %-8s  %8s  %s %s\n", "", "", t.faint.Render(fmt.Sprintf("%d.", i+1)), t.muted.Render(Truncate(step, 96)))
+		}
+	}
+}
+
+// restoreWidth is how wide the restore column is before its text wraps.
+const restoreWidth = 44
+
+// wrapWords breaks s at spaces into lines of at most width characters. A word
+// longer than width gets a line of its own.
+func wrapWords(s string, width int) []string {
+	var lines []string
+	cur := ""
+	for _, word := range strings.Fields(s) {
+		switch {
+		case cur == "":
+			cur = word
+		case len([]rune(cur))+1+len([]rune(word)) <= width:
+			cur += " " + word
+		default:
+			lines = append(lines, cur)
+			cur = word
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return lines
 }
 
 // RecipeTitle is the recipe's title, or id when the recipe is not in cat.
@@ -239,6 +278,11 @@ func sizeCell(v model.Bytes) string {
 
 // RestoreNote is the short restore cost shown on every line.
 func RestoreNote(op model.Opportunity) string {
+	return Truncate(restoreText(op), 40)
+}
+
+// restoreText is the restore cost in full, for places that can wrap it.
+func restoreText(op model.Opportunity) string {
 	r := op.Restore
 	if op.Method != model.MethodAdvise {
 		switch r.Kind {
@@ -252,7 +296,7 @@ func RestoreNote(op model.Opportunity) string {
 		}
 	}
 	if r.Note != "" {
-		return Truncate(r.Note, 40)
+		return r.Note
 	}
 	if r.Kind == model.RestoreIrreplaceable {
 		return "can't be restored"

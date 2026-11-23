@@ -60,7 +60,7 @@ func engineMeasure(ctx context.Context, d *TuiDeps, op model.Opportunity) (*engi
 
 // tick turns the spinner while the engine loads or a range is measured.
 func (m TuiModel) tick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.Loading && m.span.id == "" && !m.softwareBusy {
+	if !m.Loading && m.span.id == "" && !m.softwareBusy && (m.removing == nil || !m.removing.running) {
 		return m, nil
 	}
 	var cmd tea.Cmd

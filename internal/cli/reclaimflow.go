@@ -188,21 +188,18 @@ func confirmEnteredList(_ *bufio.Reader, out io.Writer, _ *Theme, p model.Plan) 
 	return approved, true, nil
 }
 
-// ensureFreshScan scans first, at a terminal, when there is no scan or the last
-// one is too old to plan from.
+// ensureFreshScan always scans first: reclaim cleans from what is on disk now,
+// never from a stored scan. Only the scan view reuses a stored scan.
 func ensureFreshScan(cmd *cobra.Command, home string) error {
-	info, _, err := engine.LastScan(home, time.Now())
-	if err == nil && time.Since(info.FinishedAt) <= planner.Oldest {
-		return nil
-	}
 	errOut := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), " Scanning your Mac first…")
 	Background(scanner.SetBackgroundPriority, errOut)(engine.StepScan)
-	_, err = engine.Scan(context.Background(), engine.ScanOptions{
+	expected := ExpectedScanBytes(home)
+	_, err := engine.Scan(context.Background(), engine.ScanOptions{
 		Home: home, Version: version, Workers: 4, Runner: Runner, Root: ScanRoot,
 		Progress: func(p scanner.Progress) {
 			if IsTerminal(errOut) {
-				_, _ = fmt.Fprintf(errOut, "\r\033[KScanning… %s · %d files · %s", engine.DecimalBytes(p.Bytes), p.Files, Truncate(p.CurrentDir, 50))
+				_, _ = fmt.Fprintf(errOut, "\r\033[K%s", ScanStatusLine(p, expected, p.CurrentDir))
 			}
 		},
 	})
@@ -321,6 +318,11 @@ func chosenItems(rows []TierChoice, tiers []model.Risk) (pick []model.Opportunit
 		if r.Risk == model.RiskRisky && len(r.Items) > 0 {
 			risky = true
 		}
+		for _, op := range r.Items {
+			if op.Method == model.MethodSystem {
+				risky = true // administrator removals keep apply's per-item y/N and typed code
+			}
+		}
 	}
 	return pick, risky
 }
@@ -351,7 +353,7 @@ func sealAndClean(cmd *cobra.Command, g *GlobalFlags, pick []model.Opportunity, 
 
 // TierChoices groups the actionable items by risk type (SAFE, CAUTION, RISKY)
 // in a fixed order. Advice-only items have no row: macdoc can't remove them,
-// and the list above shows them under "Your call".
+// and the list above shows them under "Do it yourself".
 func TierChoices(ops []model.Opportunity) []TierChoice {
 	rows := []TierChoice{
 		{Risk: model.RiskSafe, Note: "caches and files the tools rebuild"},

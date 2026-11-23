@@ -136,6 +136,16 @@ func (r *recordingPerformer) Quarantine(_ model.PlanItem, target string) error {
 	return nil
 }
 
+func (r *recordingPerformer) System(_ model.PlanItem, target string) error {
+	r.calls = append(r.calls, "→ deletes "+target+" (administrator rights)")
+	return nil
+}
+
+func (r *recordingPerformer) Sweep(_ model.PlanItem, root string) error {
+	r.calls = append(r.calls, "→ deletes .DS_Store files in "+cli.TildePath(r.Home, root))
+	return nil
+}
+
 func TestRenderPlanStatuses(t *testing.T) {
 	for st, want := range map[planner.Status]string{
 		planner.Expired: "This plan has expired.",

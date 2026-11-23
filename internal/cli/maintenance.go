@@ -162,9 +162,9 @@ func (m TuiModel) maintenanceBody() string {
 		if i == m.maintCursor {
 			button = "▶ Apply ◀"
 		}
-		rows[i] = []string{op.ID, op.Title, password, riskLabel(op.Risk), Truncate(RestoreNote(op), 40), button}
+		rows[i] = []string{op.ID, op.Title, password, riskLabel(op.Risk), restoreText(op), button}
 	}
-	cols := []Column{{Title: "ID"}, {Title: "Step", Flex: true}, {Title: "Mac password"}, {Title: "Risk"}, {Title: "Afterwards", Flex: true}, {Title: "Action"}}
+	cols := []Column{{Title: "ID"}, {Title: "Step", Flex: true}, {Title: "Mac password"}, {Title: "Risk"}, {Title: "Afterwards", Wrap: true}, {Title: "Action"}}
 	table := t.Grid(cols, rows, max(40, m.w-4), func(r, c int) *lipgloss.Style {
 		var s lipgloss.Style
 		switch c {

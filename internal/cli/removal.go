@@ -45,8 +45,17 @@ type removeState struct {
 	code      string            // typed so far, when a RISKY item needs it
 	confirmed int               // RISKY items confirmed so far, in plan order
 	running   bool
-	lines     []string // finished items
-	current   string   // the item being removed
+	finished  bool // the run is over but some items were left; the box stays so the reasons can be read
+	left      []executor.ItemResult
+	summary   string       // the one-line result, shown on the page when the box closes
+	lines     []string     // finished items
+	lineRisk  []model.Risk // the risk type of each finished item, in step with lines
+	current   string       // the item being removed
+	curRisk   model.Risk   // its risk type
+	auto      bool         // /reclaim: started with no prompt; esc stops it between items
+	riskyN    int          // RISKY suggestions /reclaim left alone, offered once it is done
+	riskySize string       // their size, as shown
+	cancel    context.CancelFunc
 }
 
 // riskyItems returns the plan's RISKY items, in order.
@@ -85,6 +94,10 @@ func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (exec
 		return executor.Report{}, err
 	}
 	defer func() { _ = st.Close() }()
+	ctx := context.Background()
+	if d.removeCtx != nil {
+		ctx = d.removeCtx
+	}
 	// SAFE and CAUTION items go with the one Enter on the confirmation box, a
 	// group approval. A RISKY item was confirmed on its own: its ID was typed
 	// before this runs (removeKey only gets here once every one is typed).
@@ -92,7 +105,7 @@ func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (exec
 	for _, it := range p.Items {
 		approved[it.OpportunityID] = executor.Approval{Individually: it.Risk == model.RiskRisky}
 	}
-	return executor.Apply(context.Background(), executor.Config{
+	return executor.Apply(ctx, executor.Config{
 		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: d.cat, Runner: Runner, Now: time.Now,
 		DeleteNow: true,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
@@ -140,6 +153,14 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	case msg.Err == nil:
 		m.removing = &removeState{Res: msg.Res, view: display(msg.Res)}
 		m.Overlay, m.scroll = OverlayRemove, 0 // marks stay: esc must give them back
+		if m.reclaimAuto {
+			m.reclaimAuto = false
+			m.removing.auto = true
+			if !m.removing.needsCode() { // only SAFE and CAUTION are ever marked, so this always holds
+				m.Flash = ""
+				return m.runRemove()
+			}
+		}
 	case errors.Is(msg.Err, planner.ErrNothing):
 		reason := "none of them can be removed right now"
 		if len(msg.Res.Refused) > 0 {
@@ -149,6 +170,7 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	default:
 		m.Flash = "Can't remove it: " + msg.Err.Error()
 	}
+	m.reclaimAuto = false
 	return m, nil
 }
 
@@ -156,7 +178,29 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	r := m.removing
 	if r.running {
+		if r.auto && r.cancel != nil && msg.Type == tea.KeyEsc {
+			r.cancel() // the item in progress finishes; the rest are left alone
+			m.Flash = "Stopping after the current item…"
+		}
 		return m, nil // it finishes on its own; every item is checked first
+	}
+	if r.finished {
+		switch msg.String() {
+		case "d":
+			if r.riskyN == 0 {
+				return m, nil
+			}
+			// The normal removal box: every RISKY item listed, and each one's ID
+			// typed before anything is deleted. Nothing here is automatic.
+			m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
+			return m.markChosenAndRemove([]model.Risk{model.RiskRisky})
+		case "esc", "enter", "q":
+			m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
+			m.Flash = r.summary
+		default:
+			m.scrollBy(msg.String())
+		}
+		return m, nil
 	}
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -194,15 +238,20 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m TuiModel) runRemove() (tea.Model, tea.Cmd) {
 	r := m.removing
 	r.running = true
+	if r.auto {
+		ctx, cancel := context.WithCancel(context.Background())
+		r.cancel, m.Deps.removeCtx = cancel, ctx
+	}
 	run := m.Deps.Remove
 	if run == nil {
 		run = executorRemove
 	}
 	deps, plan := m.Deps, r.Res.Plan
-	return m, func() tea.Msg {
+	work := func() tea.Msg {
 		rep, err := run(deps, plan, func(ev executor.Event) { deps.post(removeProgressMsg(ev)) })
 		return removedMsg{rep: rep, Err: err}
 	}
+	return m, tea.Batch(work, m.spin.Tick) // the tick keeps the spinner turning
 }
 
 func (m TuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
@@ -212,11 +261,12 @@ func (m TuiModel) removeProgress(msg removeProgressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if ev.Result == nil {
-		r.current = ev.Item.Title
+		r.current, r.curRisk = ev.Item.Title, ev.Item.Risk
 		return m, nil
 	}
 	r.current = ""
 	r.lines = append(r.lines, m.resultLine(*ev.Result))
+	r.lineRisk = append(r.lineRisk, ev.Result.Item.Risk)
 	return m, nil
 }
 
@@ -237,6 +287,7 @@ func (m TuiModel) resultLine(res executor.ItemResult) string {
 // removed closes the box, drops what was removed from the list and says
 // how much space came back.
 func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
+	box := m.removing
 	m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
 	msg.rep = display(msg.rep) // only shown from here on; IDs are unchanged
 	if msg.Err != nil {
@@ -285,7 +336,33 @@ func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	parts = append(parts, rep.Warnings...)
-	m.Flash = strings.Join(parts, " · ") + ". Press r to rescan."
+	summary := strings.Join(parts, " · ") + ". Press r to rescan."
+	var left []executor.ItemResult
+	for _, it := range rep.Items {
+		if it.Outcome != executor.OutcomeDone {
+			left = append(left, it)
+		}
+	}
+	var risky []model.Opportunity
+	if box != nil && box.auto {
+		risky = m.riskyLeft()
+	}
+	if (len(left) > 0 || len(risky) > 0) && box != nil {
+		// Some items need something from the person (an app to quit, a tool to
+		// start), or /reclaim left RISKY items alone and offers them. Stay on
+		// this screen and say what, instead of dropping to the page with the
+		// reason squeezed into the footer.
+		box.running, box.finished, box.left, box.summary, box.current = false, true, left, summary, ""
+		box.riskyN, box.riskySize = len(risky), tierTotal(knownTotal(risky), risky)
+		box.lines, box.lineRisk = box.lines[:0], box.lineRisk[:0]
+		for _, it := range rep.Items {
+			box.lines = append(box.lines, m.resultLine(it))
+			box.lineRisk = append(box.lineRisk, it.Item.Risk)
+		}
+		m.Overlay, m.removing = OverlayRemove, box
+		return m, nil
+	}
+	m.Flash = summary
 	return m, nil
 }
 
@@ -298,6 +375,9 @@ func (m TuiModel) removeView() string {
 	}
 	var b strings.Builder
 	items := r.view.Plan.Items
+	if r.auto && r.running {
+		return m.autoView(r, items)
+	}
 	b.WriteString("\n " + t.heading(fmt.Sprintf("Remove %d item%s and free the space?", len(items), plural(len(items), "", "s"))) + "\n\n")
 	var total int64
 	known := true
@@ -328,14 +408,29 @@ func (m TuiModel) removeView() string {
 	fmt.Fprintf(&b, "\n   %s %s\n", t.muted.Render("Total:"), t.size.Render(sum))
 
 	switch {
-	case r.running:
+	case r.finished:
 		b.WriteString("\n")
 		for _, l := range r.lines {
 			b.WriteString("   " + l + "\n")
 		}
-		if r.current != "" {
-			b.WriteString("   " + t.muted.Render("… removing "+r.current) + "\n")
+		if len(r.left) > 0 {
+			b.WriteString("\n   " + t.warn.Render("Not removed. Do this, then run it again:") + "\n")
+			for _, it := range r.left {
+				b.WriteString(t.Wrap("   • "+it.Item.Title+": "+it.Reason, 5) + "\n")
+			}
 		}
+		if r.riskyN > 0 {
+			b.WriteString("\n   " + t.warn.Render(fmt.Sprintf("%d RISKY item%s left alone (%s).", r.riskyN, plural(r.riskyN, "", "s"), r.riskySize)) + "\n")
+			b.WriteString(t.Wrap("   They may include app data and are deleted for good. Press d to review them: each one needs its ID typed before it is removed.", 3) + "\n")
+		}
+		b.WriteString("\n   " + t.muted.Render(r.summary) + "\n")
+		keys := t.accent.Render("Enter") + t.muted.Render(" or ") + t.accent.Render("esc") + t.muted.Render(" close")
+		if r.riskyN > 0 {
+			keys = t.accent.Render("d") + t.muted.Render(" review RISKY · ") + keys
+		}
+		b.WriteString("   " + keys + "\n")
+	case r.running:
+		b.WriteString("\n" + m.categorySteps(r, items))
 	case r.needsCode():
 		b.WriteString("\n   " + t.warn.Render("A RISKY item is included. It is deleted for good and can't be brought back.") + "\n")
 		if want, ok := r.nextRisky(); ok {
@@ -348,4 +443,70 @@ func (m TuiModel) removeView() string {
 		b.WriteString("   " + t.accent.Render("Enter") + t.muted.Render(" remove · ") + t.accent.Render("esc") + t.muted.Render(" cancel") + "\n")
 	}
 	return b.String()
+}
+
+// categorySteps shows a running removal one category (risk type) at a time:
+// a header with how many of its items are done, the finished items under it,
+// and a spinner on the item being removed. A category not reached yet shows
+// as waiting.
+func (m TuiModel) categorySteps(r *removeState, items []model.PlanItem) string {
+	t := m.t
+	var b strings.Builder
+	for _, tier := range engine.TierOrder {
+		total := 0
+		for _, it := range items {
+			if it.Risk == tier {
+				total++
+			}
+		}
+		if total == 0 {
+			continue
+		}
+		var lines []string
+		for i, l := range r.lines {
+			if i < len(r.lineRisk) && r.lineRisk[i] == tier {
+				lines = append(lines, l)
+			}
+		}
+		active := r.current != "" && r.curRisk == tier
+		mark, state := t.faint.Render("○"), t.faint.Render("waiting")
+		switch {
+		case len(lines) >= total:
+			mark, state = t.Ok.Render("✓"), t.muted.Render("done")
+		case active || len(lines) > 0:
+			mark, state = m.spin.View(), t.muted.Render(fmt.Sprintf("%d of %d done", len(lines), total))
+		}
+		fmt.Fprintf(&b, "   %s %s %s\n", mark, t.riskStyle(tier).Bold(true).Render(riskLabel(tier)), state)
+		for _, l := range lines {
+			b.WriteString("       " + l + "\n")
+		}
+		if active {
+			fmt.Fprintf(&b, "       %s %s\n", m.spin.View(), t.text.Render("Removing "+r.current+"…"))
+		}
+	}
+	return b.String()
+}
+
+// autoView is /reclaim while it runs: the categories one after another, each
+// with its own count (no second progress bar after the scan's).
+func (m TuiModel) autoView(r *removeState, items []model.PlanItem) string {
+	t := m.t
+	var b strings.Builder
+	b.WriteString("\n " + t.heading(fmt.Sprintf("Reclaiming %d item%s (SAFE and CAUTION)", len(items), plural(len(items), "", "s"))) + "\n\n")
+	b.WriteString(m.categorySteps(r, items))
+	b.WriteString("\n")
+	b.WriteString("   " + t.muted.Render("Moved aside, so they can be restored. ") + t.accent.Render("esc") + t.muted.Render(" stops after the current item.") + "\n")
+	return b.String()
+}
+
+// riskyLeft is the RISKY suggestions /reclaim never touches: the ones macdoc
+// could remove (not advice, not an installed app, which is for retire).
+func (m TuiModel) riskyLeft() []model.Opportunity {
+	var out []model.Opportunity
+	for _, op := range withoutInstalledApps(m.Items()) {
+		if op.Risk == model.RiskRisky && op.Method != model.MethodAdvise {
+			out = append(out, op)
+		}
+	}
+	return out
 }

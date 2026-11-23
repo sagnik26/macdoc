@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -65,10 +64,8 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 		opts.Step = Background(scanner.SetBackgroundPriority, errOut)
 	}
 	if tty {
-		opts.Progress = func(p scanner.Progress) {
-			status(fmt.Sprintf("Scanning… %s · %d files · %s · %s",
-				engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(p.CurrentDir, 50)))
-		}
+		expected := ExpectedScanBytes(home)
+		opts.Progress = func(p scanner.Progress) { status(ScanStatusLine(p, expected, p.CurrentDir)) }
 		if !m.rescan {
 			status("Checking your Mac…")
 		}

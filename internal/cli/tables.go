@@ -562,7 +562,7 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 	t := m.t
 	// The ID is not a column: nobody types it here. A RISKY item's ID shows in
 	// the removal box, where it must be typed.
-	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Flex: true}}
+	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Wrap: true}}
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
 		mark := " "
@@ -574,7 +574,7 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		case m.Marked[op.ID]:
 			mark = "✓"
 		}
-		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, Truncate(RestoreNote(op), 30)}
+		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, restoreText(op)}
 	}
 	if compact {
 		cols = cols[:4]

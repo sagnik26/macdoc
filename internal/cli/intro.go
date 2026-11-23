@@ -192,6 +192,14 @@ func (m *TuiModel) leaveIntro(rescan bool) tea.Cmd {
 	return m.StartLoad(rescan)
 }
 
+// goHome returns from the scan view to the welcome screen, with its last-scan
+// line brought up to date. Esc does this from any tab.
+func (m TuiModel) goHome() (tea.Model, tea.Cmd) {
+	m.Intro, m.Overlay, m.Detail, m.scroll, m.InputMode = true, OverlayNone, false, 0, 0
+	m.IntroStatus = loadIntroStatus(m.Deps.Home)
+	return m, nil
+}
+
 func (m TuiModel) introFooter() string {
 	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"?", "help"}, {"q", "quit"}}
 	var parts []string

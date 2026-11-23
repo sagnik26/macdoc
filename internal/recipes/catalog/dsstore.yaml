@@ -1,0 +1,22 @@
+# The .DS_Store sweep (ADR 0014 §4, docs/RECIPE_CATALOG.md). One suggestion per
+# folder directly in the home folder. The method has no allow patterns: the
+# only files it can remove are regular files named exactly .DS_Store, and it
+# never enters Library, hidden folders, .git, node_modules or photo and music
+# libraries. See safety.CheckSweepRoot and recipes.WalkDSStore.
+
+- id: system.ds_store
+  title: Finder view files
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: sweep
+  detector: ds_store
+  restore:
+    kind: rebuild
+    note: Finder writes a new .DS_Store when you next open a folder; only that folder's view settings (icon positions, sort order, window size) are reset.
+  explain: >-
+    Finder keeps a small hidden file named .DS_Store in each folder you open,
+    with that folder's view settings. They are tiny and can pile up in the
+    hundreds. Removing them frees a little space and loses nothing but
+    those view settings. macdoc deletes them right away, with no quarantine
+    copy, and touches no other file.

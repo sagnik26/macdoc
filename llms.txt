@@ -13,7 +13,7 @@ Read-only (safe to run any time):
 Plans and removal (Terminal, person only):
 - `macdoc apply --dry-run <O-ids>` seals a dry-run plan from opportunity IDs (never paths). It changes nothing.
 - `macdoc apply` remains for specific IDs, other tiers and sealed or Claude-proposed plans.
-- `macdoc apply <O-ids|--safe|--tier T|--recipe R|P-id>` seals a plan, shows the dry run and asks per item before removing. There is no `--yes`. Agents must not run it, except with `--dry-run` on request.
+- `macdoc apply <O-ids|--safe|--tier T|--recipe R|P-id>` seals a plan, shows the dry run and asks per item before removing. `apply` has no `--yes`; `macdoc reclaim --tier safe|caution --yes` cleans quarantine moves with no prompt, and agents must never run it. Agents must not run it, except with `--dry-run` on request.
 - `macdoc quarantine restore|purge` also belong to the person.
 
 ## MCP server

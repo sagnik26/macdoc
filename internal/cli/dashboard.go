@@ -50,14 +50,15 @@ type slashCommand struct {
 	Name, args, desc string
 }
 
-// SlashCommands is the / palette, in display order.
+// SlashCommands is the / palette, in display order. It lists the same
+// commands, in the same order, as the welcome screen (introActions).
 var SlashCommands = []slashCommand{
-	{"scan", "", "scan again, or keep the last data (asks which; esc stops a scan)"},
-	{"reclaim", "", "choose which risk types to clean (a checkbox list), then confirm"},
-	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
-	{"explore", "[folder]", "where the space is inside a folder, from the last scan"},
+	{"scan", "", "scan the disk again, then show the full report (esc stops a scan)"},
+	{"reclaim", "", "scan, then clean every SAFE and CAUTION item at once (esc stops it)"},
 	{"retire", "", "installed software, its data folders and cleanups"},
 	{"refresh", "", "maintenance steps you can apply, such as flushing DNS"},
+	{"explore", "", "where the space is, as a folder tree you can open"},
+	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
 }
 
 // stepLabels describe the loading stages.
@@ -133,6 +134,9 @@ type TuiDeps struct {
 	Plans func(d *TuiDeps) ([]store.PlanRecord, error)
 	// Status takes a live reading for /vitals; nil uses the engine.
 	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
+
+	// removeCtx lets esc stop a /reclaim run between items; nil means no way to stop.
+	removeCtx context.Context
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
@@ -144,6 +148,10 @@ func enginePlan(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult)
 		Precomputed:        pre,
 	})
 }
+
+// SetSend sets where background work posts its progress messages. runTUI sets
+// it to the program's Send; tests set it to feed the model directly.
+func (d *TuiDeps) SetSend(send func(tea.Msg)) { d.send = send }
 
 func (d *TuiDeps) post(msg tea.Msg) {
 	if d.send != nil {
@@ -194,8 +202,6 @@ const (
 	overlaySoftware
 	overlayExplore
 	overlayMaintenance
-	overlayScan
-	overlayReclaim
 	overlayVitals
 	OverlayPlan
 	OverlayRemove
@@ -244,7 +250,7 @@ type TuiModel struct {
 	softwareCursor  int                       // the highlighted row of the filtered list
 	softwareDetail  bool                      // the details of the highlighted program are open
 	explore         *engine.ExploreResult     // the folder shown in the explorer
-	picker          *TierPicker               // the /reclaim checkbox list
+	reclaimAuto     bool                      // the removal being sealed is /reclaim's: it starts as soon as it is ready
 	maint           *engine.OpportunityResult // the maintenance steps shown in /refresh
 	maintCursor     int                       // the highlighted maintenance step
 	claude          []store.PlanRecord        // plans Claude proposed that can still be applied, newest first
@@ -257,6 +263,7 @@ type TuiModel struct {
 	hist            vitalsHist                // the recent readings behind the arrows
 	vitalsWhy       bool                      // /vitals shows how it decides memory is slowing the Mac down
 	clockOn         bool                      // the once-a-second clock for "updated Ns ago" is running
+	reclaimFresh    bool                      // /reclaim's own rescan just finished
 	pending         string                    // a command waiting for the latest scan to load
 	sealForApply    bool                      // hand the plan being sealed to apply as soon as it exists
 	removing        *removeState              // the remove confirmation box, while open
@@ -274,7 +281,6 @@ type TuiModel struct {
 	// welcome screen
 	Intro       bool
 	introPick   int
-	scanPick    int // the highlighted choice on the scan page: 0 last scan, 1 scan again
 	IntroStatus IntroStatus
 }
 
@@ -393,10 +399,7 @@ func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
 	m.cancel = cancel
 	m.Loading, m.Stopping = true, false
 	m.steps, m.prog = nil, scanner.Progress{}
-	m.estimate = 0
-	if m.Data != nil {
-		m.estimate = m.Data.Res.Scan.TotalBytes
-	}
+	m.estimate = m.expectedScanBytes()
 	deps := m.Deps
 	run := func() tea.Msg {
 		data, err := deps.Load(ctx, deps, rescan)
@@ -516,10 +519,12 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 			m.note = msg.Err.Error()
 		}
 	}
+	stopped := m.Stopping
 	m.Stopping = false
 	if p := m.pending; p != "" {
 		m.pending = ""
 		if m.Data != nil {
+			m.reclaimFresh = msg.Err == nil && !stopped && strings.HasPrefix(strings.TrimLeft(p, "/"), "reclaim")
 			return m.RunCommand(p)
 		}
 		if msg.Err != nil {
@@ -539,6 +544,17 @@ func (m TuiModel) loadThen(line string) (tea.Model, tea.Cmd) {
 	}
 	m.pending = line
 	cmd := m.StartLoad(false)
+	return m, cmd
+}
+
+// rescanThen scans afresh and then runs line. Only the scan view reuses a
+// stored scan; /reclaim cleans from what is on disk now.
+func (m TuiModel) rescanThen(line string) (tea.Model, tea.Cmd) {
+	if m.Loading {
+		return m, nil
+	}
+	m.pending = line
+	cmd := m.StartLoad(true)
 	return m, cmd
 }
 
@@ -569,9 +585,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.Overlay == overlayReclaim {
-		return m.reclaimKey(msg)
-	}
 	if m.Overlay == overlayMaintenance {
 		if next, cmd, ok := m.maintenanceKey(k); ok {
 			return next, cmd
@@ -584,11 +597,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.Overlay == overlayExplore {
 		if next, cmd, ok := m.exploreKey(k); ok {
-			return next, cmd
-		}
-	}
-	if m.Overlay == overlayScan {
-		if next, cmd, ok := m.scanKey(k); ok {
 			return next, cmd
 		}
 	}
@@ -614,7 +622,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch k {
 	case "esc":
-		m.Detail = false
+		if m.Detail {
+			m.Detail = false
+			break
+		}
+		return m.goHome()
 	case "?":
 		m.Overlay, m.scroll = overlayHelp, 0
 	case "/":
@@ -793,12 +805,17 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	case "vitals":
 		return m.openVitals()
 	case "reclaim":
-		if m.Data == nil {
-			return m.loadThen(line) // runs on its own: it reads the latest scan, scanning only if there is none
+		if m.reclaimFresh { // the scan it asked for has just finished
+			m.reclaimFresh = false
+			return m.autoReclaim()
 		}
-		return m.openReclaimPicker()
+		return m.rescanThen(line) // reclaim never works from a stored scan
 	case "scan":
-		return m.askScan()
+		if m.Loading {
+			return m, nil
+		}
+		m.Intro = false
+		return m, m.StartLoad(true)
 	case "plan":
 		if m.Intro {
 			m.Flash = "Choose “Check my Mac” first: /plan needs results."
@@ -906,10 +923,6 @@ func (m TuiModel) View() string {
 		body = m.scrolled(m.exploreBody())
 	case m.Overlay == overlayMaintenance:
 		body = m.scrolled(m.maintenanceBody())
-	case m.Overlay == overlayScan:
-		body = m.scanBody()
-	case m.Overlay == overlayReclaim:
-		body = m.reclaimBody()
 	case m.Overlay == overlayVitals:
 		body = m.scrolled(m.vitalsBody())
 	case m.Overlay == overlaySoftware && m.softwareDetail:
@@ -995,8 +1008,8 @@ func (m TuiModel) headerView() string {
 func (m TuiModel) pageTitle() string {
 	titles := map[overlay]string{
 		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore", overlayMaintenance: "Refresh",
-		overlayScan: "Scan", overlayReclaim: "Reclaim", overlayVitals: "Vitals",
-		OverlayPlan: "Plan", OverlayRemove: "Reclaim",
+		overlayVitals: "Vitals",
+		OverlayPlan:   "Plan", OverlayRemove: "Reclaim",
 	}
 	if t, ok := titles[m.Overlay]; ok {
 		return t
@@ -1047,14 +1060,6 @@ func (m TuiModel) footerView() string {
 		keys = nil
 	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
 		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
-	case m.Overlay == overlayReclaim:
-		keys = nil // the checkbox list shows its own keys
-	case m.Overlay == overlayScan:
-		keys = []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "choose")),
-			key.NewBinding(key.WithKeys("down"), key.WithHelp("↑↓", "move")),
-			m.keys.Back, m.keys.Quit,
-		}
 	case m.Overlay == overlayExplore:
 		keys = []key.Binding{
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter/→", "open")),
@@ -1082,13 +1087,13 @@ func (m TuiModel) footerView() string {
 	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Tab == TabSpace:
-		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explore folders")), m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explore folders")), m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions:
-		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	default:
-		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	}
 	m.help.Width = m.w - 2
 	return " " + m.help.ShortHelpView(keys)
@@ -1149,6 +1154,23 @@ func (m TuiModel) loadingView() string {
 	return b.String()
 }
 
+// expectedScanBytes is how much the scan is expected to measure, so the bar can
+// show a percentage: the scan on screen, else the one the welcome screen
+// reported, else the latest stored one. 0 means unknown (a first scan).
+func (m TuiModel) expectedScanBytes() int64 {
+	switch {
+	case m.Data != nil && m.Data.Res.Scan.TotalBytes > 0:
+		return m.Data.Res.Scan.TotalBytes
+	case m.IntroStatus.Bytes > 0:
+		return m.IntroStatus.Bytes
+	case m.Deps != nil && m.Deps.Home != "":
+		if info, _, err := engine.LastScan(m.Deps.Home, time.Now()); err == nil {
+			return info.TotalBytes
+		}
+	}
+	return 0
+}
+
 func (m TuiModel) scanProgressView() string {
 	t := m.t
 	p := m.prog
@@ -1157,6 +1179,10 @@ func (m TuiModel) scanProgressView() string {
 	if m.estimate > 0 {
 		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
 		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
+	} else {
+		// No earlier scan to estimate from: the bar still shows, sweeping
+		// back and forth, with no percentage (the total is unknown).
+		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(sweep(p.Elapsed)), t.muted.Render("first scan, size unknown"))
 	}
 	fmt.Fprintf(&b, "    %s  %s  %s\n", t.size.Render(engine.DecimalBytes(p.Bytes)),
 		t.muted.Render(fmt.Sprintf("%s files", groupDigits(p.Files))), t.faint.Render(p.Elapsed.Round(time.Second).String()))
@@ -1277,7 +1303,7 @@ func (m TuiModel) HelpView() string {
 		{"/", "command palette"},
 		{"?", "this help"},
 		{"r", "rescan the disk"},
-		{"esc", "stop a scan · close"},
+		{"esc", "stop a scan · close a page · back to the home screen"},
 		{"q, ctrl+c", "quit"},
 	}
 	for _, k := range keys {
@@ -1337,4 +1363,15 @@ func cleanData(d *TuiData) *TuiData {
 	c := TuiData{Res: display(d.Res), space: display(d.space), Dev: display(d.Dev), Projects: display(d.Projects),
 		Slow: display(d.Slow), Trend: display(d.Trend), trendMsg: display(d.trendMsg), PlanOps: &raw}
 	return &c
+}
+
+// sweep is a position in [0,1] that moves back and forth with time, for a bar
+// whose total is unknown.
+func sweep(elapsed time.Duration) float64 {
+	const period = 3 * time.Second
+	x := float64(elapsed%period) / float64(period) // 0..1
+	if x > 0.5 {
+		x = 1 - x
+	}
+	return 2 * x
 }

@@ -877,7 +877,7 @@ func TestR1DetectorSideEffectsHeld(t *testing.T) {
 		}
 		for _, r := range c.Recipes {
 			d, _ := recipes.Lookup(r.Detector)
-			_, _ = d(context.Background(), recipes.Env{Home: home, Nodes: nodes, Runner: runner, Now: w2Now, AppDirs: []string{home + "/Applications"}, AppsFolder: home + "/Applications"}, r)
+			_, _ = d(context.Background(), recipes.Env{Home: home, Nodes: nodes, Runner: runner, Now: w2Now, AppDirs: []string{home + "/Applications"}, AppsFolder: home + "/Applications", SystemBase: home + "/sysbase"}, r)
 		}
 		for _, call := range runner.Calls {
 			k := platform.Key(call)

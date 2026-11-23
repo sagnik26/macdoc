@@ -9,6 +9,8 @@ type ActionKind string
 const (
 	Native     ActionKind = "native"     // run the tool's own command
 	Quarantine ActionKind = "quarantine" // move the folder into macdoc's quarantine
+	Sweep      ActionKind = "sweep"      // delete the .DS_Store files below a folder (ADR 0014)
+	System     ActionKind = "system"     // remove a system item with administrator rights (ADR 0014)
 )
 
 // Action is one step of a plan, in the order apply performs them. The
@@ -18,7 +20,7 @@ type Action struct {
 	Item   model.PlanItem
 	Kind   ActionKind
 	Argv   []string // Native
-	Target string   // Quarantine
+	Target string   // Quarantine, Sweep
 }
 
 // Actions lists a plan's steps in plan order.
@@ -30,6 +32,10 @@ func Actions(p model.Plan) []Action {
 			out = append(out, Action{Item: it, Kind: Native, Argv: append([]string(nil), it.Argv...)})
 		case model.MethodQuarantine:
 			out = append(out, Action{Item: it, Kind: Quarantine, Target: it.Target})
+		case model.MethodSweep:
+			out = append(out, Action{Item: it, Kind: Sweep, Target: it.Target})
+		case model.MethodSystem:
+			out = append(out, Action{Item: it, Kind: System, Target: it.Target})
 		}
 	}
 	return out
@@ -40,6 +46,8 @@ func Actions(p model.Plan) []Action {
 type Performer interface {
 	RunNative(item model.PlanItem, argv []string) error
 	Quarantine(item model.PlanItem, target string) error
+	Sweep(item model.PlanItem, root string) error
+	System(item model.PlanItem, target string) error
 }
 
 // Result is the outcome of one action.
@@ -60,6 +68,10 @@ func Perform(plan model.Plan, p Performer) []Result {
 			err = p.RunNative(a.Item, a.Argv)
 		case Quarantine:
 			err = p.Quarantine(a.Item, a.Target)
+		case Sweep:
+			err = p.Sweep(a.Item, a.Target)
+		case System:
+			err = p.System(a.Item, a.Target)
 		}
 		out[i] = Result{Action: a, Err: err}
 	}

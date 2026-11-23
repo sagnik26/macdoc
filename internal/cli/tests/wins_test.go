@@ -65,6 +65,10 @@ func cliFixture(t *testing.T) (home string) {
 			t.Fatal(err)
 		}
 	}
+	// reclaim always rescans; point that at an empty tree, never the real disk.
+	oldRoot := cli.ScanRoot
+	cli.ScanRoot = t.TempDir()
+	t.Cleanup(func() { cli.ScanRoot = oldRoot })
 	st, err := store.Open(store.DefaultPath(home))
 	if err != nil {
 		t.Fatal(err)
@@ -151,11 +155,11 @@ func TestWinsCommand(t *testing.T) {
 		"npm cache", "re-downloads on demand", "→ npm cache clean --force",
 		" Worth considering ─", "15.0 GB",
 		"5 × Stale node_modules folder · 15.0 GB", "(macdoc reclaim --all)",
-		" Your call (advice only) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
+		" Do it yourself (macdoc can't clean these) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
 		" macdoc apply <id…> (shows the plan, then asks you to confirm) · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
-		strings.Index(out, "Worth considering") > strings.Index(out, "Your call") {
+		strings.Index(out, "Worth considering") > strings.Index(out, "Do it yourself") {
 		t.Error("sections out of order")
 	}
 	if strings.Contains(out, "Needs care") {
@@ -181,7 +185,7 @@ func TestWinsCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out, "Free & safe") || !strings.Contains(out, "Your call") {
+	if strings.Contains(out, "Free & safe") || !strings.Contains(out, "Do it yourself") {
 		t.Errorf("--tier advise:\n%s", out)
 	}
 	out, err = run(t, "reclaim", "--tier", "risky")

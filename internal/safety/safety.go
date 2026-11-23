@@ -54,6 +54,8 @@ type Policy struct {
 	ExtraProtected []string // canonical extra protected paths
 
 	appsComps  []string        // folded Components of /Applications (a test can move it)
+	sysBase    []string        // folded Components the named system locations are under: none in production (a test can move them)
+	sysAnyUser bool            // a test: a system target need not be owned by root
 	homeComps  []string        // folded Components of home
 	containers []protectedRoot // home/Library/Containers, lexical and resolved
 	roots      []protectedRoot // system, home-relative and extra roots

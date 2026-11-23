@@ -144,6 +144,7 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 | `app.container_caches` | `~/Library/Containers/<bundle-id>/Data/Library/Caches` of sandboxed non-Apple apps, 50 MB or more. Only that folder, never the rest of the container (`container_caches` detector; `catalog/containers.yaml`) | CAUTION | Q | none (quit the app first) | Regenerated |
 | `user.logs` | `~/Library/Logs/**` older than 30d, > 100 MB total | SAFE | Q | none | n/a |
 | `user.trash` | Each item in `~/.Trash`, any size (under 1 MB with `--small`) | CAUTION | Q (moved into macdoc's quarantine first) | none | Restorable from quarantine until it expires, then gone |
+| `system.ds_store` | Finder `.DS_Store` files, one item per folder directly in home (not hidden, not `Library`); never inside `.git`, `node_modules`, `.Trash`, photo or music libraries or a folder you protected. Method `sweep`: deleted at once with no quarantine copy, exact file name only (ADR 0014 §4) | CAUTION | S (sweep) | none | Finder writes them again; only that folder's view settings reset |
 | `user.downloads_large_old` | `~/Downloads` installers and archives of at least 20 MB (`.dmg .pkg .mpkg .iso .xip` at any size, other archives from 100 MB) not changed in 30 days | CAUTION | Q | none | Re-download if available |
 | `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
@@ -162,19 +163,19 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 
 `no_installed_app` runs right before the move. It fails if the folder's bundle ID is owned by an installed app now, or if the list can't be read, so the item is skipped and audited.
 
-## 2b. What `reclaim` does not do, and the rule behind each
+## 2b. What `reclaim` does beyond a person's own files (ADR 0014)
 
-`mo clean` cleans some things `macdoc reclaim` does not. Each is held back by a rule, not forgotten:
+`mo clean` also cleans system locations, sweeps `.DS_Store` files and runs without a prompt. `reclaim` does each under named limits, recorded in [ADR 0014](docs/adr/0014-reclaim-system-cleanup.md); the rules elsewhere are unchanged:
 
-| Not done | Rule that stops it |
-|---|---|
-| System caches and logs (`/Library/Caches`, `/private/var/log`) | Protected paths (`docs/SAFETY_MODEL.md` §3: `/Library`, `/private`, everything outside `$HOME`) and ADR 0009 (administrator rights only for three fixed commands that take no path) |
-| Orphaned LaunchDaemons and helper tools | The same two rules (`/Library/LaunchDaemons`, `/Library/PrivilegedHelperTools`) |
-| Deleting interrupted Time Machine backups | ADR 0009: `tmutil delete` needs a path and administrator rights; the recipe is advice only |
-| `.DS_Store` files | The recipe lint rejects a pattern that overlaps protected folders such as Documents and Desktop, where Finder writes most of them |
-| A `--yes` flag | ADR 0001: only a person at a real terminal approves a removal |
+| What | Recipe | How it is bounded |
+|---|---|---|
+| `.DS_Store` files | `system.ds_store` (CAUTION, method `sweep`) | exact file name, folders directly in home only, never Library, hidden folders, `.git`, `node_modules`, media libraries or what you protected |
+| System caches and logs | `system.library_caches`, `system.library_logs`, `system.var_logs` (CAUTION, method `system`) | one item below `/Library/Caches`, `/Library/Logs` or `/private/var/log`, root-owned, not a symlink, never `com.apple.*` (caches); idle 30 days |
+| Orphaned LaunchDaemons and helpers | `system.launch_daemons`, `system.helper_tools` (RISKY, method `system`) | one file in `/Library/LaunchDaemons` (its program gone) or `/Library/PrivilegedHelperTools` (no installed app owns it); never `com.apple.*` |
+| Interrupted Time Machine backups | `system.tm_incomplete` (RISKY, method `system`) | `tmutil delete` on one `.inProgress` folder under a destination's `Backups.backupdb` |
+| No prompt | `reclaim --tier safe\|caution --yes` | only SAFE and CAUTION quarantine moves; see [docs/CLI_UX.md](docs/CLI_UX.md) |
 
-Changing any of these is an owner decision recorded in a new ADR, not a recipe edit.
+Method `system` removals ask for the Mac password through `sudo` (only in `internal/executor/privileged.go`), need their own y/N each, are permanent (root-owned data can't be quarantined), and are never in a plan Claude proposed. The list of locations is code (`safety.CheckSystemTarget`), not recipe data; widening it needs a new ADR.
 
 ## 2a. Allowed native commands
 

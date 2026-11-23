@@ -54,6 +54,23 @@ func realPrivileged(ctx context.Context, argv []string, timeout time.Duration) (
 	if !recipes.ArgvIn(argv, recipes.PrivilegedArgvAllowed) {
 		return nil, -1, errors.New("command is not on the privileged allow-list")
 	}
+	return runSudo(ctx, argv, timeout)
+}
+
+// realSystem removes one system item with administrator rights (ADR 0014 §2).
+// The command must be exactly what recipes.SystemArgv builds for a path that
+// has one of the named layouts; everything else is refused here, whatever the
+// caller says. Like realPrivileged it needs a terminal and no sandbox.
+func realSystem(ctx context.Context, argv []string, timeout time.Duration) ([]byte, int, error) {
+	if !recipes.SystemArgvOK(argv) {
+		return nil, -1, errors.New("command is not a removal of a named system location")
+	}
+	return runSudo(ctx, argv, timeout)
+}
+
+// runSudo runs an argv that the caller has already checked against its own
+// allow-list through sudo, which asks for the password on the terminal.
+func runSudo(ctx context.Context, argv []string, timeout time.Duration) ([]byte, int, error) {
 	if _, active, _ := sandbox.Root(); active {
 		return nil, -1, errors.New("privileged commands don't run in sandbox mode")
 	}

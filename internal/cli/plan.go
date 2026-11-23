@@ -243,12 +243,22 @@ func writeAction(b *strings.Builder, t *Theme, a planner.Action, home string) {
 	case planner.Quarantine:
 		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(TildePath(home, a.Target)))
 		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Not undoable by macdoc: "+restoreDetail(it.Restore)))
+	case planner.System:
+		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(a.Target+" (administrator rights)"))
+		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("Permanent: root-owned data can't be quarantined. "+restoreDetail(it.Restore)))
+	case planner.Sweep:
+		fmt.Fprintf(b, "%s%s %s\n", indent, t.accent.Render("→ deletes"), t.text.Render(".DS_Store files in "+TildePath(home, a.Target)))
+		fmt.Fprintf(b, "%s%s\n", indent, t.muted.Render("No quarantine copy; "+restoreDetail(it.Restore)))
 	}
 	if it.RiskReason != "" {
 		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Risk raised: "+it.RiskReason))
 	}
 	if it.Privileged {
-		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Needs administrator rights: macOS asks for your password in Terminal. Runs: "+strings.Join(it.Argv, " ")))
+		runs := ""
+		if len(it.Argv) > 0 {
+			runs = " Runs: " + strings.Join(it.Argv, " ")
+		}
+		fmt.Fprintf(b, "%s%s\n", indent, t.warn.Render("Needs administrator rights: macOS asks for your password in Terminal."+runs))
 	}
 	if len(it.Preconditions) > 0 {
 		labels := make([]string, len(it.Preconditions))

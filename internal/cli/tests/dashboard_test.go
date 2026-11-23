@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/sagnik26/macdoc/internal/engine"
+	"github.com/sagnik26/macdoc/internal/executor"
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/planner"
 	"github.com/sagnik26/macdoc/internal/probe"
@@ -316,19 +318,12 @@ func TestTUIWelcomeScreen(t *testing.T) {
 }
 
 func TestTUIWelcomeActions(t *testing.T) {
-	// Enter on "scan" with an earlier scan asks fresh or last; enter keeps the
-	// last data and loads it without rescanning.
+	// Enter on "scan" always scans afresh, even with an earlier scan.
 	m, loads := newIntroTUI(t, 110, 45, cli.IntroStatus{HasScan: true, Age: "1h ago"})
-	m = step(t, m, keys("enter")...)
-	mustContain(t, m.View(), "Use the last scan", "taken 1h ago", "Scan again")
-	next, cmd := m.Update(keys("enter")[0])
-	m = next.(cli.TuiModel)
-	if m.Intro || !m.Loading || cmd == nil {
-		t.Fatal("enter should leave the welcome screen and load")
-	}
+	_, cmd := m.Update(keys("enter")[0])
 	runBatch(cmd)
-	if len(*loads) != 1 || (*loads)[0] {
-		t.Errorf("enter should load the latest scan, not rescan: %v", *loads)
+	if len(*loads) != 1 || !(*loads)[0] {
+		t.Errorf("enter should rescan: %v", *loads)
 	}
 
 	// With no scan yet, "scan" scans straight away.
@@ -385,16 +380,13 @@ func TestTUIReclaimRunsOnItsOwn(t *testing.T) {
 		t.Error("loading for /reclaim shows no tabs")
 	}
 	runBatch(cmd)
-	if len(*loads) != 1 || (*loads)[0] {
-		t.Errorf("it should read the latest scan, not rescan: %v", *loads)
+	if len(*loads) != 1 || !(*loads)[0] {
+		t.Errorf("reclaim never works from a stored scan, it should rescan: %v", *loads)
 	}
 	done := step(t, got, cli.LoadedMsg{Data: tuiFixture()})
-	mustContain(t, done.View(), "What do you want to clean?", "[x] SAFE")
-	if !done.Intro {
-		t.Error("the welcome screen should stay underneath")
+	if strings.Contains(done.View(), "What do you want to clean?") {
+		t.Error("after the scan /reclaim must not ask what to clean")
 	}
-	back := step(t, done, keys("esc")...)
-	mustContain(t, back.View(), "▶ scan")
 }
 
 // runBatch runs a command and the commands it batches (the engine load and
@@ -914,15 +906,10 @@ func TestTUIStandaloneCommandsNeedNoScan(t *testing.T) {
 	}
 }
 
-// /reclaim opens its own page. /help and /quit are not in the menu;
+// /help and /quit are not in the menu;
 // the footer shows them while typing, and typing them still works.
 func TestTUIReclaimAndHelpQuitInTheFooter(t *testing.T) {
 	m := loaded(t, 100, 40)
-	next, _ := m.RunCommand("/reclaim")
-	if got := next.(cli.TuiModel); got.Overlay == cli.OverlayNone || strings.Contains(got.View(), "1 Overview") {
-		t.Errorf("/reclaim should open its own page without tabs: overlay %d", got.Overlay)
-	}
-
 	typing := step(t, m, keys("/")...)
 	out := typing.View()
 	for _, c := range cli.SlashCommands {
@@ -932,7 +919,7 @@ func TestTUIReclaimAndHelpQuitInTheFooter(t *testing.T) {
 	}
 	mustContain(t, out, "/reclaim", "/help help", "/quit quit")
 
-	next, _ = m.RunCommand("/help")
+	next, _ := m.RunCommand("/help")
 	if next.(cli.TuiModel).Overlay == cli.OverlayNone {
 		t.Error("typing /help should still open the help")
 	}
@@ -956,54 +943,20 @@ func TestTUIOverviewIsNotInTheMenuButStillTypes(t *testing.T) {
 	}
 }
 
-// /scan asks whether to scan again or keep the last data, when there is a
-// last scan. f scans again, enter keeps the data, esc cancels.
-func TestTUIScanAsksFreshOrLast(t *testing.T) {
+// /scan always scans afresh, with or without an earlier scan, and leaves the
+// welcome screen.
+func TestTUIScanAlwaysScansFresh(t *testing.T) {
 	m := loaded(t, 100, 40)
 	next, cmd := m.RunCommand("/scan")
-	asked := next.(cli.TuiModel)
-	if cmd != nil || asked.Overlay == cli.OverlayNone || asked.Loading {
-		t.Fatalf("/scan should ask first: overlay %d loading %v", asked.Overlay, asked.Loading)
-	}
-	mustContain(t, asked.View(), "Use the last scan", "recommended", "Scan again")
-
-	fresh := step(t, asked, keys("f")...)
-	if !fresh.Loading || fresh.Overlay != cli.OverlayNone {
-		t.Errorf("f should start a fresh scan: loading %v overlay %d", fresh.Loading, fresh.Overlay)
-	}
-	keep := step(t, asked, keys("enter")...)
-	if keep.Loading || keep.Overlay != cli.OverlayNone || !strings.Contains(keep.Flash, "Using the last scan") {
-		t.Errorf("enter should keep the last data: loading %v overlay %d flash %q", keep.Loading, keep.Overlay, keep.Flash)
-	}
-	again := step(t, asked, keys("down", "enter")...)
-	if !again.Loading || again.Overlay != cli.OverlayNone {
-		t.Errorf("down then enter should scan again: loading %v overlay %d", again.Loading, again.Overlay)
-	}
-	cancel := step(t, asked, keys("esc")...)
-	if cancel.Loading || cancel.Overlay != cli.OverlayNone {
-		t.Error("esc should cancel without scanning")
-	}
-}
-
-// From the welcome screen the same choice appears when a scan exists, and
-// /scan scans straight away when there is nothing to reuse.
-func TestTUIScanChoiceFromTheWelcomeScreen(t *testing.T) {
-	m, _ := newIntroTUI(t, 110, 45, cli.IntroStatus{HasScan: true, Age: "3h ago", Bytes: 5_000_000_000})
-	next, _ := m.RunCommand("/scan")
-	asked := next.(cli.TuiModel)
-	if !asked.Intro || asked.Overlay == cli.OverlayNone || asked.Loading {
-		t.Fatalf("with a scan to reuse /scan should ask: intro %v overlay %d loading %v", asked.Intro, asked.Overlay, asked.Loading)
-	}
-	mustContain(t, asked.View(), "taken 3h ago")
-	keep := step(t, asked, keys("enter")...)
-	if keep.Intro || !keep.Loading {
-		t.Errorf("enter should open the dashboard on the last data: intro %v loading %v", keep.Intro, keep.Loading)
+	got := next.(cli.TuiModel)
+	if cmd == nil || !got.Loading || got.Overlay != cli.OverlayNone {
+		t.Fatalf("/scan should scan at once: overlay %d loading %v", got.Overlay, got.Loading)
 	}
 
-	none, _ := newIntroTUI(t, 110, 45, cli.IntroStatus{})
-	next, _ = none.RunCommand("/scan")
-	if got := next.(cli.TuiModel); got.Overlay != cli.OverlayNone || !got.Loading {
-		t.Errorf("with no earlier scan /scan should scan at once: overlay %d loading %v", got.Overlay, got.Loading)
+	w, _ := newIntroTUI(t, 110, 45, cli.IntroStatus{HasScan: true, Age: "3h ago", Bytes: 5_000_000_000})
+	next, _ = w.RunCommand("/scan")
+	if g := next.(cli.TuiModel); g.Intro || !g.Loading || g.Overlay != cli.OverlayNone {
+		t.Errorf("/scan from the welcome screen: intro %v overlay %d loading %v", g.Intro, g.Overlay, g.Loading)
 	}
 }
 
@@ -1018,122 +971,78 @@ func reclaimModel(t *testing.T) cli.TuiModel {
 	return m
 }
 
-// /reclaim in the dashboard opens a page with the same
-// "What do you want to clean?" checkbox list as `macdoc reclaim`.
-func TestTUIReclaimOpensTheCheckboxList(t *testing.T) {
-	m := reclaimModel(t)
+// reclaimRun runs /reclaim the way the dashboard does: it rescans, then, once
+// the scan has loaded, seals a plan and starts removing with no question. It
+// returns the model while the removal runs and the selector the plan was made
+// from.
+func reclaimRun(t *testing.T, m cli.TuiModel) (cli.TuiModel, planner.Selector, tea.Cmd) {
+	t.Helper()
+	var sel planner.Selector
+	m.Deps.MakePlan = func(_ *cli.TuiDeps, s planner.Selector, _ *engine.OpportunityResult) (engine.PlanResult, error) {
+		sel = s
+		res := samplePlan()
+		res.Plan.Items = []model.PlanItem{
+			{OpportunityID: "O-a", Title: "Old logs", ExpectedBytes: 5, BytesSource: model.SourceMeasured, Risk: model.RiskSafe,
+				Method: model.MethodQuarantine, Target: "/Users/me/Library/Logs/X"},
+			{OpportunityID: "O-b", Title: "Homebrew old versions", ExpectedBytes: 4, BytesSource: model.SourceTool, Risk: model.RiskCaution,
+				Method: model.MethodNative, Argv: []string{"brew", "cleanup"}},
+		}
+		return res, nil
+	}
 	next, _ := m.RunCommand("/reclaim")
 	got := next.(cli.TuiModel)
-	if got.Overlay == cli.OverlayNone {
-		t.Fatalf("overlay %d; want the checkbox list", got.Overlay)
+	if !got.Loading {
+		t.Fatal("/reclaim should rescan first")
 	}
-	mustContain(t, got.View(), "Reclaim", "What do you want to clean?", "[x] SAFE", "[ ] CAUTION", "enter/space tick", "Clean 2 items")
-	if strings.Contains(got.View(), "1 Overview") {
-		t.Error("the reclaim page has no tabs")
+	next, cmd := got.Update(cli.LoadedMsg{Data: m.Data})
+	got = next.(cli.TuiModel)
+	if cmd == nil {
+		t.Fatal("after the scan /reclaim should start sealing a plan at once")
 	}
+	next, run := got.Update(cmd())
+	return next.(cli.TuiModel), sel, run
 }
 
-// Enter marks exactly the suggestions of the ticked risk types and starts the
-// removal (a plan is sealed, then the confirmation box asks again); advice-only
-// items are never marked, even with "a".
-func TestTUIReclaimEnterMarksOnlyTheTickedTypes(t *testing.T) {
-	count := func(m cli.TuiModel, want func(model.Opportunity) bool) int {
-		n := 0
-		for _, op := range m.Items() {
-			if want(op) {
-				n++
-			}
-		}
-		return n
+// After its scan, /reclaim asks nothing: no checkbox list, no confirmation. It
+// starts removing SAFE and CAUTION items (never RISKY, advice or an installed
+// app) and shows progress by category with a bar below.
+func TestTUIReclaimStartsRemovingWithoutAsking(t *testing.T) {
+	m := loaded(t, 110, 40)
+	got, sel, _ := reclaimRun(t, m)
+	if got.Overlay != cli.OverlayRemove {
+		t.Fatalf("the removal should be running: overlay %d", got.Overlay)
 	}
-	m := reclaimModel(t)
-	open, _ := m.RunCommand("/reclaim")
-	// Enter on a type only ticks or unticks it; the Clean button starts the removal.
-	onType, c0 := open.(cli.TuiModel).Update(keys("enter")[0])
-	if c0 != nil || onType.(cli.TuiModel).Planning || onType.(cli.TuiModel).Overlay == cli.OverlayNone {
-		t.Fatalf("enter on a type must not start anything")
+	out := got.View()
+	mustContain(t, out, "Reclaiming 2 items (SAFE and CAUTION)", "SAFE", "CAUTION", "esc")
+	if strings.Contains(out, "0 of 2") || strings.Contains(out, "█") {
+		t.Errorf("the removal must not draw a second progress bar:\n%s", out)
 	}
-	onType, _ = onType.(cli.TuiModel).Update(keys("enter")[0]) // SAFE is ticked again
-	atButton := step(t, onType.(cli.TuiModel), keys("down", "down", "down", "down")...)
-	started, cmd := atButton.Update(keys("enter")[0])
-	got := started.(cli.TuiModel)
-	if cmd == nil || !got.Planning || got.Overlay != cli.OverlayNone {
-		t.Fatalf("enter should close the list and start sealing: planning %v overlay %d", got.Planning, got.Overlay)
-	}
-	safe := count(got, func(op model.Opportunity) bool { return op.Risk == model.RiskSafe && op.Method != model.MethodAdvise })
-	if safe == 0 || len(got.Marked) != safe {
-		t.Errorf("marked %d, want the %d SAFE suggestions only", len(got.Marked), safe)
-	}
-}
-
-// Tick everything with a: CAUTION and RISKY are marked too, advice never.
-func TestTUIReclaimTickAllMarksNoAdvice(t *testing.T) {
-	m := reclaimModel(t)
-	all := step(t, func() cli.TuiModel { n, _ := m.RunCommand("/reclaim"); return n.(cli.TuiModel) }(), keys("a")...)
-	started, _ := step(t, all, keys("down", "down", "down", "down")...).Update(keys("enter")[0])
-	got := started.(cli.TuiModel)
-	for _, op := range got.Items() {
-		if got.Marked[op.ID] && (op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise) {
-			t.Errorf("advice-only item %s was marked", op.ID)
+	for _, gone := range []string{"What do you want to clean?", "Enter remove", "[x]", "Clean "} {
+		if strings.Contains(out, gone) {
+			t.Errorf("/reclaim must not ask anything, but shows %q", gone)
 		}
 	}
 	want := 0
-	for _, op := range got.Items() {
-		if op.Method != model.MethodAdvise {
+	for _, op := range m.Items() {
+		actionable := op.Method != model.MethodAdvise && (op.Risk == model.RiskSafe || op.Risk == model.RiskCaution)
+		if actionable {
 			want++
 		}
-	}
-	if len(got.Marked) != want {
-		t.Errorf("a then Clean marked %d, want all %d actionable", len(got.Marked), want)
-	}
-}
-
-// Esc closes the list without marking or planning anything, and the keys of
-// the list never end the dashboard.
-func TestTUIReclaimEscChangesNothing(t *testing.T) {
-	m := reclaimModel(t)
-	open, _ := m.RunCommand("/reclaim")
-	before := len(open.(cli.TuiModel).Marked) // the dashboard pre-marks SAFE items after a scan
-	closed, cmd := open.(cli.TuiModel).Update(keys("esc")[0])
-	got := closed.(cli.TuiModel)
-	if got.Overlay != cli.OverlayNone || len(got.Marked) != before || got.Planning {
-		t.Errorf("esc: overlay %d marked %d (was %d) planning %v", got.Overlay, len(got.Marked), before, got.Planning)
-	}
-	if cmd != nil && cmd() == tea.Quit() {
-		t.Error("closing the list must not quit the dashboard")
-	}
-	// q cancels the list too, instead of quitting.
-	_, qcmd := open.(cli.TuiModel).Update(keys("q")[0])
-	if qcmd != nil && qcmd() == tea.Quit() {
-		t.Error("q in the list must cancel it, not quit macdoc")
-	}
-}
-
-// /reclaim shows the full table of every suggestion first, then the checkbox
-// list and its Clean button underneath, whatever is ticked.
-func TestTUIReclaimTableFirstThenList(t *testing.T) {
-	m := loaded(t, 110, 40)
-	next, _ := m.RunCommand("/reclaim")
-	m = next.(cli.TuiModel)
-	out := m.View()
-	mustContain(t, out, "What do you want to clean?", "Clean 2 items", "SAFE 25.2 GB", "Xcode DerivedData", "Docker build cache",
-		"Android system image", "Lost data", "│ Suggestion")
-	if strings.Index(out, "What do you want to clean?") < strings.Index(out, "Docker build cache") {
-		t.Error("the list should come after the table")
-	}
-	if strings.Contains(out, "1 Overview") {
-		t.Error("the reclaim page shows no tabs")
-	}
-
-	// Ticking and unticking changes the button, not the table.
-	m = step(t, m, keys("down", "down", " ")...)
-	mustContain(t, m.View(), "Clean 4 items", "Android system image", "Xcode DerivedData")
-	m = step(t, m, keys(" ", "up", "up", " ")...)
-	mustContain(t, m.View(), "Clean: nothing ticked", "Android system image", "Xcode DerivedData", "Lost data")
-	for _, gone := range []string{"preview, not ticked", "▶"} {
-		if strings.Contains(m.View(), gone) {
-			t.Errorf("the table has no previews or cursor, but shows %q", gone)
+		if op.Risk == model.RiskRisky && slices.Contains(sel.IDs, op.ID) {
+			t.Errorf("RISKY item %s must never be included", op.ID)
 		}
+	}
+	if len(sel.IDs) != want || want == 0 {
+		t.Errorf("selected %d items %v, want the %d SAFE and CAUTION ones", len(sel.IDs), sel.IDs, want)
+	}
+}
+
+// Esc stops a running /reclaim after the current item.
+func TestTUIReclaimEscStopsIt(t *testing.T) {
+	got, _, _ := reclaimRun(t, loaded(t, 110, 40))
+	got = step(t, got, keys("esc")...)
+	if got.Overlay != cli.OverlayRemove || !strings.Contains(got.Flash, "Stopping after the current item") {
+		t.Errorf("esc: overlay %d flash %q", got.Overlay, got.Flash)
 	}
 }
 
@@ -1195,19 +1104,175 @@ func TestTUIVitalsExplainsTheAlert(t *testing.T) {
 // keeps showing it.
 func TestTUIReclaimLeavesInstalledAppsToRetire(t *testing.T) {
 	m := loaded(t, 120, 40)
-	app := model.Opportunity{ID: "O-app001", RecipeID: "apps.system_bundle", Title: "Zoom app in /Applications", Risk: model.RiskRisky,
+	app := model.Opportunity{ID: "O-app001", RecipeID: "apps.system_bundle", Title: "Zoom app in /Applications", Risk: model.RiskCaution,
 		Method: model.MethodQuarantine, Bytes: model.Bytes{Value: 300_000_000, Source: model.SourceMeasured}}
-	left := model.Opportunity{ID: "O-app002", RecipeID: "apps.leftovers", Title: "Data left by Zoom", Risk: model.RiskCaution,
-		Method: model.MethodQuarantine, Bytes: model.Bytes{Value: 50_000_000, Source: model.SourceMeasured}}
-	ops := &m.Data.Res.Opportunities.Opportunities
-	*ops = append(*ops, app, left)
+	m.Data.Res.Opportunities.Opportunities = append(m.Data.Res.Opportunities.Opportunities, app)
 
-	next, _ := m.RunCommand("/reclaim")
-	out := next.(cli.TuiModel).View()
-	mustContain(t, out, "Data left by Zoom", "Android system image")
-	if strings.Contains(out, "Zoom app in /Applications") {
-		t.Error("an installed app must not be listed in reclaim")
+	_, sel, _ := reclaimRun(t, m)
+	if slices.Contains(sel.IDs, "O-app001") {
+		t.Error("an installed app must not be reclaimed")
 	}
 	scan := step(t, m, keys("tab")...)
 	mustContain(t, scan.View(), "Zoom app in /Applications")
+}
+
+// From the scan view, esc goes back to the welcome screen (and q still
+// quits). Esc first closes a suggestion's detail, as before.
+func TestTUIEscGoesHomeFromTheScanView(t *testing.T) {
+	m := loaded(t, 100, 40)
+	if m.Intro {
+		t.Fatal("the scan view should not be on the welcome screen")
+	}
+	home := step(t, m, keys("esc")...)
+	if !home.Intro || home.Overlay != cli.OverlayNone || home.Loading {
+		t.Errorf("esc should return to the welcome screen: intro %v overlay %d loading %v", home.Intro, home.Overlay, home.Loading)
+	}
+	mustContain(t, home.View(), "scan", "reclaim")
+
+	detail := step(t, m, keys("2", "e")...)
+	back := step(t, detail, keys("esc")...)
+	if back.Intro || back.Detail {
+		t.Errorf("esc in a detail should only close it: intro %v detail %v", back.Intro, back.Detail)
+	}
+}
+
+// The / palette offers the same commands on the welcome screen and in the scan
+// view: exactly cli.SlashCommands, nothing extra (no "explain <id>").
+func TestTUIPaletteIsTheSameEverywhere(t *testing.T) {
+	home, _ := newIntroTUI(t, 110, 45, cli.IntroStatus{})
+	for name, m := range map[string]cli.TuiModel{"welcome": home, "scan view": loaded(t, 110, 40)} {
+		v := step(t, m, keys("/")...).View()
+		for _, c := range cli.SlashCommands {
+			mustContain(t, v, c.Name)
+		}
+		if strings.Contains(v, "explain <") {
+			t.Errorf("%s palette lists an extra command:\n%s", name, v)
+		}
+	}
+}
+
+// Every scan shows a progress bar: with a percentage when an earlier scan gives
+// an expected size (even when started from the welcome screen), and a
+// sweeping bar marked "size unknown" on a first scan.
+func TestTUIScanAlwaysShowsAProgressBar(t *testing.T) {
+	scanning := func(st cli.IntroStatus) string {
+		m, _ := newIntroTUI(t, 110, 45, st)
+		next, _ := m.RunCommand("/scan")
+		m = next.(cli.TuiModel)
+		m = step(t, m, cli.StepMsg("scan"), cli.ProgressMsg{Bytes: 32_000_000_000, Files: 1000})
+		return m.View()
+	}
+	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "~25%")
+	mustContain(t, scanning(cli.IntroStatus{}), "first scan, size unknown")
+}
+
+// The / palette lists the same commands, in the same order, as the welcome
+// screen's menu, in the scan view too.
+func TestTUIPaletteMatchesTheWelcomeMenu(t *testing.T) {
+	home, _ := newIntroTUI(t, 110, 60, cli.IntroStatus{})
+	want := make([]string, 0, len(cli.SlashCommands))
+	for _, c := range cli.SlashCommands {
+		want = append(want, c.Name)
+	}
+	view := home.View()
+	last := -1
+	for _, name := range want {
+		i := strings.Index(view, name)
+		if i < 0 || i < last {
+			t.Fatalf("the welcome menu should list %q after the one before it:\n%s", name, view)
+		}
+		last = i
+	}
+	for label, m := range map[string]cli.TuiModel{"welcome": home, "scan view": loaded(t, 110, 60)} {
+		v := step(t, m, keys("/")...).View()
+		last = -1
+		for _, name := range want {
+			i := strings.Index(v, name)
+			if i < 0 || i < last {
+				t.Errorf("%s palette: %q missing or out of order:\n%s", label, name, v)
+			}
+			last = i
+		}
+	}
+}
+
+// The palette shows bare command names, exactly like the welcome menu: no
+// argument hints such as "[folder]" or "<id>".
+func TestTUIPaletteHasNoArgumentHints(t *testing.T) {
+	for _, c := range cli.SlashCommands {
+		v := step(t, loaded(t, 110, 60), keys("/")...).View()
+		if strings.ContainsAny(v, "[]<>") && (strings.Contains(v, c.Name+" [") || strings.Contains(v, c.Name+" <")) {
+			t.Errorf("/%s shows an argument hint:\n%s", c.Name, v)
+		}
+	}
+}
+
+// When /reclaim is done and RISKY items were left alone, it says how many and
+// offers to review them. d opens the normal removal box, where each RISKY item
+// needs its own ID typed: nothing RISKY is ever deleted without that.
+func TestTUIReclaimOffersTheRiskyItemsLeftAlone(t *testing.T) {
+	m := loaded(t, 120, 40)
+	risky := model.Opportunity{ID: "O-risk01", RecipeID: "x.leftovers", Title: "Old project data", Risk: model.RiskRisky,
+		Method: model.MethodQuarantine, Bytes: model.Bytes{Value: 2_000_000_000, Source: model.SourceMeasured}}
+	m.Data.Res.Opportunities.Opportunities = append(m.Data.Res.Opportunities.Opportunities, risky)
+	var removed []string
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, _ func(executor.Event)) (executor.Report, error) {
+		rep := executor.Report{PlanID: p.ID}
+		for _, it := range p.Items {
+			removed = append(removed, it.OpportunityID)
+			rep.Items = append(rep.Items, executor.ItemResult{Item: it, Outcome: executor.OutcomeDone, Deleted: true})
+		}
+		return rep, nil
+	}
+	got, sel, run := reclaimRun(t, m)
+	if slices.Contains(sel.IDs, "O-risk01") {
+		t.Fatal("RISKY must not be part of the automatic run")
+	}
+	got = feedBatch(t, got, run().(tea.BatchMsg))
+	if got.Overlay != cli.OverlayRemove {
+		t.Fatalf("the box should stay to offer the RISKY items: overlay %d", got.Overlay)
+	}
+	mustContain(t, got.View(), "RISKY item", "left alone", "Press d to review", "each one needs its ID typed")
+	if slices.Contains(removed, "O-risk01") {
+		t.Error("a RISKY item was removed without being asked")
+	}
+
+	// d opens the usual confirmation: the item is listed and its ID must be typed.
+	got.Deps.MakePlan = func(_ *cli.TuiDeps, s planner.Selector, _ *engine.OpportunityResult) (engine.PlanResult, error) {
+		res := samplePlan()
+		res.Plan.Items = []model.PlanItem{{OpportunityID: "O-risk01", Title: "Old project data", ExpectedBytes: 2_000_000_000,
+			BytesSource: model.SourceMeasured, Risk: model.RiskRisky, Method: model.MethodQuarantine, Target: "/Users/me/p"}}
+		return res, nil
+	}
+	next, cmd := got.Update(keys("d")[0])
+	review := step(t, next.(cli.TuiModel), cmd())
+	mustContain(t, review.View(), "Type O-risk01 and press Enter")
+	if slices.Contains(removed, "O-risk01") {
+		t.Error("d alone must not delete anything")
+	}
+}
+
+// With no RISKY items to offer, /reclaim closes by itself as before.
+func TestTUIReclaimSaysNothingWithoutRiskyItems(t *testing.T) {
+	m := loaded(t, 120, 40)
+	ops := m.Data.Res.Opportunities.Opportunities
+	kept := ops[:0:0]
+	for _, op := range ops {
+		if op.Risk != model.RiskRisky {
+			kept = append(kept, op)
+		}
+	}
+	m.Data.Res.Opportunities.Opportunities = kept
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, _ func(executor.Event)) (executor.Report, error) {
+		rep := executor.Report{PlanID: p.ID}
+		for _, it := range p.Items {
+			rep.Items = append(rep.Items, executor.ItemResult{Item: it, Outcome: executor.OutcomeDone, Deleted: true})
+		}
+		return rep, nil
+	}
+	got, _, run := reclaimRun(t, m)
+	got = feedBatch(t, got, run().(tea.BatchMsg))
+	if got.Overlay != cli.OverlayNone {
+		t.Errorf("nothing to offer, so the box should close: overlay %d", got.Overlay)
+	}
 }

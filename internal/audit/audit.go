@@ -47,10 +47,13 @@ type Record struct {
 	Method string   `json:"method,omitempty"`
 	Argv   []string `json:"argv,omitempty"`
 	// Privileged is true when the command ran with administrator rights.
-	Privileged bool   `json:"privileged,omitempty"`
-	Entry      string `json:"quarantine_id,omitempty"`
-	Items      int    `json:"items,omitempty"`
-	Expected   int64  `json:"expected_bytes,omitempty"`
+	Privileged bool `json:"privileged,omitempty"`
+	// NonInteractive is true when the run was started with reclaim --yes: no
+	// person confirmed it at the terminal (ADR 0014 §5).
+	NonInteractive bool   `json:"non_interactive,omitempty"`
+	Entry          string `json:"quarantine_id,omitempty"`
+	Items          int    `json:"items,omitempty"`
+	Expected       int64  `json:"expected_bytes,omitempty"`
 	// Actual is the measured change in free space (apply_finished), or
 	// the bytes moved or purged. Nil means it wasn't measured.
 	Actual *int64 `json:"actual_bytes,omitempty"`

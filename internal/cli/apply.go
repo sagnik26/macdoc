@@ -36,6 +36,9 @@ type ApplyDeps struct {
 	Now  func() time.Time
 	exec executor.Native // nil: the real one
 	Keep bool            // tests: leave moved items in quarantine instead of deleting them
+	// NonInteractive is set only by reclaim --yes: no terminal is needed and the
+	// executor does only SAFE and CAUTION quarantine moves (ADR 0014 §5).
+	NonInteractive bool
 }
 
 func newApplyCmd(g *GlobalFlags) *cobra.Command {
@@ -187,7 +190,7 @@ func runApply(cmd *cobra.Command, d ApplyDeps, arg string, confirm confirmFunc, 
 	if !planner.Valid(id) {
 		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K; see macdoc apply --list)", arg)
 	}
-	if !RealTTY(in, out) {
+	if !d.NonInteractive && !RealTTY(in, out) {
 		return errors.New("apply needs you at a Terminal to confirm; piped or redirected input isn't accepted")
 	}
 	cat, err := LoadCatalog()
@@ -230,7 +233,7 @@ func runApply(cmd *cobra.Command, d ApplyDeps, arg string, confirm confirmFunc, 
 	_, _ = fmt.Fprintln(out)
 	rep, err := executor.Apply(ctx, executor.Config{
 		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: cat, Runner: Runner, Exec: d.exec, Now: d.Now,
-		DeleteNow: !d.Keep,
+		DeleteNow: !d.Keep, NonInteractive: d.NonInteractive,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
 		OnItem:    func(ev executor.Event) { writeProgress(out, t, ev) },
 	}, res.Plan, approved)

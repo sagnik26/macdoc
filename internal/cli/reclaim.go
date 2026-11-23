@@ -12,7 +12,7 @@ import (
 // (ADR 0013).
 func newReclaimCmd(g *GlobalFlags) *cobra.Command {
 	wins, dev, space := newWinsCmd(g), newDevCmd(g), newStorageCmd(g)
-	var categories, toolchains, dryRun bool
+	var categories, toolchains, dryRun, yes bool
 	cmd := &cobra.Command{
 		Use:   "reclaim [toolchain]",
 		Short: "Show what can be cleaned, and clean the risk types you choose (at a terminal)",
@@ -31,7 +31,10 @@ cancels. SAFE starts ticked. (Without a raw terminal it asks you to type safe,
 caution or risky, or all.)
 RISKY items are still confirmed one by one, with the plan's code typed.
 ADVICE items are shown but can't be removed: macdoc has no action for them.
---tier caution skips the question and cleans only that tier on Enter. Piped,
+--tier caution skips the question and cleans only that tier on Enter.
+--tier safe|caution --yes cleans that tier with no prompt and no terminal, for scripts:
+it only moves items into quarantine (nothing that runs a command or needs a password),
+and records "non_interactive" in the audit log. It never cleans RISKY items. Piped,
 with --json or --quiet, or with --dry-run, it only lists.
 For specific items or a sealed plan use macdoc apply.`,
 		Args: cobra.MaximumNArgs(1),
@@ -41,6 +44,13 @@ For specific items or a sealed plan use macdoc apply.`,
 				return space.RunE(cmd, nil)
 			case toolchains:
 				return dev.RunE(cmd, nil)
+			}
+			if yes && !dryRun && !categories && !toolchains {
+				o, err := checkYes(cmd)
+				if err != nil {
+					return err
+				}
+				return cleanYes(cmd, g, o, args)
 			}
 			if canCleanOnEnter(cmd, g, dryRun) {
 				o, ok, err := cleanOptions(cmd, args)
@@ -57,6 +67,7 @@ For specific items or a sealed plan use macdoc apply.`,
 			return wins.RunE(cmd, nil)
 		},
 	}
+	cmd.Flags().BoolVar(&yes, "yes", false, "with --tier safe or caution: clean that tier with no prompt (quarantine moves only)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "only list what would be cleaned, even at a terminal")
 	cmd.Flags().BoolVar(&toolchains, "toolchains", false, "space per developer toolchain")
 	cmd.Flags().BoolVar(&categories, "categories", false, "space by category, with \"System Data\" decoded")

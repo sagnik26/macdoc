@@ -6,6 +6,7 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/cli"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -23,10 +24,29 @@ func press(t *testing.T, m cli.TuiModel, k string) cli.TuiModel {
 		m = next.(cli.TuiModel)
 		if cmd != nil {
 			if out := cmd(); out != nil {
-				if _, ok := out.(tea.BatchMsg); !ok {
+				if batch, ok := out.(tea.BatchMsg); ok {
+					m = feedBatch(t, m, batch)
+				} else {
 					m = step(t, m, out)
 				}
 			}
+		}
+	}
+	return m
+}
+
+// feedBatch runs a batch's commands and feeds their messages back, except the
+// spinner's timer, which only waits.
+func feedBatch(t *testing.T, m cli.TuiModel, batch tea.BatchMsg) cli.TuiModel {
+	t.Helper()
+	for _, c := range batch {
+		if c == nil {
+			continue
+		}
+		switch out := c().(type) {
+		case nil, spinner.TickMsg:
+		default:
+			m = step(t, m, out)
 		}
 	}
 	return m
@@ -188,4 +208,53 @@ func TestTUIRemoveCancelKeepsTheTicks(t *testing.T) {
 	if m.Marked[ops[0].ID] || !m.Marked[ops[1].ID] {
 		t.Errorf("only the removed item should lose its tick: %v", m.Marked)
 	}
+}
+
+// When an item can't be removed because something has to be quit first, the
+// confirmation box stays on screen with the reason in full; Enter then closes
+// it and the page's footer carries the summary.
+func TestTUIRemoveSkippedItemStaysOnTheScreen(t *testing.T) {
+	ops := loaded(t, 120, 40).Items()
+	m, _ := removeTUI(t, model.PlanItem{OpportunityID: ops[0].ID, Title: "Xcode caches", ExpectedBytes: 1, BytesSource: model.SourceMeasured,
+		Risk: model.RiskSafe, Method: model.MethodQuarantine, Target: "/Users/me/Library/Developer/Xcode/DerivedData"})
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, _ func(executor.Event)) (executor.Report, error) {
+		return executor.Report{PlanID: p.ID, Items: []executor.ItemResult{{Item: p.Items[0], Outcome: executor.OutcomeSkipped, Reason: "Xcode is open; quit it first"}}}, nil
+	}
+	m = press(t, m, "enter")
+	m = press(t, m, "enter")
+	if m.Overlay != cli.OverlayRemove {
+		t.Fatalf("the box should stay open, overlay %d", m.Overlay)
+	}
+	mustContain(t, m.View(), "Not removed", "Xcode is open; quit it first")
+	m = press(t, m, "enter")
+	if m.Overlay != cli.OverlayNone {
+		t.Fatalf("enter should close it, overlay %d", m.Overlay)
+	}
+	mustContain(t, m.Flash, "Removed 0 of 1")
+}
+
+// A running removal shows one category at a time: each risk type has a header
+// with how many of its items are done, the finished ones under it, a spinner on
+// the current one, and waiting categories marked as such.
+func TestTUIRemoveShowsEachCategoryStepByStep(t *testing.T) {
+	ops := loaded(t, 120, 40).Items()
+	safe := model.PlanItem{OpportunityID: ops[0].ID, Title: "Old logs", ExpectedBytes: 5, BytesSource: model.SourceMeasured,
+		Risk: model.RiskSafe, Method: model.MethodQuarantine, Target: "/Users/me/Library/Logs/X"}
+	caution := model.PlanItem{OpportunityID: ops[1].ID, Title: "Homebrew old versions", ExpectedBytes: 4, BytesSource: model.SourceTool,
+		Risk: model.RiskCaution, Method: model.MethodNative, Argv: []string{"brew", "cleanup"}}
+	m, _ := removeTUI(t, safe, caution)
+	m = press(t, m, "enter") // the confirmation box
+
+	m.Deps.SetSend(func(msg tea.Msg) { m = step(t, m, msg) })
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, onItem func(executor.Event)) (executor.Report, error) {
+		onItem(executor.Event{Item: safe})
+		onItem(executor.Event{Item: safe, Result: &executor.ItemResult{Item: safe, Outcome: executor.OutcomeDone, Deleted: true}})
+		onItem(executor.Event{Item: caution})
+		return executor.Report{PlanID: p.ID}, nil
+	}
+	next, cmd := m.Update(keys("enter")[0])
+	m = next.(cli.TuiModel)
+	feedBatch(t, m, cmd().(tea.BatchMsg)[:1]) // the removal work only, not the spinner tick
+	out := m.View()
+	mustContain(t, out, "SAFE", "done", "Old logs removed", "CAUTION", "0 of 1 done", "Removing Homebrew old versions")
 }

@@ -73,7 +73,7 @@ macdoc retire                    # Installed software and the data that belongs 
 macdoc refresh                   # Maintenance steps (flush DNS, free memory, reset Quick Look)
 macdoc explore [path]            # Visual disk explorer (--growth, --projects)
 macdoc vitals                    # Live system health dashboard (--memory: is memory slowing your Mac?)
-macdoc scan                      # Fresh scan or last data (it asks), then the full report; --fresh / --last skip the question
+macdoc scan                      # Scan the disk afresh, then the full report
 macdoc apply <id…>               # Seal a plan, review it, and carry it out after you confirm in Terminal
 
 # More: log, quarantine, config, schedule, mcp, completion, version
@@ -129,7 +129,7 @@ macdoc is only distributed through Homebrew, this repository and its [GitHub rel
 macdoc can remove files, so it validates paths, protects system and personal locations, and asks for confirmation at a real Terminal before anything is removed.
 
 - `retire`, `refresh`, `explore`, `vitals` and `scan` are read-only, and `reclaim` is read-only unless you choose risk types and press Enter at its prompt in a real Terminal (SAFE only by default; RISKY keeps apply's confirmations), and `apply --dry-run` only seals a plan: review it before you apply it. `apply` always shows the plan and asks you to confirm in Terminal
-- Plans and tools take suggestion IDs, never paths, and there is no `--yes`: only a person at the Terminal approves a removal
+- Plans and tools take suggestion IDs, never paths, and `macdoc apply` has no `--yes`: only a person at the Terminal approves a removal, except `macdoc reclaim --tier safe|caution --yes`, which only moves SAFE or CAUTION items into quarantine with no prompt and is marked `non_interactive` in the audit log (ADR 0014)
 - Every action comes from a fixed recipe catalog with exact command allow-lists: no shell, no `docker system prune`, no `--volumes`
 - Each item is checked again right before it is touched; anything that changed is skipped and recorded, never "fixed up"
 - Folders go to a private quarantine first and are deleted through the same checks; `macdoc quarantine restore` puts one back while it is there
@@ -146,6 +146,8 @@ macdoc runs without configuration. Settings can only make it stricter or change 
 - `macdoc config protect ~/work/client`: never suggest or remove anything in that folder
 - `macdoc config set plan_minutes 60`: keep plans valid longer (default 30)
 - `macdoc config hide <id>` stops listing a kind of suggestion for good (an `O-…` ID from the list, or a recipe ID like `user.trash`); `macdoc config unhide <recipe id>` brings it back. In the dashboard, `x` on a suggestion does the same. It only hides: it never adds or enables anything, and the list's notes say how many items are hidden.
+- `.DS_Store` files are suggested too, one item per folder in your home folder (CAUTION; shown once they add up to 1 MB, or with `macdoc reclaim --small`). They are deleted at once with no quarantine copy, only files with that exact name, and never inside Library, `.git`, `node_modules` or photo and music libraries (ADR 0014).
+- `macdoc reclaim` also offers a few system locations (old items in `/Library/Caches`, `/Library/Logs` and `/private/var/log`, orphaned LaunchDaemons and helper tools, interrupted Time Machine backups). These need your Mac password, are permanent, and each asks for its own y/N (ADR 0014).
 - `"excluded_recipes": ["maintenance.*"]` in the settings file does the same by hand, for a whole family with a trailing `.*`
 
 These environment variables adapt macdoc to slow disks or stalled network mounts; raise a timeout only when macdoc reports that a command timed out:
@@ -179,7 +181,7 @@ $ macdoc reclaim
   O-yzbseg    3.2 MB  Data left by com.example.chat (HTTPStorages)  The app isn't installed
                       4 × Background item whose program is gone
 
- Your call (advice only) ──────────────────────────────────────── 8.8 GB
+ Do it yourself (macdoc can't clean these) ──────────────────────────────────────── 8.8 GB
   O-okj5vt    8.8 GB  Leftover iOS simulator runtime downloads      Runtimes can be downloaded again
 
 $ macdoc apply --safe --dry-run

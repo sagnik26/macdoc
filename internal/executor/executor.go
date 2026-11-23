@@ -61,7 +61,16 @@ type Config struct {
 	// Priv runs a privileged command (ADR 0009). Nil means the real one,
 	// which asks the system for the password at the terminal and is refused
 	// in sandbox mode.
-	Priv          Native
+	Priv Native
+	// Sys removes one system item with administrator rights (ADR 0014). Nil
+	// means the real one, which is refused in sandbox mode and without a terminal.
+	Sys Native
+	// AppDirs is where installed apps are looked for when a detector is run
+	// again before an item is removed; nil means the usual folders. Tests set it.
+	AppDirs []string
+	// SystemBase is put in front of the system folders when a detector is run
+	// again before a system item is removed. Tests set it; production leaves it empty.
+	SystemBase    string
 	Now           func() time.Time
 	run           string        // this invocation's audit run ID
 	QuarantineTTL time.Duration // default quarantine.DefaultTTL
@@ -78,6 +87,10 @@ type Config struct {
 	// through the same checks as Purge, so the space is freed at once. If
 	// that purge is refused, the item stays restorable in quarantine.
 	DeleteNow bool
+	// NonInteractive marks a run started by reclaim --yes (ADR 0014 §5). Such
+	// a run does only SAFE and CAUTION quarantine moves from a plan a person
+	// made here; every other item is skipped, and each audit record says so.
+	NonInteractive bool
 
 	realExec bool // Exec is the real one
 }
@@ -99,7 +112,8 @@ type ItemResult struct {
 	Reason       string         `json:"reason,omitempty"`
 	QuarantineID string         `json:"quarantine_id,omitempty"`
 	MovedBytes   int64          `json:"moved_bytes,omitempty"` // into quarantine
-	Deleted      bool           `json:"deleted,omitempty"`     // its quarantine entry was purged (DeleteNow)
+	Deleted      bool           `json:"deleted,omitempty"`     // its quarantine entry was purged (DeleteNow), or a sweep removed its files
+	Files        int            `json:"files,omitempty"`       // a sweep: how many files it removed
 	ExitCode     *int           `json:"exit_code,omitempty"`
 }
 
@@ -224,6 +238,14 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 	if err != nil {
 		return rep, err
 	}
+	if cfg.SystemBase != "" {
+		// A test fixture standing in for /Library: only in sandbox mode, never
+		// against the real system folders.
+		if _, active, _ := sandbox.Root(); !active {
+			return rep, errors.New("executor: SystemBase is only for sandboxed tests")
+		}
+		pol.SetSystemBase(cfg.SystemBase)
+	}
 	// Settings can exclude a recipe after the plan was made; refuse before
 	// anything changes.
 	for _, it := range plan.Items {
@@ -258,7 +280,7 @@ func Apply(ctx context.Context, cfg Config, plan model.Plan, approved Approvals)
 		}
 	}
 	if err := cfg.audit(audit.Record{Event: audit.Started, Plan: plan.ID, Origin: string(plan.Origin),
-		Items: len(plan.Items), Expected: plan.TotalBytes}); err != nil {
+		Items: len(plan.Items), Expected: plan.TotalBytes, NonInteractive: cfg.NonInteractive}); err != nil {
 		// Without an audit trail nothing may change.
 		return rep, fmt.Errorf("couldn't write the audit log, nothing was changed: %w", err)
 	}
@@ -329,6 +351,9 @@ func (c *Config) defaults() error {
 	}
 	if c.Priv == nil {
 		c.Priv = realPrivileged
+	}
+	if c.Sys == nil {
+		c.Sys = realSystem
 	}
 	return nil
 }
