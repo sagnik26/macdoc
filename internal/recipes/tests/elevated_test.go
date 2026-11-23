@@ -162,7 +162,6 @@ func TestSystemLoaderRefusals(t *testing.T) {
 		"RISKY caches":   func(r *recipes.Recipe) { r.Risk = model.RiskRisky },
 		"allow list":     func(r *recipes.Recipe) { r.Allow = []string{"/Library/Caches/*"} },
 		"command":        func(r *recipes.Recipe) { r.Native = &recipes.Native{Argv: []string{"brew", "cleanup"}} },
-		"privileged":     func(r *recipes.Recipe) { r.Privileged = true },
 	} {
 		r := good
 		r.Params = map[string]string{"dir": "/Library/Caches", "kind": "caches"}

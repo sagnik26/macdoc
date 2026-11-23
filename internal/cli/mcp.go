@@ -15,7 +15,7 @@ import (
 func newMCPCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mcp",
-		Short: "Run the MCP server for Claude (read and propose plans only; it can't apply anything)",
+		Short: "Run the MCP server for Claude (it can read and suggest only; it can't plan, apply or delete)",
 		Long: `macdoc mcp runs macdoc's MCP server on stdin/stdout. Claude Code or Claude
 Desktop starts it; you don't run it yourself.
 
@@ -23,10 +23,9 @@ Desktop starts it; you don't run it yourself.
   Claude Desktop: in claude_desktop_config.json, under "mcpServers":
     "macdoc": {"command": "/full/path/to/macdoc", "args": ["mcp"]}
 
-Claude can read the diagnosis and propose plans. It can't apply a plan, delete,
-move or restore anything, pass a path, run a command or change settings. To
-carry out a plan Claude proposed, run the macdoc apply command it gives you in
-Terminal and confirm each item.`,
+Claude can read the diagnosis and suggest what to clean. It can't plan, apply,
+delete, move or restore anything, pass a path, run a command or change
+settings. To clean something, run macdoc reclaim in Terminal.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, err := UserHome()

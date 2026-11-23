@@ -35,8 +35,7 @@ ADVICE items are shown but can't be removed: macdoc has no action for them.
 --tier safe|caution --yes cleans that tier with no prompt and no terminal, for scripts:
 it only moves items into quarantine (nothing that runs a command or needs a password),
 and records "non_interactive" in the audit log. It never cleans RISKY items. Piped,
-with --json or --quiet, or with --dry-run, it only lists.
-For specific items or a sealed plan use macdoc apply.`,
+with --json or --quiet, or with --dry-run, it only lists.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch {

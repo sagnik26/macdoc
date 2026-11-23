@@ -256,15 +256,6 @@ func item(in Input, op model.Opportunity) (model.PlanItem, string) {
 			return item, op.Command[0] + " isn't installed any more"
 		}
 		item.Argv = append([]string(nil), op.Command...)
-		if r.Privileged {
-			if in.Origin == model.OriginClaude {
-				return item, ReasonPrivilegedFromClaude
-			}
-			if !recipes.ArgvIn(item.Argv, recipes.PrivilegedArgvAllowed) {
-				return item, "its command isn't on the privileged allow-list"
-			}
-			item.Privileged = true
-		}
 	case model.MethodQuarantine:
 		fp, reason := target(in.Policy, op.Target, r.Allow)
 		if reason != "" {

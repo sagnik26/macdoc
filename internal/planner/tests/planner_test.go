@@ -431,32 +431,6 @@ func (r *recorder) Sweep(it model.PlanItem, root string) error {
 	return nil
 }
 
-// A step that needs administrator rights is refused in a plan Claude proposed
-// and planned in one a person makes, flagged as privileged.
-func TestBuildPrivilegedSteps(t *testing.T) {
-	w := newWorld(t)
-	w.cat.Recipes = append(w.cat.Recipes, recipes.Recipe{ID: "maintenance.purge_memory", Risk: model.RiskCaution, Method: model.MethodNative,
-		Privileged: true, Native: &recipes.Native{Argv: []string{"purge"}}})
-	w.ops = append(w.ops, model.Opportunity{ID: "O-purgea", RecipeID: "maintenance.purge_memory", Title: "Free inactive memory",
-		Risk: model.RiskCaution, Method: model.MethodNative, Bytes: model.Bytes{Source: model.SourceUnknown}, Command: []string{"purge"}})
-
-	in := w.input()
-	plan, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
-	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Privileged || len(refused) != 0 {
-		t.Fatalf("a person's plan: items %+v refused %+v err %v", plan.Items, refused, err)
-	}
-	in.Origin = model.OriginClaude
-	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
-	if err == nil || len(refused) != 1 || refused[0].Reason != planner.ReasonPrivilegedFromClaude {
-		t.Errorf("Claude's plan: refused %+v err %v; want the privileged refusal", refused, err)
-	}
-	// Look-alike: an ordinary native step is still fine in Claude's plan.
-	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-brewaa"}})
-	if err != nil || len(refused) != 0 {
-		t.Errorf("an ordinary native step was refused for Claude: %+v %v", refused, err)
-	}
-}
-
 func TestBuildRefusesExcludedRecipes(t *testing.T) {
 	w := newWorld(t)
 	in := w.input()

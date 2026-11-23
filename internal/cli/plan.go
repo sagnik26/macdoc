@@ -8,12 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/planner"
-	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // preconditionText describes a precondition for the dry run.
@@ -39,7 +36,7 @@ func preconditionLabel(p string) string {
 	return p
 }
 
-// sealPlan seals a plan from the selection, as `macdoc apply --dry-run` does,
+// sealPlan seals a plan from the selection, as `macdoc reclaim` does,
 // and returns it with the home folder it was made for.
 func sealPlan(g *GlobalFlags, sel planner.Selector) (engine.PlanResult, string, error) {
 	home, err := UserHome()
@@ -62,91 +59,18 @@ func sealPlan(g *GlobalFlags, sel planner.Selector) (engine.PlanResult, string, 
 	return res, home, err
 }
 
-// showPlan prints a stored plan again, with its status (changes nothing).
-func showPlan(cmd *cobra.Command, g *GlobalFlags, id string) error {
-	home, err := UserHome()
-	if err != nil {
-		return err
-	}
-	cat, err := LoadCatalog()
-	if err != nil {
-		return err
-	}
-	res, err := engine.ShowPlan(context.Background(), engine.OpportunityOptions{Home: home, Runner: Runner, Catalog: cat}, strings.ToUpper(id))
-	if err != nil {
-		return err
-	}
-	if g.json {
-		return writeJSONWarn(cmd.OutOrStdout(), "apply show", res, res.Warnings)
-	}
-	return RenderPlan(cmd.OutOrStdout(), res, home, time.Now())
-}
-
-// listPlans prints the recent plans and their status (changes nothing).
-func listPlans(cmd *cobra.Command, g *GlobalFlags) error {
-	home, err := UserHome()
-	if err != nil {
-		return err
-	}
-	recs, err := engine.ListPlans(engine.OpportunityOptions{Home: home}, 20)
-	if err != nil {
-		return err
-	}
-	if g.json {
-		return writeJSON(cmd.OutOrStdout(), "apply list", recs)
-	}
-	return renderPlanList(cmd.OutOrStdout(), recs, time.Now())
-}
-
-// PlanSelector turns arguments and flags into exactly one selector.
-func PlanSelector(args []string, safe bool, tier, recipe string) (planner.Selector, error) {
-	n := 0
-	for _, set := range []bool{len(args) > 0, safe, tier != "", recipe != ""} {
-		if set {
-			n++
-		}
-	}
-	switch {
-	case n == 0:
-		return planner.Selector{}, errors.New(`say what to apply: suggestion IDs (macdoc apply O-ab12cd), --safe, --tier or --recipe`)
-	case n > 1:
-		return planner.Selector{}, errors.New("use one of: suggestion IDs, --safe, --tier, --recipe")
-	case len(args) > 0:
-		ids, err := planner.Parse(args)
-		return planner.Selector{IDs: ids}, err
-	case safe:
-		return planner.Selector{Tier: model.RiskSafe}, nil
-	case recipe != "":
-		return planner.Selector{Recipe: recipe}, nil
-	}
-	switch r := model.Risk(strings.ToUpper(tier)); r {
-	case model.RiskSafe, model.RiskCaution, model.RiskRisky:
-		return planner.Selector{Tier: r}, nil
-	case model.RiskAdvise:
-		return planner.Selector{}, errors.New("advice-only suggestions can't be planned: macdoc takes no action on them")
-	}
-	return planner.Selector{}, fmt.Errorf("unknown tier %q: use safe, caution or risky", tier)
-}
-
-// finishPlan renders a CreatePlan result, or explains why nothing was
-// planned.
-func finishPlan(w io.Writer, g *GlobalFlags, res engine.PlanResult, home string, err error) error {
+// finishPlan explains why nothing was planned, or returns nil to go on.
+func finishPlan(w io.Writer, res engine.PlanResult, err error) error {
 	switch {
 	case errors.Is(err, planner.ErrNothing):
-		if g.json {
-			_ = writeJSONWarn(w, "apply", res, res.Warnings)
-		} else {
-			var b strings.Builder
-			writeRefused(&b, themeFor(w), res.Refused)
-			_, _ = io.WriteString(w, b.String())
-		}
-		return errors.New("nothing to plan: none of the selected suggestions can be acted on")
+		var b strings.Builder
+		writeRefused(&b, themeFor(w), res.Refused)
+		_, _ = io.WriteString(w, b.String())
+		return errors.New("nothing to clean: none of the selected suggestions can be acted on")
 	case err != nil:
 		return err
-	case g.json:
-		return writeJSONWarn(w, "apply", res, res.Warnings)
 	}
-	return RenderPlan(w, res, home, time.Now())
+	return nil
 }
 
 // RenderPlan writes a sealed dry-run plan in the human format.
@@ -193,9 +117,6 @@ func RenderPlan(w io.Writer, res engine.PlanResult, home string, now time.Time) 
 	writeRefused(&b, t, res.Refused)
 	writeNotes(&b, t, res.Warnings)
 	b.WriteString(" " + t.done("Nothing has been changed.") + "\n")
-	if res.Status == planner.Pending {
-		fmt.Fprintf(&b, " %s %s %s\n", t.muted.Render("To apply it:"), t.Command([]string{"macdoc", "apply", p.ID}), t.muted.Render("· expires "+p.ExpiresAt.Local().Format("15:04")))
-	}
 	_, err := io.WriteString(w, b.String())
 	return err
 }
@@ -207,7 +128,7 @@ func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 	if left := p.ExpiresAt.Sub(now); left > 0 {
 		expiry = fmt.Sprintf("expires in %d min", int((left+time.Minute-1)/time.Minute))
 	}
-	origin := "made by you (macdoc apply " + p.Request + ")"
+	origin := "made by you (" + p.Request + ")"
 	if p.Origin == model.OriginClaude {
 		origin = "proposed by Claude " + ProposedAt(p.CreatedAt)
 	}
@@ -220,7 +141,7 @@ func planHeader(t *Theme, res engine.PlanResult, now time.Time) string {
 	}
 	switch res.Status {
 	case planner.Expired:
-		out += " " + t.warn.Render("This plan has expired. Make a new one with macdoc apply.") + "\n\n"
+		out += " " + t.warn.Render("This plan has expired. Run macdoc reclaim again.") + "\n\n"
 	case planner.Applied:
 		out += " " + t.muted.Render("This plan was already applied.") + "\n\n"
 	case planner.Invalid:
@@ -290,25 +211,4 @@ func writeRefused(b *strings.Builder, t *Theme, refused []planner.Refusal) {
 		fmt.Fprintf(b, "  %s %s\n", t.text.Render(name+":"), t.muted.Render(r.Reason))
 	}
 	b.WriteString("\n")
-}
-
-func renderPlanList(w io.Writer, recs []store.PlanRecord, now time.Time) error {
-	recs = display(recs) // disk-sourced text, cleaned for the terminal (display)
-	var b strings.Builder
-	t := themeFor(w)
-	if len(recs) == 0 {
-		b.WriteString(" No plans yet. Make one with macdoc apply --safe or macdoc apply <O-id>.\n")
-	}
-	for _, r := range recs {
-		status := string(r.Status)
-		st := t.Ok
-		if r.Status == store.PlanPending && !now.Before(r.ExpiresAt) {
-			status, st = "expired", t.muted
-		}
-		fmt.Fprintf(&b, "  %s  %s  %s  %s  %s\n", t.ID.Render(r.ID), st.Render(fmt.Sprintf("%-8s", status)),
-			t.size.Render(fmt.Sprintf("%9s", engine.DecimalBytes(r.TotalBytes))), t.muted.Render(fmt.Sprintf("%2d item(s)", r.Items)),
-			t.muted.Render("made "+engine.FormatAge(now.Sub(r.CreatedAt))+" by "+string(r.Origin)))
-	}
-	_, err := io.WriteString(w, b.String())
-	return err
 }

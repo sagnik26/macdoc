@@ -42,7 +42,7 @@ const (
 )
 
 // The tabs belong to the scan view only. Every other command (reclaim, apply,
-// vitals, explore, refresh, retire) opens its own page without them.
+// vitals, explore, retire) opens its own page without them.
 var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space"}
 
 // slashCommand is one entry of the / palette.
@@ -56,7 +56,6 @@ var SlashCommands = []slashCommand{
 	{"scan", "", "scan the disk again, then show the full report (esc stops a scan)"},
 	{"reclaim", "", "scan, then clean every SAFE and CAUTION item at once (esc stops it)"},
 	{"retire", "", "installed software, its data folders and cleanups"},
-	{"refresh", "", "maintenance steps you can apply, such as flushing DNS"},
 	{"explore", "", "where the space is, as a folder tree you can open"},
 	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
 }
@@ -86,11 +85,6 @@ type (
 	LoadedMsg struct {
 		Data *TuiData
 		Err  error
-	}
-	// PlanMsg carries a created plan, or the error that stopped planning.
-	PlanMsg struct {
-		Res engine.PlanResult
-		Err error
 	}
 )
 
@@ -128,10 +122,6 @@ type TuiDeps struct {
 	Software func(ctx context.Context, d *TuiDeps) (engine.SoftwareResult, error)
 	// Explore reads a folder of the latest scan for the explorer; nil uses the engine.
 	Explore func(ctx context.Context, d *TuiDeps, path string) (engine.ExploreResult, error)
-	// Maintenance lists the maintenance steps; nil uses the engine.
-	Maintenance func(ctx context.Context, d *TuiDeps) (engine.OpportunityResult, error)
-	// Plans lists the stored plans for /apply; nil uses the engine.
-	Plans func(d *TuiDeps) ([]store.PlanRecord, error)
 	// Status takes a live reading for /vitals; nil uses the engine.
 	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
 
@@ -168,7 +158,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Plan, Apply, Remove, Hide   key.Binding
+	Run, Complete, Cancel, Mark, Remove, Hide                key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -187,9 +177,7 @@ func newKeyMap() keyMap {
 		Complete: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")),
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
-		Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
 		Hide:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "hide this kind")),
-		Apply:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "apply (you confirm in Terminal)")),
 	}
 }
 
@@ -201,9 +189,7 @@ const (
 	overlayHelp
 	overlaySoftware
 	overlayExplore
-	overlayMaintenance
 	overlayVitals
-	OverlayPlan
 	OverlayRemove
 )
 
@@ -240,33 +226,28 @@ type TuiModel struct {
 	Marked   map[string]bool
 	span     *spanState // the range walk and its results, shared by copies
 	Planning bool
-	Plan     *engine.PlanResult
 	// software: the last inventory shown in the /retire overlay
 	software        *engine.SoftwareResult
 	softwareBusy    bool
 	softwareErr     error
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
-	softwareCursor  int                       // the highlighted row of the filtered list
-	softwareDetail  bool                      // the details of the highlighted program are open
-	explore         *engine.ExploreResult     // the folder shown in the explorer
-	reclaimAuto     bool                      // the removal being sealed is /reclaim's: it starts as soon as it is ready
-	maint           *engine.OpportunityResult // the maintenance steps shown in /refresh
-	maintCursor     int                       // the highlighted maintenance step
-	claude          []store.PlanRecord        // plans Claude proposed that can still be applied, newest first
-	treeRoot        *treeNode                 // the folder tree shown in /explore
-	treeCursor      int                       // the highlighted row of that tree
-	status          *engine.StatusResult      // the last live reading, shown by /vitals
-	statusBusy      bool                      // a live reading is running
-	statusWait      bool                      // a reading was just taken; the next waits for the tick
-	statusAt        time.Time                 // when the last reading finished
-	hist            vitalsHist                // the recent readings behind the arrows
-	vitalsWhy       bool                      // /vitals shows how it decides memory is slowing the Mac down
-	clockOn         bool                      // the once-a-second clock for "updated Ns ago" is running
-	reclaimFresh    bool                      // /reclaim's own rescan just finished
-	pending         string                    // a command waiting for the latest scan to load
-	sealForApply    bool                      // hand the plan being sealed to apply as soon as it exists
-	removing        *removeState              // the remove confirmation box, while open
+	softwareCursor  int                   // the highlighted row of the filtered list
+	softwareDetail  bool                  // the details of the highlighted program are open
+	explore         *engine.ExploreResult // the folder shown in the explorer
+	reclaimAuto     bool                  // the removal being sealed is /reclaim's: it starts as soon as it is ready
+	treeRoot        *treeNode             // the folder tree shown in /explore
+	treeCursor      int                   // the highlighted row of that tree
+	status          *engine.StatusResult  // the last live reading, shown by /vitals
+	statusBusy      bool                  // a live reading is running
+	statusWait      bool                  // a reading was just taken; the next waits for the tick
+	statusAt        time.Time             // when the last reading finished
+	hist            vitalsHist            // the recent readings behind the arrows
+	vitalsWhy       bool                  // /vitals shows how it decides memory is slowing the Mac down
+	clockOn         bool                  // the once-a-second clock for "updated Ns ago" is running
+	reclaimFresh    bool                  // /reclaim's own rescan just finished
+	pending         string                // a command waiting for the latest scan to load
+	removing        *removeState          // the remove confirmation box, while open
 
 	scroll  int
 	Overlay overlay
@@ -451,9 +432,6 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LoadedMsg:
 		return m.loaded(msg)
 
-	case PlanMsg:
-		return m.planned(msg)
-
 	case SoftwareMsg:
 		return m.softwareLoaded(msg)
 
@@ -466,9 +444,6 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusClockMsg:
 		return m.clockTick()
-
-	case AppliedMsg:
-		return m.applied(msg)
 
 	case removeReadyMsg:
 		return m.removeReady(msg)
@@ -504,7 +479,6 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 		clear(m.Marked) // IDs belong to a scan
 		m.span.reset()
 		m.preMarkSafe()
-		m.refreshClaudePlans()
 		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
 	case m.Stopping || errors.Is(msg.Err, context.Canceled):
 		if m.Data != nil {
@@ -585,11 +559,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.Overlay == overlayMaintenance {
-		if next, cmd, ok := m.maintenanceKey(k); ok {
-			return next, cmd
-		}
-	}
 	if m.Overlay == overlaySoftware {
 		if next, cmd, ok := m.softwareKey(k); ok {
 			return next, cmd
@@ -605,9 +574,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.Overlay != OverlayNone {
-		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
-			return m.startApply(m.Plan.Plan.ID)
-		}
 		switch k {
 		case "esc", "q", "?", "enter":
 			m.Overlay, m.scroll = OverlayNone, 0
@@ -665,15 +631,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Tab == TabSuggestions && !m.Detail {
 			return m.hideCurrent()
 		}
-	case "a":
-		if m.Tab == TabSuggestions && len(m.claude) > 0 {
-			return m.startApply(m.claude[0].ID)
-		}
-	case "p":
-		if m.Tab == TabSuggestions {
-			return m.startPlan(m.MarkedSelector())
-		}
-		m.Flash = "Plans are made on the Suggestions tab (2): mark items with space, then press p."
 	default:
 		if m.Tab == TabSuggestions && !m.Detail {
 			m.moveCursor(k)
@@ -816,37 +773,8 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 		}
 		m.Intro = false
 		return m, m.StartLoad(true)
-	case "plan":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /plan needs results."
-			return m, nil
-		}
-		switch r := model.Risk(strings.ToUpper(arg)); r {
-		case "":
-			return m.startPlan(m.MarkedSelector())
-		case model.RiskSafe, model.RiskCaution, model.RiskRisky:
-			return m.startPlan(&planner.Selector{Tier: r})
-		}
-		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
-	case "apply":
-		if arg != "" {
-			return m.startApply(arg)
-		}
-		// There is no plans page: the suggestions are where cleaning starts.
-		if m.Data == nil {
-			return m.loadThen(line)
-		}
-		m.Overlay, m.scroll = OverlayNone, 0
-		m.setTab(TabSuggestions)
-		m.Flash = "Press enter on a suggestion to clean it; you confirm before anything is removed."
-		if len(m.claude) > 0 {
-			m.Flash = "Claude's plan " + m.claude[0].ID + " is waiting: press a to review and apply it in Terminal."
-		}
-		return m, nil
 	case "explore":
 		return m.openExplore(arg)
-	case "refresh":
-		return m.openMaintenance()
 	case "retire":
 		if m.Data == nil {
 			return m.loadThen(line)
@@ -921,16 +849,12 @@ func (m TuiModel) View() string {
 		body = m.scrolled(m.HelpView())
 	case m.Overlay == overlayExplore:
 		body = m.scrolled(m.exploreBody())
-	case m.Overlay == overlayMaintenance:
-		body = m.scrolled(m.maintenanceBody())
 	case m.Overlay == overlayVitals:
 		body = m.scrolled(m.vitalsBody())
 	case m.Overlay == overlaySoftware && m.softwareDetail:
 		body = m.scrolled(m.softwareDetailView())
 	case m.Overlay == overlaySoftware:
 		body = m.scrolled(m.softwareTables())
-	case m.Overlay == OverlayPlan:
-		body = m.scrolled(m.planView())
 	case m.Overlay == OverlayRemove:
 		body = m.scrolled(m.removeView())
 	case m.Data == nil:
@@ -1007,9 +931,9 @@ func (m TuiModel) headerView() string {
 // the only one with tabs.
 func (m TuiModel) pageTitle() string {
 	titles := map[overlay]string{
-		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore", overlayMaintenance: "Refresh",
+		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore",
 		overlayVitals: "Vitals",
-		OverlayPlan:   "Plan", OverlayRemove: "Reclaim",
+		OverlayRemove: "Reclaim",
 	}
 	if t, ok := titles[m.Overlay]; ok {
 		return t
@@ -1058,18 +982,11 @@ func (m TuiModel) footerView() string {
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
 	case m.Overlay == OverlayRemove:
 		keys = nil
-	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
-		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
 	case m.Overlay == overlayExplore:
 		keys = []key.Binding{
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter/→", "open")),
 			key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "close")),
 			key.NewBinding(key.WithKeys("backspace"), key.WithHelp("backspace", "parent folder")),
-			m.keys.Move, m.keys.Back, m.keys.Quit,
-		}
-	case m.Overlay == overlayMaintenance:
-		keys = []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply this step")),
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
 	case m.Overlay == overlayVitals:
@@ -1255,20 +1172,13 @@ func (m TuiModel) listView(ops []model.Opportunity, w, h int) string {
 				t.size.Render(tierTotal(m.Data.Res.Opportunities.Totals[tier], tierOps)))
 		}
 	}
-	claude := m.claudeLine()
 	rowsFit := max(1, h-6) // blank, totals, table top border, header, header rule, bottom border
-	if claude != "" {
-		rowsFit = max(1, rowsFit-1)
-	}
 	start := max(0, min(m.Cursor-rowsFit/2, len(ops)-rowsFit))
 	end := min(len(ops), start+rowsFit)
 	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.Cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
 	if note := m.markedNote(); note != "" {
 		head += "   " + note
-	}
-	if claude != "" {
-		head += "\n" + claude
 	}
 	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w), " ")
 }

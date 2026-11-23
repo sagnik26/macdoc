@@ -18,4 +18,4 @@ A removal needs a person at a real terminal. `macdoc apply` refuses when stdin o
 
 ## Tests
 
-`internal/cli/tests.TestApplyNeedsATerminal`, `internal/cli/tests.TestApplyRiskyAsksPerItem`, `internal/mcp/tests.TestRedteamHeldPlanIsClaudeOrigin`, `internal/cli/tests.TestTUIRemoveEnterTwice`.
+`internal/cli/tests.TestApplyNeedsATerminal`, `internal/cli/tests.TestApplyRiskyAsksPerItem`, `internal/mcp/tests.TestToolList`, `internal/cli/tests.TestTUIRemoveEnterTwice`.

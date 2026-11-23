@@ -7,18 +7,16 @@ macdoc scans your Mac, shows where space and memory go, and suggests cleanups fr
 ## Commands
 
 Read-only (safe to run any time):
-- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]` (read-only without a terminal; at a real terminal it asks which risk types to clean (tick the boxes, then Enter on the Clean button; a typed answer of Enter alone is SAFE only; RISKY keeps apply's confirmations), which agents must never answer; it never offers an installed app, that is `retire`), `macdoc retire`, `macdoc refresh` (listing only), `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
+- `macdoc` (overview when piped), `macdoc scan`, `macdoc reclaim [toolchain] [--toolchains] [--categories]` (read-only without a terminal; at a real terminal it asks which risk types to clean (tick the boxes, then Enter on the Clean button; a typed answer of Enter alone is SAFE only; each RISKY item needs its ID typed), which agents must never answer; it never offers an installed app, that is `retire`), `macdoc retire`, `macdoc explore [path] [--growth] [--projects]`, `macdoc vitals [--memory]`, `macdoc log`
 - Every command supports `--json` (schemas in `schema/`).
 
-Plans and removal (Terminal, person only):
-- `macdoc apply --dry-run <O-ids>` seals a dry-run plan from opportunity IDs (never paths). It changes nothing.
-- `macdoc apply` remains for specific IDs, other tiers and sealed or Claude-proposed plans.
-- `macdoc apply <O-ids|--safe|--tier T|--recipe R|P-id>` seals a plan, shows the dry run and asks per item before removing. `apply` has no `--yes`; `macdoc reclaim --tier safe|caution --yes` cleans quarantine moves with no prompt, and agents must never run it. Agents must not run it, except with `--dry-run` on request.
+Removal (Terminal, person only):
+- There is no `macdoc apply`, `refresh` or plan command (ADR 0015). `macdoc reclaim` and the dashboard are how things get cleaned; `macdoc reclaim --tier safe|caution --yes` and the dashboard's `/reclaim` clean quarantine moves with no prompt, and agents must never run them.
 - `macdoc quarantine restore|purge` also belong to the person.
 
 ## MCP server
 
-`macdoc mcp` lets an AI assistant diagnose and propose plans. It cannot apply, delete, move, restore, accept a path or run a command. The person runs the returned `macdoc apply P-...` in Terminal.
+`macdoc mcp` lets an AI assistant diagnose and suggest what to clean. It has no plan or apply tool and cannot delete, move, restore, accept a path or run a command. The person cleans with `macdoc reclaim` in Terminal.
 
 ## Docs
 

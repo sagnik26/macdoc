@@ -156,7 +156,7 @@ func TestWinsCommand(t *testing.T) {
 		" Worth considering ─", "15.0 GB",
 		"5 × Stale node_modules folder · 15.0 GB", "(macdoc reclaim --all)",
 		" Do it yourself (macdoc can't clean these) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
-		" macdoc apply <id…> (shows the plan, then asks you to confirm) · nothing has been changed")
+		" macdoc reclaim (cleans what you choose, after you confirm) · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
 		strings.Index(out, "Worth considering") > strings.Index(out, "Do it yourself") {
@@ -168,8 +168,8 @@ func TestWinsCommand(t *testing.T) {
 	if strings.Contains(out, "_cacache") || strings.Contains(out, "0 B") {
 		t.Error("single item got an instance suffix, or unknown shown as 0")
 	}
-	if !strings.Contains(out, "macdoc apply <id…>") {
-		t.Error("reclaim should point to apply, which asks before anything changes")
+	if !strings.Contains(out, "macdoc reclaim (cleans what you choose") {
+		t.Error("the list should point to reclaim, which asks before anything changes")
 	}
 
 	out, err = run(t, "reclaim", "--all")
@@ -331,7 +331,7 @@ func TestRenderWins(t *testing.T) {
 		" Needs care ─", "8.4 GB + unknown", "re-download ~1.2 GB", "—  ",
 		"can't be restored",
 		" Notes\n  · results are from a scan 9 hours old",
-		" macdoc apply <id…> (shows the plan, then asks you to confirm) · nothing has been changed")
+		" macdoc reclaim (cleans what you choose, after you confirm) · nothing has been changed")
 
 	buf.Reset()
 	empty := engine.OpportunityResult{Scan: model.ScanInfo{ID: "S-X"}, ScanAge: "just now"}

@@ -122,7 +122,7 @@ func filterTier(res engine.OpportunityResult, r model.Risk) engine.OpportunityRe
 // RenderWins writes the suggestions in the human format; all lists repeated
 // items individually and only restricts the output to one tier.
 func RenderWins(w io.Writer, res engine.OpportunityResult, cat *recipes.Catalog, all bool, only model.Risk) error {
-	return renderWinsList(w, res, cat, all, only, "macdoc apply <id…> (shows the plan, then asks you to confirm)")
+	return renderWinsList(w, res, cat, all, only, "macdoc reclaim (cleans what you choose, after you confirm)")
 }
 
 // renderWinsList is RenderWins with the footer as a parameter ("" for none),

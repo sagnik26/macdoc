@@ -13,8 +13,8 @@ import (
 func privPlan() model.Plan {
 	return model.Plan{ID: "P-ABCD", Origin: model.OriginCLI, Items: []model.PlanItem{
 		{OpportunityID: "O-safeaa", Title: "Quick Look", Risk: model.RiskSafe, Method: model.MethodNative, BytesSource: model.SourceUnknown},
-		{OpportunityID: "O-privaa", Title: "Flush the DNS cache", Risk: model.RiskCaution, Method: model.MethodNative,
-			BytesSource: model.SourceUnknown, Privileged: true, Argv: []string{"dscacheutil", "-flushcache"}},
+		{OpportunityID: "O-privaa", Title: "Orphaned helper tool", Risk: model.RiskCaution, Method: model.MethodSystem,
+			BytesSource: model.SourceMeasured, Privileged: true, Target: "/Library/PrivilegedHelperTools/com.gone.helper"},
 	}}
 }
 

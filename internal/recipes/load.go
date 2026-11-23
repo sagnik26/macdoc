@@ -115,16 +115,6 @@ var NativeArgvAllowed = [][]string{
 	{"launchctl", "remove", Placeholder},
 }
 
-// PrivilegedArgvAllowed is the exact allow-list of commands that may run with
-// administrator rights (ADR 0009). Each is a maintenance command that only
-// refreshes a cache and takes no path or argument from outside. A recipe
-// marked privileged must use exactly one of these, and no other recipe may.
-var PrivilegedArgvAllowed = [][]string{
-	{"dscacheutil", "-flushcache"},
-	{"killall", "-HUP", "mDNSResponder"},
-	{"purge"},
-}
-
 // DryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
 // run these during scan and wins, so each must be the tool's own read-only
 // dry run. None takes "{id}".
@@ -297,8 +287,8 @@ func sweep(p *problems, r Recipe) {
 	if r.Risk != model.RiskCaution {
 		p.add("sweep recipes must be CAUTION")
 	}
-	if r.Native != nil || len(r.Allow) != 0 || r.Privileged {
-		p.add("sweep recipes must not have native, allow or privileged")
+	if r.Native != nil || len(r.Allow) != 0 {
+		p.add("sweep recipes must not have native or allow")
 	}
 }
 
@@ -329,8 +319,8 @@ func system(p *problems, r Recipe) {
 	case r.Risk != shape.risk:
 		p.add("system recipes of kind %s must be %s", r.Params["kind"], shape.risk)
 	}
-	if r.Native != nil || len(r.Allow) != 0 || r.Privileged {
-		p.add("system recipes must not have native, allow or privileged")
+	if r.Native != nil || len(r.Allow) != 0 {
+		p.add("system recipes must not have native or allow")
 	}
 }
 
@@ -409,10 +399,6 @@ func argvs(p *problems, r Recipe) {
 	if r.Native == nil {
 		return
 	}
-	if r.Privileged {
-		privilegedArgv(p, r)
-		return
-	}
 	for _, argv := range [][]string{r.Native.Argv, r.Native.DryRunArgv} {
 		if err := lintArgv(argv); err != nil {
 			p.add("native argv %q: %v", argv, err)
@@ -423,23 +409,6 @@ func argvs(p *problems, r Recipe) {
 	}
 	if len(r.Native.DryRunArgv) > 0 && !ArgvIn(r.Native.DryRunArgv, DryRunArgvAllowed) {
 		p.add("native dry_run_argv %q: dry-run argv not in the allow-list", r.Native.DryRunArgv)
-	}
-}
-
-// privilegedArgv pins a privileged recipe to the exact allow-list: no
-// placeholder, no dry-run argv, nothing but a listed command.
-func privilegedArgv(p *problems, r Recipe) {
-	if r.Method != model.MethodNative {
-		p.add("a privileged recipe must use method native")
-	}
-	if !ArgvIn(r.Native.Argv, PrivilegedArgvAllowed) {
-		p.add("privileged argv %q is not in the privileged allow-list", r.Native.Argv)
-	}
-	if len(r.Native.DryRunArgv) > 0 {
-		p.add("a privileged recipe must not have a dry_run_argv")
-	}
-	if r.Risk == model.RiskSafe {
-		p.add("a privileged recipe must be CAUTION or higher")
 	}
 }
 

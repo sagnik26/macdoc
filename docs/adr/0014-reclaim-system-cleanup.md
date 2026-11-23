@@ -1,6 +1,6 @@
 # 0014: `reclaim` may clean system locations, sweep `.DS_Store` and run with `--yes`, under named limits
 
-**Status:** Accepted (owner decision, 2026-11-18). **Implemented: all five clauses.** It supersedes ADR 0009, `AGENTS.md` rules 3, 4 and 6, and `docs/SAFETY_MODEL.md` §3 only for items `macdoc reclaim` offers; every other command keeps the old rules. Each numbered clause stands alone, so the owner can accept, change or drop any one of them.
+**Status:** Accepted (owner decision, 2026-11-18). **Implemented: all five clauses.** It took over the sudo rules of ADR 0009 (retired by [ADR 0015](0015-no-refresh-plan-apply-mcp-plans.md)) and supersedes `AGENTS.md` rules 3, 4 and 6, and `docs/SAFETY_MODEL.md` §3 only for items `macdoc reclaim` offers; every other command keeps the old rules. Each numbered clause stands alone, so the owner can accept, change or drop any one of them.
 
 ## Context
 
@@ -53,6 +53,15 @@ As built: the recipe is `system.ds_store` (`catalog/dsstore.yaml`), CAUTION, met
 `--yes` needs an explicit `--tier`; a bare `--yes` does nothing. It cleans only SAFE and CAUTION, non-privileged, quarantine-method items. RISKY, root, `.DS_Store`, advice items and plans Claude proposed never run with `--yes`. It is refused while another macdoc operation runs, works only against the sandbox when the sandbox is on, and `macdoc apply` gets no `--yes`. Audit records carry `non_interactive: true`. This amends ADR 0001 for `reclaim` only.
 
 **Dashboard `/reclaim` (2026-11-24, the owner's decision).** In the dashboard, `/reclaim` has no checkbox list and no confirmation box. When its own fresh scan finishes it marks every SAFE and CAUTION suggestion (never RISKY, advice or an installed app), seals a plan from those IDs and runs it through the executor at once, with progress by category. `esc` cancels the run's context, so the remaining items are skipped as interrupted. The same limits as `--yes` hold: SAFE and CAUTION only, quarantine-restorable, every item re-validated before it is acted on, audited. The person's approval is typing `/reclaim` (or choosing it) in a real terminal; no agent or script can start it, because it exists only inside the interactive dashboard and the executor still refuses without a real TTY. RISKY items are never part of that run; when it ends the screen counts them and offers `d`, which opens the ordinary removal box with its typed-ID confirmation for every RISKY item.
+
+## Rules carried over from ADR 0009 (retired by ADR 0015)
+
+Every use of `sudo` in macdoc is the `system` method above, and it keeps the rules ADR 0009 set for administrator rights:
+
+1. Only `internal/executor/privileged.go` runs `sudo`: `/usr/bin/sudo -- <tool>`, where the tool is a system path in `/usr/bin`, `/usr/sbin`, `/bin` or `/sbin`. `tools/forbidcheck` fails the build if any other file names `sudo` or a shell.
+2. It refuses unless stdin and stdout are a terminal and the sandbox is off. `sudo` asks for the password itself: macdoc never reads, stores or logs it, never uses `sudo -S`, and runs `sudo -k` afterwards.
+3. A privileged item is never in a plan Claude proposed (the planner refuses it, the executor skips it too), and each one needs its own y/N, like a RISKY item. `PlanItem.Privileged` is part of the sealed plan, and audit records carry `privileged: true`.
+4. An agent working in this repository must never run a privileged item or any `sudo` on the owner's machine.
 
 ## What this gives up
 

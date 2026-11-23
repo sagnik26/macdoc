@@ -106,7 +106,6 @@ func TestSweepLoaderRefusals(t *testing.T) {
 		"RISKY":          func(r *recipes.Recipe) { r.Risk = model.RiskRisky },
 		"allow list":     func(r *recipes.Recipe) { r.Allow = []string{"~/Documents/*"} },
 		"command":        func(r *recipes.Recipe) { r.Native = &recipes.Native{Argv: []string{"brew", "cleanup"}} },
-		"privileged":     func(r *recipes.Recipe) { r.Privileged = true },
 	} {
 		r := good
 		mod(&r)

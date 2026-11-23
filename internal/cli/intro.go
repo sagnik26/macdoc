@@ -46,7 +46,6 @@ func (m TuiModel) introActions() []introAction {
 		{"scan", scan},
 		{"reclaim", "See what can be cleaned and choose which risk types to clean"},
 		{"retire", "Installed software, its data folders and cleanups"},
-		{"refresh", "Maintenance steps, such as flushing DNS, one Apply away"},
 		{"explore", "Where the space is, as a folder tree you can open"},
 		{"vitals", "Live CPU, memory, disk, network and battery"},
 	}

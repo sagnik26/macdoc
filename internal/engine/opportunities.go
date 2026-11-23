@@ -40,9 +40,6 @@ type OpportunityOptions struct {
 	// AppDirs is where installed apps are looked for; nil means the usual
 	// folders. Tests set it so they never read the real machine.
 	AppDirs []string
-	// OnRequest includes the recipes marked on_request (maintenance steps),
-	// which the usual suggestions leave out.
-	OnRequest bool
 	// KeepExcluded keeps recipes excluded in settings, so the planner can
 	// refuse them by name. Listings leave it false.
 	KeepExcluded bool
@@ -140,9 +137,6 @@ func Opportunities(ctx context.Context, o OpportunityOptions) (OpportunityResult
 	var ops []model.Opportunity
 	unknownIdleCount, tiny, hidden := 0, 0, 0
 	for _, run := range runs {
-		if run.recipe.OnRequest && !o.OnRequest {
-			continue
-		}
 		if !o.KeepExcluded && cfg.Excludes(run.recipe.ID) {
 			hidden += len(run.findings)
 			continue

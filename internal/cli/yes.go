@@ -19,7 +19,7 @@ import (
 // This file is `macdoc reclaim --tier safe|caution --yes` (ADR 0014 §5): the
 // one place a cleanup runs with no person confirming it at a terminal. It only
 // moves SAFE or CAUTION items into quarantine; everything else, and every
-// other command, still needs a person. `macdoc apply` has no --yes.
+// other command, still needs a person.
 
 // checkYes validates the --yes request before anything is scanned or listed.
 func checkYes(cmd *cobra.Command) (cleanOpts, error) {
@@ -31,7 +31,7 @@ func checkYes(cmd *cobra.Command) (cleanOpts, error) {
 		return o, err
 	}
 	if !ok {
-		return o, errors.New("--yes cleans only the safe or caution tier; risky items need you at the terminal (macdoc apply)")
+		return o, errors.New("--yes cleans only the safe or caution tier; risky items need you at the terminal (run macdoc reclaim without --yes)")
 	}
 	return o, nil
 }
@@ -75,7 +75,7 @@ func cleanYes(cmd *cobra.Command, g *GlobalFlags, o cleanOpts, args []string) er
 	}
 	plan, home, err := sealPlan(g, planner.Selector{IDs: ids})
 	if err != nil {
-		return finishPlan(out, g, plan, home, err)
+		return finishPlan(out, plan, err)
 	}
 	var b strings.Builder
 	writeRefused(&b, t, plan.Refused)
@@ -100,12 +100,12 @@ func onlyQuarantine(ops []model.Opportunity) (keep []model.Opportunity, left int
 // runs without a person.
 func confirmYes(_ *bufio.Reader, out io.Writer, _ *Theme, p model.Plan) (executor.Approvals, bool, error) {
 	if p.Origin != model.OriginCLI && p.Origin != "" {
-		return nil, false, errors.New("--yes only cleans a plan made here; use macdoc apply " + p.ID)
+		return nil, false, errors.New("--yes only cleans a plan made here")
 	}
 	approved := executor.Approvals{}
 	for _, it := range p.Items {
 		if it.Method != model.MethodQuarantine || it.Privileged || (it.Risk != model.RiskSafe && it.Risk != model.RiskCaution) {
-			return nil, false, fmt.Errorf("%s needs you at the terminal; use macdoc apply %s", it.OpportunityID, p.ID)
+			return nil, false, fmt.Errorf("%s needs you at the terminal; run macdoc reclaim without --yes", it.OpportunityID)
 		}
 		approved[it.OpportunityID] = executor.Approval{}
 	}

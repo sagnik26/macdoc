@@ -32,8 +32,13 @@ func TestTUIShowsCleanedPlansRaw(t *testing.T) {
 		pre = p
 		return samplePlan(), nil
 	}
-	m = step(t, m, keys("p")...)
-	_ = runPlan(t, m)
+	clear(m.Marked)
+	m.Cursor = 0
+	_, cmd := m.Update(keys("enter")[0]) // enter on a suggestion seals a plan to remove it
+	if cmd == nil {
+		t.Fatal("enter should start sealing a plan")
+	}
+	cmd()
 	if pre == nil || pre.Opportunities[0].Target != "/Users/me/code/"+hostile || pre.Opportunities[0].Title != hostile {
 		t.Fatalf("the dashboard planned from cleaned data: %+v", pre)
 	}

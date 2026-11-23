@@ -41,121 +41,10 @@ type ApplyDeps struct {
 	NonInteractive bool
 }
 
-func newApplyCmd(g *GlobalFlags) *cobra.Command {
-	var safe, dryRun, list bool
-	var tier, recipe, show string
-	cmd := &cobra.Command{
-		Use:   "apply [P-id | O-id…]",
-		Short: "Plan and apply cleanups in one step, after you confirm in Terminal",
-		Long: `macdoc apply picks what to remove, shows exactly what would happen, asks you
-to confirm it at a real Terminal, and carries it out.
-
-  macdoc apply O-ab12cd O-k3m9pq   the suggestions with these IDs (from macdoc reclaim)
-  macdoc apply --safe              every SAFE suggestion
-  macdoc apply --tier caution      every suggestion of one tier
-  macdoc apply --recipe <id>       every suggestion of one recipe
-  macdoc apply P-7F3K              a sealed plan, including one Claude proposed
-  macdoc apply --dry-run <ids>     seal and show the plan only; nothing changes
-  macdoc apply --list              recent plans and their status
-  macdoc apply --show P-7F3K       a plan again, with its status
-
-The plan is written down and sealed first and expires after 30 minutes. You
-type the plan's code to confirm; RISKY items, administrator steps and every
-item of a plan Claude proposed are also confirmed one by one. Each item is
-checked again right before it is touched, and everything is recorded in the
-audit log (macdoc log). It needs a real Terminal: piped input is refused, and
-there is no --yes. Suggestions take IDs, never paths.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			selecting := safe || tier != "" || recipe != ""
-			switch {
-			case list:
-				return listPlans(cmd, g)
-			case show != "":
-				return showPlan(cmd, g, show)
-			case len(args) == 1 && !selecting && planner.Valid(strings.ToUpper(args[0])):
-				if dryRun {
-					return showPlan(cmd, g, args[0])
-				}
-				return applyStored(cmd, g, args[0])
-			case len(args) == 0 && !selecting:
-				return applyGuide(cmd, g)
-			}
-			return applySelection(cmd, g, args, safe, tier, recipe, dryRun)
-		},
-	}
-	cmd.Flags().BoolVar(&safe, "safe", false, "every SAFE suggestion")
-	cmd.Flags().StringVar(&tier, "tier", "", "every suggestion of one tier: safe, caution or risky")
-	cmd.Flags().StringVar(&recipe, "recipe", "", "every suggestion of one recipe, e.g. xcode.derived_data")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "seal and show the plan only; change nothing")
-	cmd.Flags().BoolVar(&list, "list", false, "recent plans and their status")
-	cmd.Flags().StringVar(&show, "show", "", "show a plan again, with its status")
-	return cmd
-}
-
-// errApplyJSON explains why applying has no JSON mode.
-var errApplyJSON = errors.New("apply asks you to confirm in Terminal, so it has no --json; use --dry-run --json for the plan, or see the result with macdoc log --json")
-
-// applyStored carries out an existing sealed plan.
-func applyStored(cmd *cobra.Command, g *GlobalFlags, id string) error {
-	if g.json {
-		return errApplyJSON
-	}
-	home, err := UserHome()
-	if err != nil {
-		return err
-	}
-	return RunApply(cmd, ApplyDeps{Home: home, Now: time.Now}, id)
-}
-
-// applySelection seals a plan from what was asked for, then shows it, asks
-// for confirmation and applies it, unless dryRun stops after the plan.
-func applySelection(cmd *cobra.Command, g *GlobalFlags, args []string, safe bool, tier, recipe string, dryRun bool) error {
-	sel, err := PlanSelector(args, safe, tier, recipe)
-	if err != nil {
-		return err
-	}
-	if !dryRun {
-		if g.json {
-			return errApplyJSON
-		}
-		// Check before sealing anything: a plan nobody can confirm is only clutter.
-		if !RealTTY(cmd.InOrStdin(), cmd.OutOrStdout()) {
-			return errors.New("apply needs you at a Terminal to confirm; use --dry-run to only see the plan")
-		}
-	}
-	res, home, err := sealPlan(g, sel)
-	if dryRun {
-		return finishPlan(cmd.OutOrStdout(), g, res, home, err)
-	}
-	if err != nil {
-		return finishPlan(cmd.OutOrStdout(), g, res, home, err)
-	}
-	var b strings.Builder
-	writeRefused(&b, themeFor(cmd.OutOrStdout()), res.Refused)
-	_, _ = io.WriteString(cmd.OutOrStdout(), b.String())
-	return RunApply(cmd, ApplyDeps{Home: home, Now: time.Now}, res.Plan.ID)
-}
-
-// applyGuide is `macdoc apply` with nothing to apply: it removes nothing and
-// says how to choose.
-func applyGuide(cmd *cobra.Command, g *GlobalFlags) error {
-	if g.json {
-		return errors.New("say what to apply: suggestion IDs, --safe, --tier, --recipe or a plan ID")
-	}
-	w := cmd.OutOrStdout()
-	t := themeFor(w)
-	_, _ = fmt.Fprintln(w, t.heading("Nothing chosen, so nothing was changed."))
-	_, _ = fmt.Fprintln(w, "  macdoc reclaim            see what you can get back, with IDs")
-	_, _ = fmt.Fprintln(w, "  macdoc apply --safe       remove every SAFE suggestion (after you confirm)")
-	_, _ = fmt.Fprintln(w, "  macdoc apply O-ab12cd     remove the suggestions you pick (after you confirm)")
-	_, _ = fmt.Fprintln(w, "  macdoc apply --dry-run …  seal and show a plan only")
-	_, _ = fmt.Fprintln(w)
-	return listPlans(cmd, g)
-}
-
 // RunApply carries out plan arg after showing it again, at a real terminal and
-// after the typed confirmation. It is the only path from the CLI to the
-// executor's Apply.
+// after the typed confirmation (y/N for RISKY and administrator items, then the
+// plan's code). No command calls it directly any more; it is the confirmation
+// path `reclaim` uses for RISKY items, kept as one tested function.
 func RunApply(cmd *cobra.Command, d ApplyDeps, arg string) error {
 	return runApply(cmd, d, arg, typedConfirm, true)
 }
@@ -188,7 +77,7 @@ func runApply(cmd *cobra.Command, d ApplyDeps, arg string, confirm confirmFunc, 
 	in, out := cmd.InOrStdin(), cmd.OutOrStdout()
 	id := strings.ToUpper(strings.TrimSpace(arg))
 	if !planner.Valid(id) {
-		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K; see macdoc apply --list)", arg)
+		return fmt.Errorf("%q isn't a plan ID (they look like P-7F3K)", arg)
 	}
 	if !d.NonInteractive && !RealTTY(in, out) {
 		return errors.New("apply needs you at a Terminal to confirm; piped or redirected input isn't accepted")
@@ -209,7 +98,7 @@ func runApply(cmd *cobra.Command, d ApplyDeps, arg string, confirm confirmFunc, 
 	}
 	switch res.Status {
 	case planner.Expired:
-		return errors.New("this plan has expired; make a new one with macdoc apply")
+		return errors.New("this plan has expired; run macdoc reclaim again")
 	case planner.Applied:
 		return errors.New("this plan was already applied; see macdoc log")
 	case planner.Invalid:

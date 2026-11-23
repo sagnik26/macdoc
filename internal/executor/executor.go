@@ -58,10 +58,6 @@ type Config struct {
 	// Exec runs native cleanup commands. Nil means the real one, which is
 	// refused in sandbox mode.
 	Exec Native
-	// Priv runs a privileged command (ADR 0009). Nil means the real one,
-	// which asks the system for the password at the terminal and is refused
-	// in sandbox mode.
-	Priv Native
 	// Sys removes one system item with administrator rights (ADR 0014). Nil
 	// means the real one, which is refused in sandbox mode and without a terminal.
 	Sys Native
@@ -348,9 +344,6 @@ func (c *Config) defaults() error {
 	}
 	if c.Exec == nil {
 		c.Exec, c.realExec = realExec, true
-	}
-	if c.Priv == nil {
-		c.Priv = realPrivileged
 	}
 	if c.Sys == nil {
 		c.Sys = realSystem

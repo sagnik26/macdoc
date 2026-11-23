@@ -23,19 +23,9 @@ var (
 )
 
 const (
-	maxPlanIDs     = 50
 	defaultListMax = 50
 	maxList        = 200
 	maxAudit       = 500
-
-	// MaxOpenPlans is how many plans from Claude may be open at once
-	// (MCP_DESIGN §4).
-	MaxOpenPlans = 5
-	// PlanRateMax is how many create_cleanup_plan calls are accepted in each
-	// PlanRateWindow.
-	PlanRateMax = 10
-	// PlanRateWindow is the span PlanRateMax is counted over.
-	PlanRateWindow = 10 * time.Minute
 
 	// UntrustedHint ends every tool description: results carry names and
 	// paths from the user's disk.
@@ -68,10 +58,6 @@ type growthIn struct {
 	Days int `json:"days,omitempty" jsonschema:"compare with a scan about this many days old (default 30)"`
 }
 
-type planIn struct {
-	OpportunityIDs []string `json:"opportunity_ids" jsonschema:"opportunity IDs (O-…) from list_opportunities, at most 50"`
-}
-
 type auditIn struct {
 	Limit int `json:"limit,omitempty" jsonschema:"at most this many recent records (default 50, max 500)"`
 }
@@ -84,7 +70,7 @@ func (s *Server) register(srv *sdk.Server) {
 		Description: `Reclaimable space by category and risk, and "System Data" decoded, from the latest scan.` + UntrustedHint},
 		s.storage)
 	sdk.AddTool(srv, &sdk.Tool{Name: "list_opportunities", Annotations: readOnly,
-		Description: "Cleanup suggestions from the latest scan, ranked by safety then size: ID, title, size (with its source), risk, idle days, how it comes back (restore cost) and the action. Use the IDs with explain_opportunity and create_cleanup_plan." + UntrustedHint},
+		Description: "Cleanup suggestions from the latest scan, ranked by safety then size: ID, title, size (with its source), risk, idle days, how it comes back (restore cost) and the action. Use the IDs with explain_opportunity." + UntrustedHint},
 		s.opportunities)
 	sdk.AddTool(srv, &sdk.Tool{Name: "explain_opportunity", Annotations: readOnly,
 		Description: "One suggestion in detail: what it is, why it's there, risk (and why it was raised), method, preconditions, restore cost, and for ADVISE items the steps the user can follow by hand." + UntrustedHint},
@@ -102,13 +88,6 @@ func (s *Server) register(srv *sdk.Server) {
 		Annotations: &sdk.ToolAnnotations{IdempotentHint: true, DestructiveHint: falseP, OpenWorldHint: falseP},
 		Description: "Starts a fresh read-only disk scan in the background (about 1–2 minutes at low priority), or reports the one running or just finished. Call it again to check. A scan from here can see less than one from Terminal, because it has the Claude app's file permissions; prefer the existing scan unless it's old." + UntrustedHint},
 		s.refreshScan)
-	sdk.AddTool(srv, &sdk.Tool{Name: "create_cleanup_plan",
-		Annotations: &sdk.ToolAnnotations{DestructiveHint: falseP, OpenWorldHint: falseP},
-		Description: "Proposes a cleanup: seals a dry-run plan of the given opportunity IDs and returns its ID, contents and the exact command for the USER to run in Terminal. It changes nothing on the Mac and you can't apply it: tell the user the plan and the command. They confirm each item in Terminal." + UntrustedHint},
-		s.createPlan)
-	sdk.AddTool(srv, &sdk.Tool{Name: "get_plan", Annotations: readOnly,
-		Description: "A plan's contents and status (pending, applied, expired, invalid). Use it after the user ran macdoc apply to see what happened, with get_audit_log." + UntrustedHint},
-		s.getPlan)
 	sdk.AddTool(srv, &sdk.Tool{Name: "get_audit_log", Annotations: readOnly,
 		Description: "Recent entries of macdoc's audit log: plans made, applies, each item done, skipped or failed (with the reason), restores and purges." + UntrustedHint},
 		s.audit)
@@ -211,10 +190,10 @@ func (s *Server) explain(ctx context.Context, _ *sdk.CallToolRequest, in idIn) (
 			out["base_risk"] = base
 		}
 		if op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
-			out["can_plan"] = false
+			out["can_clean"] = false
 			out["how_to"] = "macdoc takes no action on advice-only items. Relay the steps to the user."
 		} else {
-			out["can_plan"] = true
+			out["can_clean"] = true
 		}
 		return result(out, res.Warnings)
 	}
@@ -318,109 +297,6 @@ func SawLess(prev, cur model.ScanInfo) string {
 		engine.DecimalBytes(cur.TotalBytes), engine.DecimalBytes(prev.TotalBytes), cur.UnmeasuredCount, prev.UnmeasuredCount)
 }
 
-func (s *Server) createPlan(ctx context.Context, _ *sdk.CallToolRequest, in planIn) (*sdk.CallToolResult, any, error) {
-	s.planMu.Lock()
-	defer s.planMu.Unlock()
-	// Other servers on this Mac share the store: hold the plan lock from the
-	// limit checks until the plan is saved, so the cap can't be raced.
-	unlock, err := engine.LockPlans(s.opp())
-	if err != nil {
-		return toolError(err)
-	}
-	defer unlock()
-	if err := s.planLimits(); err != nil {
-		return toolError(err)
-	}
-	if len(in.OpportunityIDs) == 0 || len(in.OpportunityIDs) > maxPlanIDs {
-		return toolError(fmt.Errorf("give between 1 and %d opportunity IDs", maxPlanIDs))
-	}
-	// Normalized and de-duplicated, as the CLI does: the raw strings never
-	// reach the plan or the audit log, and one ID asked for twice is one item.
-	var ids []string
-	seen := map[string]bool{}
-	for _, raw := range in.OpportunityIDs {
-		id, ok := planner.Normalize(raw)
-		if !ok {
-			return toolError(fmt.Errorf("%q isn't an opportunity ID (they look like O-ab12cd); plans take IDs only, never paths", raw))
-		}
-		if !seen[id] {
-			seen[id] = true
-			ids = append(ids, id)
-		}
-	}
-	res, err := engine.CreatePlan(ctx, engine.PlanOptions{OpportunityOptions: s.opp(),
-		Selector: planner.Selector{IDs: ids}, Origin: model.OriginClaude})
-	switch {
-	case errors.Is(err, planner.ErrNothing):
-		var why []string
-		for _, r := range claudeRefusals(res.Refused) {
-			why = append(why, r.ID+": "+r.Reason)
-		}
-		return toolError(fmt.Errorf("nothing could be planned: %s", strings.Join(why, "; ")))
-	case errors.Is(err, planner.ErrStaleScan):
-		when := "the latest scan is"
-		if _, a, aerr := engine.LastScan(s.o.Home, s.o.Now()); aerr == nil {
-			when = "the latest scan is from " + a + ","
-		}
-		return toolError(fmt.Errorf("%s older than the %d hours a plan allows (max_age), so its IDs can't be planned. "+
-			"Call refresh_scan, or better ask the user to run macdoc scan in Terminal, then call list_opportunities again: IDs change with every scan",
-			when, int(planner.Oldest.Hours())))
-	case errors.Is(err, engine.ErrNoScan):
-		return toolError(fmt.Errorf("%w: call refresh_scan, or ask the user to run macdoc scan in Terminal, then list_opportunities", err))
-	case err != nil:
-		return toolError(err)
-	}
-	p := res.Plan
-	byRisk := map[model.Risk]int{}
-	unknown := 0
-	type item struct {
-		ID      string        `json:"id"`
-		Title   string        `json:"title"`
-		Risk    model.Risk    `json:"risk"`
-		Bytes   model.Bytes   `json:"bytes"`
-		Action  string        `json:"action"`
-		Restore model.Restore `json:"restore"`
-	}
-	items := []item{}
-	for _, it := range p.Items {
-		byRisk[it.Risk]++
-		if it.BytesSource == model.SourceUnknown {
-			unknown++
-		}
-		action := "delete " + it.Target
-		if it.Method == model.MethodNative {
-			action = "run the tool's own command: " + strings.Join(it.Argv, " ")
-		}
-		items = append(items, item{ID: it.OpportunityID, Title: it.Title, Risk: it.Risk,
-			Bytes: model.Bytes{Value: it.ExpectedBytes, Source: it.BytesSource}, Action: action, Restore: it.Restore})
-	}
-	summary := map[string]any{"items": len(p.Items), "bytes": p.TotalBytes, "by_risk": byRisk}
-	if unknown > 0 {
-		summary["unknown_size_items"] = unknown
-	}
-	return result(map[string]any{
-		"plan_id":     p.ID,
-		"expires_at":  p.ExpiresAt,
-		"summary":     summary,
-		"items":       items,
-		"refused":     claudeRefusals(res.Refused),
-		"user_action": "Run in Terminal:  macdoc apply " + p.ID,
-		"note":        "Claude cannot apply plans. The user reviews the dry run and confirms each item in Terminal; removed items are deleted at once.",
-	}, res.Warnings)
-}
-
-func (s *Server) getPlan(ctx context.Context, _ *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
-	id := strings.ToUpper(strings.TrimSpace(in.ID))
-	if !planner.Valid(id) {
-		return toolError(fmt.Errorf("%q isn't a plan ID (they look like P-7F3K)", in.ID))
-	}
-	res, err := engine.ShowPlan(ctx, s.opp(), id)
-	if err != nil {
-		return toolError(err)
-	}
-	return result(res, res.Warnings)
-}
-
 func (s *Server) audit(_ context.Context, _ *sdk.CallToolRequest, in auditIn) (*sdk.CallToolResult, any, error) {
 	limit := in.Limit
 	switch {
@@ -434,64 +310,4 @@ func (s *Server) audit(_ context.Context, _ *sdk.CallToolRequest, in auditIn) (*
 		return toolError(err)
 	}
 	return result(res, nil)
-}
-
-// planLimits refuses a plan when Claude made too many recently or has too
-// many open. The rate counts this process's calls (every attempt) and the
-// Claude plans in the store, so restarting the server or running several
-// doesn't reset it. A call the rate limit refuses isn't counted; one the
-// open-plan cap refuses is (it still asked for a plan).
-func (s *Server) planLimits() error {
-	now := s.o.Now()
-	cut := now.Add(-PlanRateWindow)
-	kept := s.planCalls[:0]
-	for _, t := range s.planCalls {
-		if t.After(cut) {
-			kept = append(kept, t)
-		}
-	}
-	s.planCalls = kept
-	o := s.opp()
-	load, err := engine.OriginPlanLoad(o, model.OriginClaude, cut)
-	if err != nil {
-		return err
-	}
-	if len(s.planCalls) >= PlanRateMax || load.Recent >= PlanRateMax {
-		wait := PlanRateWindow
-		if len(s.planCalls) >= PlanRateMax {
-			wait = s.planCalls[0].Add(PlanRateWindow).Sub(now)
-		}
-		return fmt.Errorf("too many plan requests: at most %d every %d minutes. Don't retry now; show the user the plans already made "+
-			"(try again in about %d minutes)", PlanRateMax, int(PlanRateWindow.Minutes()), int((wait+time.Minute-1)/time.Minute))
-	}
-	s.planCalls = append(s.planCalls, now)
-	if len(load.Open) >= MaxOpenPlans {
-		ids := make([]string, len(load.Open))
-		for i, r := range load.Open {
-			ids[i] = r.ID
-		}
-		first := load.Open[0]
-		for _, r := range load.Open {
-			if r.ExpiresAt.Before(first.ExpiresAt) {
-				first = r
-			}
-		}
-		return fmt.Errorf("there are already %d open plans you proposed (%s). Don't make another: ask the user to run one of them "+
-			"(macdoc apply %s) or wait until one expires (%s, in about %d minutes)", len(ids), strings.Join(ids, ", "), ids[len(ids)-1],
-			first.ID, int((first.ExpiresAt.Sub(now)+time.Minute-1)/time.Minute))
-	}
-	return nil
-}
-
-// claudeRefusals rewrites refusal reasons meant for the terminal into
-// guidance for Claude.
-func claudeRefusals(in []planner.Refusal) []planner.Refusal {
-	out := make([]planner.Refusal, len(in))
-	for i, r := range in {
-		if r.Reason == planner.ReasonNotInScan {
-			r.Reason = "not in the latest scan: IDs change with every scan, so call list_opportunities again and use the new IDs"
-		}
-		out[i] = r
-	}
-	return out
 }

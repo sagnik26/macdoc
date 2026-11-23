@@ -15,7 +15,7 @@ func newLogCmd(g *GlobalFlags) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "log",
-		Short: "What macdoc has changed: plans, applies, restores and purges (changes nothing)",
+		Short: "What macdoc has changed: removals, restores and purges (changes nothing)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, err := UserHome()

@@ -22,10 +22,10 @@ import (
 
 // This file is `macdoc reclaim` at a real terminal: it shows what will be
 // cleaned, and cleans it when the person presses Enter (ADR 0013). It is the
-// same executor path as `macdoc apply`, with the confirmation being that one
-// Enter instead of a typed code. Only SAFE items (or CAUTION when asked for
+// same executor path as the dashboard's remove, with the confirmation being
+// that one Enter instead of a typed code. Only SAFE items (or CAUTION when asked for
 // with --tier caution) are ever cleaned this way; RISKY items, administrator
-// steps and Claude-proposed plans still need apply's own confirmations.
+// steps and Claude-proposed plans still need their own confirmations.
 
 // cleanOpts is what reclaim was asked to show and clean.
 type cleanOpts struct {
@@ -101,7 +101,7 @@ func cleanOneTier(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	}
 	plan, home, err := sealPlan(g, planner.Selector{IDs: ids})
 	if err != nil {
-		return finishPlan(out, g, plan, home, err)
+		return finishPlan(out, plan, err)
 	}
 	var b strings.Builder
 	writeRefused(&b, t, plan.Refused)
@@ -175,12 +175,12 @@ func sizeSummary(ops []model.Opportunity) string {
 // from a plan made here by a person.
 func confirmEnteredList(_ *bufio.Reader, out io.Writer, _ *Theme, p model.Plan) (executor.Approvals, bool, error) {
 	if p.Origin != model.OriginCLI && p.Origin != "" {
-		return nil, false, errors.New("only a plan you made here is cleaned on Enter; use macdoc apply " + p.ID)
+		return nil, false, errors.New("only a plan you made here is cleaned on Enter")
 	}
 	approved := executor.Approvals{}
 	for _, it := range p.Items {
 		if it.Risk == model.RiskRisky || it.Privileged || it.Method == model.MethodAdvise {
-			return nil, false, fmt.Errorf("%s needs your own confirmation; use macdoc apply %s", it.OpportunityID, p.ID)
+			return nil, false, fmt.Errorf("%s needs your own confirmation; choose it by name (risky) so each one is confirmed", it.OpportunityID)
 		}
 		approved[it.OpportunityID] = executor.Approval{} // a group approval, like the dashboard's
 	}
@@ -339,7 +339,7 @@ func sealAndClean(cmd *cobra.Command, g *GlobalFlags, pick []model.Opportunity, 
 	}
 	plan, home, err := sealPlan(g, planner.Selector{IDs: ids})
 	if err != nil {
-		return finishPlan(out, g, plan, home, err)
+		return finishPlan(out, plan, err)
 	}
 	var b strings.Builder
 	writeRefused(&b, themeFor(out), plan.Refused)

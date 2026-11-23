@@ -39,7 +39,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddGroup(&cobra.Group{ID: "main", Title: "Commands:"}, &cobra.Group{ID: "more", Title: "More:"})
 	root.SetHelpCommandGroupID("more")
 	root.SetCompletionCommandGroupID("more")
-	for _, c := range []*cobra.Command{newReclaimCmd(g), newRetireCmd(g), newRefreshCmd(g), newExploreCmd(g), newVitalsCmd(g), newScanCmd(g), newApplyCmd(g)} {
+	for _, c := range []*cobra.Command{newReclaimCmd(g), newRetireCmd(g), newExploreCmd(g), newVitalsCmd(g), newScanCmd(g)} {
 		c.GroupID = "main"
 		root.AddCommand(c)
 	}

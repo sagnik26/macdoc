@@ -25,7 +25,7 @@ something irreplaceable (Xcode Archives, Docker volumes).
 - Explain where storage and memory went, with honest sizes (measured, tool-reported, estimated or unknown).
 - Suggest reclaimable space ranked by risk, each with its restore cost.
 - Remove only what a person approves at a real Terminal, with a dry run first, a quarantine, an audit log and restore.
-- Be simple to learn: five commands plus `scan` and one `apply`.
+- Be simple to learn: reclaim, retire, explore, vitals and scan. macdoc cleans on its own (SAFE and CAUTION), asks first, or only suggests (ADR 0015).
 - Stay local: no network calls from macdoc, no telemetry, no account.
 
 **Non-goals**
@@ -41,14 +41,12 @@ something irreplaceable (Xcode Archives, Docker volumes).
 | `macdoc` | Interactive dashboard (overview summary when piped, `--json` or `--quiet`) |
 | `macdoc reclaim [toolchain]` | What can be got back, ranked by safety, with IDs; at a terminal, you tick which risk types to clean and press Enter on the Clean button (typed answer: Enter alone is SAFE) (`--toolchains`, `--categories`, `--tier`, `--all`) |
 | `macdoc retire` | Installed apps and the data that belongs to them |
-| `macdoc refresh` | Maintenance steps: flush DNS, restart the DNS responder, free memory, reset Quick Look |
 | `macdoc explore [folder]` | Where the space is; `--growth` (what grew), `--projects` (idle projects and build folders) |
 | `macdoc vitals` | Live CPU, memory, disk, network, battery and a 0 to 100 health score; `--memory`, `--watch` |
 | `macdoc scan` | A fresh scan (no question, no reuse of the last one), then the full report |
-| `macdoc apply` | Plan, confirm and apply in one step; `--dry-run`, `--list`, `--show`, or a plan ID |
 | More | `log`, `quarantine`, `config`, `schedule`, `mcp`, `completion`, `version` |
 
-The dashboard `/` menu mirrors this: `/scan /reclaim /vitals /explore /retire /refresh` (`/apply P-id` still works when typed); help and quit are in the footer (`?`, `q`, and typed `/help`, `/quit`).
+The dashboard `/` menu mirrors this: `/scan /reclaim /retire /explore /vitals`; help and quit are in the footer (`?`, `q`, and typed `/help`, `/quit`).
 
 ## 5. Functional requirements
 
@@ -60,11 +58,11 @@ data folders; live status; zombie and busy-process alerts (never ended).
 suggestion has an ID, risk (SAFE, CAUTION, RISKY, ADVISE), size with its source, idle time and restore cost.
 Anything no recipe covers is advice-only.
 
-**F3. Reclaim and apply.** At a real terminal `reclaim` lists everything by risk and asks "What do you want to clean?" (a row each for SAFE, CAUTION and RISKY; RISKY only when something is in it); the person ticks the risk types (Enter or space) and presses Enter on the separate Clean button, which is the only thing that starts the cleanup; with a typed answer, Enter alone cleans SAFE only. It covers what a deep clean covers without administrator rights (caches and logs of browsers, developer tools and desktop apps, sandboxed app caches, cached restore files, the Trash as a CAUTION item moved into quarantine first) and what removed apps left behind, but never an app that is still installed (that is `retire`); interrupted Time Machine backups are advice only. CAUTION and RISKY are cleaned only when named, RISKY keeps apply's per-item y/N and typed code, advice-only items have no row and can never be chosen, and an answer it does not understand cancels (not at a terminal, with `--json`, `--quiet` or `--dry-run` it only lists; ADR 0013). `apply` is for specific IDs, other tiers and sealed or Claude-proposed plans: it seals a plan (expires in 30 minutes), shows it, and applies it after the person types the
+**F3. Reclaim.** At a real terminal `reclaim` lists everything by risk and asks "What do you want to clean?" (a row each for SAFE, CAUTION and RISKY; RISKY only when something is in it); the person ticks the risk types (Enter or space) and presses Enter on the separate Clean button, which is the only thing that starts the cleanup; with a typed answer, Enter alone cleans SAFE only. It covers what a deep clean covers without administrator rights (caches and logs of browsers, developer tools and desktop apps, sandboxed app caches, cached restore files, the Trash as a CAUTION item moved into quarantine first) and what removed apps left behind, but never an app that is still installed (that is `retire`); interrupted Time Machine backups are advice only. CAUTION and RISKY are cleaned only when named, RISKY keeps a per-item y/N and its typed ID, advice-only items have no row and can never be chosen, and an answer it does not understand cancels (not at a terminal, with `--json`, `--quiet` or `--dry-run` it only lists; ADR 0013). `apply` is for specific IDs, other tiers and sealed or Claude-proposed plans: it seals a plan (expires in 30 minutes), shows it, and applies it after the person types the
 plan's code at a real Terminal. RISKY items, administrator steps and every item of a Claude-proposed plan are also
 confirmed one by one. Each item is re-checked right before it is touched; a change means skip and record.
 
-**F4. Removal paths.** The same paths serve `reclaim`'s chooser; RISKY items keep apply's full confirmation there, and administrator steps and Claude plans are never cleaned that way. Native tool commands from an exact allow-list, or a move into a private quarantine that is
+**F4. Removal paths.** The same paths serve `reclaim`'s chooser; RISKY items keep a per-item confirmation with the ID typed there, and administrator steps and Claude plans are never cleaned that way. Native tool commands from an exact allow-list, or a move into a private quarantine that is
 then deleted through the same checks. `quarantine restore` brings back what is still there. Everything is in the
 audit log (`macdoc log`), with a run ID per command.
 
@@ -72,10 +70,10 @@ audit log (`macdoc log`), with a run ID per command.
 and not Mac App Store apps), leftover data of uninstalled apps in `~/Library` and Application Support, and
 background items whose program is gone. Never offered when the installed-app list can't be read.
 
-**F6. Maintenance with administrator rights.** Only an exact list of commands, only from a plan a person made,
-only through the system password prompt; macdoc never sees the password.
+**F6. System cleanup with administrator rights.** Only the `system` method's fixed commands (ADR 0014), only from a plan a person made,
+only through the system password prompt; macdoc never sees the password. (The maintenance steps and `refresh` were removed, ADR 0015.)
 
-**F7. Claude (MCP).** `macdoc mcp` lets Claude read the diagnosis and propose plans. It has no tool that applies,
+**F7. Claude (MCP).** `macdoc mcp` lets Claude read the diagnosis and suggest what to clean. It has no tool that plans, applies,
 deletes, moves, restores or takes a path.
 
 **F8. Output and automation.** Every command has `--json` with a frozen schema (`schema/`, `schema_version` 3);
@@ -89,9 +87,9 @@ deletes, moves, restores or takes a path.
 
 1. Only `internal/executor` deletes, moves or runs mutating commands; MCP, engine and planner never import it.
 2. Plans and tools take IDs, never paths.
-3. Only a person at a real terminal approves a removal; `apply` has no `--yes`; the one exception is `reclaim --tier safe|caution --yes` for quarantine moves (ADR 0014).
+3. Only a person at a real terminal approves a removal; the exceptions are `reclaim --tier safe|caution --yes` and the dashboard's `/reclaim`, for SAFE and CAUTION quarantine moves (ADR 0014).
 4. Native commands use a fixed argv from a recipe: no shell, no `docker system prune`; `sudo` appears only in
-   `internal/executor/privileged.go`, for the exact allow-list, never from a Claude plan.
+   `internal/executor/privileged.go`, only for system cleanup (ADR 0014), never from a Claude plan.
 5. Re-check every item immediately before acting; never "fix up" a target.
 6. Protected paths are never touched; configuration can only add protection. The one exception is an app bundle
    directly in `/Applications`.
@@ -134,7 +132,6 @@ These are enforced by tests and by `make check` (import guard, forbidden-call gu
 
 ## 10. Open questions
 
-- Should `apply` get an interactive picker when run with no arguments (today it applies nothing and prints guidance)?
 - Should macdoc offer a signed and notarized installer package, and under which Apple developer account?
 - Which of `reclaim --categories`, `--toolchains` and `explore --projects` should become dashboard tabs only?
 - When to submit to Homebrew core (needs notability and a source build).

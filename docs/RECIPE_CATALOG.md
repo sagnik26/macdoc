@@ -15,9 +15,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `method` | `native` (argv template) or `quarantine` |
 | `native.argv` | Fixed argv. Placeholders only for identifiers validated against the tool's own listing |
 | `native.dry_run_argv` | Tool's own dry-run if it has one (e.g. `brew cleanup -n`) |
-| `privileged` | `true` for a native step that needs administrator rights. The argv must exactly match `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`). Run only by `internal/executor/privileged.go` through the OS password prompt; never in a plan Claude proposed (ADR 0009) |
 | `regenerable` | `true` on a SAFE recipe whose data the tool simply rebuilds (a cache). Using it recently does not raise it to CAUTION (the 7-day rule), because an active Mac rewrites caches all the time; preconditions such as "app not running" still apply. Lint refuses it on any other tier |
-| `on_request` | `true` to keep the recipe out of scans, reclaim and MCP listings. It is shown only by `macdoc refresh` and planned by ID |
 | `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean`, `no_installed_app` |
 | `staleness` | Signal + threshold (e.g. `mtime_max > 60d`) |
 | `restore` | How it comes back plus cost: `rebuild` / `redownload:<GB>` / `irreplaceable` |
@@ -179,7 +177,7 @@ Method `system` removals ask for the Mac password through `sudo` (only in `inter
 
 ## 2a. Allowed native commands
 
-Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test. Privileged argvs are a separate, exact list, `PrivilegedArgvAllowed` (3 entries); `qlmanage -r cache` and `qlmanage -r` are in the ordinary list. The `maintenance.*` recipes (`flush_dns`, `restart_mdnsresponder`, `purge_memory`, `quicklook_cache`, `quicklook_reset`) are in `catalog/maintenance.yaml`.
+Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test. `qlmanage -r cache` and `qlmanage -r` are still in the ordinary list. The `maintenance.*` recipes and the privileged-argv list were removed with `refresh` (ADR 0015).
 
 ## 3. Adding a recipe (checklist)
 1. YAML with every field filled in, including `explain` and `restore`.

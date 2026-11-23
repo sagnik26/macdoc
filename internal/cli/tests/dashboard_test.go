@@ -19,7 +19,6 @@ import (
 	"github.com/sagnik26/macdoc/internal/planner"
 	"github.com/sagnik26/macdoc/internal/probe"
 	"github.com/sagnik26/macdoc/internal/projects"
-	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // tuiFixture is dashboard data built from the shared test samples.
@@ -287,7 +286,7 @@ func newIntroTUI(t *testing.T, w, h int, st cli.IntroStatus) (cli.TuiModel, *[]b
 	deps := &cli.TuiDeps{Load: func(_ context.Context, _ *cli.TuiDeps, rescan bool) (*cli.TuiData, error) {
 		loads = append(loads, rescan)
 		return tuiFixture(), nil
-	}, Plans: func(*cli.TuiDeps) ([]store.PlanRecord, error) { return nil, nil }}
+	}}
 	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
 	m.Intro, m.IntroStatus = true, st
 	return step(t, m, tea.WindowSizeMsg{Width: w, Height: h}), &loads
@@ -300,7 +299,7 @@ func TestTUIWelcomeScreen(t *testing.T) {
 	}
 	out := m.View()
 	mustContain(t, out, "███╗   ███╗", "Why is my Mac full and slow?", "Last scan 2h ago · 128 GB in 1,031,292 files",
-		"▶ scan", "reclaim", "retire", "refresh", "explore", "vitals",
+		"▶ scan", "reclaim", "retire", "explore", "vitals",
 		"Check your whole Mac", "See what can be cleaned", "Where the space is, as a folder tree",
 		"Read-only unless you confirm", "Nothing leaves your Mac", "enter run", "q quit")
 	for _, gone := range []string{"How it works", "From the shell", "1 Overview"} {
@@ -852,7 +851,7 @@ func TestTUIPaletteOpensTheNewFeatures(t *testing.T) {
 	for _, c := range cli.SlashCommands {
 		names[c.Name] = true
 	}
-	for _, want := range []string{"vitals", "explore", "retire", "refresh"} {
+	for _, want := range []string{"vitals", "explore", "retire"} {
 		if !names[want] {
 			t.Errorf("/%s is missing from the palette", want)
 		}
@@ -867,22 +866,9 @@ func TestTUIPaletteOpensTheNewFeatures(t *testing.T) {
 	mustContain(t, next.(cli.TuiModel).View(), "▸ Caches/", "smaller items")
 	next, _ = em.RunCommand("/explore /Users/me/Caches")
 	mustContain(t, next.(cli.TuiModel).View(), "inner.db")
-
-	deps := &cli.TuiDeps{Home: "/Users/me",
-		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
-		Maintenance: func(context.Context, *cli.TuiDeps) (engine.OpportunityResult, error) {
-			return engine.OpportunityResult{Opportunities: []model.Opportunity{
-				{ID: "O-dnsaaa", RecipeID: "maintenance.flush_dns", Title: "Flush the DNS cache"}}}, nil
-		}}
-	mm := step(t, cli.NewTUIModel(deps, cli.PlainLayoutTheme()), tea.WindowSizeMsg{Width: 120, Height: 40}, cli.LoadedMsg{Data: tuiFixture()})
-	next, _ = mm.RunCommand("/refresh")
-	mustContain(t, next.(cli.TuiModel).View(), "Refresh", "│ ID", "│ Step", "Mac password", "│ Action", "O-dnsaaa", "Flush the DNS cache", "Apply")
-	if strings.Contains(next.(cli.TuiModel).View(), "1 Overview") {
-		t.Error("the refresh page has no tabs")
-	}
 }
 
-// Explore, refresh, apply and vitals run on their own: with no dashboard data
+// Explore and vitals run on their own: with no dashboard data
 // they open their page instead of asking for a check first.
 func TestTUIStandaloneCommandsNeedNoScan(t *testing.T) {
 	size := int64(10)
@@ -890,12 +876,9 @@ func TestTUIStandaloneCommandsNeedNoScan(t *testing.T) {
 		Explore: func(context.Context, *cli.TuiDeps, string) (engine.ExploreResult, error) {
 			return engine.ExploreResult{Path: "/Users/me", Bytes: &size, Status: "complete"}, nil
 		},
-		Maintenance: func(context.Context, *cli.TuiDeps) (engine.OpportunityResult, error) {
-			return engine.OpportunityResult{}, nil
-		},
-		Plans: func(*cli.TuiDeps) ([]store.PlanRecord, error) { return nil, nil }}
+	}
 	m := step(t, cli.NewTUIModel(deps, cli.PlainLayoutTheme()), tea.WindowSizeMsg{Width: 110, Height: 30})
-	for c, want := range map[string]string{"/explore": "Explore", "/refresh": "No maintenance steps", "/vitals": "Vitals"} {
+	for c, want := range map[string]string{"/explore": "Explore", "/vitals": "Vitals"} {
 		next, _ := m.RunCommand(c)
 		got := next.(cli.TuiModel)
 		if got.Overlay == cli.OverlayNone || strings.Contains(got.Flash, "Check") {

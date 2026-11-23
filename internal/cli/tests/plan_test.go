@@ -2,14 +2,11 @@ package tests
 
 import (
 	"bytes"
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/sagnik26/macdoc/internal/cli"
-
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
@@ -50,7 +47,7 @@ func TestRenderPlan(t *testing.T) {
 	if err := cli.RenderPlan(&buf, samplePlan(), "/Users/me", planNow.Add(5*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	want := `Plan P-7F3K · 4 item(s) · 566 MB · expires in 25 min · made by you (macdoc apply --safe)
+	want := `Plan P-7F3K · 4 item(s) · 566 MB · expires in 25 min · made by you (--safe)
 
  SAFE ─────────────────────────────────────────────────────────── 406 MB
   O-brewaa  Homebrew old versions                           400 MB
@@ -80,10 +77,8 @@ func TestRenderPlan(t *testing.T) {
  Nothing has been changed.
 `
 	got := buf.String()
-	if i := strings.Index(got, " To apply it"); i < 0 || !strings.HasPrefix(got[i:], " To apply it: macdoc apply P-7F3K · expires ") {
-		t.Errorf("missing the apply line:\n%s", got)
-	} else {
-		got = got[:i]
+	if strings.Contains(got, "macdoc apply") {
+		t.Errorf("the plan points at a command that no longer exists:\n%s", got)
 	}
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
@@ -168,59 +163,12 @@ func TestRenderPlanStatuses(t *testing.T) {
 	mustContain(t, buf.String(), "proposed by Claude")
 }
 
-func TestPlanSelector(t *testing.T) {
-	good := map[string]struct {
-		args         []string
-		safe         bool
-		tier, recipe string
-		want         string
-	}{
-		"ids":    {args: []string{"O-ABCDEF", "o-ghijkl"}, want: "O-abcdef O-ghijkl"},
-		"safe":   {safe: true, want: "--safe"},
-		"tier":   {tier: "Caution", want: "--tier caution"},
-		"recipe": {recipe: "user.logs", want: "--recipe user.logs"},
-	}
-	for name, c := range good {
-		sel, err := cli.PlanSelector(c.args, c.safe, c.tier, c.recipe)
-		if err != nil || sel.Request() != c.want {
-			t.Errorf("%s: %q, %v", name, sel.Request(), err)
-		}
-	}
-	bad := map[string]struct {
-		args         []string
-		safe         bool
-		tier, recipe string
-		want         string
-	}{
-		"nothing": {want: "say what to apply"},
-		"two":     {args: []string{"O-abcdef"}, safe: true, want: "use one of"},
-		"path":    {args: []string{"/Users/me/Library/Caches"}, want: "never paths"},
-		"advise":  {tier: "advise", want: "advice-only"},
-		"tier":    {tier: "blocked", want: "unknown tier"},
-	}
-	for name, c := range bad {
-		if _, err := cli.PlanSelector(c.args, c.safe, c.tier, c.recipe); err == nil || !strings.Contains(err.Error(), c.want) {
-			t.Errorf("%s: err = %v, want %q", name, err, c.want)
-		}
-	}
-}
-
-// Dashboard: space marks, p seals a plan from the marked items, the dry run
-// opens, and marks are cleared.
-func TestTUIMarkAndPlan(t *testing.T) {
-	cli.NowFunc = func() time.Time { return planNow }
-	t.Cleanup(func() { cli.NowFunc = time.Now })
-	var got planner.Selector
+// Dashboard: space marks suggestions (several can be removed together with
+// enter), unmarks them, and refuses advice-only items.
+func TestTUIMarkSuggestions(t *testing.T) {
 	m := step(t, loaded(t, 100, 40), keys("2")...)
-	m.Deps.MakePlan = func(_ *cli.TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
-		got = sel
-		if pre == nil || len(pre.Opportunities) == 0 {
-			t.Error("the dashboard should pass its opportunities")
-		}
-		return samplePlan(), nil
-	}
 	ops := m.Items()
-	clear(m.Marked) // the picker pre-marks SAFE items; this test marks by hand
+	clear(m.Marked) // the dashboard pre-marks SAFE items; this test marks by hand
 
 	m = step(t, m, keys(" ")...) // marks item 1, moves to 2
 	m = step(t, m, keys("down", " ")...)
@@ -233,84 +181,16 @@ func TestTUIMarkAndPlan(t *testing.T) {
 	if len(m.Marked) != 1 {
 		t.Fatalf("unmark: %v", m.Marked)
 	}
-	m = step(t, m, keys("up", "up", " ")...)
-	m = step(t, m, keys("p")...)
-	if !m.Planning {
-		t.Fatal("p should start sealing a plan")
-	}
-	m = runPlan(t, m)
-	if strings.Join(got.IDs, " ") != ops[0].ID+" "+ops[1].ID || m.Overlay != cli.OverlayPlan || len(m.Marked) != 0 {
-		t.Errorf("selector %v overlay %d marked %v", got.IDs, m.Overlay, m.Marked)
-	}
-	mustContain(t, m.View(), "Plan P-7F3K", "→ runs brew cleanup --prune=all", "Nothing has been changed", "Plan P-7F3K sealed")
-	m = step(t, m, keys("esc")...)
-	if m.Overlay != cli.OverlayNone {
-		t.Error("esc should close the plan")
-	}
-}
 
-func runPlan(t *testing.T, m cli.TuiModel) cli.TuiModel {
-	t.Helper()
-	sel := m.MarkedSelector()
-	if sel == nil {
-		t.Fatal("no selector")
-	}
-	// What startPlan's command does: plan from the engine's data (planOps),
-	// never the cleaned display copy.
-	res, err := m.Deps.MakePlan(m.Deps, *sel, m.Data.PlanOps)
-	return step(t, m, cli.PlanMsg{Res: res, Err: err})
-}
-
-func TestTUIPlanEdgeCases(t *testing.T) {
-	m := step(t, loaded(t, 100, 40), keys("2")...)
-	var sel planner.Selector
-	m.Deps.MakePlan = func(_ *cli.TuiDeps, s planner.Selector, _ *engine.OpportunityResult) (engine.PlanResult, error) {
-		sel = s
-		return engine.PlanResult{Refused: []planner.Refusal{{ID: "O-x", Reason: "it no longer exists"}}}, planner.ErrNothing
-	}
-	ops := m.Items()
 	// Advice-only items can't be marked.
 	for i, op := range ops {
 		if op.Risk == model.RiskAdvise {
 			m.Cursor = i
 			m = step(t, m, keys(" ")...)
-			mustContain(t, m.View(), "Advice-only items can't go into a plan")
+			mustContain(t, m.View(), "can't")
 			if m.Marked[op.ID] {
 				t.Error("an advice item was marked")
 			}
 		}
 	}
-	// No marks: p plans the selected item.
-	m.Cursor = 0
-	m = step(t, m, keys("p")...)
-	if !m.Planning {
-		t.Fatal("p with nothing marked should plan the selected item")
-	}
-	m = step(t, m, cmdMsg(t, m, ops[0].ID))
-	if !strings.Contains(m.View(), "Nothing to plan: O-x: it no longer exists") || m.Planning || strings.Join(sel.IDs, "") != ops[0].ID {
-		t.Errorf("refusal flash missing or wrong selector %v:\n%s", sel.IDs, m.View())
-	}
-
-	// /plan safe plans the whole tier; other tabs explain where plans are made.
-	m = step(t, m, keys("/")...)
-	m = step(t, m, keys("plan safe", "enter")...)
-	if !m.Planning {
-		t.Error("/plan safe should start a plan")
-	}
-	m.Planning = false
-	m = step(t, m, keys("4", "p")...)
-	mustContain(t, m.View(), "Plans are made on the Suggestions tab")
-	m = step(t, m, keys("/")...)
-	m = step(t, m, keys("plan everything", "enter")...)
-	mustContain(t, m.View(), "Usage: /plan")
-}
-
-// cmdMsg runs the dashboard's plan function the way the command would.
-func cmdMsg(t *testing.T, m cli.TuiModel, id string) tea.Msg {
-	t.Helper()
-	res, err := m.Deps.MakePlan(m.Deps, planner.Selector{IDs: []string{id}}, m.Data.PlanOps)
-	if err == nil {
-		err = errors.New("expected a refusal")
-	}
-	return cli.PlanMsg{Res: res, Err: err}
 }

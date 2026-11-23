@@ -72,8 +72,8 @@ func TestRenderOverviewStaleAndEmpty(t *testing.T) {
 	mustContain(t, buf.String(), "scanned just now", "/Users 1 B")
 }
 
-// The command set is the five commands, scan and apply, with the helpers
-// under "More"; the old doctor and plan commands are gone.
+// The command set is reclaim, retire, explore, vitals and scan, with the helpers
+// under "More"; the old doctor, plan, apply and refresh commands are gone.
 func TestCommandSet(t *testing.T) {
 	cmd := cli.NewRootCmd()
 	main := map[string]bool{}
@@ -86,13 +86,13 @@ func TestCommandSet(t *testing.T) {
 			more[c.Name()] = true
 		}
 	}
-	for _, want := range []string{"reclaim", "retire", "refresh", "explore", "vitals", "scan", "apply"} {
+	for _, want := range []string{"reclaim", "retire", "explore", "vitals", "scan"} {
 		if !main[want] {
 			t.Errorf("headline command %q missing", want)
 		}
 	}
-	if len(main) != 7 {
-		t.Errorf("headline commands = %v; want exactly the five, scan and apply", main)
+	if len(main) != 5 {
+		t.Errorf("headline commands = %v; want exactly reclaim, retire, explore, vitals and scan", main)
 	}
 	for _, want := range []string{"quarantine", "log", "config", "mcp", "schedule", "version"} {
 		if !more[want] {

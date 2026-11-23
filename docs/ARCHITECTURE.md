@@ -62,7 +62,7 @@ Developer tooling quietly eats tens of gigabytes:
   - 99.5% coverage, fuzz-tested.
 - **Your protected folders** (`macdoc config protect <folder>`, `internal/config`): added on top of the built-in list, never replacing it. Suggestions, planning and the executor's last check all honor them, and an unreadable settings file stops those with an error instead of silently dropping a folder.
 - **Recipe lint** (`internal/recipes/load.go`), applied to every recipe at load time:
-  - Native and dry-run commands must **exactly match an allow-list** (one for cleanup commands, one for dry runs, and a tiny one for the administrator steps, ADR 0009).
+  - Native and dry-run commands must **exactly match an allow-list** (one for cleanup commands, one for dry runs, and the fixed shapes the `system` method may run as administrator, ADR 0014).
   - Allow patterns must be `~`-relative and at least 2 deep, with no `..`, and can't reach protected folders.
   - Preconditions use a strict character set.
 - **Classifier:**
@@ -88,7 +88,7 @@ Full details: [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md).
 ```
 macdoc (one Go binary)
   cmd/macdoc            entry point
-  internal/cli          commands and rendering: the dashboard, the commands (`reclaim`, `retire`, `refresh`, `explore`, `vitals`, `scan`) and `apply`,
+  internal/cli          commands and rendering: the dashboard, the commands (`reclaim`, `retire`, `explore`, `vitals`, `scan`),
                         quarantine, log, config, version
   internal/engine       UI-agnostic core: Overview, Doctor, Slow, Trend, Scan, Opportunities (classifier/
                         ranking), Storage, Projects, plans, audit and quarantine views
