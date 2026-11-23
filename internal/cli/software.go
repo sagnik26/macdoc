@@ -36,7 +36,7 @@ func newRetireCmd(g *GlobalFlags) *cobra.Command {
 			opts := engine.SoftwareOptions{Home: home, Runner: Runner}
 			if tty {
 				opts.Progress = func(done, total int, source string) {
-					_, _ = fmt.Fprintf(errOut, "\r\033[K%s", SourceStatusLine(done, total, source))
+					_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", SourceStatusLine(done, total, source))
 				}
 			}
 			res, err := engine.Software(context.Background(), opts)
@@ -197,9 +197,9 @@ func (m TuiModel) softwareLoadingView() string {
 		if m.softwareSource != "" {
 			tail += " · " + m.softwareSource
 		}
-		fmt.Fprintf(&b, "\n  %s %s\n\n", m.Bar.ViewAs(pct), t.muted.Render(tail))
+		fmt.Fprintf(&b, "\n  %s\n\n  %s\n\n", m.barView(pct, true), t.hint(tail))
 	} else {
-		fmt.Fprintf(&b, "\n  %s %s\n\n", m.Bar.ViewAs(sweep(time.Since(m.softwareStarted))), t.muted.Render("starting"))
+		fmt.Fprintf(&b, "\n  %s\n\n  %s\n\n", m.barView(sweep(time.Since(m.softwareStarted)), false), t.hint("starting"))
 	}
 	b.WriteString("  " + t.muted.Render("Checking /Applications, Homebrew, npm, the programs on PATH, and the folders in your home.") + "\n")
 	b.WriteString("  " + t.muted.Render("This can take a little while. esc closes this view; the list will be kept for next time.") + "\n")

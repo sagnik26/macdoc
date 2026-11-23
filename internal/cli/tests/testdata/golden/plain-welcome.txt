@@ -2,9 +2,6 @@
 
 
 
-
-
-
                 ███╗   ███╗ █████╗  ██████╗██████╗  ██████╗  ██████╗
                 ████╗ ████║██╔══██╗██╔════╝██╔══██╗██╔═══██╗██╔════╝
                 ██╔████╔██║███████║██║     ██║  ██║██║   ██║██║     
@@ -12,26 +9,29 @@
                 ██║ ╚═╝ ██║██║  ██║╚██████╗██████╔╝╚██████╔╝╚██████╗
                 ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═════╝  ╚═════╝  ╚═════╝
 
+
                 Why is my Mac full and slow? macdoc explains it,
                 and helps you get space back without surprises.
+
 
                 ✓ Read-only unless you confirm
                 ✓ Nothing leaves your Mac
                 ✓ Every cleanup can be explained first
 
+
                 ● Last scan 2h ago · 128 GB in 1,031,292 files
 
+
                 ╭─────────────╮
+                │             │
                 │ ▶ scan      │
                 │   reclaim   │
                 │   retire    │
                 │   explore   │
                 │   vitals    │
+                │             │
                 ╰─────────────╯
                  Check your whole Mac: health, where space went, ranked suggestions
-
-
-
 
 
 

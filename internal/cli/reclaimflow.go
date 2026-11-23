@@ -199,7 +199,7 @@ func ensureFreshScan(cmd *cobra.Command, home string) error {
 		Home: home, Version: version, Workers: 4, Runner: Runner, Root: ScanRoot,
 		Progress: func(p scanner.Progress) {
 			if IsTerminal(errOut) {
-				_, _ = fmt.Fprintf(errOut, "\r\033[K%s", ScanStatusLine(p, expected, p.CurrentDir))
+				_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", ScanStatusLine(p, expected, p.CurrentDir))
 			}
 		},
 	})

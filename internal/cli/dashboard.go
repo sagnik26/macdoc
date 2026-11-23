@@ -281,38 +281,38 @@ func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 	in.Prompt = ""
 	in.CharLimit = 64
 	in.SetVirtualCursor(true) // the input is drawn inside the dashboard's own view
-	m := TuiModel{Deps: deps, keys: newKeyMap(), spin: spinner.New(spinner.WithSpinner(spinner.Spinner{
-		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
-		FPS:    time.Second / 10,
-	})), input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
+	m := TuiModel{Deps: deps, keys: newKeyMap(), spin: spinner.New(spinner.WithSpinner(spinner.Dot)),
+		input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
 	m.applyTheme(t)
 	return m
 }
 
 // applyTheme gives the model and its Bubbles components the colors of t. It
 // runs when the model is built and again if the terminal reports a different
-// background color.
+// background color. The components keep the look they have in the Bubbles
+// README: the dot spinner in ANSI 205, the half-block progress bar with the
+// default purple-to-pink blend, the default help and input styles.
 func (m *TuiModel) applyTheme(t *Theme) {
 	m.t = t
-	m.spin.Style = t.brand
-	barOpts := []progress.Option{progress.WithoutPercentage(), progress.WithFillCharacters('━', '━')}
-	if t.color {
-		barOpts = append(barOpts, progress.WithColors(t.c(duo{gradFrom, gradFrom}), t.c(duo{gradTo, gradTo})), progress.WithScaled(true))
-	}
-	m.Bar = progress.New(barOpts...)
-	m.Bar.EmptyColor = t.c(duo{"#3A3A3A", "#3A3A3A"})
-	m.Bar.SetWidth(min(48, max(10, m.w-30)))
-	if t.color {
-		st := m.input.Styles()
-		st.Cursor.Color = t.c(colBrand)
-		m.input.SetStyles(st)
-	}
+	m.spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m.Bar = progress.New(progress.WithDefaultBlend())
+	m.Bar.SetWidth(barWidth(m.w))
+	m.input.SetStyles(textinput.DefaultStyles(t.dark))
 	h := help.New()
-	h.Styles.ShortKey = t.accent
-	h.Styles.ShortDesc = t.muted
-	h.Styles.ShortSeparator = t.faint
-	h.ShortSeparator = " • "
+	h.Styles = help.DefaultStyles(t.dark)
 	m.help = h
+}
+
+// barWidth is the progress bar's width, including its percentage: the terminal
+// less a margin, at most 80 cells, as in the Bubbles progress example.
+func barWidth(termWidth int) int { return min(80, max(20, termWidth-12)) }
+
+// barView draws the progress bar at pct, with its percentage unless the total
+// is unknown.
+func (m TuiModel) barView(pct float64, showPct bool) string {
+	b := m.Bar
+	b.ShowPercentage = showPct
+	return b.ViewAs(pct)
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -448,7 +448,7 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.t.width = msg.Width
-		m.Bar.SetWidth(min(48, max(10, msg.Width-30)))
+		m.Bar.SetWidth(barWidth(msg.Width))
 		return m, nil
 
 	case tea.BackgroundColorMsg:
@@ -1185,11 +1185,11 @@ func (m TuiModel) scanProgressView() string {
 	b.WriteString("\n")
 	if m.estimate > 0 {
 		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
-		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
+		fmt.Fprintf(&b, "    %s\n", m.barView(pct, true))
 	} else {
 		// No earlier scan to estimate from: the bar still shows, sweeping
 		// back and forth, with no percentage (the total is unknown).
-		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(sweep(p.Elapsed)), t.muted.Render("first scan, size unknown"))
+		fmt.Fprintf(&b, "    %s\n\n    %s\n", m.barView(sweep(p.Elapsed), false), t.hint("first scan, size unknown"))
 	}
 	fmt.Fprintf(&b, "    %s  %s  %s\n", t.size.Render(engine.DecimalBytes(p.Bytes)),
 		t.muted.Render(fmt.Sprintf("%s files", groupDigits(p.Files))), t.faint.Render(p.Elapsed.Round(time.Second).String()))

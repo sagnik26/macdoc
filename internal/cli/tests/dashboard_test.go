@@ -1156,8 +1156,14 @@ func TestTUIScanAlwaysShowsAProgressBar(t *testing.T) {
 		m = step(t, m, cli.StepMsg("scan"), cli.ProgressMsg{Bytes: 32_000_000_000, Files: 1000})
 		return m.Screen()
 	}
-	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "~25%")
-	mustContain(t, scanning(cli.IntroStatus{}), "first scan, size unknown")
+	// The bar is the Bubbles README bar: half-block fill, a dim ░ track, and the
+	// percentage right after it.
+	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "▌", "░", " 25%")
+	unknown := scanning(cli.IntroStatus{})
+	mustContain(t, unknown, "first scan, size unknown", "░")
+	if strings.Contains(unknown, "%") {
+		t.Errorf("a bar with an unknown total must not show a percentage:\n%s", unknown)
+	}
 }
 
 // The / palette lists the same commands, in the same order, as the welcome
@@ -1282,10 +1288,7 @@ func TestTUIRetireShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading installed software", "starting") // a bar from the first frame
 	m = step(t, m, cli.SoftwareProgressMsg{Done: 3, Total: 12, Source: "homebrew"})
-	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew")
-	if !strings.Contains(m.Screen(), "█") && !strings.Contains(m.Screen(), "▓") && !strings.Contains(m.Screen(), "━") {
-		t.Errorf("no bar drawn:\n%s", m.Screen())
-	}
+	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew", "▌", "░", " 25%")
 }
 
 // Until the first reading is in, the vitals page shows a progress bar over the
@@ -1296,7 +1299,7 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading CPU, memory", "starting")
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
-	mustContain(t, m.Screen(), "2 of 6 readings", "cpu")
+	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▌", "░", " 33%")
 }
 
 // The help overlay lists the keys the dashboard has now, and nothing that was

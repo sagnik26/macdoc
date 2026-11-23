@@ -53,7 +53,7 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	tty := !g.json && !g.quiet && IsTerminal(errOut)
 	status := func(s string) {
 		if tty {
-			_, _ = fmt.Fprintf(errOut, "\r\033[K%s", s)
+			_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", s)
 		}
 	}
 	opts := engine.OverviewOptions{Home: home, Runner: Runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: ScanRoot}

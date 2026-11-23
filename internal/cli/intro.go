@@ -82,16 +82,20 @@ func (m TuiModel) introView() string {
 	t := m.t
 	var blocks []string
 
-	// Logo (or a compact title on small screens).
+	// The wordmark (with the cat in the place of the O) in color when it fits, else
+	// the plain block logo, else a compact title on small screens.
 	logo := macdocLogo()
-	if m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34 {
+	switch wm := wordmark(t); {
+	case wm != nil && m.w >= wordmarkWidth()+4 && m.h >= 36:
+		blocks = append(blocks, strings.Join(wm, "\n"))
+	case m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34:
 		var lb strings.Builder
 		shades := logoShades()
 		for i, l := range logo {
 			lb.WriteString(t.fg(shades[i]).Bold(true).Render(l) + "\n")
 		}
 		blocks = append(blocks, strings.TrimRight(lb.String(), "\n"))
-	} else {
+	default:
 		blocks = append(blocks, t.brand.Render("◆ macdoc"))
 	}
 	blocks = append(blocks, t.text.Render("Why is my Mac full and slow? macdoc explains it,")+"\n"+
@@ -136,14 +140,19 @@ func (m TuiModel) introView() string {
 			fmt.Fprintf(&ab, "  %s%s\n", t.accent.Render(name), t.muted.Render(desc))
 		}
 	}
-	actions := strings.TrimRight(t.Card(strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")...), "\n")
+	rows := strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")
+	actions := strings.TrimRight(t.Card(append(append([]string{""}, rows...), "")...), "\n")
 	if compact {
 		actions += "\n " + t.muted.Render(Truncate(m.introActions()[m.introPick].desc, m.w-4))
 	}
 	blocks = append(blocks, actions)
 
 	// Center the Column of blocks horizontally.
+	// Airier when there is room: two blank lines between the blocks, not one.
 	body := strings.Join(blocks, "\n\n")
+	if airy := strings.Join(blocks, "\n\n\n"); strings.Count(airy, "\n")+1 <= m.introHeight() {
+		body = airy
+	}
 	width := 0
 	for _, l := range strings.Split(body, "\n") {
 		width = max(width, lipgloss.Width(l))

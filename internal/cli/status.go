@@ -46,7 +46,7 @@ func newStatusCmd(g *GlobalFlags) *cobra.Command {
 				tty := !g.json && !g.quiet && IsTerminal(errOut)
 				if tty {
 					opts.Progress = func(done, total int, probe string) {
-						_, _ = fmt.Fprintf(errOut, "\r\033[K%s", ProbeStatusLine(done, total, probe))
+						_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", ProbeStatusLine(done, total, probe))
 					}
 				}
 				res := engine.Status(context.Background(), opts)
@@ -312,9 +312,9 @@ func (m TuiModel) vitalsBody() string {
 			if m.statusProbe != "" {
 				tail += " · " + m.statusProbe
 			}
-			return head + "  " + m.Bar.ViewAs(float64(m.statusDone)/float64(m.statusTotal)) + " " + t.muted.Render(tail) + "\n"
+			return head + "  " + m.barView(float64(m.statusDone)/float64(m.statusTotal), true) + "\n\n  " + t.hint(tail) + "\n"
 		}
-		return head + "  " + m.Bar.ViewAs(sweep(time.Since(m.statusOpened))) + " " + t.muted.Render("starting") + "\n"
+		return head + "  " + m.barView(sweep(time.Since(m.statusOpened)), false) + "\n\n  " + t.hint("starting") + "\n"
 	}
 	res := display(*m.status)
 	var b strings.Builder

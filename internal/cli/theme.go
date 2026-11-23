@@ -38,9 +38,10 @@ type Theme struct {
 type duo struct{ dark, light string }
 
 // The palette is docs/DESIGN_SYSTEM.md section 3. The chrome tokens (brand,
-// accent, selection, title chip, gradient) are the macdoc look; the neutrals and
-// the semantic colors (green, yellow, orange, red, blue) carry meaning and do
-// not change with it.
+// accent, selection, title chip, gradient) are the macdoc look. The semantic
+// colors (SAFE, CAUTION, RISKY, errors, info) carry meaning and are chosen to go
+// with it: the neon mint, soft yellow and coral of the Bubbles README, deeper on a
+// light background. Risk is always written out as well as colored.
 var (
 	// Chrome.
 	colBrand  = duo{"#7571F9", "#5A56E0"}
@@ -60,17 +61,20 @@ var (
 	// logo and the progress bar.
 	gradFrom, gradTo = "#5A56E0", "#EE6FF8"
 
+	// colHint is the hint text under a progress bar in the Bubbles README example.
+	colHint = duo{"#626262", "#626262"}
+
 	// Neutrals.
 	colText  = duo{"#ECECEC", "#1C1C1C"}
 	colMuted = duo{"#9A9A9A", "#6C6C6C"}
 	colFaint = duo{"#4E4E4E", "#C6C6C6"}
 
 	// Semantic colors.
-	colGreen  = duo{"#6BD68A", "#1E8A4C"}
-	colYellow = duo{"#F2CC60", "#9A6D00"}
-	colOrange = duo{"#F4A261", "#C2570C"}
-	colRed    = duo{"#F26B6B", "#C62828"}
-	colBlue   = duo{"#8FB3FF", "#2457C5"}
+	colGreen  = duo{"#5CFFD0", "#0B8F6A"} // SAFE, ok, done: the README's mint
+	colYellow = duo{"#FDFF8C", "#8A6D00"} // CAUTION, warnings: the README's soft yellow
+	colOrange = duo{"#FF9A5C", "#C2570C"} // RISKY
+	colRed    = duo{"#FF6B6B", "#C62828"} // errors: the cat's coral
+	colBlue   = duo{"#8FB3FF", "#2457C5"} // info
 )
 
 // PaletteEntry is one palette color for a dark and a light background, as hex.
@@ -144,6 +148,9 @@ func (t *Theme) c(d duo) color.Color {
 	}
 	return t.profile.Convert(lipgloss.Color(v))
 }
+
+// hint renders s as the hint line under a progress bar: the README's #626262.
+func (t *Theme) hint(s string) string { return t.fg(colHint).Render(s) }
 
 // style is a fresh style. Every style in the theme starts here, so the plain
 // themes are one place.

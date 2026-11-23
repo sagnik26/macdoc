@@ -2,8 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"strings"
+	"io"
+	"os"
 	"time"
+
+	"charm.land/bubbles/v2/progress"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/scanner"
@@ -18,23 +22,38 @@ func ExpectedScanBytes(home string) int64 {
 	return 0
 }
 
-// ScanStatusLine is the one-line scan progress shown on stderr: a bar with a
+// statusBarWidth is the width of the bar in a one-line status, with its percentage.
+const statusBarWidth = 30
+
+// statusBar is the progress bar as the Bubbles README draws it (half blocks in
+// the default purple-to-pink blend over a dim track), with its percentage
+// unless the total is unknown. It carries truecolor escapes: write it through
+// statusOut so the terminal's own depth is respected.
+func statusBar(pct float64, showPct bool) string {
+	b := progress.New(progress.WithDefaultBlend(), progress.WithWidth(statusBarWidth))
+	b.ShowPercentage = showPct
+	return b.ViewAs(pct)
+}
+
+// statusOut wraps a terminal writer so colors are reduced to what it shows, or
+// dropped for NO_COLOR and a terminal with no color.
+func statusOut(w io.Writer) io.Writer { return colorprofile.NewWriter(w, os.Environ()) }
+
+// ScanStatusLine is the one-line scan progress shown on stderr: the bar with a
 // percentage when expected is known, a sweeping bar marked "size unknown" when
 // it is not, then the bytes, files and time so far.
 func ScanStatusLine(p scanner.Progress, expected int64, dir string) string {
-	const width = 24
-	var bar, tail string
+	var bar string
 	if expected > 0 {
-		pct := min(0.99, float64(p.Bytes)/float64(expected))
-		bar, tail = barText(pct, width), fmt.Sprintf("~%d%%", int(pct*100))
+		bar = statusBar(min(0.99, float64(p.Bytes)/float64(expected)), true)
 	} else {
-		bar, tail = barText(sweep(p.Elapsed), width), "size unknown"
+		bar = statusBar(sweep(p.Elapsed), false) + "  size unknown"
 	}
-	return fmt.Sprintf("Scanning… %s %s · %s · %d files · %s · %s",
-		bar, tail, engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(dir, 40))
+	return fmt.Sprintf("Scanning… %s · %s · %d files · %s · %s",
+		bar, engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(dir, 40))
 }
 
-// SourceStatusLine is the one-line progress of `macdoc retire`: a bar over the
+// SourceStatusLine is the one-line progress of `macdoc retire`: the bar over the
 // discovery sources read so far.
 func SourceStatusLine(done, total int, source string) string {
 	pct := 0.0
@@ -45,10 +64,10 @@ func SourceStatusLine(done, total int, source string) string {
 	if source != "" {
 		tail += " · " + source
 	}
-	return "Reading installed software… " + barText(pct, 24) + " " + tail
+	return "Reading installed software… " + statusBar(pct, true) + "  " + tail
 }
 
-// ProbeStatusLine is the one-line progress of `macdoc vitals`: a bar over the
+// ProbeStatusLine is the one-line progress of `macdoc vitals`: the bar over the
 // probes that have answered.
 func ProbeStatusLine(done, total int, probe string) string {
 	pct := 0.0
@@ -59,11 +78,5 @@ func ProbeStatusLine(done, total int, probe string) string {
 	if probe != "" {
 		tail += " · " + probe
 	}
-	return "Reading your Mac… " + barText(pct, 24) + " " + tail
-}
-
-// barText draws pct (0..1) as a bar of the given width.
-func barText(pct float64, width int) string {
-	filled := max(0, min(width, int(pct*float64(width))))
-	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
+	return "Reading your Mac… " + statusBar(pct, true) + "  " + tail
 }

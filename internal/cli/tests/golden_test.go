@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,5 +167,42 @@ func TestBackgroundColorRestylesTheDashboard(t *testing.T) {
 	same := step(t, dark, tea.BackgroundColorMsg{Color: color.Black})
 	if same.Screen() != dark.Screen() {
 		t.Error("an answer that agrees with the guess changed the screen")
+	}
+}
+
+// In color the welcome screen's lettering is the chunky eight-row wordmark with
+// a cat wearing a stethoscope in the place of the O. A plain layout, a narrow
+// terminal and a short one fall back to the block logo or a compact title.
+func TestWelcomeScreenWordmarkHasTheCatInTheO(t *testing.T) {
+	status := cli.IntroStatus{HasScan: true, Age: "2h ago", Bytes: 128_000_000_000, Files: 1_031_292}
+	welcome := func(th *cli.Theme, w, h int) string {
+		m := goldenModel(t, th, w, h)
+		m.Intro, m.IntroStatus = true, status
+		return m.Screen()
+	}
+	const blockM = "███╗   ███╗" // the "m" of the plain block logo
+
+	wide := welcome(cli.ForcedColorTheme(true, 120), 120, 60)
+	if !strings.Contains(wide, "▀") || !strings.Contains(wide, "▄") || strings.Contains(wide, blockM) {
+		t.Errorf("a wide, tall colored terminal should show the wordmark, not the block logo:\n%s", wide)
+	}
+	mustContain(t, wide, "Why is my Mac full and slow?")
+
+	for name, c := range map[string]struct {
+		out        string
+		wantBlock  bool
+		wantHalves bool
+	}{
+		"plain layout": {welcome(cli.PlainLayoutTheme(), 120, 60), true, false},
+		"narrow":       {welcome(cli.ForcedColorTheme(true, 70), 70, 60), true, false},
+		"short":        {welcome(cli.ForcedColorTheme(true, 120), 120, 30), false, false},
+	} {
+		if strings.Contains(c.out, blockM) != c.wantBlock {
+			t.Errorf("%s: block logo present = %v, want %v", name, !c.wantBlock, c.wantBlock)
+		}
+		if strings.Contains(c.out, "▀") != c.wantHalves {
+			t.Errorf("%s: the wordmark should not be drawn", name)
+		}
+		mustContain(t, c.out, "Why is my Mac full and slow?")
 	}
 }

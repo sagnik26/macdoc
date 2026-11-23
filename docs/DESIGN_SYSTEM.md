@@ -62,19 +62,23 @@ Each color has a dark-background and a light-background value, and degrades to
 | `faint` | `#4E4E4E` | `#C6C6C6` |
 | `onBadge` | `#141414` | `#FFFFFF` |
 
-### 3.3 Semantic colors (never change with the palette)
+### 3.3 Semantic colors
+These carry meaning, so each stays a distinct hue, and risk is always written out
+as well as colored. They are the neon family of the Bubbles README (its mint
+wordmark, soft yellow and the cat's coral), deeper on a light background so they
+read on white.
 
 | Meaning | Dark | Light | Where |
 |---|---|---|---|
-| SAFE, ok, done | `#6BD68A` | `#1E8A4C` | SAFE tier, success lines |
-| CAUTION, warning | `#F2CC60` | `#9A6D00` | CAUTION tier, warnings |
-| RISKY | `#F4A261` | `#C2570C` | RISKY tier |
-| Bad, error, critical | `#F26B6B` | `#C62828` | Failures, the memory alert box |
+| SAFE, ok, done | `#5CFFD0` | `#0B8F6A` | SAFE tier, success lines |
+| CAUTION, warning | `#FDFF8C` | `#8A6D00` | CAUTION tier, warnings |
+| RISKY | `#FF9A5C` | `#C2570C` | RISKY tier |
+| Bad, error, critical | `#FF6B6B` | `#C62828` | Failures, the memory alert box |
 | Info | `#8FB3FF` | `#2457C5` | Neutral notices |
 
 ### 3.4 JSON view
 
-Keys use `accent`, strings the SAFE green, numbers the CAUTION yellow and
+Keys use `accent`, strings the SAFE mint, numbers the CAUTION yellow and
 literals the info blue. The old violet and cyan are retired.
 
 ### 3.5 Contrast
@@ -101,18 +105,29 @@ backgrounds. Check each palette change in a light and a dark terminal.
   the word. Section headers repeat the tier with its total.
 
 ### 4.4 Progress bar and spinner
-- A bar is shown for every scan, retire read and vitals reading: a percentage when
-  the total is known, a sweeping bar and "size unknown" when it is not.
-- A spinner marks the step in progress; finished steps show `✓` and their time.
-- No other animation.
+These are the Bubbles README components, unchanged (`charm.land/bubbles/v2`).
+- **Bar:** `progress.New(progress.WithDefaultBlend())`: a fill of half blocks `▌`
+  blended from `#5A56E0` to `#EE6FF8` (the blend spans the whole bar, so a half-full
+  bar shows only the first half of it), a dim `░` track in `#606060`, and the
+  percentage right after the bar (` 25%`). Up to 80 cells wide.
+- **Hint text** under a bar is `#626262`, as in the README example ("Press any key to quit").
+- **Unknown total:** the same bar sweeps back and forth with no percentage, and the
+  hint says the size is unknown. One bar is shown for every scan, retire read and
+  vitals reading, on the dashboard and on the command line (where it is written
+  through `colorprofile`, so 256- and 16-color terminals and `NO_COLOR` still work).
+- **Spinner:** `spinner.Dot` (braille dots) in ANSI 205, beside the step in progress;
+  finished steps show `✓` and their time. No other animation.
 
 ### 4.5 Footer help
-- One line of `key  action` pairs for the current view, separated by ` • `.
-  `?` opens the full list.
+- `help.DefaultStyles` from Bubbles: dim gray keys, descriptions and the ` • `
+  separator, as in the README's "? toggle help • q quit" line. One line of
+  `key  action` pairs for the current view; it drops the least useful hints
+  first and always keeps `? help`, `esc home` and `q quit`. `?` opens the full list.
 
 ### 4.6 Command line (`/`)
-- A text input with a list of completions below it; `tab` completes, arrows pick,
-  `esc` leaves. The list is exactly the commands on the welcome screen.
+- A Bubbles text input with its default styles (block cursor), with a list of
+  completions below it; `tab` completes, arrows pick, `esc` leaves. The list is
+  exactly the commands on the welcome screen.
 
 ### 4.7 Boxes
 - **Alert box:** a red rounded box with a bold title, for things that need attention
@@ -120,6 +135,20 @@ backgrounds. Check each palette change in a light and a dark terminal.
 - **Panel:** a rounded `accent` border around the part of a page a person acts on.
 - **Removal box:** lists each item with its risk, size and path, the total, and
   what Enter and `esc` do; a RISKY item asks for its typed ID.
+
+### 4.9 Wordmark and mascot
+- In color the welcome screen's lettering is "macdoc" in chunky letters, eight terminal
+  rows tall (80 columns wide), on the brand gradient. In the place of the O sits a cat in
+  the style of the Bubbles README header (a round violet head, pink inner ears, upright
+  dark eyes, pink cheeks and whiskers, a small coral smile) wearing a doctor's
+  stethoscope, because macdoc is the doctor for your Mac.
+- It is drawn in half blocks (`internal/cli/wordmark.go`), in color only, and only when the
+  terminal is at least 84 columns wide and 36 rows tall. Otherwise the welcome screen
+  shows the six-row block logo, or a compact title on a small terminal. A plain layout
+  always shows the block logo.
+- The welcome text is airier when there is room: two blank lines between its blocks and
+  padding inside the command box. A terminal app cannot change the size of ordinary text;
+  that is the terminal's font size.
 
 ### 4.8 Detail pane and overlays
 - Scrollable, wraps to the width, `esc` closes. Overlays replace the page; they do
