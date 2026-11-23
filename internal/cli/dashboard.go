@@ -295,7 +295,7 @@ func (m *TuiModel) applyTheme(t *Theme) {
 	m.spin.Style = t.brand
 	barOpts := []progress.Option{progress.WithoutPercentage(), progress.WithFillCharacters('━', '━')}
 	if t.color {
-		barOpts = append(barOpts, progress.WithColors(t.c(duo{"#E8875F", "#E8875F"}), t.c(duo{"#F2CC60", "#F2CC60"})), progress.WithScaled(true))
+		barOpts = append(barOpts, progress.WithColors(t.c(duo{gradFrom, gradFrom}), t.c(duo{gradTo, gradTo})), progress.WithScaled(true))
 	}
 	m.Bar = progress.New(barOpts...)
 	m.Bar.EmptyColor = t.c(duo{"#3A3A3A", "#3A3A3A"})
@@ -1023,10 +1023,10 @@ func (m TuiModel) pageTitle() string {
 // pageHeader is the top of a page: the brand, the page's title and a rule.
 func (m TuiModel) pageHeader(title string) string {
 	t := m.t
-	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.Title.Render(title)
+	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.chip(title)
 	r := t.Ok.Render("asks before removing") + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
-	return left + strings.Repeat(" ", gap) + r + "\n" + t.rule(m.w)
+	return left + strings.Repeat(" ", gap) + r + "\n" + t.gradientRule(m.w)
 }
 
 func (m TuiModel) tabsView() string {

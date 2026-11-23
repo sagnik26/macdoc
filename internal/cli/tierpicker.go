@@ -215,7 +215,7 @@ func (m TierPicker) cleanButton() string {
 	label, color, border := "Clean: nothing ticked", colMuted, lipgloss.RoundedBorder()
 	if len(items) > 0 {
 		label = fmt.Sprintf("Clean %d %s · %s", len(items), plural(len(items), "item", "items"), sizeSummary(items))
-		color = colDarkViolet
+		color = colBrand
 	}
 	if focused && len(items) > 0 {
 		border = lipgloss.ThickBorder() // a heavier frame while the cursor is on it

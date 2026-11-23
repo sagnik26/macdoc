@@ -57,15 +57,16 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - `esc` cancels. Results of a stopped scan are discarded, and the previous results stay.
   - `q` while loading stops the engine before exiting.
 - **Read-only:** the dashboard calls the same engine as the read-only commands and nothing else.
-- **Theme** (`internal/cli/theme.go`):
-  - Every color is a `CompleteAdaptiveColor`: truecolor, 256 and 16 values, for light and dark backgrounds. Lip Gloss picks the depth from the terminal.
+- **Theme** (`internal/cli/theme.go`, palette in `docs/DESIGN_SYSTEM.md`):
+  - Every color is a truecolor value for a dark and for a light background, reduced to 256 or 16 colors for terminals that show fewer (Charm v2: `colorprofile`).
   - Palette:
-    - coral brand
-    - cyan IDs and accents
-    - SAFE green, CAUTION yellow, RISKY orange, ADVISE blue
+    - indigo brand (`#7571F9` dark, `#5A56E0` light) for the mark, headings, the active tab and IDs
+    - a brand-to-pink gradient on the header rule, the welcome logo and the progress bar
+    - ANSI 212 (dark) or 162 (light) for the selected row's marker, ANSI 62 on 230 for the page title chip
+    - SAFE green, CAUTION yellow, RISKY orange, ADVISE and info blue, errors red (these never change with the look)
     - muted and faint grays
-  - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color.
-  - Non-terminal output uses a plain theme that renders the exact pre-color text, with no boxes, dots or escapes, so pipes, files and golden tests stay stable.
+  - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color. A colored dashboard also asks the terminal for its background color at start and restyles if the answer differs from the guess.
+  - Non-terminal output uses a plain theme with no color and no attributes, so it carries no escape sequence, with no boxes or dots, so pipes, files and golden tests stay stable. The golden snapshots are in `internal/cli/tests/testdata/golden`.
   - Native commands are highlighted: tool green, flags yellow, arguments plain.
 
 ### 1b. `macdoc explore --projects` (implemented 2026-10-28, Phase 4)

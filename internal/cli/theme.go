@@ -37,25 +37,99 @@ type Theme struct {
 // background. Terminals with fewer colors get the nearest one (see Theme.c).
 type duo struct{ dark, light string }
 
+// The palette is docs/DESIGN_SYSTEM.md section 3. The chrome tokens (brand,
+// accent, selection, title chip, gradient) are the macdoc look; the neutrals and
+// the semantic colors (green, yellow, orange, red, blue) carry meaning and do
+// not change with it.
 var (
-	colBrand      = duo{"#E8875F", "#C15F3C"}
-	colText       = duo{"#ECECEC", "#1C1C1C"}
-	colMuted      = duo{"#9A9A9A", "#6C6C6C"}
-	colFaint      = duo{"#4E4E4E", "#C6C6C6"}
-	colCyan       = duo{"#67D4F1", "#00799E"}
-	colGreen      = duo{"#6BD68A", "#1E8A4C"}
-	colYellow     = duo{"#F2CC60", "#9A6D00"}
-	colOrange     = duo{"#F4A261", "#C2570C"}
-	colRed        = duo{"#F26B6B", "#C62828"}
-	colDarkViolet = duo{"#8B5CF6", "#4C1D95"}
-	colBlue       = duo{"#8FB3FF", "#2457C5"}
-	colViolet     = duo{"#C3A6FF", "#6B3FC4"}
+	// Chrome.
+	colBrand  = duo{"#7571F9", "#5A56E0"}
+	colAccent = duo{"#7571F9", "#5A56E0"}
+	// colSelectFg is ANSI 212 (dark) or 162 (light): the selected row's marker.
+	colSelectFg = duo{"#FF87D7", "#D70087"}
+	// colChipBg and colChipFg are ANSI 62 and 230: the page title chip.
+	colChipBg = duo{"#5F5FD7", "#5F5FD7"}
+	colChipFg = duo{"#FFFFD7", "#FFFFD7"}
 	// colSelect is the selected-row background: a quiet tint that keeps
 	// every foreground color readable.
 	colSelect = duo{"#2F3340", "#E3E7F2"}
 	// colOnBadge is the text on a colored badge: near-black in both themes.
 	colOnBadge = duo{"#141414", "#FFFFFF"}
+
+	// The gradient runs from gradFrom to gradTo: the header rule, the welcome
+	// logo and the progress bar.
+	gradFrom, gradTo = "#5A56E0", "#EE6FF8"
+
+	// Neutrals.
+	colText  = duo{"#ECECEC", "#1C1C1C"}
+	colMuted = duo{"#9A9A9A", "#6C6C6C"}
+	colFaint = duo{"#4E4E4E", "#C6C6C6"}
+
+	// Semantic colors.
+	colGreen  = duo{"#6BD68A", "#1E8A4C"}
+	colYellow = duo{"#F2CC60", "#9A6D00"}
+	colOrange = duo{"#F4A261", "#C2570C"}
+	colRed    = duo{"#F26B6B", "#C62828"}
+	colBlue   = duo{"#8FB3FF", "#2457C5"}
 )
+
+// PaletteEntry is one palette color for a dark and a light background, as hex.
+type PaletteEntry struct{ Dark, Light string }
+
+// Palette lists the named colors of the theme, for tests and documents that
+// check them (contrast, the design spec).
+func Palette() map[string]PaletteEntry {
+	out := map[string]PaletteEntry{}
+	for name, d := range map[string]duo{
+		"brand": colBrand, "accent": colAccent, "selectFg": colSelectFg, "chipBg": colChipBg, "chipFg": colChipFg,
+		"selectBg": colSelect, "onBadge": colOnBadge, "text": colText, "muted": colMuted, "faint": colFaint,
+		"safe": colGreen, "caution": colYellow, "risky": colOrange, "bad": colRed, "info": colBlue,
+	} {
+		out[name] = PaletteEntry{d.dark, d.light}
+	}
+	return out
+}
+
+// gradient is n colors from gradFrom to gradTo, as hex.
+func gradient(n int) []string {
+	parse := func(h string) (r, g, b int) {
+		_, _ = fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &b)
+		return
+	}
+	r1, g1, b1 := parse(gradFrom)
+	r2, g2, b2 := parse(gradTo)
+	out := make([]string, n)
+	for i := range out {
+		f := 0.0
+		if n > 1 {
+			f = float64(i) / float64(n-1)
+		}
+		mix := func(a, b int) int { return a + int(float64(b-a)*f+0.5) }
+		out[i] = fmt.Sprintf("#%02X%02X%02X", mix(r1, r2), mix(g1, g2), mix(b1, b2))
+	}
+	return out
+}
+
+// gradientRule is a horizontal rule of n cells that shifts along the gradient.
+// A theme without color draws the plain rule.
+func (t *Theme) gradientRule(n int) string {
+	if !t.color || n <= 0 {
+		return t.rule(n)
+	}
+	var b strings.Builder
+	for _, hex := range gradient(n) {
+		b.WriteString(lipgloss.NewStyle().Foreground(t.profile.Convert(lipgloss.Color(hex))).Render("─"))
+	}
+	return b.String()
+}
+
+// chip is a short label on the title-chip colors (the bare label without color).
+func (t *Theme) chip(s string) string {
+	if !t.color {
+		return t.Title.Render(s)
+	}
+	return t.style().Background(t.c(colChipBg)).Foreground(t.c(colChipFg)).Bold(true).Padding(0, 1).Render(s)
+}
 
 // c is the color of palette entry d for this theme: none for a theme that
 // draws no color, otherwise the dark or light value reduced to the colors the
@@ -149,14 +223,14 @@ func ColorTheme(dark bool, profile colorprofile.Profile, width int) *Theme {
 	t := &Theme{on: true, color: true, dark: dark, profile: profile, width: width}
 	t.brand, t.Title = t.fg(colBrand).Bold(true), t.fg(colText).Bold(true)
 	t.text, t.muted, t.faint = t.fg(colText), t.fg(colMuted), t.fg(colFaint)
-	t.accent, t.ID = t.fg(colCyan), t.fg(colCyan)
+	t.accent, t.ID = t.fg(colAccent), t.fg(colAccent)
 	t.size = t.fg(colText).Bold(true)
 
 	t.Ok, t.warn, t.bad, t.info, t.risky = t.fg(colGreen), t.fg(colYellow), t.fg(colRed), t.fg(colBlue), t.fg(colOrange)
 
 	t.cmdName, t.cmdFlag, t.cmdArg = t.fg(colGreen).Bold(true), t.fg(colYellow), t.fg(colText)
 
-	t.jsonKey, t.jsonString, t.jsonNumber, t.jsonLiteral = t.fg(colCyan), t.fg(colGreen), t.fg(colYellow), t.fg(colViolet)
+	t.jsonKey, t.jsonString, t.jsonNumber, t.jsonLiteral = t.fg(colAccent), t.fg(colGreen), t.fg(colYellow), t.fg(colBlue)
 	return t
 }
 

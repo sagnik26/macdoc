@@ -69,14 +69,13 @@ func macdocLogo() []string {
 	return rows
 }
 
-// logoShades run from the brand coral to warm yellow, top to bottom.
-var logoShades = []duo{
-	{"#E8875F", "#C15F3C"},
-	{"#EA9460", "#C4663A"},
-	{"#EDA261", "#C76E37"},
-	{"#EFB061", "#B8742F"},
-	{"#F1BE60", "#A97A22"},
-	{"#F2CC60", "#9A6D00"},
+// logoShades are the logo's six rows, top to bottom, along the gradient.
+func logoShades() []duo {
+	var out []duo
+	for _, h := range gradient(6) {
+		out = append(out, duo{h, h})
+	}
+	return out
 }
 
 func (m TuiModel) introView() string {
@@ -87,8 +86,9 @@ func (m TuiModel) introView() string {
 	logo := macdocLogo()
 	if m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34 {
 		var lb strings.Builder
+		shades := logoShades()
 		for i, l := range logo {
-			lb.WriteString(t.fg(logoShades[i]).Bold(true).Render(l) + "\n")
+			lb.WriteString(t.fg(shades[i]).Bold(true).Render(l) + "\n")
 		}
 		blocks = append(blocks, strings.TrimRight(lb.String(), "\n"))
 	} else {

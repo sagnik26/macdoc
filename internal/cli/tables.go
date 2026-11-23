@@ -593,6 +593,9 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		switch c {
 		case 0:
 			s = t.brand.Bold(true)
+			if r == sel {
+				s = t.fg(colSelectFg).Bold(true)
+			}
 		case 1:
 			s = t.size
 		case 2:
