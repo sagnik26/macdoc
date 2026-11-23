@@ -1,0 +1,19 @@
+macdoc reclaim · scan S-TEST · 2h ago
+
+ Free & safe ─────────────────────────────────────────────────── 25.2 GB
+  O-ab12cd   14.2 GB  Xcode DerivedData · MyApp                     rebuilds on next build
+  O-k3m9pq  ~11.0 GB  Docker build cache                            rebuilds on next build
+                      → docker builder prune -f
+
+ Needs care ─────────────────────────────────────────── 8.4 GB + unknown
+  O-z4n1ty    8.4 GB  Android system image API 29                   re-download ~1.2 GB
+                      → sdkmanager --uninstall system-images;android-29
+  O-c6h5ju         —  Something odd                                 
+
+ Do it yourself (macdoc can't clean these) ───────────────────────── 1 B
+  O-qq11ww       1 B  Lost data                                     can't be restored
+
+ Notes
+  · results are from a scan 9 hours old; run "macdoc scan" to refresh
+
+ macdoc reclaim (cleans what you choose, after you confirm) · nothing has been changed

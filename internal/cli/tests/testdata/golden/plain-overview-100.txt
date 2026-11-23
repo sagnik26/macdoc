@@ -1,0 +1,40 @@
+ ◆ macdoc  MacBookAir10,1 · M1                     8.0 GB free · scan 2h ago · asks before removing 
+  1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ Your Mac
+ ╭─────────────────┬──────────────────────────────────────────────────────────────────────────╮
+ │ Metric          │ Value                                                                    │
+ ├─────────────────┼──────────────────────────────────────────────────────────────────────────┤
+ │ Disk            │ ━━━━━━━━━━━━━━━━━━━━  237 GB used of 245 GB · 8.0 GB free (3%) · +2.9 GB │
+ │                 │ purgeable                                                                │
+ │ Memory          │ 8.0 GB · 43% free                                                        │
+ │ Memory pressure │ Normal                                                                   │
+ │ Swap used       │ 3.0 GB                                                                   │
+ │ Snapshots       │ 0 local Time Machine snapshot(s)                                         │
+ ╰─────────────────┴──────────────────────────────────────────────────────────────────────────╯
+
+
+ What matters most
+ ╭───┬──────────┬────────────────────────────────────────────────────────╮
+ │ # │ Level    │ Finding                                                │
+ ├───┼──────────┼────────────────────────────────────────────────────────┤
+ │ 1 │ Critical │ Low disk (8.0 GB free) while 3.0 GB of swap is in use. │
+ │ 2 │ Warning  │ Free space is under 10 GB (8.0 GB).                    │
+ │ 3 │ Info     │ 2.9 GB is purgeable.                                   │
+ ╰───┴──────────┴────────────────────────────────────────────────────────╯
+
+
+ Reclaimable (details on the Suggestions tab)
+ ╭────────┬─────────────┬──────────────────┬───────┬────────────────────────────────────────────╮
+ │ Risk   │ Tier        │             Size │ Items │ Biggest items                              │
+ ├────────┼─────────────┼──────────────────┼───────┼────────────────────────────────────────────┤
+ │ SAFE   │ Free & safe │          25.2 GB │     2 │ Xcode DerivedData · MyApp 14.2 GB · Docker │
+ │        │             │                  │       │ build cache 11.0 GB                        │
+ │ RISKY  │ Needs care  │ 8.4 GB + unknown │     2 │ Android system image API 29 8.4 GB ·       │
+ │        │             │                  │       │ Something odd size unknown                 │
+ │ ADVICE │ Your call   │              1 B │     1 │ Lost data 1 B                              │
+ ╰────────┴─────────────┴──────────────────┴───────┴────────────────────────────────────────────╯
+
+
+ tab switch view • ↑↓ move • / commands • r rescan • ? help • esc home • q quit

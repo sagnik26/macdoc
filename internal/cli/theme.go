@@ -109,6 +109,16 @@ func PlainTheme() *Theme {
 	return t
 }
 
+// ForcedColorTheme is a truecolor theme for a dark or light background that
+// does not depend on the terminal it runs in. It exists so tests and
+// screenshots can render the colored look anywhere.
+func ForcedColorTheme(dark bool, width int) *Theme {
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.TrueColor)
+	r.SetHasDarkBackground(dark)
+	return ColorTheme(r, width)
+}
+
 // ColorTheme builds styles on renderer r (whose profile decides the depth).
 func ColorTheme(r *lipgloss.Renderer, width int) *Theme {
 	s := func(c lipgloss.TerminalColor) lipgloss.Style { return r.NewStyle().Foreground(c) }

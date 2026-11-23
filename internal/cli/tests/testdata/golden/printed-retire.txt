@@ -1,0 +1,13 @@
+macdoc retire · scan  · 
+
+ Installed software ─── 2 apps and system packages · 1 programs on PATH · 5.8 GB in their data folders
+  Docker                           app 4.30                             900 MB  1 cleanup recipe(s) 
+  Notion                           app 7.4                              4.9 GB  advisory only       
+  pipx                             tool                   no data folder found  advisory only         new since last scan
+
+ Folders no software explains ────────────────────────────── 723 MB in 1
+        723 MB  /Users/me/Downloads
+
+ Discovery ──────────────────────────────────────────────────────────── 
+  apps     ok
+Nothing has been changed.

@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Help                                                             asks before removing 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ Keys
+   tab / shift+tab, 1–5   switch tab (the scan view)
+   ↑ ↓  j k  pgup pgdn    move or scroll
+   enter                  remove the selected suggestion (or the marked ones), after you confirm
+   space                  mark several suggestions to remove together
+   e                      explain the selected suggestion
+   p                      seal a dry-run plan instead (marked, or the selected one)
+   a  (on a plan)         apply it here in the terminal, after you confirm
+   /                      command palette
+   ?                      this help
+   r                      rescan the disk
+   esc                    stop a scan · close a page · back to the home screen
+   q, ctrl+c              quit
+
+ Commands
+   /scan                  scan the disk again, then show the full report (esc stops a scan)
+   /reclaim               scan, then clean every SAFE and CAUTION item at once (esc stops it)
+   /retire                installed software, its data folders and cleanups
+   /explore               where the space is, as a folder tree you can open
+   /vitals                live CPU, memory, disk, network and battery, with a health score
+
+ Safety
+   Nothing is removed until you confirm. Enter shows what will go and how
+                                                                            much space comes back; …
+                                                                             A RISKY item also need…
+                                                                             before it's removed, a…
+                                                                               for good, so the spa…
+                                                                        
+
+
+
+
+
+
+
+
+ ↑↓ move • esc back • q quit

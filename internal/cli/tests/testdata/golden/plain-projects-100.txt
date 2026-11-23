@@ -1,0 +1,40 @@
+ ◆ macdoc  MacBookAir10,1 · M1                     8.0 GB free · scan 2h ago · asks before removing 
+  1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ Projects · 802 MB of build folders in 2
+ ╭────────────────┬────────────────────┬────────┬─────────────┬───────────────────────╮
+ │ Project        │ Idle               │   Size │ Git         │ Biggest folders       │
+ ├────────────────┼────────────────────┼────────┼─────────────┼───────────────────────┤
+ │ ~/code/app     │ 120 d · git commit │ 800 MB │ uncommitted │ node_modules 500 MB · │
+ │                │                    │        │             │ ios/Pods 300 MB       │
+ │ ~/Desktop/site │ unknown            │ 2.0 MB │ clean       │ .next 2.0 MB          │
+ │ (protected)    │                    │        │             │                       │
+ ╰────────────────┴────────────────────┴────────┴─────────────┴───────────────────────╯
+
+  Idle is the newest of the last commit, a file change or a build. Projects in protected folders
+  (Desktop, Documents, …) are listed only.
+
+ DerivedData of deleted projects
+ ╭──────────────────────┬────────╮
+ │ Workspace            │   Size │
+ ├──────────────────────┼────────┤
+ │ ~/old/Gone.xcodeproj │ 900 MB │
+ ╰──────────────────────┴────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ tab switch view • ↑↓ move • / commands • r rescan • ? help • esc home • q quit

@@ -1,0 +1,28 @@
+Plan P-7F3K · 4 item(s) · 566 MB · expires in 25 min · made by you (--safe)
+
+ SAFE ─────────────────────────────────────────────────────────── 406 MB
+  O-brewaa  Homebrew old versions                           400 MB
+            → runs brew cleanup --prune=all
+            Not undoable by macdoc: re-downloads on demand
+  O-logsaa  Old app logs · Zoom                             6.0 MB
+            → deletes ~/Library/Logs/Zoom
+            Not undoable by macdoc: nothing to restore
+
+ CAUTION ──────────────────────────────────────────────────────── 160 MB
+  O-nodeaa  Node.js v18.0.0                                 160 MB
+            → deletes ~/.nvm/versions/node/v18.0.0
+            Not undoable by macdoc: re-downloads on demand. Run nvm install 18.
+            Risk raised: the project has uncommitted changes
+            Checks first: Xcode isn't running · the project has no uncommitted changes
+  O-modelb  llama3:8b                                            —
+            → runs ollama rm llama3:8b
+            Not undoable by macdoc: re-downloads on demand
+
+ Freed right away: 566 MB
+ Plus 1 item(s) of unknown size.
+ 2 local Time Machine snapshot(s) exist: macOS may keep some of the freed space until they expire.
+
+ Not included
+  O-simsaa Leftover runtimes: advice only: macdoc takes no action on it
+
+ Nothing has been changed.

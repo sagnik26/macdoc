@@ -500,27 +500,32 @@ func TestTUIInstalledCommand(t *testing.T) {
 	}
 }
 
-// softwareModel is the dashboard with a fixed software inventory: Docker has a
-// cleanup, Notion has data but no cleanup, and pipx is a program with no data.
+// softwareFixture is a fixed software inventory: Docker has a cleanup, Notion
+// has data but no cleanup, and pipx is a program with no data.
+func softwareFixture() engine.SoftwareResult {
+	return engine.SoftwareResult{
+		Software: []engine.SoftwareEntry{
+			{ID: "bundle:com.docker.docker", Name: "Docker", Kind: "app", Version: "4.30", Bytes: 900_000_000,
+				Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Containers/com.docker.docker", Bytes: 900_000_000, Confidence: 0.9, Evidence: "bundle id"}},
+				CoveredBy: []string{"docker.bc"}},
+			{ID: "app:com.notion.id", Name: "Notion", Kind: "app", Version: "7.4", Bytes: 4_900_000_000,
+				Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Caches/notion", Bytes: 4_900_000_000, Confidence: 0.6, Evidence: "name"}},
+				CoveredBy: []string{}},
+			{ID: "tool:pipx", Name: "pipx", Kind: "tool", Folders: []engine.OwnedFolder{}, CoveredBy: []string{}},
+		},
+		Unattributed: []engine.OwnedFolder{{Path: "/Users/me/Downloads", Bytes: 723_000_000}},
+		New:          []string{"tool:pipx"},
+		Sources:      []engine.SourceState{{Source: "apps", State: "ok"}},
+	}
+}
+
+// softwareModel is the dashboard with that inventory.
 func softwareModel(t *testing.T) cli.TuiModel {
 	t.Helper()
 	deps := &cli.TuiDeps{Home: "/Users/me",
 		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil },
 		Software: func(context.Context, *cli.TuiDeps) (engine.SoftwareResult, error) {
-			return engine.SoftwareResult{
-				Software: []engine.SoftwareEntry{
-					{ID: "bundle:com.docker.docker", Name: "Docker", Kind: "app", Version: "4.30", Bytes: 900_000_000,
-						Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Containers/com.docker.docker", Bytes: 900_000_000, Confidence: 0.9, Evidence: "bundle id"}},
-						CoveredBy: []string{"docker.bc"}},
-					{ID: "app:com.notion.id", Name: "Notion", Kind: "app", Version: "7.4", Bytes: 4_900_000_000,
-						Folders:   []engine.OwnedFolder{{Path: "/Users/me/Library/Caches/notion", Bytes: 4_900_000_000, Confidence: 0.6, Evidence: "name"}},
-						CoveredBy: []string{}},
-					{ID: "tool:pipx", Name: "pipx", Kind: "tool", Folders: []engine.OwnedFolder{}, CoveredBy: []string{}},
-				},
-				Unattributed: []engine.OwnedFolder{{Path: "/Users/me/Downloads", Bytes: 723_000_000}},
-				New:          []string{"tool:pipx"},
-				Sources:      []engine.SourceState{{Source: "apps", State: "ok"}},
-			}, nil
+			return softwareFixture(), nil
 		}}
 	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
 	return step(t, m, tea.WindowSizeMsg{Width: 120, Height: 60}, cli.LoadedMsg{Data: tuiFixture()})

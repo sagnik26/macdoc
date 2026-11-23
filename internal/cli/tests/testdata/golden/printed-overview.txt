@@ -1,0 +1,21 @@
+macdoc · MacBookAir10,1 (M1, 8.0 GB) · macOS 26.6.2 · scan 2h ago
+
+Disk       ▕███████████████████████████ ▏ 237 GB / 245 GB used   8.0 GB free  (+2.9 GB purgeable)
+Memory     8.0 GB · pressure normal · 43% free · swap 3.0 GB used
+Snapshots  0 local Time Machine snapshot(s)
+
+What matters most
+  1. ‼ Low disk (8.0 GB free) while 3.0 GB of swap is in use.
+  2. ! Free space is under 10 GB (8.0 GB).
+  3. · 2.9 GB is purgeable.
+
+Where your space is (Data volume, 0 B measured)
+  —
+
+Reclaimable                              33.6 GB actionable · 1 B advice
+  Free & safe          25.2 GB   Xcode DerivedData · MyApp 14.2 GB · Docker build cache 11.0 GB
+  Needs care         8.4 GB + unknown   Android system image API 29 8.4 GB · Something odd size unknown
+  Your call                1 B   Lost data 1 B
+
+More: macdoc scan (rescan + full report) · wins (every item + ID) · space · health
+Nothing has been changed.

@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Vitals                                                           asks before removing 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ ● Live · updated just now · every 3s
+
+ Health 83 / 100 · 
+  -10 memory pressure is warn
+  -7 something else
+
+
+ Now
+  CPU      ████████░░░░░░░░░░░░  42.0% ▬   load 1.50 / 0.00 / 0.00 (8 cores)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ w how it decides • ↑↓ move • esc back • q quit
