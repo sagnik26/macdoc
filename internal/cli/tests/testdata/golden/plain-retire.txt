@@ -1,40 +1,40 @@
  ◆ macdoc  ›  Retire                                                           asks before removing 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-
- Summary
-  2 apps and system packages · 1 programs on PATH · 5.8 GB in their data folders
-  1 program has cleanups · 11.0 GB can be reclaimed · press c to mark them
-  New since last scan: pipx
-  Largest folder no software explains: ~/Downloads (723 MB)
-
-
- Installed software · with data · 2 of 3
- ╭──────────┬──────────┬────────┬───────────────┬─────╮
- │ Name     │ Kind     │   Data │ Cleanup       │ New │
- ├──────────┼──────────┼────────┼───────────────┼─────┤
- │ ▸ Docker │ app 4.30 │ 900 MB │ 1 recipe(s)   │     │
- │ Notion   │ app 7.4  │ 4.9 GB │ advisory only │     │
- ╰──────────┴──────────┴────────┴───────────────┴─────╯
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                                                                                                    
+ Summary                                                                                            
+  2 apps and system packages · 1 programs on PATH · 5.8 GB in their data folders                    
+  1 program has cleanups · 11.0 GB can be reclaimed · press c to mark them                          
+  New since last scan: pipx                                                                         
+  Largest folder no software explains: ~/Downloads (723 MB)                                         
+                                                                                                    
+                                                                                                    
+ Installed software · with data · 2 of 3                                                            
+ ╭──────────┬──────────┬────────┬───────────────┬─────╮                                             
+ │ Name     │ Kind     │   Data │ Cleanup       │ New │                                             
+ ├──────────┼──────────┼────────┼───────────────┼─────┤                                             
+ │ ▸ Docker │ app 4.30 │ 900 MB │ 1 recipe(s)   │     │                                             
+ │ Notion   │ app 7.4  │ 4.9 GB │ advisory only │     │                                             
+ ╰──────────┴──────────┴────────┴───────────────┴─────╯                                             
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
  f filter • c mark cleanups • ↑↓ move • esc back • q quit

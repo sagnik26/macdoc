@@ -1298,3 +1298,34 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
 	mustContain(t, m.Screen(), "2 of 6 readings", "cpu")
 }
+
+// The help overlay lists the keys the dashboard has now, and nothing that was
+// removed (the plan and apply keys), and says plainly that /reclaim does not ask.
+func TestTUIHelpListsTheCurrentKeys(t *testing.T) {
+	out := step(t, loaded(t, 120, 60), keys("?")...).Screen()
+	mustContain(t, out, "hide this kind of suggestion", "review the RISKY items", "/reclaim removes every SAFE and CAUTION item",
+		"mark several suggestions", "explain the selected suggestion", "back to the home screen")
+	for _, gone := range []string{"dry-run plan", "apply it here", "(on a plan)"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("the help still mentions %q", gone)
+		}
+	}
+}
+
+// On every tab the footer fits the terminal and keeps "? help" and "q quit",
+// dropping the least useful hints first as the terminal narrows.
+func TestTUIFooterFitsAndKeepsHelpAndQuit(t *testing.T) {
+	for _, w := range []int{60, 70, 80, 90, 100, 120, 140} {
+		for _, tab := range []string{"1", "2", "3", "4", "5"} {
+			m := step(t, loaded(t, w, 40), keys(tab)...)
+			lines := strings.Split(strings.TrimRight(m.Screen(), "\n"), "\n")
+			footer := lines[len(lines)-1]
+			if lipgloss.Width(footer) > w {
+				t.Errorf("width %d, tab %s: the footer is %d wide: %q", w, tab, lipgloss.Width(footer), footer)
+			}
+			if !strings.Contains(footer, "? help") || !strings.Contains(footer, "q quit") {
+				t.Errorf("width %d, tab %s: the footer lost help or quit: %q", w, tab, footer)
+			}
+		}
+	}
+}

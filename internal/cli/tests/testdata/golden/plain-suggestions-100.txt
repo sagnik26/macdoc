@@ -37,4 +37,4 @@
 
 
 
- enter remove • space mark • x hide this kind • e explain • ↑↓ move • tab switch view • / commands
+ enter remove • space mark • x hide this kind • e explain • ↑↓ move • ? help • esc home • q quit

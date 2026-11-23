@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"charm.land/bubbles/v2/progress"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -965,12 +967,14 @@ func fitHeight(s string, h, w int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// scrolled applies the scroll offset to a text body.
+// scrolled applies the scroll offset to a text body, through a Bubbles
+// viewport: the offset is kept within the body, and the part that fits is shown.
 func (m *TuiModel) scrolled(s string) string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
-	maxOff := max(0, len(lines)-m.bodyHeight())
-	m.scroll = min(m.scroll, maxOff)
-	return strings.Join(lines[m.scroll:], "\n")
+	vp := viewport.New(viewport.WithWidth(m.w), viewport.WithHeight(m.bodyHeight()))
+	vp.SetContent(strings.TrimRight(s, "\n"))
+	vp.SetYOffset(m.scroll)
+	m.scroll = vp.YOffset()
+	return vp.View()
 }
 
 func (m TuiModel) headerView() string {
@@ -1087,8 +1091,19 @@ func (m TuiModel) footerView() string {
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	}
-	m.help.SetWidth(m.w - 1) // the footer starts with one space; a longer line is cut, never wrapped
-	return " " + m.help.ShortHelpView(keys)
+	// The footer starts with one space. A line that is too long loses hints from
+	// the middle, so the last three (help, home, quit) stay.
+	return " " + m.help.ShortHelpView(m.fitKeys(keys, m.w-1))
+}
+
+// fitKeys drops hints, from just before the last three backwards, until the
+// footer fits width. The last three always stay.
+func (m TuiModel) fitKeys(keys []key.Binding, width int) []key.Binding {
+	m.help.SetWidth(0) // measure without any cut
+	for len(keys) > 3 && lipgloss.Width(m.help.ShortHelpView(keys)) > width {
+		keys = slices.Concat(keys[:len(keys)-4], keys[len(keys)-3:])
+	}
+	return keys
 }
 
 // paletteWindow is the range of completions the / menu shows: all of them
@@ -1283,8 +1298,8 @@ func (m TuiModel) HelpView() string {
 		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
 		{"space", "mark several suggestions to remove together"},
 		{"e", "explain the selected suggestion"},
-		{"p", "seal a dry-run plan instead (marked, or the selected one)"},
-		{"a  (on a plan)", "apply it here in the terminal, after you confirm"},
+		{"x", "hide this kind of suggestion from now on"},
+		{"d  (after /reclaim)", "review the RISKY items it left alone; each needs its ID typed"},
 		{"/", "command palette"},
 		{"?", "this help"},
 		{"r", "rescan the disk"},
@@ -1299,11 +1314,13 @@ func (m TuiModel) HelpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.Name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
-	b.WriteString(t.muted.Render("   Nothing is removed until you confirm. Enter shows what will go and how\n"))
-	b.WriteString(t.muted.Render("   much space comes back; Enter again removes it (SAFE and CAUTION items).\n"))
-	b.WriteString(t.muted.Render("   A RISKY item also needs its code typed. Each item is checked again just\n"))
-	b.WriteString(t.muted.Render("   before it's removed, and skipped if it changed. Removed items are deleted\n"))
-	b.WriteString(t.muted.Render("   for good, so the space is freed at once. Everything is in macdoc log.\n"))
+	b.WriteString(t.muted.Render("   /reclaim removes every SAFE and CAUTION item right after its scan, without") + "\n")
+	b.WriteString(t.muted.Render("   asking (esc stops it; nothing RISKY is ever included). Everything else asks:") + "\n")
+	b.WriteString(t.muted.Render("   Enter shows what will go and how") + "\n")
+	b.WriteString(t.muted.Render("   much space comes back; Enter again removes it (SAFE and CAUTION items).") + "\n")
+	b.WriteString(t.muted.Render("   A RISKY item also needs its code typed. Each item is checked again just") + "\n")
+	b.WriteString(t.muted.Render("   before it's removed, and skipped if it changed. Removed items are deleted") + "\n")
+	b.WriteString(t.muted.Render("   for good, so the space is freed at once. Everything is in macdoc log.") + "\n")
 	return b.String()
 }
 
