@@ -2,14 +2,16 @@
 
 > **Status (2026-11-24):** all phases are implemented in the working tree; the decisions are
 > recorded in [ADR 0016](adr/0016-charm-v2-and-terminal-palette.md). Still manual: screenshots
-> and a check in macOS Terminal, iTerm2 and one more terminal, light and dark.
+> and a check in macOS Terminal, iTerm2 and one more terminal, light and dark. They need a
+> person at a real terminal and are the only open items.
 
 Goal: move macdoc's terminal UI from Bubble Tea / Bubbles / Lip Gloss v1 to
 v2, and replace hand-built interactive components with Bubbles v2
 components, styled per `docs/DESIGN_SYSTEM.md`.
 
 Rules for every phase:
-- One phase per branch and PR. Do not combine phases.
+- One phase per commit, in order, so each can be reviewed alone. (The plan first asked for one
+  branch and PR per phase; the owner chose a single PR on 2026-11-24, with a commit per phase.)
 - Safety behavior does not change: plan, confirm, apply, audit log, typed
   codes, advice-only items. No change to `internal/executor`.
 - After each phase: `make test`, `make lint`, `make importcheck`,
