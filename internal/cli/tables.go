@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -603,7 +603,7 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 			s = t.text
 		}
 		if r == sel && t.on {
-			s = s.Background(colSelect).Bold(true)
+			s = s.Background(t.c(colSelect)).Bold(true)
 		}
 		return &s
 	})

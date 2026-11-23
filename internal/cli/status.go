@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -346,7 +346,7 @@ func (t *Theme) alertBox(title, text string) string {
 	if !t.on {
 		return " ! " + title + "\n   " + text + "\n"
 	}
-	box := t.r.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colRed).Padding(0, 1).Render(body)
+	box := t.style().Border(lipgloss.RoundedBorder()).BorderForeground(t.c(colRed)).Padding(0, 1).Render(body)
 	return indentLines(box, " ") + "\n"
 }
 

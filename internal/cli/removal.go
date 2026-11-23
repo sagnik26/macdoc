@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/executor"
@@ -178,7 +178,7 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	r := m.removing
 	if r.running {
-		if r.auto && r.cancel != nil && msg.Type == tea.KeyEsc {
+		if r.auto && r.cancel != nil && msg.String() == "esc" {
 			r.cancel() // the item in progress finishes; the rest are left alone
 			m.Flash = "Stopping after the current item…"
 		}
@@ -202,12 +202,12 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		m.Overlay, m.removing = OverlayNone, nil
 		m.Flash = "Canceled. Nothing was removed."
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		if want, pending := r.nextRisky(); pending {
 			if !strings.EqualFold(strings.TrimSpace(r.code), want.OpportunityID) {
 				m.Flash = "Type " + want.OpportunityID + " first, then press Enter (esc cancels)."
@@ -221,15 +221,17 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m.runRemove()
-	case tea.KeyBackspace:
+	case "backspace":
 		if s := []rune(r.code); len(s) > 0 {
 			r.code = string(s[:len(s)-1])
 		}
-	case tea.KeyRunes:
-		if r.needsCode() && len(r.code) < 8 {
-			r.code += string(msg.Runes)
-		}
 	default:
+		if text := msg.Key().Text; text != "" { // a typed character: part of the code, if one is wanted
+			if r.needsCode() && text != " " && len(r.code) < 8 {
+				r.code += text
+			}
+			return m, nil
+		}
 		m.scrollBy(msg.String())
 	}
 	return m, nil

@@ -37,4 +37,4 @@
 
 
 
- enter remove • space mark • x hide this kind • e explain • ↑↓ move • tab switch view • / commands • r rescan • ? help • esc home • q quit
+ enter remove • space mark • x hide this kind • e explain • ↑↓ move • tab switch view • / commands

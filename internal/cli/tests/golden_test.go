@@ -5,12 +5,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/cli"
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -88,7 +89,7 @@ func TestGoldenDashboardTabs(t *testing.T) {
 			for i, tab := range tabs {
 				m := goldenModel(t, th.make(size[0]), size[0], size[1])
 				m = step(t, m, keys(fmt.Sprint(i+1))...)
-				checkGolden(t, fmt.Sprintf("%s-%s-%d", th.name, tab, size[0]), m.View())
+				checkGolden(t, fmt.Sprintf("%s-%s-%d", th.name, tab, size[0]), m.Screen())
 			}
 		}
 	}
@@ -103,16 +104,16 @@ func TestGoldenDashboardPages(t *testing.T) {
 
 		welcome := goldenModel(t, th.make(w), w, h)
 		welcome.Intro, welcome.IntroStatus = true, cli.IntroStatus{HasScan: true, Age: "2h ago", Bytes: 128_000_000_000, Files: 1_031_292}
-		checkGolden(t, th.name+"-welcome", welcome.View())
+		checkGolden(t, th.name+"-welcome", welcome.Screen())
 
 		help := step(t, goldenModel(t, th.make(w), w, h), keys("?")...)
-		checkGolden(t, th.name+"-help", help.View())
+		checkGolden(t, th.name+"-help", help.Screen())
 
 		vit, cmd := openVitals(t, goldenModel(t, th.make(w), w, h))
 		vit = deliverStatus(t, vit, cmd)
-		checkGolden(t, th.name+"-vitals", vit.View())
+		checkGolden(t, th.name+"-vitals", vit.Screen())
 
-		checkGolden(t, th.name+"-retire", openInstalled(t, goldenModel(t, th.make(w), w, h)).View())
+		checkGolden(t, th.name+"-retire", openInstalled(t, goldenModel(t, th.make(w), w, h)).Screen())
 	}
 }
 
@@ -141,5 +142,29 @@ func TestGoldenPrintedReports(t *testing.T) {
 			t.Errorf("%s: plain output contains an escape sequence", name)
 		}
 		checkGolden(t, name, buf.String())
+	}
+}
+
+// A colored dashboard asks the terminal for its background and restyles when
+// the answer differs from its guess; a plain one asks nothing.
+func TestBackgroundColorRestylesTheDashboard(t *testing.T) {
+	light := goldenModel(t, cli.ForcedColorTheme(false, 100), 100, 40)
+	dark := goldenModel(t, cli.ForcedColorTheme(true, 100), 100, 40)
+	if light.Screen() == dark.Screen() {
+		t.Fatal("the light and dark looks should differ")
+	}
+	if light.Init() == nil {
+		t.Error("a colored dashboard should ask the terminal for its background")
+	}
+	if plain := goldenModel(t, cli.PlainLayoutTheme(), 100, 40); plain.Init() != nil {
+		t.Error("a plain dashboard must not ask the terminal anything")
+	}
+	got := step(t, light, tea.BackgroundColorMsg{Color: color.Black}) // a dark terminal
+	if got.Screen() != dark.Screen() {
+		t.Error("after a dark answer the screen should look like the dark theme")
+	}
+	same := step(t, dark, tea.BackgroundColorMsg{Color: color.Black})
+	if same.Screen() != dark.Screen() {
+		t.Error("an answer that agrees with the guess changed the screen")
 	}
 }

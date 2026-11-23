@@ -2,13 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
@@ -16,14 +17,15 @@ import (
 )
 
 // Theme styles human output. A plain theme (pipes, files, tests, NO_COLOR,
-// TERM=dumb) renders every style as the bare text, so plain output is stable
-// and machine-friendly; decorations such as the header card only appear when
-// color is on.
+// TERM=dumb) renders every style as the bare text with no escape sequence, so
+// plain output is stable and machine-friendly; decorations such as the header
+// card only appear when `on` is set.
 type Theme struct {
-	on    bool
-	dark  bool
-	r     *lipgloss.Renderer
-	width int // terminal width for boxes; 0 = unknown
+	on      bool // draw decorations (cards, badges, rules)
+	color   bool // emit color; false for the plain theme and the plain layout
+	dark    bool
+	profile colorprofile.Profile // how many colors the terminal shows
+	width   int                  // terminal width for boxes; 0 = unknown
 
 	brand, Title, text, muted, faint, accent, ID, size lipgloss.Style
 	Ok, warn, bad, info, risky                         lipgloss.Style
@@ -31,34 +33,55 @@ type Theme struct {
 	jsonKey, jsonString, jsonNumber, jsonLiteral       lipgloss.Style
 }
 
-// palette entries degrade from truecolor to 256 to 16 colors, with separate
-// values for light and dark terminals.
-func pc(dark, dark256, dark16, light, light256, light16 string) lipgloss.TerminalColor {
-	return lipgloss.CompleteAdaptiveColor{
-		Dark:  lipgloss.CompleteColor{TrueColor: dark, ANSI256: dark256, ANSI: dark16},
-		Light: lipgloss.CompleteColor{TrueColor: light, ANSI256: light256, ANSI: light16},
-	}
-}
+// duo is one palette entry: a truecolor value for a dark and for a light
+// background. Terminals with fewer colors get the nearest one (see Theme.c).
+type duo struct{ dark, light string }
 
 var (
-	colBrand      = pc("#E8875F", "173", "3", "#C15F3C", "167", "1")
-	colText       = pc("#ECECEC", "255", "15", "#1C1C1C", "234", "0")
-	colMuted      = pc("#9A9A9A", "247", "7", "#6C6C6C", "242", "8")
-	colFaint      = pc("#4E4E4E", "239", "8", "#C6C6C6", "251", "7")
-	colCyan       = pc("#67D4F1", "81", "14", "#00799E", "31", "6")
-	colGreen      = pc("#6BD68A", "78", "10", "#1E8A4C", "29", "2")
-	colYellow     = pc("#F2CC60", "221", "11", "#9A6D00", "136", "3")
-	colOrange     = pc("#F4A261", "215", "9", "#C2570C", "166", "1")
-	colRed        = pc("#F26B6B", "203", "9", "#C62828", "160", "1")
-	colDarkViolet = pc("#8B5CF6", "99", "5", "#4C1D95", "54", "5")
-	colBlue       = pc("#8FB3FF", "111", "12", "#2457C5", "26", "4")
-	colViolet     = pc("#C3A6FF", "183", "13", "#6B3FC4", "98", "5")
+	colBrand      = duo{"#E8875F", "#C15F3C"}
+	colText       = duo{"#ECECEC", "#1C1C1C"}
+	colMuted      = duo{"#9A9A9A", "#6C6C6C"}
+	colFaint      = duo{"#4E4E4E", "#C6C6C6"}
+	colCyan       = duo{"#67D4F1", "#00799E"}
+	colGreen      = duo{"#6BD68A", "#1E8A4C"}
+	colYellow     = duo{"#F2CC60", "#9A6D00"}
+	colOrange     = duo{"#F4A261", "#C2570C"}
+	colRed        = duo{"#F26B6B", "#C62828"}
+	colDarkViolet = duo{"#8B5CF6", "#4C1D95"}
+	colBlue       = duo{"#8FB3FF", "#2457C5"}
+	colViolet     = duo{"#C3A6FF", "#6B3FC4"}
 	// colSelect is the selected-row background: a quiet tint that keeps
 	// every foreground color readable.
-	colSelect = pc("#2F3340", "236", "8", "#E3E7F2", "254", "7")
+	colSelect = duo{"#2F3340", "#E3E7F2"}
 	// colOnBadge is the text on a colored badge: near-black in both themes.
-	colOnBadge = pc("#141414", "233", "0", "#FFFFFF", "231", "15")
+	colOnBadge = duo{"#141414", "#FFFFFF"}
 )
+
+// c is the color of palette entry d for this theme: none for a theme that
+// draws no color, otherwise the dark or light value reduced to the colors the
+// terminal can show.
+func (t *Theme) c(d duo) color.Color {
+	if !t.color {
+		return lipgloss.NoColor{}
+	}
+	v := d.light
+	if t.dark {
+		v = d.dark
+	}
+	return t.profile.Convert(lipgloss.Color(v))
+}
+
+// style is a fresh style. Every style in the theme starts here, so the plain
+// themes are one place.
+func (t *Theme) style() lipgloss.Style { return lipgloss.NewStyle() }
+
+// fg is a style with foreground d (none for a plain theme).
+func (t *Theme) fg(d duo) lipgloss.Style {
+	if !t.color {
+		return lipgloss.NewStyle()
+	}
+	return lipgloss.NewStyle().Foreground(t.c(d))
+}
 
 // newTheme picks colors for w: on only for a terminal that supports color
 // (honoring NO_COLOR and CLICOLOR_FORCE).
@@ -76,9 +99,8 @@ func newTheme(w io.Writer) *Theme {
 		return t
 	}
 	t := PlainTheme()
-	if r := lipgloss.NewRenderer(f); r.ColorProfile() != termenv.Ascii {
-		setBackground(r)
-		t = ColorTheme(r, termWidth(f))
+	if p := colorprofile.Detect(f, os.Environ()); p > colorprofile.Ascii {
+		t = ColorTheme(isDarkBackground(), p, termWidth(f))
 	}
 	themeCache[f.Fd()] = t
 	return t
@@ -89,69 +111,53 @@ var (
 	themeCache = map[uintptr]*Theme{}
 )
 
-// setBackground applies MACDOC_THEME=light|dark if set; otherwise lipgloss
-// asks the terminal for its background color.
-func setBackground(r *lipgloss.Renderer) {
+// isDarkBackground applies MACDOC_THEME=light|dark if set; otherwise it asks
+// the terminal for its background color.
+func isDarkBackground() bool {
 	switch strings.ToLower(os.Getenv("MACDOC_THEME")) {
 	case "light":
-		r.SetHasDarkBackground(false)
+		return false
 	case "dark":
-		r.SetHasDarkBackground(true)
+		return true
 	}
+	return lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 }
 
-// PlainTheme returns a theme that renders exactly the uncolored text.
+// PlainTheme returns a theme that renders exactly the uncolored text: no color
+// and no attributes (no bold, no underline), so no escape sequence is ever
+// written.
 func PlainTheme() *Theme {
-	r := lipgloss.NewRenderer(io.Discard)
-	r.SetColorProfile(termenv.Ascii)
-	t := ColorTheme(r, 0)
-	t.on = false
-	return t
+	p := lipgloss.NewStyle()
+	return &Theme{
+		brand: p, Title: p, text: p, muted: p, faint: p, accent: p, ID: p, size: p,
+		Ok: p, warn: p, bad: p, info: p, risky: p,
+		cmdName: p, cmdFlag: p, cmdArg: p,
+		jsonKey: p, jsonString: p, jsonNumber: p, jsonLiteral: p,
+	}
 }
 
 // ForcedColorTheme is a truecolor theme for a dark or light background that
 // does not depend on the terminal it runs in. It exists so tests and
 // screenshots can render the colored look anywhere.
 func ForcedColorTheme(dark bool, width int) *Theme {
-	r := lipgloss.NewRenderer(io.Discard)
-	r.SetColorProfile(termenv.TrueColor)
-	r.SetHasDarkBackground(dark)
-	return ColorTheme(r, width)
+	return ColorTheme(dark, colorprofile.TrueColor, width)
 }
 
-// ColorTheme builds styles on renderer r (whose profile decides the depth).
-func ColorTheme(r *lipgloss.Renderer, width int) *Theme {
-	s := func(c lipgloss.TerminalColor) lipgloss.Style { return r.NewStyle().Foreground(c) }
-	return &Theme{
-		on:    true,
-		dark:  r.HasDarkBackground(),
-		r:     r,
-		width: width,
+// ColorTheme builds the colored styles for a dark or light background and a
+// terminal that shows profile's colors.
+func ColorTheme(dark bool, profile colorprofile.Profile, width int) *Theme {
+	t := &Theme{on: true, color: true, dark: dark, profile: profile, width: width}
+	t.brand, t.Title = t.fg(colBrand).Bold(true), t.fg(colText).Bold(true)
+	t.text, t.muted, t.faint = t.fg(colText), t.fg(colMuted), t.fg(colFaint)
+	t.accent, t.ID = t.fg(colCyan), t.fg(colCyan)
+	t.size = t.fg(colText).Bold(true)
 
-		brand:  s(colBrand).Bold(true),
-		Title:  s(colText).Bold(true),
-		text:   s(colText),
-		muted:  s(colMuted),
-		faint:  s(colFaint),
-		accent: s(colCyan),
-		ID:     s(colCyan),
-		size:   s(colText).Bold(true),
+	t.Ok, t.warn, t.bad, t.info, t.risky = t.fg(colGreen), t.fg(colYellow), t.fg(colRed), t.fg(colBlue), t.fg(colOrange)
 
-		Ok:    s(colGreen),
-		warn:  s(colYellow),
-		bad:   s(colRed),
-		info:  s(colBlue),
-		risky: s(colOrange),
+	t.cmdName, t.cmdFlag, t.cmdArg = t.fg(colGreen).Bold(true), t.fg(colYellow), t.fg(colText)
 
-		cmdName: s(colGreen).Bold(true),
-		cmdFlag: s(colYellow),
-		cmdArg:  s(colText),
-
-		jsonKey:     s(colCyan),
-		jsonString:  s(colGreen),
-		jsonNumber:  s(colYellow),
-		jsonLiteral: s(colViolet),
-	}
+	t.jsonKey, t.jsonString, t.jsonNumber, t.jsonLiteral = t.fg(colCyan), t.fg(colGreen), t.fg(colYellow), t.fg(colViolet)
+	return t
 }
 
 // termWidth is the terminal's Column count, or 0 if unknown.
@@ -163,8 +169,8 @@ func termWidth(f *os.File) int {
 	return w
 }
 
-// riskColor is the color of a risk tier.
-func riskColor(r model.Risk) lipgloss.TerminalColor {
+// riskColor is the palette entry of a risk tier.
+func riskColor(r model.Risk) duo {
 	switch r {
 	case model.RiskSafe:
 		return colGreen
@@ -181,7 +187,7 @@ func riskColor(r model.Risk) lipgloss.TerminalColor {
 
 // riskStyle is the text style of a risk tier.
 func (t *Theme) riskStyle(r model.Risk) lipgloss.Style {
-	return t.r.NewStyle().Foreground(riskColor(r))
+	return t.fg(riskColor(r))
 }
 
 // Badge is a tier's short label as a colored pill (plain: the bare label).
@@ -190,7 +196,10 @@ func (t *Theme) Badge(r model.Risk) string {
 	if !t.on {
 		return label
 	}
-	return t.r.NewStyle().Background(riskColor(r)).Foreground(colOnBadge).Bold(true).Render(" " + label + " ")
+	if !t.color {
+		return " " + label + " "
+	}
+	return t.style().Background(t.c(riskColor(r))).Foreground(t.c(colOnBadge)).Bold(true).Render(" " + label + " ")
 }
 
 // Dot is "● " in the tier color when color is on, else "".

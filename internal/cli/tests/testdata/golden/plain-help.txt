@@ -24,11 +24,11 @@
 
  Safety
    Nothing is removed until you confirm. Enter shows what will go and how
-                                                                            much space comes back; …
-                                                                             A RISKY item also need…
-                                                                             before it's removed, a…
-                                                                               for good, so the spa…
-                                                                        
+   much space comes back; Enter again removes it (SAFE and CAUTION items).
+   A RISKY item also needs its code typed. Each item is checked again just
+   before it's removed, and skipped if it changed. Removed items are deleted
+   for good, so the space is freed at once. Everything is in macdoc log.
+
 
 
 

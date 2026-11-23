@@ -9,9 +9,9 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/cli"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/executor"
@@ -68,17 +68,18 @@ func step(t *testing.T, m cli.TuiModel, msgs ...tea.Msg) cli.TuiModel {
 
 // keys turns "tab", "enter", "esc", "down" or literal text into key messages.
 func keys(ks ...string) []tea.Msg {
-	named := map[string]tea.KeyType{"tab": tea.KeyTab, "enter": tea.KeyEnter, "esc": tea.KeyEsc,
-		"down": tea.KeyDown, "up": tea.KeyUp, "shift+tab": tea.KeyShiftTab, "pgdown": tea.KeyPgDown, "backspace": tea.KeyBackspace,
-		"left": tea.KeyLeft, "right": tea.KeyRight}
+	named := map[string]tea.Key{"tab": {Code: tea.KeyTab}, "enter": {Code: tea.KeyEnter}, "esc": {Code: tea.KeyEscape},
+		"down": {Code: tea.KeyDown}, "up": {Code: tea.KeyUp}, "shift+tab": {Code: tea.KeyTab, Mod: tea.ModShift},
+		"pgdown": {Code: tea.KeyPgDown}, "backspace": {Code: tea.KeyBackspace},
+		"left": {Code: tea.KeyLeft}, "right": {Code: tea.KeyRight}}
 	var out []tea.Msg
 	for _, k := range ks {
-		if kt, ok := named[k]; ok {
-			out = append(out, tea.KeyMsg{Type: kt})
+		if key, ok := named[k]; ok {
+			out = append(out, tea.KeyPressMsg(key))
 			continue
 		}
 		for _, r := range k {
-			out = append(out, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+			out = append(out, tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
 		}
 	}
 	return out
@@ -95,7 +96,7 @@ func TestTUILoadingSteps(t *testing.T) {
 	}
 	m = step(t, m, cli.StepMsg(engine.StepHealth), cli.StepMsg(engine.StepScan),
 		cli.ProgressMsg{Files: 123456, Bytes: 9_600_000_000, CurrentDir: "/Users/me/Library"})
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "✓ Checking disk, memory and swap", "Scanning your Mac…", "9.6 GB", "123,456 files", "/Users/me/Library",
 		"background priority", "esc stop", "q quit")
 }
@@ -103,7 +104,7 @@ func TestTUILoadingSteps(t *testing.T) {
 func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	clear(m.Marked) // layout test: the cursor row shows its own marker
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Space", "asks before removing", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
@@ -125,64 +126,64 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.Tab != cli.TabSuggestions {
 		t.Fatalf("tab = %d", m.Tab)
 	}
-	mustContain(t, m.View(), "│ ▶ │", "Xcode DerivedData", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
+	mustContain(t, m.Screen(), "│ ▶ │", "Xcode DerivedData", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
 	m = step(t, m, keys("down", "down")...)
 	if m.Cursor != 2 {
 		t.Fatalf("cursor = %d", m.Cursor)
 	}
-	mustContain(t, m.View(), "│ ▶ │", "Android system image", "item 3 of 5")
+	mustContain(t, m.Screen(), "│ ▶ │", "Android system image", "item 3 of 5")
 
 	// Narrow: e swaps the list for the detail; esc goes back.
 	m = step(t, m, keys("e")...)
-	mustContain(t, m.View(), "O-z4n1ty · Android system image API 29", "sdkmanager --uninstall", "esc back")
+	mustContain(t, m.Screen(), "O-z4n1ty · Android system image API 29", "sdkmanager --uninstall", "esc back")
 	m = step(t, m, keys("esc")...)
 	if m.Detail {
 		t.Error("esc should close the detail")
 	}
 	m = step(t, m, keys("5")...)
-	mustContain(t, m.View(), "Reclaimable, by category", "What grew", "in the last 30 days", "│ Gradle", "+6.0 GB")
-	if strings.Contains(m.View(), "│ Downloads") {
+	mustContain(t, m.Screen(), "Reclaimable, by category", "What grew", "in the last 30 days", "│ Gradle", "+6.0 GB")
+	if strings.Contains(m.Screen(), "│ Downloads") {
 		t.Error("an unchanged area is listed under What grew")
 	}
 	m = step(t, m, keys("4")...)
-	mustContain(t, m.View(), "│ Project", "~/code/app", "120 d · git commit", "uncommitted", "~/Desktop/site", "(protected)",
+	mustContain(t, m.Screen(), "│ Project", "~/code/app", "120 d · git commit", "uncommitted", "~/Desktop/site", "(protected)",
 		"ios/Pods\u00a0300\u00a0MB", "DerivedData of deleted projects", "~/old/Gone.xcodeproj")
 	m = step(t, m, keys("3")...)
-	mustContain(t, m.View(), "│ Toolchain", "xcode", "docker")
+	mustContain(t, m.Screen(), "│ Toolchain", "xcode", "docker")
 }
 
 func TestTUIWideShowsDetailBesideList(t *testing.T) {
 	m := step(t, loaded(t, 140, 30), keys("2")...)
 	clear(m.Marked) // layout test: the cursor row shows its own marker
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "│ ▶ │", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
 }
 
 func TestTUISlashCommands(t *testing.T) {
 	m := loaded(t, 100, 30)
 	m = step(t, m, keys("/", "vi")...)
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "▸ /vitals", "› /vi", "enter run", "tab complete")
 	m = step(t, m, keys("enter")...)
 	if m.Overlay == cli.OverlayNone || m.InputMode != 0 {
 		t.Fatalf("/vi should open the /vitals page: overlay=%d mode=%q", m.Overlay, m.InputMode)
 	}
-	mustContain(t, m.View(), "◆ macdoc", "Vitals")
-	if strings.Contains(m.View(), "1 Overview") {
+	mustContain(t, m.Screen(), "◆ macdoc", "Vitals")
+	if strings.Contains(m.Screen(), "1 Overview") {
 		t.Error("the vitals page has no tabs")
 	}
 	m = step(t, m, keys("esc")...)
 
 	// /explain is gone; the e key on a suggestion explains it instead.
 	m = step(t, m, keys("/", "explain O-z4n1ty", "enter")...)
-	mustContain(t, m.View(), "Unknown command /explain")
+	mustContain(t, m.Screen(), "Unknown command /explain")
 
 	m = step(t, m, keys("esc", "/", "json", "enter")...)
-	mustContain(t, m.View(), "Unknown command /json")
+	mustContain(t, m.Screen(), "Unknown command /json")
 	m = step(t, m, keys("esc", "/", "mcp", "enter")...)
-	mustContain(t, m.View(), "Unknown command /mcp")
+	mustContain(t, m.Screen(), "Unknown command /mcp")
 	m = step(t, m, keys("/", "bogus", "enter")...)
-	mustContain(t, m.View(), "Unknown command /bogus")
+	mustContain(t, m.Screen(), "Unknown command /bogus")
 
 	m = step(t, m, keys("/", "quit")...)
 	_, cmd := m.Update(keys("enter")[0])
@@ -206,13 +207,13 @@ func TestTUIStopKeepsPreviousResults(t *testing.T) {
 	if m.Data == partial || m.Data.Res.ScanAge != "2h ago" {
 		t.Error("results of a stopped scan must not replace the previous ones")
 	}
-	mustContain(t, m.View(), "Scan stopped. Showing the previous results.")
+	mustContain(t, m.Screen(), "Scan stopped. Showing the previous results.")
 
 	// With nothing to fall back on, say so.
 	m = newTestTUI(t, 100, 30)
 	m = step(t, m, keys("esc")...)
 	m = step(t, m, cli.LoadedMsg{Err: context.Canceled})
-	mustContain(t, m.View(), "Press r (or /scan) to scan again")
+	mustContain(t, m.Screen(), "Press r (or /scan) to scan again")
 }
 
 func TestTUIQuitWhileLoadingWaitsForEngine(t *testing.T) {
@@ -230,19 +231,24 @@ func TestTUIQuitWhileLoadingWaitsForEngine(t *testing.T) {
 
 func TestThemeDegrades(t *testing.T) {
 	for _, c := range []struct {
-		p    termenv.Profile
-		want string
+		p    colorprofile.Profile
+		want []string // any one of these starts the colored text
 	}{
-		{termenv.TrueColor, "\x1b[38;2;"},
-		{termenv.ANSI256, "\x1b[38;5;"},
-		{termenv.ANSI, "\x1b[9"},
+		{colorprofile.TrueColor, []string{"\x1b[38;2;"}},
+		{colorprofile.ANSI256, []string{"\x1b[38;5;"}},
+		{colorprofile.ANSI, []string{"\x1b[3", "\x1b[9"}},
 	} {
-		r := lipgloss.NewRenderer(nil)
-		r.SetColorProfile(c.p)
-		r.SetHasDarkBackground(true)
-		th := cli.ColorTheme(r, 80)
-		if got := th.Badge(model.RiskSafe) + th.Ok.Render("ok"); !strings.Contains(got, c.want) {
-			t.Errorf("profile %v: %q lacks %q", c.p, got, c.want)
+		th := cli.ColorTheme(true, c.p, 80)
+		got := th.Badge(model.RiskSafe) + th.Ok.Render("ok")
+		found := false
+		for _, w := range c.want {
+			found = found || strings.Contains(got, w)
+		}
+		if !found {
+			t.Errorf("profile %v: %q lacks any of %q", c.p, got, c.want)
+		}
+		if c.p == colorprofile.ANSI && strings.Contains(got, "38;2;") {
+			t.Errorf("a 16-color terminal got truecolor: %q", got)
 		}
 	}
 	// Plain output has no escapes and no decorations.
@@ -276,7 +282,7 @@ func TestFitColumnsKeepsShortColumnsWhole(t *testing.T) {
 
 func TestTUINarrowSuggestionsKeepSizes(t *testing.T) {
 	m := step(t, loaded(t, 80, 30), keys("2")...)
-	mustContain(t, m.View(), "14.2 GB", "~11.0 GB", "RISKY", "│ Restore")
+	mustContain(t, m.Screen(), "14.2 GB", "~11.0 GB", "RISKY", "│ Restore")
 }
 
 // newIntroTUI is the dashboard as `macdoc` opens it: on the welcome screen.
@@ -297,7 +303,7 @@ func TestTUIWelcomeScreen(t *testing.T) {
 	if m.Init() != nil {
 		t.Fatal("nothing may run before the user chooses")
 	}
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "███╗   ███╗", "Why is my Mac full and slow?", "Last scan 2h ago · 128 GB in 1,031,292 files",
 		"▶ scan", "reclaim", "retire", "explore", "vitals",
 		"Check your whole Mac", "See what can be cleaned", "Where the space is, as a folder tree",
@@ -313,7 +319,7 @@ func TestTUIWelcomeScreen(t *testing.T) {
 
 	// First run: says a scan will happen.
 	m, _ = newIntroTUI(t, 70, 24, cli.IntroStatus{})
-	mustContain(t, m.View(), "◆ macdoc", "No scan yet", "First run: scans your disk once")
+	mustContain(t, m.Screen(), "◆ macdoc", "No scan yet", "First run: scans your disk once")
 }
 
 func TestTUIWelcomeActions(t *testing.T) {
@@ -337,17 +343,17 @@ func TestTUIWelcomeActions(t *testing.T) {
 	// returns to the welcome screen.
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
 	m = step(t, m, keys("up", "enter")...)
-	mustContain(t, m.View(), "◆ macdoc", "Vitals")
-	if strings.Contains(m.View(), "1 Overview") {
+	mustContain(t, m.Screen(), "◆ macdoc", "Vitals")
+	if strings.Contains(m.Screen(), "1 Overview") {
 		t.Error("the vitals page has no tabs")
 	}
 	m = step(t, m, keys("esc")...)
-	mustContain(t, m.View(), "reclaim", "vitals")
+	mustContain(t, m.Screen(), "reclaim", "vitals")
 
 	// ? opens the help.
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
 	m = step(t, m, keys("?")...)
-	mustContain(t, m.View(), "Keys", "Commands", "Safety")
+	mustContain(t, m.Screen(), "Keys", "Commands", "Safety")
 
 	// /vitals runs on its own: no scan, no loading, and the welcome screen is
 	// still there when the page closes.
@@ -357,7 +363,7 @@ func TestTUIWelcomeActions(t *testing.T) {
 		t.Errorf("/vitals from the welcome screen: intro=%v loading=%v overlay=%d loads=%v", m.Intro, m.Loading, m.Overlay, *loads)
 	}
 	m = step(t, m, keys("esc")...)
-	mustContain(t, m.View(), "▶ scan")
+	mustContain(t, m.Screen(), "▶ scan")
 
 	m, _ = newIntroTUI(t, 110, 45, cli.IntroStatus{})
 	if _, cmd := m.Update(keys("q")[0]); cmd == nil || cmd() != tea.Quit() {
@@ -374,8 +380,8 @@ func TestTUIReclaimRunsOnItsOwn(t *testing.T) {
 	if !got.Loading || cmd == nil || strings.Contains(got.Flash, "Check") {
 		t.Fatalf("/reclaim with no data should load by itself: loading=%v flash=%q", got.Loading, got.Flash)
 	}
-	mustContain(t, got.View(), "Reclaim")
-	if strings.Contains(got.View(), "1 Overview") {
+	mustContain(t, got.Screen(), "Reclaim")
+	if strings.Contains(got.Screen(), "1 Overview") {
 		t.Error("loading for /reclaim shows no tabs")
 	}
 	runBatch(cmd)
@@ -383,7 +389,7 @@ func TestTUIReclaimRunsOnItsOwn(t *testing.T) {
 		t.Errorf("reclaim never works from a stored scan, it should rescan: %v", *loads)
 	}
 	done := step(t, got, cli.LoadedMsg{Data: tuiFixture()})
-	if strings.Contains(done.View(), "What do you want to clean?") {
+	if strings.Contains(done.Screen(), "What do you want to clean?") {
 		t.Error("after the scan /reclaim must not ask what to clean")
 	}
 }
@@ -426,7 +432,7 @@ func TestFitColumnsKeepsWordsWhole(t *testing.T) {
 // scrolled into view on short windows.
 func TestTUIPaletteShowsEveryCommand(t *testing.T) {
 	m := step(t, loaded(t, 100, 40), keys("/")...)
-	out := m.View()
+	out := m.Screen()
 	for _, c := range cli.SlashCommands {
 		mustContain(t, out, "/"+c.Name)
 	}
@@ -436,14 +442,14 @@ func TestTUIPaletteShowsEveryCommand(t *testing.T) {
 
 	last := "/" + cli.SlashCommands[len(cli.SlashCommands)-1].Name
 	m = step(t, loaded(t, 100, 12), keys("/")...)
-	if strings.Contains(m.View(), last) {
+	if strings.Contains(m.Screen(), last) {
 		t.Error("a short window can't show every command at once")
 	}
 	for range cli.SlashCommands {
 		m = step(t, m, keys("down")...)
 	}
-	mustContain(t, m.View(), "▸ "+last)
-	if n := strings.Count(m.View(), "\n"); n != 11 { // 12 rows
+	mustContain(t, m.Screen(), "▸ "+last)
+	if n := strings.Count(m.Screen(), "\n"); n != 11 { // 12 rows
 		t.Errorf("view is %d lines; want the window height", n+1)
 	}
 }
@@ -452,10 +458,10 @@ func TestWelcomePaletteFitsWindow(t *testing.T) {
 	for _, h := range []int{14, 24, 40} {
 		m, _ := newIntroTUI(t, 100, h, cli.IntroStatus{})
 		m = step(t, m, keys("/")...)
-		if n := strings.Count(m.View(), "\n"); n != h-1 {
+		if n := strings.Count(m.Screen(), "\n"); n != h-1 {
 			t.Errorf("h=%d: view is %d lines", h, n+1)
 		}
-		mustContain(t, m.View(), "/scan")
+		mustContain(t, m.Screen(), "/scan")
 	}
 }
 
@@ -493,9 +499,9 @@ func TestTUIInstalledCommand(t *testing.T) {
 	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 30}, cli.LoadedMsg{Data: tuiFixture()})
 
 	m = openInstalled(t, m)
-	mustContain(t, m.View(), "Installed software", "Figma")
+	mustContain(t, m.Screen(), "Installed software", "Figma")
 	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.View(), "Figma") {
+	if strings.Contains(m.Screen(), "Figma") {
 		t.Error("esc should close the software list")
 	}
 }
@@ -559,13 +565,13 @@ func openInstalled(t *testing.T, m cli.TuiModel) cli.TuiModel {
 // The summary counts cleanups and the filters narrow the list; new and all work.
 func TestTUIInstalledSummaryAndFilters(t *testing.T) {
 	m := openInstalled(t, softwareModel(t))
-	mustContain(t, m.View(), "1 program has cleanups", "New since last scan: pipx", "with data · 2 of 3")
+	mustContain(t, m.Screen(), "1 program has cleanups", "New since last scan: pipx", "with data · 2 of 3")
 	m = step(t, m, keys("f")...)
-	mustContain(t, m.View(), "cleanable · 1 of 3")
+	mustContain(t, m.Screen(), "cleanable · 1 of 3")
 	m = step(t, m, keys("f")...)
-	mustContain(t, m.View(), "new · 1 of 3")
+	mustContain(t, m.Screen(), "new · 1 of 3")
 	m = step(t, m, keys("f")...)
-	mustContain(t, m.View(), "all · 3 of 3")
+	mustContain(t, m.Screen(), "all · 3 of 3")
 }
 
 // c marks the suggestions the installed programs' cleanups produce, opens the
@@ -584,13 +590,13 @@ func TestTUIInstalledDetails(t *testing.T) {
 	m := openInstalled(t, softwareModel(t))
 	m = step(t, m, keys("down")...)
 	m = step(t, m, keys("enter")...)
-	mustContain(t, m.View(), "Program", "Notion", "Data folders", "~/Library/Caches/notion", "No cleanup recipe covers this program")
+	mustContain(t, m.Screen(), "Program", "Notion", "Data folders", "~/Library/Caches/notion", "No cleanup recipe covers this program")
 	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.View(), "Data folders") || !strings.Contains(m.View(), "Installed software") {
+	if strings.Contains(m.Screen(), "Data folders") || !strings.Contains(m.Screen(), "Installed software") {
 		t.Error("esc should go back to the list, not close the view")
 	}
 	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.View(), "Installed software") {
+	if strings.Contains(m.Screen(), "Installed software") {
 		t.Error("a second esc should close the view")
 	}
 }
@@ -601,7 +607,7 @@ func TestTUIInstalledEnterInDetailsStaysInView(t *testing.T) {
 	m := openInstalled(t, softwareModel(t))
 	m = step(t, m, keys("enter")...)
 	m = step(t, m, keys("enter")...)
-	if m.Overlay == cli.OverlayNone || !strings.Contains(m.View(), "Data folders") {
+	if m.Overlay == cli.OverlayNone || !strings.Contains(m.Screen(), "Data folders") {
 		t.Errorf("Enter in the details left the view: overlay=%v", m.Overlay)
 	}
 	if m.Tab != 0 { // 0 is the Overview tab
@@ -619,7 +625,7 @@ func TestTUIInstalledShowsLoadingState(t *testing.T) {
 		t.Fatal("/retire should start the read")
 	}
 	m = next.(cli.TuiModel)
-	mustContain(t, m.View(), "Reading installed software", "esc closes this view")
+	mustContain(t, m.Screen(), "Reading installed software", "esc closes this view")
 	m = step(t, m, keys("esc")...)
 	if m.Overlay != cli.OverlayNone {
 		t.Errorf("esc should close the view while reading: overlay=%v", m.Overlay)
@@ -630,11 +636,11 @@ func TestTUIInstalledShowsLoadingState(t *testing.T) {
 // back when the overlay closes.
 func TestTUITabsHiddenInOverlays(t *testing.T) {
 	m := openInstalled(t, softwareModel(t))
-	if strings.Contains(m.View(), "2 Suggestions") {
+	if strings.Contains(m.Screen(), "2 Suggestions") {
 		t.Error("the tab row should not show over the installed view")
 	}
 	m = step(t, m, keys("esc")...)
-	mustContain(t, m.View(), "2 Suggestions")
+	mustContain(t, m.Screen(), "2 Suggestions")
 }
 
 // Regression: in a short window the arrow keys must reach the tables below the
@@ -644,17 +650,17 @@ func TestTUIInstalledArrowsReachLowerTables(t *testing.T) {
 	m := softwareModel(t)
 	m = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 14})
 	m = openInstalled(t, m)
-	if !strings.Contains(m.View(), "Installed software") || strings.Contains(m.View(), "Notion") {
+	if !strings.Contains(m.Screen(), "Installed software") || strings.Contains(m.Screen(), "Notion") {
 		t.Fatal("the window is too short to show the list at once; the test needs its last row below the fold")
 	}
 	for i := 0; i < 40; i++ {
 		m = step(t, m, keys("down")...)
 	}
-	mustContain(t, m.View(), "Notion")
+	mustContain(t, m.Screen(), "Notion")
 	for i := 0; i < 40; i++ {
 		m = step(t, m, keys("up")...)
 	}
-	mustContain(t, m.View(), "Installed software")
+	mustContain(t, m.Screen(), "Installed software")
 }
 
 // exploreModel is the dashboard with a two-level fake scan: home holds a
@@ -690,25 +696,25 @@ func exploreModel(t *testing.T) cli.TuiModel {
 func TestTUIExplorerNavigation(t *testing.T) {
 	m := exploreModel(t)
 	m = step(t, m, keys("5", "enter")...)
-	mustContain(t, m.View(), "◆ macdoc", "Explore", "▸ Caches/", "big.bin", "smaller items", "├─", "└─", "55.0%")
+	mustContain(t, m.Screen(), "◆ macdoc", "Explore", "▸ Caches/", "big.bin", "smaller items", "├─", "└─", "55.0%")
 	for _, gone := range []string{"Biggest files below", "1 Overview"} {
-		if strings.Contains(m.View(), gone) {
+		if strings.Contains(m.Screen(), gone) {
 			t.Errorf("the explorer should not show %q", gone)
 		}
 	}
 	m = step(t, m, keys("enter")...) // open the folder in place
-	mustContain(t, m.View(), "▾ Caches/", "inner.db", "big.bin", "smaller items", "│")
+	mustContain(t, m.Screen(), "▾ Caches/", "inner.db", "big.bin", "smaller items", "│")
 	m = step(t, m, keys("down", "enter")...) // on the file inside
 	mustContain(t, m.Flash, "Only folders open")
 	m = step(t, m, keys("left")...) // a file: jump to its folder
 	m = step(t, m, keys("left")...) // close it
-	if strings.Contains(m.View(), "inner.db") {
+	if strings.Contains(m.Screen(), "inner.db") {
 		t.Error("← should close the folder")
 	}
 	m = step(t, m, keys("backspace")...)
-	mustContain(t, m.View(), "smaller items")
+	mustContain(t, m.Screen(), "smaller items")
 	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.View(), "big.bin") {
+	if strings.Contains(m.Screen(), "big.bin") {
 		t.Error("esc should close the explorer")
 	}
 }
@@ -776,13 +782,13 @@ func TestTUIVitalsPageShowsALiveReading(t *testing.T) {
 		t.Error("a reading is already running; no second one should start")
 	}
 	m = deliverStatus(t, m, cmd)
-	mustContain(t, m.View(), "Vitals", "Health 83 / 100", "memory pressure is warn", "CPU")
+	mustContain(t, m.Screen(), "Vitals", "Health 83 / 100", "memory pressure is warn", "CPU")
 	for _, gone := range []string{"Findings", "Is memory slowing it down?", "1 Overview"} {
-		if strings.Contains(m.View(), gone) {
+		if strings.Contains(m.Screen(), gone) {
 			t.Errorf("the vitals page should not show %q", gone)
 		}
 	}
-	if strings.Contains(m.View(), "slowing your Mac down") {
+	if strings.Contains(m.Screen(), "slowing your Mac down") {
 		t.Error("with normal memory there is no alert")
 	}
 	if *reads != 1 {
@@ -802,9 +808,9 @@ func TestTUIVitalsAlertsOnlyWhenMemoryIsTight(t *testing.T) {
 		m := step(t, cli.NewTUIModel(deps, cli.PlainLayoutTheme()), tea.WindowSizeMsg{Width: 120, Height: 50})
 		m, cmd := openVitals(t, m)
 		m = deliverStatus(t, m, cmd)
-		got := strings.Contains(m.View(), "Memory is slowing your Mac down")
+		got := strings.Contains(m.Screen(), "Memory is slowing your Mac down")
 		if got != tc.alert {
-			t.Errorf("pressure %s: alert shown = %v, want %v\n%s", tc.pressure, got, tc.alert, m.View())
+			t.Errorf("pressure %s: alert shown = %v, want %v\n%s", tc.pressure, got, tc.alert, m.Screen())
 		}
 	}
 }
@@ -864,13 +870,13 @@ func TestTUIPaletteOpensTheNewFeatures(t *testing.T) {
 
 	m, _ := statusModel(t)
 	next, _ := m.RunCommand("/vitals")
-	mustContain(t, next.(cli.TuiModel).View(), "Vitals")
+	mustContain(t, next.(cli.TuiModel).Screen(), "Vitals")
 
 	em := exploreModel(t)
 	next, _ = em.RunCommand("/explore")
-	mustContain(t, next.(cli.TuiModel).View(), "▸ Caches/", "smaller items")
+	mustContain(t, next.(cli.TuiModel).Screen(), "▸ Caches/", "smaller items")
 	next, _ = em.RunCommand("/explore /Users/me/Caches")
-	mustContain(t, next.(cli.TuiModel).View(), "inner.db")
+	mustContain(t, next.(cli.TuiModel).Screen(), "inner.db")
 }
 
 // Explore and vitals run on their own: with no dashboard data
@@ -890,7 +896,7 @@ func TestTUIStandaloneCommandsNeedNoScan(t *testing.T) {
 			t.Errorf("%s: overlay %d flash %q; it should open without a scan", c, got.Overlay, got.Flash)
 			continue
 		}
-		mustContain(t, got.View(), want)
+		mustContain(t, got.Screen(), want)
 	}
 }
 
@@ -899,7 +905,7 @@ func TestTUIStandaloneCommandsNeedNoScan(t *testing.T) {
 func TestTUIReclaimAndHelpQuitInTheFooter(t *testing.T) {
 	m := loaded(t, 100, 40)
 	typing := step(t, m, keys("/")...)
-	out := typing.View()
+	out := typing.Screen()
 	for _, c := range cli.SlashCommands {
 		if c.Name == "help" || c.Name == "quit" {
 			t.Errorf("/%s should not be a menu entry", c.Name)
@@ -1000,7 +1006,7 @@ func TestTUIReclaimStartsRemovingWithoutAsking(t *testing.T) {
 	if got.Overlay != cli.OverlayRemove {
 		t.Fatalf("the removal should be running: overlay %d", got.Overlay)
 	}
-	out := got.View()
+	out := got.Screen()
 	mustContain(t, out, "Reclaiming 2 items (SAFE and CAUTION)", "SAFE", "CAUTION", "esc")
 	if strings.Contains(out, "0 of 2") || strings.Contains(out, "█") {
 		t.Errorf("the removal must not draw a second progress bar:\n%s", out)
@@ -1046,9 +1052,9 @@ func TestTUIVitalsShowsTrendsAndHistory(t *testing.T) {
 			Report:  probe.Report{Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: freePct, Pressure: probe.PressureNormal}}}}
 	}
 	m = step(t, m, reading(20, 60, 1e6))
-	mustContain(t, m.View(), "Live", "updated just now", "every 3s", "▬") // one reading: no change to show yet
+	mustContain(t, m.Screen(), "Live", "updated just now", "every 3s", "▬") // one reading: no change to show yet
 	m = step(t, m, reading(70, 40, 5e6), reading(30, 40, 2e6))
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "CPU", "▼") // CPU fell from 70 to 30
 	if strings.ContainsAny(out, "▁▂▃▄▅▆▇") {
 		t.Error("there are no history bars any more")
@@ -1057,7 +1063,7 @@ func TestTUIVitalsShowsTrendsAndHistory(t *testing.T) {
 		t.Error("the old footer line should be gone")
 	}
 	m = step(t, m, reading(90, 40, 2e6))
-	mustContain(t, m.View(), "▲") // CPU rose again
+	mustContain(t, m.Screen(), "▲") // CPU rose again
 }
 
 // The vitals page explains how memory-slowing is decided: with the red alert
@@ -1070,13 +1076,13 @@ func TestTUIVitalsExplainsTheAlert(t *testing.T) {
 		Swap: probe.Swap{UsedBytes: 1 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 200e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 50, Pressure: probe.PressureNormal}}}}
 	m = step(t, m, calm)
-	if strings.Contains(m.View(), "How macdoc decides") {
+	if strings.Contains(m.Screen(), "How macdoc decides") {
 		t.Error("with no alert the explanation stays hidden until w")
 	}
 	m = step(t, m, keys("w")...)
-	mustContain(t, m.View(), "How macdoc decides", "Normal", "Warn", "Critical", "▲ now", "Swap in use", "Free disk", "Right now: no alert.")
+	mustContain(t, m.Screen(), "How macdoc decides", "Normal", "Warn", "Critical", "▲ now", "Swap in use", "Free disk", "Right now: no alert.")
 	m = step(t, m, keys("w")...)
-	if strings.Contains(m.View(), "How macdoc decides") {
+	if strings.Contains(m.Screen(), "How macdoc decides") {
 		t.Error("w again hides it")
 	}
 
@@ -1084,7 +1090,7 @@ func TestTUIVitalsExplainsTheAlert(t *testing.T) {
 		Swap: probe.Swap{UsedBytes: 3 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 8e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 10, Pressure: probe.PressureWarn}}}}
 	m = step(t, m, tight)
-	mustContain(t, m.View(), "slowing your Mac down", "How macdoc decides", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
+	mustContain(t, m.Screen(), "slowing your Mac down", "How macdoc decides", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
 }
 
 // reclaim cleans caches, junk and what removed apps left behind. It never
@@ -1101,7 +1107,7 @@ func TestTUIReclaimLeavesInstalledAppsToRetire(t *testing.T) {
 		t.Error("an installed app must not be reclaimed")
 	}
 	scan := step(t, m, keys("tab")...)
-	mustContain(t, scan.View(), "Zoom app in /Applications")
+	mustContain(t, scan.Screen(), "Zoom app in /Applications")
 }
 
 // From the scan view, esc goes back to the welcome screen (and q still
@@ -1115,7 +1121,7 @@ func TestTUIEscGoesHomeFromTheScanView(t *testing.T) {
 	if !home.Intro || home.Overlay != cli.OverlayNone || home.Loading {
 		t.Errorf("esc should return to the welcome screen: intro %v overlay %d loading %v", home.Intro, home.Overlay, home.Loading)
 	}
-	mustContain(t, home.View(), "scan", "reclaim")
+	mustContain(t, home.Screen(), "scan", "reclaim")
 
 	detail := step(t, m, keys("2", "e")...)
 	back := step(t, detail, keys("esc")...)
@@ -1129,7 +1135,7 @@ func TestTUIEscGoesHomeFromTheScanView(t *testing.T) {
 func TestTUIPaletteIsTheSameEverywhere(t *testing.T) {
 	home, _ := newIntroTUI(t, 110, 45, cli.IntroStatus{})
 	for name, m := range map[string]cli.TuiModel{"welcome": home, "scan view": loaded(t, 110, 40)} {
-		v := step(t, m, keys("/")...).View()
+		v := step(t, m, keys("/")...).Screen()
 		for _, c := range cli.SlashCommands {
 			mustContain(t, v, c.Name)
 		}
@@ -1148,7 +1154,7 @@ func TestTUIScanAlwaysShowsAProgressBar(t *testing.T) {
 		next, _ := m.RunCommand("/scan")
 		m = next.(cli.TuiModel)
 		m = step(t, m, cli.StepMsg("scan"), cli.ProgressMsg{Bytes: 32_000_000_000, Files: 1000})
-		return m.View()
+		return m.Screen()
 	}
 	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "~25%")
 	mustContain(t, scanning(cli.IntroStatus{}), "first scan, size unknown")
@@ -1162,7 +1168,7 @@ func TestTUIPaletteMatchesTheWelcomeMenu(t *testing.T) {
 	for _, c := range cli.SlashCommands {
 		want = append(want, c.Name)
 	}
-	view := home.View()
+	view := home.Screen()
 	last := -1
 	for _, name := range want {
 		i := strings.Index(view, name)
@@ -1172,7 +1178,7 @@ func TestTUIPaletteMatchesTheWelcomeMenu(t *testing.T) {
 		last = i
 	}
 	for label, m := range map[string]cli.TuiModel{"welcome": home, "scan view": loaded(t, 110, 60)} {
-		v := step(t, m, keys("/")...).View()
+		v := step(t, m, keys("/")...).Screen()
 		last = -1
 		for _, name := range want {
 			i := strings.Index(v, name)
@@ -1188,7 +1194,7 @@ func TestTUIPaletteMatchesTheWelcomeMenu(t *testing.T) {
 // argument hints such as "[folder]" or "<id>".
 func TestTUIPaletteHasNoArgumentHints(t *testing.T) {
 	for _, c := range cli.SlashCommands {
-		v := step(t, loaded(t, 110, 60), keys("/")...).View()
+		v := step(t, loaded(t, 110, 60), keys("/")...).Screen()
 		if strings.ContainsAny(v, "[]<>") && (strings.Contains(v, c.Name+" [") || strings.Contains(v, c.Name+" <")) {
 			t.Errorf("/%s shows an argument hint:\n%s", c.Name, v)
 		}
@@ -1220,7 +1226,7 @@ func TestTUIReclaimOffersTheRiskyItemsLeftAlone(t *testing.T) {
 	if got.Overlay != cli.OverlayRemove {
 		t.Fatalf("the box should stay to offer the RISKY items: overlay %d", got.Overlay)
 	}
-	mustContain(t, got.View(), "RISKY item", "left alone", "Press d to review", "each one needs its ID typed")
+	mustContain(t, got.Screen(), "RISKY item", "left alone", "Press d to review", "each one needs its ID typed")
 	if slices.Contains(removed, "O-risk01") {
 		t.Error("a RISKY item was removed without being asked")
 	}
@@ -1234,7 +1240,7 @@ func TestTUIReclaimOffersTheRiskyItemsLeftAlone(t *testing.T) {
 	}
 	next, cmd := got.Update(keys("d")[0])
 	review := step(t, next.(cli.TuiModel), cmd())
-	mustContain(t, review.View(), "Type O-risk01 and press Enter")
+	mustContain(t, review.Screen(), "Type O-risk01 and press Enter")
 	if slices.Contains(removed, "O-risk01") {
 		t.Error("d alone must not delete anything")
 	}
@@ -1274,11 +1280,11 @@ func TestTUIRetireShowsAProgressBar(t *testing.T) {
 	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 30}, cli.LoadedMsg{Data: tuiFixture()})
 	next, _ := m.RunCommand("/retire")
 	m = next.(cli.TuiModel)
-	mustContain(t, m.View(), "Reading installed software", "starting") // a bar from the first frame
+	mustContain(t, m.Screen(), "Reading installed software", "starting") // a bar from the first frame
 	m = step(t, m, cli.SoftwareProgressMsg{Done: 3, Total: 12, Source: "homebrew"})
-	mustContain(t, m.View(), "3 of 12 sources", "homebrew")
-	if !strings.Contains(m.View(), "█") && !strings.Contains(m.View(), "▓") && !strings.Contains(m.View(), "━") {
-		t.Errorf("no bar drawn:\n%s", m.View())
+	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew")
+	if !strings.Contains(m.Screen(), "█") && !strings.Contains(m.Screen(), "▓") && !strings.Contains(m.Screen(), "━") {
+		t.Errorf("no bar drawn:\n%s", m.Screen())
 	}
 }
 
@@ -1288,7 +1294,7 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m, _ := statusModel(t)
 	next, _ := m.RunCommand("/vitals")
 	m = next.(cli.TuiModel)
-	mustContain(t, m.View(), "Reading CPU, memory", "starting")
+	mustContain(t, m.Screen(), "Reading CPU, memory", "starting")
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
-	mustContain(t, m.View(), "2 of 6 readings", "cpu")
+	mustContain(t, m.Screen(), "2 of 6 readings", "cpu")
 }

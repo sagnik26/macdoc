@@ -3,7 +3,7 @@ package cli
 import (
 	"slices"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/model"
 )

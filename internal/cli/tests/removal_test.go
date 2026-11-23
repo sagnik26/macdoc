@@ -6,8 +6,8 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/cli"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/executor"
@@ -83,7 +83,7 @@ func TestTUIRemoveEnterTwice(t *testing.T) {
 	if m.Overlay != cli.OverlayRemove || len(*calls) != 0 {
 		t.Fatalf("first enter should only ask: overlay %d, calls %d", m.Overlay, len(*calls))
 	}
-	mustContain(t, m.View(), "Remove 1 item and free the space?", "Homebrew old versions", "400 MB", "Enter remove", "esc cancel")
+	mustContain(t, m.Screen(), "Remove 1 item and free the space?", "Homebrew old versions", "400 MB", "Enter remove", "esc cancel")
 
 	m = press(t, m, "enter")
 	if len(*calls) != 1 || m.Overlay != cli.OverlayNone {
@@ -113,7 +113,7 @@ func TestTUIRemoveRiskyNeedsCode(t *testing.T) {
 	m, calls := removeTUI(t, model.PlanItem{OpportunityID: ops[0].ID, Title: "Old project node_modules", ExpectedBytes: 1,
 		BytesSource: model.SourceMeasured, Risk: model.RiskRisky, Method: model.MethodQuarantine, Target: "/Users/me/p/node_modules"})
 	m = press(t, m, "enter")
-	mustContain(t, m.View(), "Type "+ops[0].ID+" and press Enter")
+	mustContain(t, m.Screen(), "Type "+ops[0].ID+" and press Enter")
 
 	m = press(t, m, "enter")
 	if len(*calls) != 0 || m.Overlay != cli.OverlayRemove {
@@ -127,7 +127,7 @@ func TestTUIRemoveRiskyNeedsCode(t *testing.T) {
 		t.Fatal("a wrong ID removed something")
 	}
 	for i := 0; i < 8; i++ {
-		m = step(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
 	for _, r := range ops[0].ID {
 		m = press(t, m, string(r))
@@ -158,14 +158,14 @@ func TestTUIRemoveTwoRiskyEachNeedOwnID(t *testing.T) {
 	if len(*calls) != 0 {
 		t.Fatal("the first RISKY item's ID removed the plan")
 	}
-	mustContain(t, m.View(), "Type O-riska2 and press Enter (2 of 2 RISKY)")
+	mustContain(t, m.Screen(), "Type O-riska2 and press Enter (2 of 2 RISKY)")
 	m = typeID(m, "O-riska1") // the first ID again is not the second item's ID
 	m = press(t, m, "enter")
 	if len(*calls) != 0 {
 		t.Fatal("a repeated ID confirmed the second RISKY item")
 	}
 	for i := 0; i < 8; i++ {
-		m = step(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
 	m = typeID(m, "O-riska2")
 	press(t, m, "enter")
@@ -225,7 +225,7 @@ func TestTUIRemoveSkippedItemStaysOnTheScreen(t *testing.T) {
 	if m.Overlay != cli.OverlayRemove {
 		t.Fatalf("the box should stay open, overlay %d", m.Overlay)
 	}
-	mustContain(t, m.View(), "Not removed", "Xcode is open; quit it first")
+	mustContain(t, m.Screen(), "Not removed", "Xcode is open; quit it first")
 	m = press(t, m, "enter")
 	if m.Overlay != cli.OverlayNone {
 		t.Fatalf("enter should close it, overlay %d", m.Overlay)
@@ -255,6 +255,6 @@ func TestTUIRemoveShowsEachCategoryStepByStep(t *testing.T) {
 	next, cmd := m.Update(keys("enter")[0])
 	m = next.(cli.TuiModel)
 	feedBatch(t, m, cmd().(tea.BatchMsg)[:1]) // the removal work only, not the spinner tick
-	out := m.View()
+	out := m.Screen()
 	mustContain(t, out, "SAFE", "done", "Old logs removed", "CAUTION", "0 of 1 done", "Removing Homebrew old versions")
 }

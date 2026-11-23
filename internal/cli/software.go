@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -357,7 +357,7 @@ func (m TuiModel) softwareKey(k string) (tea.Model, tea.Cmd, bool) {
 		case "esc":
 			m.softwareDetail, m.scroll = false, 0
 			return m, nil, true
-		case "up", "down", "j", "k", "pgup", "pgdown", " ", "home", "end", "g", "G":
+		case "up", "down", "j", "k", "pgup", "pgdown", "space", "home", "end", "g", "G":
 			return m, nil, false // scrolling the details
 		}
 		return m, nil, true // Enter and the list keys do nothing in the details

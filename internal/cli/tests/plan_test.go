@@ -175,7 +175,7 @@ func TestTUIMarkSuggestions(t *testing.T) {
 	if len(m.Marked) != 2 || !m.Marked[ops[0].ID] || !m.Marked[ops[2].ID] || m.Cursor != 3 {
 		t.Fatalf("marked %v cursor %d", m.Marked, m.Cursor)
 	}
-	mustContain(t, m.View(), "✓ 2 marked", "enter remove", "│ ✓ │", "space mark")
+	mustContain(t, m.Screen(), "✓ 2 marked", "enter remove", "│ ✓ │", "space mark")
 
 	m = step(t, m, keys("up", " ")...) // unmark item 3
 	if len(m.Marked) != 1 {
@@ -187,7 +187,7 @@ func TestTUIMarkSuggestions(t *testing.T) {
 		if op.Risk == model.RiskAdvise {
 			m.Cursor = i
 			m = step(t, m, keys(" ")...)
-			mustContain(t, m.View(), "can't")
+			mustContain(t, m.Screen(), "can't")
 			if m.Marked[op.ID] {
 				t.Error("an advice item was marked")
 			}

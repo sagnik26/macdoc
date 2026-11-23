@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -274,23 +275,42 @@ type TuiModel struct {
 
 // NewTUIModel returns a dashboard model that has not started loading.
 func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
-	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
-		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
-		FPS:    time.Second / 10,
-	}), spinner.WithStyle(t.brand))
-	bar := progress.New(progress.WithScaledGradient("#E8875F", "#F2CC60"), progress.WithoutPercentage(),
-		progress.WithFillCharacters('━', '━'), progress.WithColorProfile(t.r.ColorProfile()))
-	bar.EmptyColor = "#3A3A3A"
 	in := textinput.New()
 	in.Prompt = ""
 	in.CharLimit = 64
-	in.Cursor.Style = t.brand
+	in.SetVirtualCursor(true) // the input is drawn inside the dashboard's own view
+	m := TuiModel{Deps: deps, keys: newKeyMap(), spin: spinner.New(spinner.WithSpinner(spinner.Spinner{
+		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
+		FPS:    time.Second / 10,
+	})), input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
+	m.applyTheme(t)
+	return m
+}
+
+// applyTheme gives the model and its Bubbles components the colors of t. It
+// runs when the model is built and again if the terminal reports a different
+// background color.
+func (m *TuiModel) applyTheme(t *Theme) {
+	m.t = t
+	m.spin.Style = t.brand
+	barOpts := []progress.Option{progress.WithoutPercentage(), progress.WithFillCharacters('━', '━')}
+	if t.color {
+		barOpts = append(barOpts, progress.WithColors(t.c(duo{"#E8875F", "#E8875F"}), t.c(duo{"#F2CC60", "#F2CC60"})), progress.WithScaled(true))
+	}
+	m.Bar = progress.New(barOpts...)
+	m.Bar.EmptyColor = t.c(duo{"#3A3A3A", "#3A3A3A"})
+	m.Bar.SetWidth(min(48, max(10, m.w-30)))
+	if t.color {
+		st := m.input.Styles()
+		st.Cursor.Color = t.c(colBrand)
+		m.input.SetStyles(st)
+	}
 	h := help.New()
 	h.Styles.ShortKey = t.accent
 	h.Styles.ShortDesc = t.muted
 	h.Styles.ShortSeparator = t.faint
 	h.ShortSeparator = " • "
-	return TuiModel{Deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, Bar: bar, input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
+	m.help = h
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -304,7 +324,7 @@ func runTUI(home string, cat *recipes.Catalog) error {
 	m := NewTUIModel(deps, t)
 	// Open on the welcome screen; nothing runs until the user picks.
 	m.Intro, m.IntroStatus = true, loadIntroStatus(home)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	deps.send = p.Send
 	final, err := p.Run()
 	if err != nil {
@@ -376,8 +396,15 @@ func loadTrend(home string) (*engine.TrendResult, string) {
 	return &tr, ""
 }
 
-// Init implements tea.Model.
-func (m TuiModel) Init() tea.Cmd { return m.InitCmd }
+// Init implements tea.Model. A colored theme also asks the terminal for its
+// background color, so the palette follows a light or dark terminal even if the
+// first guess was wrong (MACDOC_THEME overrides that).
+func (m TuiModel) Init() tea.Cmd {
+	if m.t.color && os.Getenv("MACDOC_THEME") == "" {
+		return tea.Batch(m.InitCmd, tea.RequestBackgroundColor)
+	}
+	return m.InitCmd
+}
 
 // StartLoad puts m into the loading state and returns the command that runs
 // the engine. Call it on the model that Update returns (or before the program
@@ -419,7 +446,15 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.t.width = msg.Width
-		m.Bar.Width = min(48, max(10, msg.Width-30))
+		m.Bar.SetWidth(min(48, max(10, msg.Width-30)))
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		// The terminal answered: restyle if its background is not the one the
+		// theme was built for.
+		if m.t.color && msg.IsDark() != m.t.dark {
+			m.applyTheme(ColorTheme(msg.IsDark(), m.t.profile, m.t.width))
+		}
 		return m, nil
 
 	case StepMsg:
@@ -472,7 +507,7 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		return m.tick(msg)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		m.Flash = ""
 		if m.InputMode != 0 {
 			return m.updateInput(msg)
@@ -638,7 +673,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
 			m.Detail = !m.Detail
 		}
-	case " ":
+	case "space":
 		if m.Tab == TabSuggestions {
 			m.toggleMark()
 		}
@@ -718,7 +753,7 @@ func (m TuiModel) completions() []completion {
 	return out
 }
 
-func (m TuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) updateInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	comps := m.completions()
 	switch msg.String() {
 	case "ctrl+c":
@@ -830,15 +865,31 @@ func (m TuiModel) bodyHeight() int {
 }
 
 // View implements tea.Model.
-func (m TuiModel) View() string {
-	t := m.t
+// View implements tea.Model: the screen, on the alternate screen.
+func (m TuiModel) View() tea.View {
+	v := tea.NewView(m.Screen())
+	v.AltScreen = true
+	return v
+}
+
+// Screen is what the dashboard shows, as a string. A theme without color
+// carries no escape sequence at all, so the plain layout stays plain.
+func (m TuiModel) Screen() string {
+	s := m.screen()
+	if !m.t.color {
+		s = ansi.Strip(s)
+	}
+	return s
+}
+
+func (m TuiModel) screen() string {
 	var b strings.Builder
 	if m.Intro && m.Overlay == OverlayNone && !m.Loading {
 		b.WriteString(fitHeight(m.introView(), m.introHeight(), m.w))
 		if m.InputMode != 0 {
 			b.WriteString(m.inputView())
 		} else if m.Flash != "" {
-			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
+			b.WriteString(m.flashLine())
 		}
 		if m.InputMode != 0 {
 			b.WriteString(m.footerView())
@@ -856,38 +907,47 @@ func (m TuiModel) View() string {
 		b.WriteString(m.tabsView() + "\n")
 	}
 
-	var body string
-	switch {
-	case m.Loading:
-		body = m.loadingView()
-	case m.Overlay == overlayHelp:
-		body = m.scrolled(m.HelpView())
-	case m.Overlay == overlayExplore:
-		body = m.scrolled(m.exploreBody())
-	case m.Overlay == overlayVitals:
-		body = m.scrolled(m.vitalsBody())
-	case m.Overlay == overlaySoftware && m.softwareDetail:
-		body = m.scrolled(m.softwareDetailView())
-	case m.Overlay == overlaySoftware:
-		body = m.scrolled(m.softwareTables())
-	case m.Overlay == OverlayRemove:
-		body = m.scrolled(m.removeView())
-	case m.Data == nil:
-		body = "\n  " + t.muted.Render(display(m.note))
-	case m.Tab == TabSuggestions:
-		body = m.suggestionsView()
-	default:
-		body = m.scrolled(m.textView())
-	}
-	b.WriteString(fitHeight(body, m.bodyHeight(), m.w))
+	b.WriteString(fitHeight(m.bodyView(), m.bodyHeight(), m.w))
 
 	if m.InputMode != 0 {
 		b.WriteString(m.inputView())
 	} else if m.Flash != "" {
-		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
+		b.WriteString(m.flashLine())
 	}
 	b.WriteString(m.footerView())
 	return b.String()
+}
+
+// bodyView is the page's body: the loading view, an overlay, or the tab.
+func (m TuiModel) bodyView() string {
+	t := m.t
+	switch {
+	case m.Loading:
+		return m.loadingView()
+	case m.Overlay == overlayHelp:
+		return m.scrolled(m.HelpView())
+	case m.Overlay == overlayExplore:
+		return m.scrolled(m.exploreBody())
+	case m.Overlay == overlayVitals:
+		return m.scrolled(m.vitalsBody())
+	case m.Overlay == overlaySoftware && m.softwareDetail:
+		return m.scrolled(m.softwareDetailView())
+	case m.Overlay == overlaySoftware:
+		return m.scrolled(m.softwareTables())
+	case m.Overlay == OverlayRemove:
+		return m.scrolled(m.removeView())
+	case m.Data == nil:
+		return "\n  " + t.muted.Render(display(m.note))
+	case m.Tab == TabSuggestions:
+		return m.suggestionsView()
+	default:
+		return m.scrolled(m.textView())
+	}
+}
+
+// flashLine is the one-line message under the body.
+func (m TuiModel) flashLine() string {
+	return " " + m.t.warn.Render("›") + " " + truncateANSI(m.t.text.Render(display(m.Flash)), m.w-4) + "\n"
 }
 
 // fitHeight pads or cuts s to exactly h lines, each at most w cells wide.
@@ -975,7 +1035,7 @@ func (m TuiModel) tabsView() string {
 	for i, title := range tabTitles {
 		label := fmt.Sprintf("%d %s", i+1, title)
 		if tab(i) == m.Tab {
-			parts = append(parts, t.r.NewStyle().Background(colBrand).Foreground(colOnBadge).Bold(true).Padding(0, 1).Render(label))
+			parts = append(parts, t.style().Background(t.c(colBrand)).Foreground(t.c(colOnBadge)).Bold(true).Padding(0, 1).Render(label))
 		} else {
 			parts = append(parts, t.muted.Padding(0, 1).Render(label))
 		}
@@ -1027,7 +1087,7 @@ func (m TuiModel) footerView() string {
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	}
-	m.help.Width = m.w - 2
+	m.help.SetWidth(m.w - 1) // the footer starts with one space; a longer line is cut, never wrapped
 	return " " + m.help.ShortHelpView(keys)
 }
 

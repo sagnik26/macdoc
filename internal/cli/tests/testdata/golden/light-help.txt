@@ -1,40 +1,40 @@
- [1;38;2;193;95;60m◆ macdoc[0m[38;2;198;198;198m  ›  [0m[1;38;2;28;28;28mHelp[0m                                                             [38;2;30;138;76masks before removing[0m 
-[38;2;198;198;198m────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+ [1;38;2;193;95;60m◆ macdoc[m[38;2;198;198;198m  ›  [m[1;38;2;28;28;28mHelp[m                                                             [38;2;30;138;76masks before removing[m 
+[38;2;198;198;198m────────────────────────────────────────────────────────────────────────────────────────────────────[m
 
- [1;38;2;28;28;28mKeys[0m
-   [38;2;0;121;158mtab / shift+tab, 1–5  [0m [38;2;108;108;108mswitch tab (the scan view)[0m
-   [38;2;0;121;158m↑ ↓  j k  pgup pgdn   [0m [38;2;108;108;108mmove or scroll[0m
-   [38;2;0;121;158menter                 [0m [38;2;108;108;108mremove the selected suggestion (or the marked ones), after you confirm[0m
-   [38;2;0;121;158mspace                 [0m [38;2;108;108;108mmark several suggestions to remove together[0m
-   [38;2;0;121;158me                     [0m [38;2;108;108;108mexplain the selected suggestion[0m
-   [38;2;0;121;158mp                     [0m [38;2;108;108;108mseal a dry-run plan instead (marked, or the selected one)[0m
-   [38;2;0;121;158ma  (on a plan)        [0m [38;2;108;108;108mapply it here in the terminal, after you confirm[0m
-   [38;2;0;121;158m/                     [0m [38;2;108;108;108mcommand palette[0m
-   [38;2;0;121;158m?                     [0m [38;2;108;108;108mthis help[0m
-   [38;2;0;121;158mr                     [0m [38;2;108;108;108mrescan the disk[0m
-   [38;2;0;121;158mesc                   [0m [38;2;108;108;108mstop a scan · close a page · back to the home screen[0m
-   [38;2;0;121;158mq, ctrl+c             [0m [38;2;108;108;108mquit[0m
+ [1;38;2;28;28;28mKeys[m
+   [38;2;0;121;158mtab / shift+tab, 1–5  [m [38;2;108;108;108mswitch tab (the scan view)[m
+   [38;2;0;121;158m↑ ↓  j k  pgup pgdn   [m [38;2;108;108;108mmove or scroll[m
+   [38;2;0;121;158menter                 [m [38;2;108;108;108mremove the selected suggestion (or the marked ones), after you confirm[m
+   [38;2;0;121;158mspace                 [m [38;2;108;108;108mmark several suggestions to remove together[m
+   [38;2;0;121;158me                     [m [38;2;108;108;108mexplain the selected suggestion[m
+   [38;2;0;121;158mp                     [m [38;2;108;108;108mseal a dry-run plan instead (marked, or the selected one)[m
+   [38;2;0;121;158ma  (on a plan)        [m [38;2;108;108;108mapply it here in the terminal, after you confirm[m
+   [38;2;0;121;158m/                     [m [38;2;108;108;108mcommand palette[m
+   [38;2;0;121;158m?                     [m [38;2;108;108;108mthis help[m
+   [38;2;0;121;158mr                     [m [38;2;108;108;108mrescan the disk[m
+   [38;2;0;121;158mesc                   [m [38;2;108;108;108mstop a scan · close a page · back to the home screen[m
+   [38;2;0;121;158mq, ctrl+c             [m [38;2;108;108;108mquit[m
 
- [1;38;2;28;28;28mCommands[0m
-   [38;2;0;121;158m/scan                 [0m [38;2;108;108;108mscan the disk again, then show the full report (esc stops a scan)[0m
-   [38;2;0;121;158m/reclaim              [0m [38;2;108;108;108mscan, then clean every SAFE and CAUTION item at once (esc stops it)[0m
-   [38;2;0;121;158m/retire               [0m [38;2;108;108;108minstalled software, its data folders and cleanups[0m
-   [38;2;0;121;158m/explore              [0m [38;2;108;108;108mwhere the space is, as a folder tree you can open[0m
-   [38;2;0;121;158m/vitals               [0m [38;2;108;108;108mlive CPU, memory, disk, network and battery, with a health score[0m
+ [1;38;2;28;28;28mCommands[m
+   [38;2;0;121;158m/scan                 [m [38;2;108;108;108mscan the disk again, then show the full report (esc stops a scan)[m
+   [38;2;0;121;158m/reclaim              [m [38;2;108;108;108mscan, then clean every SAFE and CAUTION item at once (esc stops it)[m
+   [38;2;0;121;158m/retire               [m [38;2;108;108;108minstalled software, its data folders and cleanups[m
+   [38;2;0;121;158m/explore              [m [38;2;108;108;108mwhere the space is, as a folder tree you can open[m
+   [38;2;0;121;158m/vitals               [m [38;2;108;108;108mlive CPU, memory, disk, network and battery, with a health score[m
 
- [1;38;2;28;28;28mSafety[0m
-[38;2;108;108;108m   Nothing is removed until you confirm. Enter shows what will go and how[0m
-[38;2;108;108;108m[0m                                                                         [38;2;108;108;108m   much space comes back; …[0m
-[38;2;108;108;108m[0m                                                                          [38;2;108;108;108m   A RISKY item also need…[0m
-[38;2;108;108;108m[0m                                                                          [38;2;108;108;108m   before it's removed, a…[0m
-[38;2;108;108;108m[0m                                                                            [38;2;108;108;108m   for good, so the spa…[0m
-[38;2;108;108;108m[0m                                                                        
-
-
+ [1;38;2;28;28;28mSafety[m
+[38;2;108;108;108m   Nothing is removed until you confirm. Enter shows what will go and how[m
+[38;2;108;108;108m[m                                                                         [38;2;108;108;108m   much space comes back; …[m
+[38;2;108;108;108m[m                                                                          [38;2;108;108;108m   A RISKY item also need…[m
+[38;2;108;108;108m[m                                                                          [38;2;108;108;108m   before it's removed, a…[m
+[38;2;108;108;108m[m                                                                            [38;2;108;108;108m   for good, so the spa…[m
+[38;2;108;108;108m[m                                                                        
 
 
 
 
 
 
- [38;2;0;121;158m↑↓[0m [38;2;108;108;108mmove[0m[38;2;198;198;198m • [0m[38;2;0;121;158mesc[0m [38;2;108;108;108mback[0m[38;2;198;198;198m • [0m[38;2;0;121;158mq[0m [38;2;108;108;108mquit[0m
+
+
+ [38;2;0;121;158m↑↓[m [38;2;108;108;108mmove[m[38;2;198;198;198m • [m[38;2;0;121;158mesc[m [38;2;108;108;108mback[m[38;2;198;198;198m • [m[38;2;0;121;158mq[m [38;2;108;108;108mquit[m

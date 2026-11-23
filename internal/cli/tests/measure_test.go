@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/cli"
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -193,7 +193,7 @@ func TestDashboardStartsOneWalkAndShowsTheRange(t *testing.T) {
 	m, walks := send(t, m, keys("2")[0]) // the tab switch alone shows no detail on a narrow screen
 	noWalk(t, wk, 0, walks)
 	m, walks = send(t, m, keys("e")[0])
-	if out := m.View(); !strings.Contains(out, "measuring the range…") {
+	if out := m.Screen(); !strings.Contains(out, "measuring the range…") {
 		t.Errorf("no progress line while the walk runs:\n%s", out)
 	}
 	msg := only(t, walks)
@@ -205,7 +205,7 @@ func TestDashboardStartsOneWalkAndShowsTheRange(t *testing.T) {
 	}
 	m, walks = send(t, m, msg)
 	noWalk(t, wk, 1, walks)
-	out := flat(m.View())
+	out := flat(m.Screen())
 	if strings.Contains(out, "measuring the range") {
 		t.Errorf("progress line left after the result:\n%s", out)
 	}
@@ -221,8 +221,8 @@ func TestDashboardWideStartsWhenTheTabOpens(t *testing.T) {
 	wk := &walker{span: lowHigh()}
 	m := rangeTUI(t, 140, 40, wk)
 	m, walks := send(t, m, keys("2")[0]) // the detail is already beside the list
-	if !strings.Contains(m.View(), "measuring the range…") {
-		t.Errorf("no progress line on the wide layout:\n%s", m.View())
+	if !strings.Contains(m.Screen(), "measuring the range…") {
+		t.Errorf("no progress line on the wide layout:\n%s", m.Screen())
 	}
 	if only(t, walks).ID != idFirst || wk.calls.Load() != 1 {
 		t.Errorf("want one walk for %s, got %d calls", idFirst, wk.calls.Load())
@@ -243,7 +243,7 @@ func TestDashboardStartsNoWalkWhenNoRangeCanApply(t *testing.T) {
 	// The third is a native command, so no walk is made and no line shows.
 	m, walks = send(t, m, keys("down")[0])
 	noWalk(t, wk, 2, walks)
-	if out := m.View(); strings.Contains(out, "measuring the range") || !strings.Contains(out, idNative) {
+	if out := m.Screen(); strings.Contains(out, "measuring the range") || !strings.Contains(out, idNative) {
 		t.Errorf("want the native item's pane without a progress line:\n%s", out)
 	}
 	// A folder with an estimated size, or with no target, is not walked either.
@@ -279,7 +279,7 @@ func TestDashboardIgnoresAStaleResultAndCancelsOnMove(t *testing.T) {
 	eventually(t, "the second walk to start", func() bool { return wk.calls.Load() == 2 })
 	m, none := send(t, m, stale)
 	noWalk(t, wk, 2, none)
-	if out := flat(m.View()); strings.Contains(out, "at most 1.9 GB") || !strings.Contains(out, "measuring the range") {
+	if out := flat(m.Screen()); strings.Contains(out, "at most 1.9 GB") || !strings.Contains(out, "measuring the range") {
 		t.Errorf("a stale result changed the pane:\n%s", out)
 	}
 
@@ -289,7 +289,7 @@ func TestDashboardIgnoresAStaleResultAndCancelsOnMove(t *testing.T) {
 		t.Fatalf("second walk is for %s, want %s", live.ID, idSecond)
 	}
 	m, _ = send(t, m, live)
-	if out := flat(m.View()); strings.Contains(out, "measuring the range") {
+	if out := flat(m.Screen()); strings.Contains(out, "measuring the range") {
 		t.Errorf("progress line left after the live result:\n%s", out)
 	}
 	wk.mu.Lock()
@@ -363,7 +363,7 @@ func TestDashboardReusesAResultWithoutWalkingAgain(t *testing.T) {
 	m, _ = send(t, m, keys("up")[0])
 	m, walks = send(t, m, keys("e")[0])
 	noWalk(t, wk, 2, walks)
-	if out := flat(m.View()); !strings.Contains(out, "at least 1.2 GB and at most 1.9 GB") {
+	if out := flat(m.Screen()); !strings.Contains(out, "at least 1.2 GB and at most 1.9 GB") {
 		t.Errorf("the kept result is not shown:\n%s", out)
 	}
 
@@ -387,7 +387,7 @@ func TestDashboardShowsNothingExtraWhenTheWalkFails(t *testing.T) {
 		m, walks := send(t, m, keys("e")[0])
 		m, none := send(t, m, only(t, walks))
 		noWalk(t, wk, 1, none)
-		out := flat(m.View())
+		out := flat(m.Screen())
 		if strings.Contains(out, "measuring the range") || strings.Contains(out, "at least") ||
 			strings.Contains(out, "permission denied") || !strings.Contains(out, flat(cli.SizeNote)) {
 			t.Errorf("%s: want the plain pane with the usual note:\n%s", name, out)
@@ -437,7 +437,7 @@ func TestDashboardRangeOnRealClones(t *testing.T) {
 		t.Fatalf("walk result = %+v, want a range", msg)
 	}
 	m, _ = send(t, m, msg)
-	out := flat(m.View())
+	out := flat(m.Screen())
 	if !strings.Contains(out, "Removing this frees at least ") || !strings.Contains(out, " and at most ") || walked.Load() != 1 {
 		t.Errorf("no range on real clones (walks %d):\n%s", walked.Load(), out)
 	}

@@ -18,7 +18,8 @@ type StatusOptions struct {
 	Runner   platform.Runner // default platform.Exec{}
 	Interval time.Duration   // how long traffic is measured over; default 1s
 	// Progress is called once before the probes start (0 done) and once as each
-	// of the statusProbes probes finishes, with its name. It must return quickly.
+	// of the statusProbes probes finishes, with its name. Calls are serialized and
+	// in order, and it must return quickly.
 	Progress func(done, total int, probe string)
 }
 
@@ -72,10 +73,9 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 			return
 		}
 		mu.Lock()
+		defer mu.Unlock()
 		done++
-		n := done
-		mu.Unlock()
-		o.Progress(n, statusProbes, name)
+		o.Progress(done, statusProbes, name) // under the lock: calls are serialized and the count never goes back
 	}
 	if o.Progress != nil {
 		o.Progress(0, statusProbes, "")

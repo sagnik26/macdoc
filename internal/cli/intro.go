@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 )
@@ -70,13 +70,13 @@ func macdocLogo() []string {
 }
 
 // logoShades run from the brand coral to warm yellow, top to bottom.
-var logoShades = []lipgloss.TerminalColor{
-	pc("#E8875F", "173", "3", "#C15F3C", "167", "1"),
-	pc("#EA9460", "173", "3", "#C4663A", "167", "1"),
-	pc("#EDA261", "179", "3", "#C76E37", "173", "1"),
-	pc("#EFB061", "179", "11", "#B8742F", "172", "3"),
-	pc("#F1BE60", "221", "11", "#A97A22", "136", "3"),
-	pc("#F2CC60", "221", "11", "#9A6D00", "136", "3"),
+var logoShades = []duo{
+	{"#E8875F", "#C15F3C"},
+	{"#EA9460", "#C4663A"},
+	{"#EDA261", "#C76E37"},
+	{"#EFB061", "#B8742F"},
+	{"#F1BE60", "#A97A22"},
+	{"#F2CC60", "#9A6D00"},
 }
 
 func (m TuiModel) introView() string {
@@ -88,7 +88,7 @@ func (m TuiModel) introView() string {
 	if m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34 {
 		var lb strings.Builder
 		for i, l := range logo {
-			lb.WriteString(t.r.NewStyle().Foreground(logoShades[i]).Bold(true).Render(l) + "\n")
+			lb.WriteString(t.fg(logoShades[i]).Bold(true).Render(l) + "\n")
 		}
 		blocks = append(blocks, strings.TrimRight(lb.String(), "\n"))
 	} else {

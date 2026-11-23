@@ -21,7 +21,7 @@ func TestTUIShowsCleanedPlansRaw(t *testing.T) {
 	m := step(t, newTestTUI(t, 120, 40), cli.LoadedMsg{Data: data})
 	m = step(t, m, keys("2")...)
 
-	view := m.View()
+	view := m.Screen()
 	if strings.Contains(view, "\x1b[2K") || strings.Contains(view, "\r") || strings.Contains(view, "\x1b[8m") {
 		t.Errorf("the dashboard printed terminal escapes from a disk name: %q", view)
 	}
