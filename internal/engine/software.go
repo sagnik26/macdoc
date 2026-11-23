@@ -33,6 +33,8 @@ type SoftwareOptions struct {
 	HasTool   func(name string) bool
 	Catalog   *recipes.Catalog // default recipes.Load()
 	Now       time.Time        // default time.Now()
+	// Progress is called as each discovery source finishes (see inventory.Env).
+	Progress func(done, total int, source string)
 }
 
 // OwnedFolder is one scanned folder that belongs to a piece of software.
@@ -131,7 +133,7 @@ func Software(ctx context.Context, o SoftwareOptions) (SoftwareResult, error) {
 	}
 
 	disc := inventory.Discover(ctx, inventory.Env{
-		Home: o.Home, AppDirs: o.AppDirs, BinDirs: o.BinDirs, JavaDirs: o.JavaDirs, Runner: o.Runner, HasTool: o.HasTool, Now: o.Now,
+		Home: o.Home, AppDirs: o.AppDirs, BinDirs: o.BinDirs, JavaDirs: o.JavaDirs, Runner: o.Runner, HasTool: o.HasTool, Now: o.Now, Progress: o.Progress,
 	})
 	disc.Software = dropDuplicates(disc.Software)
 	owners, _ := inventory.Attribute(o.Home, disc.Software, folders)

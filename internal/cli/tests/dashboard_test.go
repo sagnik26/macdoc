@@ -1259,3 +1259,31 @@ func TestTUIReclaimSaysNothingWithoutRiskyItems(t *testing.T) {
 		t.Errorf("nothing to offer, so the box should close: overlay %d", got.Overlay)
 	}
 }
+
+// While /retire reads the inventory it shows a progress bar over the discovery
+// sources, with how many are done and the one that finished last.
+func TestTUIRetireShowsAProgressBar(t *testing.T) {
+	deps := &cli.TuiDeps{Home: "/Users/me",
+		Load: func(context.Context, *cli.TuiDeps, bool) (*cli.TuiData, error) { return tuiFixture(), nil }}
+	m := cli.NewTUIModel(deps, cli.PlainLayoutTheme())
+	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 30}, cli.LoadedMsg{Data: tuiFixture()})
+	next, _ := m.RunCommand("/retire")
+	m = next.(cli.TuiModel)
+	mustContain(t, m.View(), "Reading installed software", "starting") // a bar from the first frame
+	m = step(t, m, cli.SoftwareProgressMsg{Done: 3, Total: 12, Source: "homebrew"})
+	mustContain(t, m.View(), "3 of 12 sources", "homebrew")
+	if !strings.Contains(m.View(), "█") && !strings.Contains(m.View(), "▓") && !strings.Contains(m.View(), "━") {
+		t.Errorf("no bar drawn:\n%s", m.View())
+	}
+}
+
+// Until the first reading is in, the vitals page shows a progress bar over the
+// probes: it starts at once and counts the readings that have answered.
+func TestTUIVitalsShowsAProgressBar(t *testing.T) {
+	m, _ := statusModel(t)
+	next, _ := m.RunCommand("/vitals")
+	m = next.(cli.TuiModel)
+	mustContain(t, m.View(), "Reading CPU, memory", "starting")
+	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
+	mustContain(t, m.View(), "2 of 6 readings", "cpu")
+}

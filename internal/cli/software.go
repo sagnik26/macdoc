@@ -31,7 +31,18 @@ func newRetireCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := engine.Software(context.Background(), engine.SoftwareOptions{Home: home, Runner: Runner})
+			errOut := cmd.ErrOrStderr()
+			tty := !g.json && !g.quiet && IsTerminal(errOut)
+			opts := engine.SoftwareOptions{Home: home, Runner: Runner}
+			if tty {
+				opts.Progress = func(done, total int, source string) {
+					_, _ = fmt.Fprintf(errOut, "\r\033[K%s", SourceStatusLine(done, total, source))
+				}
+			}
+			res, err := engine.Software(context.Background(), opts)
+			if tty {
+				_, _ = fmt.Fprint(errOut, "\r\033[K")
+			}
 			if err != nil {
 				return err
 			}
@@ -122,6 +133,13 @@ func softwareHeadline(sw []engine.SoftwareEntry) string {
 	return engine.CategoryHeadline(sw)
 }
 
+// SoftwareProgressMsg says how many discovery sources have finished while the
+// dashboard reads the software inventory.
+type SoftwareProgressMsg struct {
+	Done, Total int
+	Source      string
+}
+
 // SoftwareMsg carries the software inventory read for the dashboard, or the
 // error that stopped it.
 type SoftwareMsg struct {
@@ -135,7 +153,10 @@ func (d *TuiDeps) software(ctx context.Context) (engine.SoftwareResult, error) {
 	if d.Software != nil {
 		return d.Software(ctx, d)
 	}
-	return engine.Software(ctx, engine.SoftwareOptions{Home: d.Home, Runner: Runner})
+	return engine.Software(ctx, engine.SoftwareOptions{Home: d.Home, Runner: Runner,
+		Progress: func(done, total int, source string) {
+			d.post(SoftwareProgressMsg{Done: done, Total: total, Source: source})
+		}})
 }
 
 // startSoftware reads the software inventory in the background. Reading it
@@ -150,6 +171,7 @@ func (m TuiModel) startSoftware() (tea.Model, tea.Cmd) {
 	}
 	m.softwareBusy = true
 	m.softwareErr = nil
+	m.softwareDone, m.softwareTotal, m.softwareSource = 0, 0, ""
 	m.softwareStarted = time.Now()
 	m.Overlay, m.scroll = overlaySoftware, 0
 	m.Flash = ""
@@ -169,6 +191,16 @@ func (m TuiModel) softwareLoadingView() string {
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "  %s %s %s\n", m.spin.View(), t.Title.Render("Reading installed software…"),
 		t.faint.Render(fmtDur(time.Since(m.softwareStarted))))
+	if m.softwareTotal > 0 {
+		pct := float64(m.softwareDone) / float64(m.softwareTotal)
+		tail := fmt.Sprintf("%d of %d sources", m.softwareDone, m.softwareTotal)
+		if m.softwareSource != "" {
+			tail += " · " + m.softwareSource
+		}
+		fmt.Fprintf(&b, "\n  %s %s\n\n", m.Bar.ViewAs(pct), t.muted.Render(tail))
+	} else {
+		fmt.Fprintf(&b, "\n  %s %s\n\n", m.Bar.ViewAs(sweep(time.Since(m.softwareStarted))), t.muted.Render("starting"))
+	}
 	b.WriteString("  " + t.muted.Render("Checking /Applications, Homebrew, npm, the programs on PATH, and the folders in your home.") + "\n")
 	b.WriteString("  " + t.muted.Render("This can take a little while. esc closes this view; the list will be kept for next time.") + "\n")
 	return b.String()

@@ -229,6 +229,9 @@ type TuiModel struct {
 	// software: the last inventory shown in the /retire overlay
 	software        *engine.SoftwareResult
 	softwareBusy    bool
+	softwareDone    int    // discovery sources finished so far
+	softwareTotal   int    // how many there are (0 until the first report)
+	softwareSource  string // the one that finished last
 	softwareErr     error
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
@@ -240,6 +243,10 @@ type TuiModel struct {
 	treeCursor      int                   // the highlighted row of that tree
 	status          *engine.StatusResult  // the last live reading, shown by /vitals
 	statusBusy      bool                  // a live reading is running
+	statusDone      int                   // probes of the first reading that have answered
+	statusTotal     int                   // how many there are (0 until the first report)
+	statusProbe     string                // the one that answered last
+	statusOpened    time.Time             // when the vitals page was opened
 	statusWait      bool                  // a reading was just taken; the next waits for the tick
 	statusAt        time.Time             // when the last reading finished
 	hist            vitalsHist            // the recent readings behind the arrows
@@ -431,6 +438,14 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case LoadedMsg:
 		return m.loaded(msg)
+
+	case StatusProgressMsg:
+		m.statusDone, m.statusTotal, m.statusProbe = msg.Done, msg.Total, msg.Probe
+		return m, nil
+
+	case SoftwareProgressMsg:
+		m.softwareDone, m.softwareTotal, m.softwareSource = msg.Done, msg.Total, msg.Source
+		return m, nil
 
 	case SoftwareMsg:
 		return m.softwareLoaded(msg)

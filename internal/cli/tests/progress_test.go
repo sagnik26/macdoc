@@ -25,3 +25,26 @@ func TestScanStatusLineAlwaysHasABar(t *testing.T) {
 		t.Errorf("a scan past the estimate caps at 99%%: %q", over)
 	}
 }
+
+// The retire status line always carries a bar and counts the sources read.
+func TestSourceStatusLine(t *testing.T) {
+	got := cli.SourceStatusLine(3, 12, "homebrew")
+	for _, want := range []string{"Reading installed software", "[██████░░░░░░░░░░░░░░░░░░]", "3 of 12 sources", "homebrew"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%q missing from %q", want, got)
+		}
+	}
+	if z := cli.SourceStatusLine(0, 0, ""); !strings.Contains(z, "0 of 0") {
+		t.Errorf("no sources yet: %q", z)
+	}
+}
+
+// The vitals status line carries a bar and counts the readings in.
+func TestProbeStatusLine(t *testing.T) {
+	got := cli.ProbeStatusLine(3, 6, "network")
+	for _, want := range []string{"Reading your Mac", "[████████████░░░░░░░░░░░░]", "3 of 6 readings", "network"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%q missing from %q", want, got)
+		}
+	}
+}

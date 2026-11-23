@@ -34,6 +34,34 @@ func ScanStatusLine(p scanner.Progress, expected int64, dir string) string {
 		bar, tail, engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(dir, 40))
 }
 
+// SourceStatusLine is the one-line progress of `macdoc retire`: a bar over the
+// discovery sources read so far.
+func SourceStatusLine(done, total int, source string) string {
+	pct := 0.0
+	if total > 0 {
+		pct = float64(done) / float64(total)
+	}
+	tail := fmt.Sprintf("%d of %d sources", done, total)
+	if source != "" {
+		tail += " · " + source
+	}
+	return "Reading installed software… " + barText(pct, 24) + " " + tail
+}
+
+// ProbeStatusLine is the one-line progress of `macdoc vitals`: a bar over the
+// probes that have answered.
+func ProbeStatusLine(done, total int, probe string) string {
+	pct := 0.0
+	if total > 0 {
+		pct = float64(done) / float64(total)
+	}
+	tail := fmt.Sprintf("%d of %d readings", done, total)
+	if probe != "" {
+		tail += " · " + probe
+	}
+	return "Reading your Mac… " + barText(pct, 24) + " " + tail
+}
+
 // barText draws pct (0..1) as a bar of the given width.
 func barText(pct float64, width int) string {
 	filled := max(0, min(width, int(pct*float64(width))))

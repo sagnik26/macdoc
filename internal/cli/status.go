@@ -41,7 +41,19 @@ func newStatusCmd(g *GlobalFlags) *cobra.Command {
 				return fmt.Errorf("--interval must be at least %s", minWatchInterval)
 			}
 			if !watch {
-				return writeStatus(cmd.OutOrStdout(), g.json, engine.Status(context.Background(), engine.StatusOptions{Runner: Runner}), false)
+				errOut := cmd.ErrOrStderr()
+				opts := engine.StatusOptions{Runner: Runner}
+				tty := !g.json && !g.quiet && IsTerminal(errOut)
+				if tty {
+					opts.Progress = func(done, total int, probe string) {
+						_, _ = fmt.Fprintf(errOut, "\r\033[K%s", ProbeStatusLine(done, total, probe))
+					}
+				}
+				res := engine.Status(context.Background(), opts)
+				if tty {
+					_, _ = fmt.Fprint(errOut, "\r\033[K")
+				}
+				return writeStatus(cmd.OutOrStdout(), g.json, res, false)
 			}
 			parent := cmd.Context()
 			if parent == nil {
@@ -252,7 +264,15 @@ func (d *TuiDeps) status(ctx context.Context) engine.StatusResult {
 	if d.Status != nil {
 		return d.Status(ctx, d)
 	}
-	return engine.Status(ctx, engine.StatusOptions{Runner: Runner})
+	return engine.Status(ctx, engine.StatusOptions{Runner: Runner,
+		Progress: func(done, total int, probe string) { d.post(StatusProgressMsg{Done: done, Total: total, Probe: probe}) }})
+}
+
+// StatusProgressMsg says how many probes of the first vitals reading have
+// answered, for the bar the page shows until the reading is in.
+type StatusProgressMsg struct {
+	Done, Total int
+	Probe       string
 }
 
 // syncStatus starts a live reading while the vitals page is open and none is
@@ -272,6 +292,7 @@ func (m TuiModel) syncStatus(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 // from the machine as it is now, so it needs no scan.
 func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 	m.Overlay, m.scroll = overlayVitals, 0
+	m.statusDone, m.statusTotal, m.statusProbe, m.statusOpened = 0, 0, "", time.Now()
 	m.status, m.hist, m.vitalsWhy = nil, vitalsHist{}, false // start from a fresh reading and an empty history
 	if m.clockOn {
 		return m, nil
@@ -285,7 +306,15 @@ func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 func (m TuiModel) vitalsBody() string {
 	t := m.t
 	if m.status == nil {
-		return "\n  " + m.spin.View() + " " + t.text.Render("Reading CPU, memory, disk, network and battery…")
+		head := "\n  " + m.spin.View() + " " + t.text.Render("Reading CPU, memory, disk, network and battery…") + "\n\n"
+		if m.statusTotal > 0 {
+			tail := fmt.Sprintf("%d of %d readings", m.statusDone, m.statusTotal)
+			if m.statusProbe != "" {
+				tail += " · " + m.statusProbe
+			}
+			return head + "  " + m.Bar.ViewAs(float64(m.statusDone)/float64(m.statusTotal)) + " " + t.muted.Render(tail) + "\n"
+		}
+		return head + "  " + m.Bar.ViewAs(sweep(time.Since(m.statusOpened))) + " " + t.muted.Render("starting") + "\n"
 	}
 	res := display(*m.status)
 	var b strings.Builder

@@ -132,3 +132,20 @@ func TestStatusCarriesProcessAlerts(t *testing.T) {
 		t.Errorf("a failed ps must leave alerts absent: %+v", res.Alerts)
 	}
 }
+
+// A reading reports progress: one call before the probes start, then one per
+// probe as it answers, counting up to the total.
+func TestStatusReportsProgress(t *testing.T) {
+	var done []int
+	var total int
+	engine.Status(context.Background(), engine.StatusOptions{Runner: &platform.Fake{}, Interval: time.Millisecond,
+		Progress: func(d, tot int, _ string) { done, total = append(done, d), tot }})
+	if total < 2 || len(done) != total+1 {
+		t.Fatalf("calls %v for %d probes", done, total)
+	}
+	for i, d := range done {
+		if d != i {
+			t.Errorf("call %d reported %d done", i, d)
+		}
+	}
+}
