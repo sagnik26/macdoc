@@ -84,7 +84,7 @@ func checkGolden(t *testing.T, name, got string) {
 func TestGoldenDashboardTabs(t *testing.T) {
 	cli.NowFunc = func() time.Time { return planNow }
 	t.Cleanup(func() { cli.NowFunc = time.Now })
-	tabs := []string{"overview", "suggestions", "toolchains", "projects", "space"}
+	tabs := []string{"overview", "suggestions", "projects", "space"}
 	for _, th := range goldenThemes() {
 		for _, size := range [][2]int{{100, 40}, {140, 45}} {
 			for i, tab := range tabs {
@@ -120,6 +120,9 @@ func TestGoldenDashboardPages(t *testing.T) {
 		checkGolden(t, th.name+"-vitals-alert", step(t, vit, tight).Screen())
 
 		checkGolden(t, th.name+"-retire", openInstalled(t, goldenModel(t, th.make(w), w, h)).Screen())
+
+		// The Overview on a tall screen, so its charts show whole.
+		checkGolden(t, th.name+"-overview-tall", goldenModel(t, th.make(w), w, 80).Screen())
 	}
 }
 

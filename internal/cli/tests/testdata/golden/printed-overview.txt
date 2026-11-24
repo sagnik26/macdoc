@@ -9,8 +9,8 @@ What matters most
   2. ! Free space is under 10 GB (8.0 GB).
   3. · 2.9 GB is purgeable.
 
-Where your space is (Data volume, 0 B measured)
-  —
+Where your space is (Data volume, 100 GB measured)
+  /Users/me/Library 40.0 GB · /Users/me/Developer 25.0 GB · /Users/me/Downloads 12.0 GB · /Users/me/Movies 9.0 GB · /Users/me/code 6.0 GB
 
 Reclaimable                              33.6 GB actionable · 1 B advice
   Free & safe          25.2 GB   Xcode DerivedData · MyApp 14.2 GB · Docker build cache 11.0 GB

@@ -2,7 +2,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
  Keys                                                                                               
-   tab / shift+tab, 1–5   switch tab (the scan view)                                                
+   tab / shift+tab, 1–4   switch tab (the scan view)                                                
    ↑ ↓  j k  pgup pgdn    move or scroll                                                            
    enter                  remove the selected suggestion (or the marked ones), after you confirm    
    space                  mark several suggestions to remove together                               

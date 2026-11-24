@@ -157,6 +157,16 @@ These are the Bubbles README components, unchanged (`charm.land/bubbles/v2`).
 - Scrollable, wraps to the width, `esc` closes. Overlays replace the page; they do
   not stack.
 
+### 4.10 Text charts
+A terminal draws in blocks, so a chart is a row of colored cells with a legend. Charts show only sizes macdoc has measured.
+- **Stacked bar** (the Overview's "Where your space is"): one bar up to 72 cells wide, split by the
+  five biggest top-level folders and one muted "other" segment. Each segment is `█` in its own
+  color (brand, green, yellow, orange, blue, pink); without color each is a different glyph
+  (`█ ▓ ▒ ░ ▪ ·`), so the segments are still told apart. Every segment with bytes gets at least one cell.
+  A legend line under it gives each segment its size and share.
+- **Share bar** (the Space tab's "Reclaimable, by category"): a 12-cell bar per row, scaled to the
+  biggest category, drawn like the metric bars (the blend over a dim `░` track).
+
 ## 5. Layout
 
 - Designed for 80 columns and up; the dashboard side-by-side detail needs 120.

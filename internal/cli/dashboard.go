@@ -39,14 +39,13 @@ type tab int
 const (
 	tabOverview tab = iota
 	TabSuggestions
-	tabToolchains
 	tabProjects
 	TabSpace
 )
 
 // The tabs belong to the scan view only. Every other command (reclaim, apply,
 // vitals, explore, retire) opens its own page without them.
-var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space"}
+var tabTitles = []string{"Overview", "Suggestions", "Projects", "Space"}
 
 // slashCommand is one entry of the / palette.
 type slashCommand struct {
@@ -94,8 +93,7 @@ type (
 // TuiData is everything the dashboard shows.
 type TuiData struct {
 	Res      engine.OverviewResult
-	space    engine.StorageResult
-	Dev      DevResult
+	Space    engine.StorageResult
 	Projects engine.ProjectsResult
 	Slow     engine.SlowResult
 	Trend    *engine.TrendResult // nil when there's nothing to compare yet
@@ -385,7 +383,7 @@ func engineLoad(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error) 
 	if err != nil {
 		return nil, err
 	}
-	data := &TuiData{Res: res, space: space, Dev: BuildDevResult(res.Opportunities, ""), Projects: FilterProjects(projs, 0),
+	data := &TuiData{Res: res, Space: space, Projects: FilterProjects(projs, 0),
 		Slow: engine.SlowFrom(res.Health, engine.SlowOptions{Home: d.Home})}
 	data.Trend, data.trendMsg = loadTrend(d.Home)
 	return data, nil
@@ -660,7 +658,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setTab((m.Tab + 1) % tab(len(tabTitles)))
 	case "shift+tab", "left", "h":
 		m.setTab((m.Tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
-	case "1", "2", "3", "4", "5":
+	case "1", "2", "3", "4":
 		m.setTab(tab(k[0] - '1'))
 	case "r":
 		return m, m.StartLoad(true)
@@ -1203,8 +1201,6 @@ func (m TuiModel) scanProgressView() string {
 // textView renders a non-list tab as tables.
 func (m TuiModel) textView() string {
 	switch m.Tab {
-	case tabToolchains:
-		return m.toolchainTables()
 	case tabProjects:
 		return m.projectTables()
 	case TabSpace:
@@ -1293,7 +1289,7 @@ func (m TuiModel) HelpView() string {
 	var b strings.Builder
 	b.WriteString("\n " + t.heading("Keys") + "\n")
 	keys := [][2]string{
-		{"tab / shift+tab, 1–5", "switch tab (the scan view)"},
+		{"tab / shift+tab, 1–4", "switch tab (the scan view)"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
 		{"space", "mark several suggestions to remove together"},
@@ -1362,7 +1358,7 @@ func cleanData(d *TuiData) *TuiData {
 	raw := d.Res.Opportunities
 	// TuiData's fields are unexported, which display (textsafe.Copy) leaves
 	// as they are, so each is cleaned on its own.
-	c := TuiData{Res: display(d.Res), space: display(d.space), Dev: display(d.Dev), Projects: display(d.Projects),
+	c := TuiData{Res: display(d.Res), Space: display(d.Space), Projects: display(d.Projects),
 		Slow: display(d.Slow), Trend: display(d.Trend), trendMsg: display(d.trendMsg), PlanOps: &raw}
 	return &c
 }

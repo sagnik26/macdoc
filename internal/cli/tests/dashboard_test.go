@@ -42,8 +42,19 @@ func tuiFixture() *cli.TuiData {
 	gradle := engine.Range{Low: 6 * gb, High: 6 * gb}
 	trend := &engine.TrendResult{KeptFloor: 100 << 20, To: model.ScanInfo{StartedAt: time.Unix(0, 0).Add(30 * 24 * time.Hour)}, From: model.ScanInfo{StartedAt: time.Unix(0, 0)},
 		Areas: []engine.TrendArea{{Name: "Gradle", Before: engine.Range{Low: 4 * gb, High: 4 * gb}, After: engine.Range{Low: 10 * gb, High: 10 * gb}, Change: gradle},
-			{Name: "Downloads", Before: engine.Range{Low: gb, High: gb}, After: engine.Range{Low: gb, High: gb}}}}
-	return &cli.TuiData{Res: res, Dev: cli.BuildDevResult(opps, ""), Slow: slow, Trend: trend, Projects: engine.ProjectsResult{
+			{Name: "Downloads", Before: engine.Range{Low: gb, High: gb}, After: engine.Range{Low: gb, High: gb}},
+			{Name: "Docker", Before: engine.Range{Low: 8 * gb, High: 8 * gb}, After: engine.Range{Low: 5 * gb, High: 5 * gb}, Change: engine.Range{Low: -3 * gb, High: -3 * gb}},
+			{Name: "Xcode", Before: engine.Range{Low: gb, High: gb}, After: engine.Range{Low: 5 * gb / 2, High: 5 * gb / 2}, Change: engine.Range{Low: 3 * gb / 2, High: 3 * gb / 2}}}}
+	res.Scan.TotalBytes = 100 * gb
+	res.TopLevel = []model.Node{
+		{Path: "/Users/me/Library", Bytes: 40 * gb}, {Path: "/Users/me/Developer", Bytes: 25 * gb}, {Path: "/Users/me/Downloads", Bytes: 12 * gb},
+		{Path: "/Users/me/Movies", Bytes: 9 * gb}, {Path: "/Users/me/code", Bytes: 6 * gb}, {Path: "/Users/me/Music", Bytes: 5 * gb}, {Path: "/Users/me/tmp", Bytes: 3 * gb}}
+	space := engine.StorageResult{Categories: []engine.CategoryTotal{
+		{Category: "Build caches", Bytes: 20 * gb, Count: 4, ByRisk: map[model.Risk]int64{model.RiskSafe: 20 * gb}},
+		{Category: "Containers", Bytes: 5 * gb, Count: 2, ByRisk: map[model.Risk]int64{model.RiskCaution: 5 * gb}},
+		{Category: "Old logs", Bytes: gb, Count: 9, ByRisk: map[model.Risk]int64{model.RiskSafe: gb}},
+		{Category: "Dev tools", Bytes: 4 * gb, Count: 3, ByRisk: map[model.Risk]int64{model.RiskSafe: 3 * gb, model.RiskRisky: gb}}}}
+	return &cli.TuiData{Res: res, Space: space, Slow: slow, Trend: trend, Projects: engine.ProjectsResult{
 		Projects: []projects.Project{
 			{Root: "/Users/me/code/app", IdleDays: 120, ActivitySource: projects.ActivityCommit, Git: projects.GitDirty, ArtifactBytes: 800_000_000, ReclaimableBytes: 800_000_000,
 				Artifacts: []projects.Artifact{{Rel: "node_modules", Bytes: 500_000_000}, {Rel: "ios/Pods", Bytes: 300_000_000}}},
@@ -110,7 +121,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	clear(m.Marked) // layout test: the cursor row shows its own marker
 	out := m.Screen()
-	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Space", "scan 2h ago", "What matters most", "Reclaimable",
+	mustContain(t, out, "◆ macdoc", "1 Overview", "4 Space", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
 		"Metric", "Risk", "Tier", "Size", "Items", "SAFE", "RISKY", "ADVICE", "Critical", "┌", "└")
@@ -145,16 +156,17 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.Detail {
 		t.Error("esc should close the detail")
 	}
-	m = step(t, m, keys("5")...)
+	m = step(t, m, keys("4")...)
 	mustContain(t, m.Screen(), "Reclaimable, by category", "What grew", "in the last 30 days", "│ Gradle", "+6.0 GB")
 	if strings.Contains(m.Screen(), "│ Downloads") {
 		t.Error("an unchanged area is listed under What grew")
 	}
-	m = step(t, m, keys("4")...)
+	m = step(t, m, keys("3")...)
 	mustContain(t, m.Screen(), "│ Project", "~/code/app", "120 d · git commit", "uncommitted", "~/Desktop/site", "(protected)",
 		"ios/Pods\u00a0300\u00a0MB", "DerivedData of deleted projects", "~/old/Gone.xcodeproj")
-	m = step(t, m, keys("3")...)
-	mustContain(t, m.Screen(), "│ Toolchain", "xcode", "docker")
+	if strings.Contains(m.Screen(), "Toolchains") {
+		t.Error("the Toolchains tab was removed: the dashboard has Overview, Suggestions, Projects and Space")
+	}
 }
 
 func TestTUIWideShowsDetailBesideList(t *testing.T) {
@@ -753,7 +765,7 @@ func exploreModel(t *testing.T) cli.TuiModel {
 // esc closes. There is no "biggest files" table, and no tabs.
 func TestTUIExplorerNavigation(t *testing.T) {
 	m := exploreModel(t)
-	m = step(t, m, keys("5", "enter")...)
+	m = step(t, m, keys("4", "enter")...)
 	mustContain(t, m.Screen(), "◆ macdoc", "Explore", "▸ Caches/", "big.bin", "smaller items", "├─", "└─", "55.0%")
 	for _, gone := range []string{"Biggest files below", "1 Overview"} {
 		if strings.Contains(m.Screen(), gone) {
@@ -993,7 +1005,7 @@ func TestTUIOverviewIsNotInTheMenuButStillTypes(t *testing.T) {
 			t.Error("/overview should not be a menu entry")
 		}
 	}
-	m := step(t, loaded(t, 100, 40), keys("5")...) // away from Overview
+	m := step(t, loaded(t, 100, 40), keys("4")...) // away from Overview
 	next, _ := m.RunCommand("/overview")
 	if got := next.(cli.TuiModel).Tab; got != 0 { // 0 is the Overview tab
 		t.Errorf("typed /overview opened tab %d, want Overview (0)", got)
