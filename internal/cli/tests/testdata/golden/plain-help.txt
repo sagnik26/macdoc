@@ -18,7 +18,7 @@
  Commands                                                                                           
    /scan                  scan the disk again, then show the full report (esc stops a scan)         
    /reclaim               scan, then clean every SAFE and CAUTION item at once (esc stops it)       
-   /retire                installed software, its data folders and cleanups                         
+   /retire                installed software and its data folders; delete what you don't need       
    /explore               where the space is, as a folder tree you can open                         
    /vitals                live CPU, memory, disk, network and battery, with a health score          
                                                                                                     

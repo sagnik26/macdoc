@@ -10,9 +10,9 @@
                                                                                                     
     Memory pressure   Normal ─── Warn ─── Critical                                                  
                                   ▲                                                                 
-    Swap in use       Low ─── Rising ─── High   3.0 GB (from 2.0 GB)                                
+    Swap in use       Low ─── Rising ─── High   3.0 GB (High from 2.0 GB)                           
                                           ▲                                                         
-    Free disk         Plenty ─── Getting low ─── Low   8.0 GB (under 10.0 GB)                       
+    Free disk         Plenty ─── Getting low ─── Low   8.0 GB (Low under 10.0 GB)                   
                                                   ▲                                                 
                                                                                                     
                                                                                                     
@@ -37,4 +37,4 @@
                                                                                                     
                                                                                                     
                                                                                                     
- w memory details • ↑↓ move • esc back • q quit
+ ↑↓ move • esc back • q quit

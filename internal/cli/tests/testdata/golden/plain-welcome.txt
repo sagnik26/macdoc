@@ -37,4 +37,4 @@
 
 
 
- enter run • ↑↓ choose • / commands • ? help • q quit
+ enter run • ↑↓ choose • / commands • q quit

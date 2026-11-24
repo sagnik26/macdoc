@@ -45,7 +45,7 @@ func (m TuiModel) introActions() []introAction {
 	return []introAction{
 		{"scan", scan},
 		{"reclaim", "See what can be cleaned and choose which risk types to clean"},
-		{"retire", "Installed software, its data folders and cleanups"},
+		{"retire", "Installed software and its data folders; delete what you don't need"},
 		{"explore", "Where the space is, as a folder tree you can open"},
 		{"vitals", "Live CPU, memory, disk, network and battery"},
 	}
@@ -189,7 +189,7 @@ func (m TuiModel) goHome() (tea.Model, tea.Cmd) {
 }
 
 func (m TuiModel) introFooter() string {
-	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"?", "help"}, {"q", "quit"}}
+	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"q", "quit"}}
 	var parts []string
 	for _, k := range keys {
 		parts = append(parts, m.t.accent.Render(k[0])+" "+m.t.muted.Render(k[1]))

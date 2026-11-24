@@ -309,8 +309,8 @@ func (m TuiModel) syncStatus(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 	m.Overlay, m.scroll = overlayVitals, 0
 	m.statusDone, m.statusTotal, m.statusProbe, m.statusOpened = 0, 0, "", time.Now()
-	m.statusShown, m.statusGen = 0, m.statusGen+1            // the bar starts from zero
-	m.status, m.hist, m.vitalsWhy = nil, vitalsHist{}, false // start from a fresh reading and an empty history
+	m.statusShown, m.statusGen = 0, m.statusGen+1 // the bar starts from zero
+	m.status, m.hist = nil, vitalsHist{}          // start from a fresh reading and an empty history
 	bar := statusBarTick(m.statusGen)
 	if m.clockOn {
 		return m, bar
@@ -337,15 +337,11 @@ func (m TuiModel) vitalsBody() string {
 	res := display(*m.status)
 	var b strings.Builder
 	b.WriteString("\n" + m.liveHeader() + "\n")
-	alert := false
 	if lvl, verdict := engine.SlowVerdict(res.Report); lvl == engine.SeverityCritical || lvl == engine.SeverityWarn {
-		alert = true
 		b.WriteString(t.alertBox("Memory is slowing your Mac down", verdict))
 		b.WriteString("\n")
 	}
-	if alert || m.vitalsWhy {
-		b.WriteString(m.whyBox(res) + "\n")
-	}
+	b.WriteString(m.whyBox(res) + "\n") // the three gauges are always shown
 	b.WriteString(statusBlocksLive(t, res, true, &m.hist))
 	if len(res.Warnings) > 0 {
 		var rows [][]string

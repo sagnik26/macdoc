@@ -27,6 +27,8 @@ import (
 type removeReadyMsg struct {
 	Res engine.PlanResult
 	Err error
+	// Retire and RetireID name the program when this is a Retire deletion (retire.go).
+	Retire, RetireID string
 }
 
 // removeProgressMsg is an item starting or finishing.
@@ -52,6 +54,8 @@ type removeState struct {
 	lineRisk  []model.Risk // the risk type of each finished item, in step with lines
 	current   string       // the item being removed
 	curRisk   model.Risk   // its risk type
+	retire    string       // the program a Retire deletion removes; empty for every other removal
+	retireID  string       // its software ID
 	auto      bool         // /reclaim: started with no prompt; esc stops it between items
 	riskyN    int          // RISKY suggestions /reclaim left alone, offered once it is done
 	riskySize string       // their size, as shown
@@ -106,7 +110,7 @@ func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (exec
 		approved[it.OpportunityID] = executor.Approval{Individually: it.Risk == model.RiskRisky}
 	}
 	return executor.Apply(ctx, executor.Config{
-		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: d.cat, Runner: Runner, Now: time.Now,
+		Store: st, StorePath: store.DefaultPath(d.Home), Home: d.Home, Catalog: d.catalog(), Runner: Runner, Now: time.Now,
 		DeleteNow: true,
 		FreeSpace: func(ctx context.Context) (int64, error) { return engine.FreeSpace(ctx, Runner) },
 		OnItem:    onItem,
@@ -151,7 +155,7 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	m.Planning = false
 	switch {
 	case msg.Err == nil:
-		m.removing = &removeState{Res: msg.Res, view: display(msg.Res)}
+		m.removing = &removeState{Res: msg.Res, view: display(msg.Res), retire: msg.Retire, retireID: msg.RetireID}
 		m.Overlay, m.scroll = OverlayRemove, 0 // marks stay: esc must give them back
 		if m.reclaimAuto {
 			m.reclaimAuto = false
@@ -162,12 +166,14 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case errors.Is(msg.Err, planner.ErrNothing):
+		m.Deps.retire = nil
 		reason := "none of them can be removed right now"
 		if len(msg.Res.Refused) > 0 {
 			reason = msg.Res.Refused[0].Reason
 		}
 		m.Flash = "Can't remove it: " + reason
 	default:
+		m.Deps.retire = nil
 		m.Flash = "Can't remove it: " + msg.Err.Error()
 	}
 	m.reclaimAuto = false
@@ -195,7 +201,8 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
 			return m.markChosenAndRemove([]model.Risk{model.RiskRisky})
 		case "esc", "enter", "q":
-			m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
+			m.Overlay, m.removing, m.scroll = m.closedOverlay(r), nil, 0
+			m.Deps.retire = nil
 			m.Flash = r.summary
 		default:
 			m.scrollBy(msg.String())
@@ -203,10 +210,18 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch msg.String() {
-	case "esc":
-		m.Overlay, m.removing = OverlayNone, nil
+	case "esc", "n":
+		if msg.String() == "n" && r.retire == "" {
+			break // a typed letter for the code
+		}
+		m.Overlay, m.removing = m.closedOverlay(r), nil
+		m.Deps.retire = nil
 		m.Flash = "Canceled. Nothing was removed."
 		return m, nil
+	case "y":
+		if r.retire != "" {
+			return m.runRemove()
+		}
 	case "enter":
 		if want, pending := r.nextRisky(); pending {
 			if !strings.EqualFold(strings.TrimSpace(r.code), want.OpportunityID) {
@@ -290,7 +305,8 @@ func (m TuiModel) resultLine(res executor.ItemResult) string {
 // how much space came back.
 func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 	box := m.removing
-	m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
+	m.Overlay, m.removing, m.scroll = m.closedOverlay(box), nil, 0
+	m.Deps.retire = nil
 	msg.rep = display(msg.rep) // only shown from here on; IDs are unchanged
 	if msg.Err != nil {
 		m.Flash = "Nothing was removed: " + msg.Err.Error()
@@ -324,6 +340,9 @@ func (m TuiModel) removed(msg removedMsg) (tea.Model, tea.Cmd) {
 			m.Data.PlanOps = &raw
 		}
 		m.Cursor = max(0, min(m.Cursor, len(kept)-1))
+	}
+	if box != nil && box.retire != "" && len(rep.Items) > 0 && rep.Count(executor.OutcomeDone) == len(rep.Items) {
+		m.dropRetired(box.retireID)
 	}
 	var parts []string
 	n := rep.Count(executor.OutcomeDone)
@@ -379,6 +398,9 @@ func (m TuiModel) removeView() string {
 	items := r.view.Plan.Items
 	if r.auto && r.running {
 		return m.autoView(r, items)
+	}
+	if r.retire != "" {
+		return m.retireView(r, items)
 	}
 	b.WriteString("\n " + t.heading(fmt.Sprintf("Remove %d item%s and free the space?", len(items), plural(len(items), "", "s"))) + "\n\n")
 	var total int64
@@ -511,4 +533,85 @@ func (m TuiModel) riskyLeft() []model.Opportunity {
 		}
 	}
 	return out
+}
+
+// closedOverlay is where the screen goes when a removal box closes: back to the
+// Retire list for a Retire deletion, otherwise to the page underneath.
+func (m TuiModel) closedOverlay(r *removeState) overlay {
+	if r != nil && r.retire != "" {
+		return overlaySoftware
+	}
+	return OverlayNone
+}
+
+// dropRetired takes a deleted program out of the Retire list, so it is not offered
+// again before the next scan.
+func (m *TuiModel) dropRetired(id string) {
+	if m.software == nil {
+		return
+	}
+	res := *m.software
+	res.Software = nil
+	for _, sw := range m.software.Software {
+		if sw.ID != id {
+			res.Software = append(res.Software, sw)
+		}
+	}
+	m.software = &res
+	m.softwareCursor = max(0, min(m.softwareCursor, len(m.shownSoftware(res))-1))
+}
+
+// retireView is the Delete / Cancel box of a Retire deletion: what goes, its size,
+// and the two choices. No risk labels and no code to type.
+func (m TuiModel) retireView(r *removeState, items []model.PlanItem) string {
+	t := m.t
+	var b strings.Builder
+	switch {
+	case r.running:
+		fmt.Fprintf(&b, "\n %s %s\n\n", m.spin.View(), t.heading("Deleting "+r.retire+"…"))
+		for _, l := range r.lines {
+			b.WriteString("   " + l + "\n")
+		}
+		if r.current != "" {
+			b.WriteString("   " + t.muted.Render(r.current) + "\n")
+		}
+		return b.String()
+	case r.finished:
+		b.WriteString("\n " + t.heading(r.retire) + "\n\n")
+		for _, l := range r.lines {
+			b.WriteString("   " + l + "\n")
+		}
+		if len(r.left) > 0 {
+			b.WriteString("\n   " + t.warn.Render("Not deleted:") + "\n")
+			for _, it := range r.left {
+				b.WriteString(t.Wrap("   • "+it.Item.Title+": "+it.Reason, 5) + "\n")
+			}
+		}
+		b.WriteString("\n   " + t.muted.Render(r.summary) + "\n")
+		b.WriteString("   " + t.accent.Render("Enter") + t.muted.Render(" or ") + t.accent.Render("esc") + t.muted.Render(" close") + "\n")
+		return b.String()
+	}
+	b.WriteString("\n " + t.heading("Delete "+r.retire+"?") + "\n\n")
+	var total int64
+	known := true
+	for _, it := range items {
+		sz := model.Bytes{Value: it.ExpectedBytes, Source: it.BytesSource}
+		if it.BytesSource == model.SourceUnknown {
+			known = false
+		} else {
+			total += it.ExpectedBytes
+		}
+		fmt.Fprintf(&b, "   %s  %s\n", t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(TildePath(m.Deps.Home, it.Target)))
+	}
+	for _, rf := range r.view.Refused {
+		fmt.Fprintf(&b, "   %s %s\n", t.warn.Render("not included:"), t.muted.Render(rf.Title+": "+rf.Reason))
+	}
+	sum := engine.DecimalBytes(total)
+	if !known {
+		sum = "at least " + sum
+	}
+	fmt.Fprintf(&b, "\n   %s %s\n", t.muted.Render("Total:"), t.size.Render(sum))
+	b.WriteString("\n   " + t.warn.Render("Deleted for good. This can't be undone.") + "\n")
+	b.WriteString("   " + t.accent.Render("Enter") + t.muted.Render(" delete · ") + t.accent.Render("esc") + t.muted.Render(" cancel") + "\n")
+	return b.String()
 }

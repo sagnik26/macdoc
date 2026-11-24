@@ -58,7 +58,7 @@ type slashCommand struct {
 var SlashCommands = []slashCommand{
 	{"scan", "", "scan the disk again, then show the full report (esc stops a scan)"},
 	{"reclaim", "", "scan, then clean every SAFE and CAUTION item at once (esc stops it)"},
-	{"retire", "", "installed software, its data folders and cleanups"},
+	{"retire", "", "installed software and its data folders; delete what you don't need"},
 	{"explore", "", "where the space is, as a folder tree you can open"},
 	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
 }
@@ -110,7 +110,13 @@ type TuiData struct {
 type TuiDeps struct {
 	Home string
 	cat  *recipes.Catalog
-	send func(tea.Msg) // set once the program exists; nil in tests
+	// AppDirs is where Retire looks for an app's bundle; nil means /Applications and
+	// ~/Applications. Tests set it.
+	AppDirs []string
+	// retire is cat plus the one entry a Retire deletion runs under, while that
+	// deletion is open (see retire.go); nil otherwise.
+	retire *recipes.Catalog
+	send   func(tea.Msg) // set once the program exists; nil in tests
 	// load and makePlan replace the engine in tests.
 	Load     func(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error)
 	MakePlan func(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
@@ -136,7 +142,7 @@ type TuiDeps struct {
 // opportunities when they are from the latest scan.
 func enginePlan(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
 	return engine.CreatePlan(context.Background(), engine.PlanOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.cat},
+		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.catalog()},
 		Selector:           sel,
 		Precomputed:        pre,
 	})
@@ -239,13 +245,11 @@ type TuiModel struct {
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
 	softwareCursor  int                   // the highlighted row of the filtered list
-	softwareDetail  bool                  // the details of the highlighted program are open
 	explore         *engine.ExploreResult // the folder shown in the explorer
 	reclaimAuto     bool                  // the removal being sealed is /reclaim's: it starts as soon as it is ready
 	treeRoot        *treeNode             // the folder tree shown in /explore
 	treeCursor      int                   // the highlighted row of that tree
 	status          *engine.StatusResult  // the last live reading, shown by /vitals
-	vitalsWhy       bool                  // /vitals shows the memory pressure and swap details even with no alert
 	statusBusy      bool                  // a live reading is running
 	statusDone      int                   // probes of the first reading that have answered
 	statusTotal     int                   // how many there are (0 until the first report)
@@ -626,10 +630,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return next, cmd
 		}
 	}
-	if m.Overlay == overlayVitals && k == "w" {
-		m.vitalsWhy = !m.vitalsWhy
-		return m, nil
-	}
 	if m.Overlay != OverlayNone {
 		switch k {
 		case "esc", "q", "?", "enter":
@@ -937,8 +937,6 @@ func (m TuiModel) bodyView() string {
 		return m.scrolled(m.exploreBody())
 	case m.Overlay == overlayVitals:
 		return m.scrolled(m.vitalsBody())
-	case m.Overlay == overlaySoftware && m.softwareDetail:
-		return m.scrolled(m.softwareDetailView())
 	case m.Overlay == overlaySoftware:
 		return m.scrolled(m.softwareTables())
 	case m.Overlay == OverlayRemove:
@@ -1018,6 +1016,9 @@ func (m TuiModel) pageTitle() string {
 		overlayVitals: "Vitals",
 		OverlayRemove: "Reclaim",
 	}
+	if m.Overlay == OverlayRemove && m.removing != nil && m.removing.retire != "" {
+		return "Retire" // a deletion started from the Retire list
+	}
 	if t, ok := titles[m.Overlay]; ok {
 		return t
 	}
@@ -1071,15 +1072,13 @@ func (m TuiModel) footerView() string {
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
 	case m.Overlay == overlayVitals:
-		keys = []key.Binding{key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "memory details")), m.keys.Move, m.keys.Back, m.keys.Quit}
+		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
-	case m.Overlay == overlaySoftware && m.softwareDetail:
-		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware:
 		keys = []key.Binding{
 			key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
-			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "mark cleanups")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "delete")),
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
 	case m.Overlay != OverlayNone:

@@ -18,7 +18,7 @@
  [1;38;2;236;236;236mCommands[m                                                                                           
    [38;2;117;113;249m/scan                 [m [38;2;154;154;154mscan the disk again, then show the full report (esc stops a scan)[m         
    [38;2;117;113;249m/reclaim              [m [38;2;154;154;154mscan, then clean every SAFE and CAUTION item at once (esc stops it)[m       
-   [38;2;117;113;249m/retire               [m [38;2;154;154;154minstalled software, its data folders and cleanups[m                         
+   [38;2;117;113;249m/retire               [m [38;2;154;154;154minstalled software and its data folders; delete what you don't need[m       
    [38;2;117;113;249m/explore              [m [38;2;154;154;154mwhere the space is, as a folder tree you can open[m                         
    [38;2;117;113;249m/vitals               [m [38;2;154;154;154mlive CPU, memory, disk, network and battery, with a health score[m          
                                                                                                     

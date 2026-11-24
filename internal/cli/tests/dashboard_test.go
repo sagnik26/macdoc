@@ -3,6 +3,8 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -577,57 +579,105 @@ func openInstalled(t *testing.T, m cli.TuiModel) cli.TuiModel {
 	return m
 }
 
-// The summary counts cleanups and the filters narrow the list; new and all work.
-func TestTUIInstalledSummaryAndFilters(t *testing.T) {
+// The Retire list says nothing about recipes or advice, and the filters narrow it:
+// deletable (apps and programs with a data folder), new, and all.
+func TestTUIRetireListHasNoRecipeOrAdviceAndFilters(t *testing.T) {
 	m := openInstalled(t, softwareModel(t))
-	mustContain(t, m.Screen(), "1 program has cleanups", "New since last scan: pipx", "with data · 2 of 3")
-	m = step(t, m, keys("f")...)
-	mustContain(t, m.Screen(), "cleanable · 1 of 3")
+	mustContain(t, m.Screen(), "Installed software", "New since last scan: pipx", "deletable · 2 of 3", "Docker", "Notion")
 	m = step(t, m, keys("f")...)
 	mustContain(t, m.Screen(), "new · 1 of 3")
 	m = step(t, m, keys("f")...)
 	mustContain(t, m.Screen(), "all · 3 of 3")
-}
-
-// c marks the suggestions the installed programs' cleanups produce, opens the
-// Suggestions tab, and changes nothing else. Advice-only items stay unmarked.
-func TestTUIInstalledCleanupLink(t *testing.T) {
-	m := openInstalled(t, softwareModel(t))
-	m = step(t, m, keys("c")...)
-	if m.Tab != cli.TabSuggestions || !m.Marked["O-k3m9pq"] {
-		t.Fatalf("c should mark the Docker cleanup and open Suggestions: tab=%d marked=%v", m.Tab, m.Marked)
-	}
-	mustContain(t, m.Flash, "Marked 1 suggestions", "Nothing is removed yet")
-}
-
-// enter opens a program's details, with its folders and cleanups; esc goes back.
-func TestTUIInstalledDetails(t *testing.T) {
-	m := openInstalled(t, softwareModel(t))
-	m = step(t, m, keys("down")...)
-	m = step(t, m, keys("enter")...)
-	mustContain(t, m.Screen(), "Program", "Notion", "Data folders", "~/Library/Caches/notion", "No cleanup recipe covers this program")
-	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.Screen(), "Data folders") || !strings.Contains(m.Screen(), "Installed software") {
-		t.Error("esc should go back to the list, not close the view")
-	}
-	m = step(t, m, keys("esc")...)
-	if strings.Contains(m.Screen(), "Installed software") {
-		t.Error("a second esc should close the view")
+	for _, gone := range []string{"recipe", "advisory", "Advisory", "cleanup", "Cleanup", "mark"} {
+		if strings.Contains(m.Screen(), gone) {
+			t.Errorf("the Retire list should not mention %q:\n%s", gone, m.Screen())
+		}
 	}
 }
 
-// Regression: Enter in a program's details must not leave the view. It used
-// to close the overlay and land on Overview.
-func TestTUIInstalledEnterInDetailsStaysInView(t *testing.T) {
+// retireModel is the Retire list with a plan and a removal that are fakes: the plan
+// holds what the dashboard asked for, and Remove records what it was given.
+func retireModel(t *testing.T) (cli.TuiModel, *[]planner.Selector, *[]model.Plan, string) {
+	t.Helper()
+	apps := t.TempDir()
+	if err := os.Mkdir(filepath.Join(apps, "Notion.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	m := openInstalled(t, softwareModel(t))
-	m = step(t, m, keys("enter")...)
-	m = step(t, m, keys("enter")...)
-	if m.Overlay == cli.OverlayNone || !strings.Contains(m.Screen(), "Data folders") {
-		t.Errorf("Enter in the details left the view: overlay=%v", m.Overlay)
+	m.Deps.AppDirs = []string{apps}
+	var asked []planner.Selector
+	var removed []model.Plan
+	m.Deps.MakePlan = func(_ *cli.TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
+		asked = append(asked, sel)
+		res := samplePlan()
+		res.Plan.Items, res.Refused = nil, nil
+		for _, op := range pre.Opportunities {
+			res.Plan.Items = append(res.Plan.Items, model.PlanItem{OpportunityID: op.ID, RecipeID: op.RecipeID, Title: op.Title,
+				Target: op.Target, ExpectedBytes: op.Bytes.Value, BytesSource: op.Bytes.Source, Risk: op.Risk, Method: op.Method})
+		}
+		return res, nil
 	}
-	if m.Tab != 0 { // 0 is the Overview tab
-		t.Errorf("tab changed to %d", m.Tab)
+	m.Deps.Remove = func(_ *cli.TuiDeps, p model.Plan, _ func(executor.Event)) (executor.Report, error) {
+		removed = append(removed, p)
+		rep := executor.Report{PlanID: p.ID}
+		for _, it := range p.Items {
+			rep.Items = append(rep.Items, executor.ItemResult{Item: it, Outcome: executor.OutcomeDone, Deleted: true})
+		}
+		return rep, nil
 	}
+	return m, &asked, &removed, apps
+}
+
+// Enter on a program asks Delete or Cancel and lists what goes: the app and its
+// data folder. Cancel (esc) deletes nothing and returns to the list; Enter deletes,
+// and the program leaves the list. There is no risk label, no code to type and no
+// recipe wording anywhere in it.
+func TestTUIRetireEnterAsksDeleteOrCancel(t *testing.T) {
+	m, asked, removed, apps := retireModel(t)
+	m = step(t, m, keys("down")...) // Notion
+	m = press(t, m, "enter")
+	if len(*asked) != 1 || len(*removed) != 0 {
+		t.Fatalf("Enter should only ask: plans %d, removals %d", len(*asked), len(*removed))
+	}
+	out := m.Screen()
+	mustContain(t, out, "Delete Notion?", "Retire", filepath.Join(apps, "Notion"), "~/Library/Caches/notion", "4.9 GB", "Enter delete", "esc cancel")
+	for _, gone := range []string{"RISKY", "CAUTION", "SAFE", "recipe", "Type O-", "advis"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("the Delete box should not show %q:\n%s", gone, out)
+		}
+	}
+
+	m = press(t, m, "esc")
+	if len(*removed) != 0 || !strings.Contains(m.Screen(), "Installed software") || !strings.Contains(m.Flash, "Nothing was removed") {
+		t.Fatalf("esc should cancel and go back to the list: removals %d, flash %q", len(*removed), m.Flash)
+	}
+
+	m = press(t, m, "enter")
+	m = press(t, m, "enter")
+	if len(*removed) != 1 || len((*removed)[0].Items) != 2 {
+		t.Fatalf("Enter should delete the app and its data folder: %+v", *removed)
+	}
+	for _, it := range (*removed)[0].Items {
+		if it.RecipeID != "retire.program" {
+			t.Errorf("unexpected entry %+v", it)
+		}
+	}
+	if strings.Contains(m.Screen(), "Notion") || !strings.Contains(m.Screen(), "Installed software") {
+		t.Errorf("a deleted program leaves the list, and the list stays open:\n%s", m.Screen())
+	}
+	mustContain(t, m.Flash, "Removed 2 of 2")
+}
+
+// A program with no app and no data folder has nothing to delete: Enter says so and
+// plans nothing.
+func TestTUIRetireNothingToDelete(t *testing.T) {
+	m, asked, removed, _ := retireModel(t)
+	m = step(t, m, keys("f")...) // new: pipx, a program with no data
+	m = press(t, m, "enter")
+	if len(*asked) != 0 || len(*removed) != 0 {
+		t.Fatalf("nothing to delete should plan nothing: plans %d", len(*asked))
+	}
+	mustContain(t, m.Flash, "nothing to delete for pipx")
 }
 
 // Regression: while the inventory is read the view opens at once, shows a
@@ -1095,8 +1145,10 @@ func markerUnder(screen, label, stop string, last bool) bool {
 			continue
 		}
 		col := strings.Index(l, stop)
-		if last {
-			col = strings.LastIndex(l, stop)
+		if last { // the stop after a rule, not the same word in the brackets after the gauge
+			if c := strings.Index(l, " ─── "+stop); c >= 0 {
+				col = c + len(" ─── ")
+			}
 		}
 		at := strings.Index(lines[i+1], "▲")
 		if col < 0 || at < 0 {
@@ -1111,12 +1163,12 @@ func markerUnder(screen, label, stop string, last bool) bool {
 	return false
 }
 
-// The vitals page keeps the memory details as three gauges, each with a "▲"
-// marker: memory pressure (Normal, Warn, Critical), swap in use (Low, Rising,
-// High) and free disk (Plenty, Getting low, Low). They show with the red alert,
-// and the w key shows them without one. There is no title line (the text "How
-// macdoc decides if memory is slowing your Mac" is gone), no explanation lines
-// under the gauges, and no Health section on the live tab.
+// The vitals page always shows three gauges, each with a "▲" marker: memory
+// pressure (Normal, Warn, Critical), swap in use (Low, Rising, High) and free disk
+// (Plenty, Getting low, Low), whether or not the Mac is slowing down. There is no
+// key to show or hide them, no title line (the text "How macdoc decides if memory
+// is slowing your Mac" is gone), no explanation lines under them, and no Health
+// section on the live tab.
 func TestTUIVitalsShowsThreeGauges(t *testing.T) {
 	m, _ := statusModel(t)
 	m, _ = openVitals(t, m)
@@ -1124,24 +1176,23 @@ func TestTUIVitalsShowsThreeGauges(t *testing.T) {
 		Swap: probe.Swap{UsedBytes: 1 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 200e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 50, Pressure: probe.PressureNormal}}}}
 	m = step(t, m, calm)
-	if strings.Contains(m.Screen(), "Swap in use") {
-		t.Error("with no alert the gauges stay hidden until w")
-	}
-	m = step(t, m, keys("w")...)
 	out := m.Screen()
 	mustContain(t, out, "Memory pressure", "Normal", "Warn", "Critical", "Swap in use", "Low", "Rising", "High",
-		"Free disk", "Plenty", "Getting low", "(from 2.0 GB)", "(under 10.0 GB)")
-	if n := strings.Count(out, "▲"); n != 3 {
-		t.Errorf("want one marker per gauge (3), got %d:\n%s", n, out)
+		"Free disk", "Plenty", "Getting low", "(High from 2.0 GB)", "(Low under 10.0 GB)")
+	if strings.Contains(out, "slowing your Mac down") {
+		t.Error("a calm Mac shows the gauges but not the red alert")
+	}
+	if n := strings.Count(out, "▲ now"); n != 0 {
+		t.Errorf("the pointer is just the triangle, got %d with 'now'", n)
 	}
 	for label, stop := range map[string]string{"Memory pressure": "Normal", "Swap in use": "Rising", "Free disk": "Plenty"} {
 		if !markerUnder(out, label, stop, false) {
 			t.Errorf("calm: the %s marker should sit under %s:\n%s", label, stop, out)
 		}
 	}
-	m = step(t, m, keys("w")...)
-	if strings.Contains(m.Screen(), "Swap in use") {
-		t.Error("w again hides them")
+	m = step(t, m, keys("w")...) // w no longer does anything
+	if !strings.Contains(m.Screen(), "Swap in use") {
+		t.Error("w must not hide the gauges")
 	}
 
 	tight := cli.StatusMsg{Res: engine.StatusResult{Score: 60, Report: probe.Report{
@@ -1158,7 +1209,7 @@ func TestTUIVitalsShowsThreeGauges(t *testing.T) {
 			t.Errorf("tight: the %s marker should sit under %s:\n%s", c.label, c.stop, out)
 		}
 	}
-	for _, gone := range []string{"How macdoc decides", "Health 60 / 100", "The red alert shows when pressure", "Right now:"} {
+	for _, gone := range []string{"How macdoc decides", "Health 60 / 100", "The red alert shows when pressure", "Right now:", "w memory details"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("the live Vitals tab should not show %q", gone)
 		}

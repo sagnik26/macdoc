@@ -218,7 +218,7 @@ func (m TuiModel) whyBox(res engine.StatusResult) string {
 		"Free disk":   {{"Plenty", ok}, {"Getting low", warn}, {"Low", bad}},
 	}
 	for _, c := range engine.SlowChecks(res.Report) {
-		rows = append(rows, m.gauge(c.Name, stops[c.Name], c.Zone, c.Value+" ("+c.Limit+")", "couldn't be read")...)
+		rows = append(rows, m.gauge(c.Name, stops[c.Name], c.Zone, c.Value+" ("+strings.ToUpper(c.Flag[:1])+c.Flag[1:]+" "+c.Limit+")", "couldn't be read")...)
 	}
 	return indentLines(strings.Join(rows, "\n")+"\n", " ") + "\n" // no title line: just the gauges
 }
