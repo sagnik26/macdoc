@@ -146,10 +146,12 @@ func statusBlocksLive(t *Theme, res engine.StatusResult, withProcesses bool, h *
 	if len(res.Reasons) > 0 {
 		reasons = " " + strings.Join(res.Reasons, "\n ") + "\n"
 	}
-	b.WriteString(t.block(title, "· "+note, reasons))
+	if h == nil { // the live Vitals tab has no Health section; the printed command does
+		b.WriteString(t.block(title, "· "+note, reasons) + "\n")
+	}
 
 	rows := nowRows(t, res, tail)
-	b.WriteString("\n" + t.block("Now", "", " "+strings.Join(rows, "\n ")+"\n"))
+	b.WriteString(t.block("Now", "", " "+strings.Join(rows, "\n ")+"\n"))
 
 	if withProcesses {
 		b.WriteString(processBlock(t, res))
@@ -307,12 +309,14 @@ func (m TuiModel) syncStatus(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 	m.Overlay, m.scroll = overlayVitals, 0
 	m.statusDone, m.statusTotal, m.statusProbe, m.statusOpened = 0, 0, "", time.Now()
+	m.statusShown, m.statusGen = 0, m.statusGen+1            // the bar starts from zero
 	m.status, m.hist, m.vitalsWhy = nil, vitalsHist{}, false // start from a fresh reading and an empty history
+	bar := statusBarTick(m.statusGen)
 	if m.clockOn {
-		return m, nil
+		return m, bar
 	}
 	m.clockOn = true
-	return m, statusClock()
+	return m, tea.Batch(statusClock(), bar)
 }
 
 // vitalsBody is the vitals page: the live readings, and a red alert only when
@@ -321,14 +325,14 @@ func (m TuiModel) vitalsBody() string {
 	t := m.t
 	if m.status == nil {
 		head := "\n  " + m.spin.View() + " " + t.text.Render("Reading CPU, memory, disk, network and battery…") + "\n\n"
+		tail := "starting"
 		if m.statusTotal > 0 {
-			tail := fmt.Sprintf("%d of %d readings", m.statusDone, m.statusTotal)
+			tail = fmt.Sprintf("%d of %d readings", m.statusDone, m.statusTotal)
 			if m.statusProbe != "" {
 				tail += " · " + m.statusProbe
 			}
-			return head + "  " + m.barView(float64(m.statusDone)/float64(m.statusTotal), true) + "\n\n  " + t.hint(tail) + "\n"
 		}
-		return head + "  " + m.barView(sweep(time.Since(m.statusOpened)), false) + "\n\n  " + t.hint("starting") + "\n"
+		return head + "  " + m.barView(m.statusShown, true) + "\n\n  " + t.hint(tail) + "\n"
 	}
 	res := display(*m.status)
 	var b strings.Builder

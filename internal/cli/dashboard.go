@@ -251,6 +251,8 @@ type TuiModel struct {
 	statusTotal     int                   // how many there are (0 until the first report)
 	statusProbe     string                // the one that answered last
 	statusOpened    time.Time             // when the vitals page was opened
+	statusShown     float64               // how full the first-reading bar is drawn (0..1); it eases toward the real progress
+	statusGen       int                   // which opening of the page the bar animation belongs to
 	statusWait      bool                  // a reading was just taken; the next waits for the tick
 	statusAt        time.Time             // when the last reading finished
 	hist            vitalsHist            // the recent readings behind the arrows
@@ -496,6 +498,9 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusClockMsg:
 		return m.clockTick()
+
+	case statusBarMsg:
+		return m.barTick(msg)
 
 	case removeReadyMsg:
 		return m.removeReady(msg)

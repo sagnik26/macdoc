@@ -2,7 +2,10 @@ package tests
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -794,7 +797,12 @@ func TestTUIVitalsPageShowsALiveReading(t *testing.T) {
 		t.Error("a reading is already running; no second one should start")
 	}
 	m = deliverStatus(t, m, cmd)
-	mustContain(t, m.Screen(), "Vitals", "Health 83 / 100", "memory pressure is warn", "CPU")
+	mustContain(t, m.Screen(), "Vitals", "CPU")
+	for _, gone := range []string{"Health 83 / 100", "-10 memory pressure is warn", "-7 something else"} {
+		if strings.Contains(m.Screen(), gone) {
+			t.Errorf("the live Vitals tab has no Health section, but shows %q", gone)
+		}
+	}
 	for _, gone := range []string{"Findings", "Is memory slowing it down?", "1 Overview"} {
 		if strings.Contains(m.Screen(), gone) {
 			t.Errorf("the vitals page should not show %q", gone)
@@ -1078,12 +1086,38 @@ func TestTUIVitalsShowsTrendsAndHistory(t *testing.T) {
 	mustContain(t, m.Screen(), "▲") // CPU rose again
 }
 
-// The vitals page keeps the memory details: with the red alert it shows where
-// memory pressure sits and what swap and free disk are against their limits, and
-// the w key shows the same without an alert. The box has no title line (the text
-// "How macdoc decides if memory is slowing your Mac" is gone). The Health section
-// (the score and the reasons, such as "memory pressure is warn") is on the page.
-func TestTUIVitalsShowsTheMemoryDetailsWithoutATitle(t *testing.T) {
+// markerUnder reports whether the "▲" marker on the line under the gauge labeled
+// label sits under the middle of the first (or last) occurrence of stop on its line.
+func markerUnder(screen, label, stop string, last bool) bool {
+	lines := strings.Split(screen, "\n")
+	for i, l := range lines {
+		if !strings.Contains(l, label) || i+1 >= len(lines) {
+			continue
+		}
+		col := strings.Index(l, stop)
+		if last {
+			col = strings.LastIndex(l, stop)
+		}
+		at := strings.Index(lines[i+1], "▲")
+		if col < 0 || at < 0 {
+			continue
+		}
+		start := len([]rune(l[:col]))
+		mark := len([]rune(lines[i+1][:at]))
+		if mark == start+(len([]rune(stop))-1)/2 {
+			return true
+		}
+	}
+	return false
+}
+
+// The vitals page keeps the memory details as three gauges, each with a "▲"
+// marker: memory pressure (Normal, Warn, Critical), swap in use (Low, Rising,
+// High) and free disk (Plenty, Getting low, Low). They show with the red alert,
+// and the w key shows them without one. There is no title line (the text "How
+// macdoc decides if memory is slowing your Mac" is gone), no explanation lines
+// under the gauges, and no Health section on the live tab.
+func TestTUIVitalsShowsThreeGauges(t *testing.T) {
 	m, _ := statusModel(t)
 	m, _ = openVitals(t, m)
 	calm := cli.StatusMsg{Res: engine.StatusResult{Score: 90, Report: probe.Report{
@@ -1091,10 +1125,20 @@ func TestTUIVitalsShowsTheMemoryDetailsWithoutATitle(t *testing.T) {
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 50, Pressure: probe.PressureNormal}}}}
 	m = step(t, m, calm)
 	if strings.Contains(m.Screen(), "Swap in use") {
-		t.Error("with no alert the memory details stay hidden until w")
+		t.Error("with no alert the gauges stay hidden until w")
 	}
 	m = step(t, m, keys("w")...)
-	mustContain(t, m.Screen(), "Normal", "Warn", "Critical", "▲ now", "Swap in use", "Free disk", "Right now: no alert.")
+	out := m.Screen()
+	mustContain(t, out, "Memory pressure", "Normal", "Warn", "Critical", "Swap in use", "Low", "Rising", "High",
+		"Free disk", "Plenty", "Getting low", "(from 2.0 GB)", "(under 10.0 GB)")
+	if n := strings.Count(out, "▲"); n != 3 {
+		t.Errorf("want one marker per gauge (3), got %d:\n%s", n, out)
+	}
+	for label, stop := range map[string]string{"Memory pressure": "Normal", "Swap in use": "Rising", "Free disk": "Plenty"} {
+		if !markerUnder(out, label, stop, false) {
+			t.Errorf("calm: the %s marker should sit under %s:\n%s", label, stop, out)
+		}
+	}
 	m = step(t, m, keys("w")...)
 	if strings.Contains(m.Screen(), "Swap in use") {
 		t.Error("w again hides them")
@@ -1104,10 +1148,20 @@ func TestTUIVitalsShowsTheMemoryDetailsWithoutATitle(t *testing.T) {
 		Swap: probe.Swap{UsedBytes: 3 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 8e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 10, Pressure: probe.PressureWarn}}}}
 	m = step(t, m, tight)
-	mustContain(t, m.Screen(), "slowing your Mac down", "Swap in use", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
-	mustContain(t, m.Screen(), "Health 60 / 100")
-	if strings.Contains(m.Screen(), "How macdoc decides") {
-		t.Errorf("the title text \"How macdoc decides…\" stays removed")
+	out = m.Screen()
+	mustContain(t, out, "slowing your Mac down", "Swap in use", "Free disk")
+	for _, c := range []struct {
+		label, stop string
+		last        bool
+	}{{"Memory pressure", "Warn", false}, {"Swap in use", "High", false}, {"Free disk", "Low", true}} {
+		if !markerUnder(out, c.label, c.stop, c.last) {
+			t.Errorf("tight: the %s marker should sit under %s:\n%s", c.label, c.stop, out)
+		}
+	}
+	for _, gone := range []string{"How macdoc decides", "Health 60 / 100", "The red alert shows when pressure", "Right now:"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("the live Vitals tab should not show %q", gone)
+		}
 	}
 }
 
@@ -1315,9 +1369,9 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m, _ := statusModel(t)
 	next, _ := m.RunCommand("/vitals")
 	m = next.(cli.TuiModel)
-	mustContain(t, m.Screen(), "Reading CPU, memory", "starting")
+	mustContain(t, m.Screen(), "Reading CPU, memory", "starting", " 0%") // from zero, not a sweep
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
-	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▄", " 33%")
+	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▄") // the bar eases toward it; TestTUIVitalsBarStartsAtZeroAndEases covers the fill
 }
 
 // The help overlay lists the keys the dashboard has now, and nothing that was
@@ -1366,5 +1420,103 @@ func TestTUIHeadersDoNotSayAsksBeforeRemoving(t *testing.T) {
 		if strings.Contains(out, "asks before removing") {
 			t.Errorf("%s: the header should not say \"asks before removing\"", name)
 		}
+	}
+}
+
+// barPercent reads the percentage the first-reading bar shows on screen.
+func barPercent(t *testing.T, screen string) int {
+	t.Helper()
+	mm := regexp.MustCompile(`(\d+)%`).FindStringSubmatch(screen)
+	if mm == nil {
+		t.Fatalf("no percentage on screen:\n%s", screen)
+	}
+	n, _ := strconv.Atoi(mm[1])
+	return n
+}
+
+// barCmd runs the commands cmd holds (a batch or one) and returns the message of
+// the bar animation's tick, which is the only one that comes back within a moment.
+func barCmd(cmd tea.Cmd) tea.Msg {
+	var run []tea.Cmd
+	if cmd == nil {
+		return nil
+	}
+	if b, ok := cmd().(tea.BatchMsg); ok {
+		run = b
+	} else {
+		return nil
+	}
+	got := make(chan tea.Msg, len(run))
+	var walk func(c tea.Cmd)
+	walk = func(c tea.Cmd) {
+		if c == nil {
+			return
+		}
+		go func() {
+			msg := c()
+			if b, ok := msg.(tea.BatchMsg); ok {
+				for _, sub := range b {
+					walk(sub)
+				}
+				return
+			}
+			if fmt.Sprintf("%T", msg) == "cli.statusBarMsg" {
+				got <- msg
+			}
+		}()
+	}
+	for _, c := range run {
+		walk(c)
+	}
+	select {
+	case msg := <-got:
+		return msg
+	case <-time.After(300 * time.Millisecond):
+		return nil
+	}
+}
+
+// The first-reading bar on the vitals page starts at zero (not a sweep), fills
+// toward the real count one probe at a time without ever running ahead of it by
+// more than half a step, never goes backwards, and ends full.
+func TestTUIVitalsBarStartsAtZeroAndEases(t *testing.T) {
+	m, _ := statusModel(t)
+	m, cmd := openVitals(t, m)
+	if got := barPercent(t, m.Screen()); got != 0 {
+		t.Fatalf("the bar should start at 0%%, got %d%%", got)
+	}
+	msg := barCmd(cmd)
+	if msg == nil {
+		t.Fatal("opening the page should start the bar's animation")
+	}
+	last := 0
+	tick := func(n int) {
+		for i := 0; i < n; i++ {
+			next, c := m.Update(msg)
+			m = next.(cli.TuiModel)
+			if c == nil {
+				t.Fatal("the animation stopped while the reading was still running")
+			}
+			_ = c // the next tick is the same message; do not wait for the real 33 ms
+			if got := barPercent(t, m.Screen()); got < last {
+				t.Fatalf("the bar went backwards: %d%% after %d%%", got, last)
+			} else {
+				last = got
+			}
+		}
+	}
+	tick(30) // nothing has reported yet: only a sliver
+	if last > 3 {
+		t.Errorf("before the first report the bar stays under 3%%, got %d%%", last)
+	}
+	m = step(t, m, cli.StatusProgressMsg{Done: 3, Total: 6, Probe: "memory"})
+	tick(200)
+	if last < 45 || last > 58 {
+		t.Errorf("with 3 of 6 done the bar rests between 45%% and 58%%, got %d%%", last)
+	}
+	m = step(t, m, cli.StatusProgressMsg{Done: 6, Total: 6, Probe: "battery"})
+	tick(200)
+	if last != 100 {
+		t.Errorf("with every probe done the bar reaches 100%%, got %d%%", last)
 	}
 }

@@ -114,6 +114,11 @@ func TestGoldenDashboardPages(t *testing.T) {
 		vit = deliverStatus(t, vit, cmd)
 		checkGolden(t, th.name+"-vitals", vit.Screen())
 
+		tight := cli.StatusMsg{Res: engine.StatusResult{Score: 60, Report: probe.Report{
+			Swap: probe.Swap{UsedBytes: 3 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 8e9},
+			Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 10, Pressure: probe.PressureWarn}}}}
+		checkGolden(t, th.name+"-vitals-alert", step(t, vit, tight).Screen())
+
 		checkGolden(t, th.name+"-retire", openInstalled(t, goldenModel(t, th.make(w), w, h)).Screen())
 	}
 }

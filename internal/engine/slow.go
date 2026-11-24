@@ -181,6 +181,10 @@ type SlowCheck struct {
 	Limit   string `json:"limit"`   // where it counts as a problem
 	Flag    string `json:"flag"`    // "high" or "low"
 	Tripped bool   `json:"tripped"` // past the limit right now
+	// Zone is where the value sits on a three-stop gauge: 0 comfortable, 1 getting
+	// close to the limit (halfway for swap, up to twice the limit for free disk),
+	// 2 past it; -1 when it is unknown. It is for showing only and not in the JSON.
+	Zone int `json:"-"`
 }
 
 // SlowChecks lists the measured facts behind SlowVerdict besides memory
@@ -188,11 +192,26 @@ type SlowCheck struct {
 // warn or critical, or both of these tripped at once.
 func SlowChecks(rep probe.Report) []SlowCheck {
 	swap := SlowCheck{Name: "Swap in use", Value: BinaryBytes(rep.Swap.UsedBytes), Limit: "from " + BinaryBytes(highSwapBytes),
-		Flag: "high", Tripped: rep.Swap.UsedBytes >= highSwapBytes}
-	disk := SlowCheck{Name: "Free disk", Value: "unknown", Limit: "under " + DecimalBytes(lowFreeBytes), Flag: "low"}
+		Flag: "high", Tripped: rep.Swap.UsedBytes >= highSwapBytes, Zone: 1}
+	switch {
+	case swap.Tripped:
+		swap.Zone = 2
+	case rep.Swap.UsedBytes < highSwapBytes/2:
+		swap.Zone = 0
+	}
+	disk := SlowCheck{Name: "Free disk", Value: "unknown", Limit: "under " + DecimalBytes(lowFreeBytes), Flag: "low", Zone: -1}
 	if rep.Disk.ContainerTotalBytes > 0 {
-		disk.Value = DecimalBytes(rep.Disk.ContainerFreeBytes)
-		disk.Tripped = rep.Disk.ContainerFreeBytes < lowFreeBytes
+		free := rep.Disk.ContainerFreeBytes
+		disk.Value = DecimalBytes(free)
+		disk.Tripped = free < lowFreeBytes
+		switch {
+		case disk.Tripped:
+			disk.Zone = 2
+		case free < 2*lowFreeBytes:
+			disk.Zone = 1
+		default:
+			disk.Zone = 0
+		}
 	}
 	return []SlowCheck{swap, disk}
 }

@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Vitals
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+ ● Live · updated just now · every 3s                                                               
+                                                                                                    
+ ╭───────────────────────────────────────────────────────────────────────────────────────╮          
+ │ ▲ Memory is slowing your Mac down                                                     │          
+ │ Low disk (8.0 GB free) with 3.0 GB of swap in use: macOS may hang if swap can't grow. │          
+ ╰───────────────────────────────────────────────────────────────────────────────────────╯          
+                                                                                                    
+    Memory pressure   Normal ─── Warn ─── Critical                                                  
+                                  ▲                                                                 
+    Swap in use       Low ─── Rising ─── High   3.0 GB (from 2.0 GB)                                
+                                          ▲                                                         
+    Free disk         Plenty ─── Getting low ─── Low   8.0 GB (under 10.0 GB)                       
+                                                  ▲                                                 
+                                                                                                    
+                                                                                                    
+ Now                                                                                                
+  Memory   ██████████████████░░    90% ▬   14.4 GB of 16.0 GB, pressure warn, swap 3.0 GB           
+  Disk     ████████████████████  98.4% ▬   8.0 GB free of 500 GB                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ w memory details • ↑↓ move • esc back • q quit
