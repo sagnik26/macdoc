@@ -29,8 +29,6 @@ type removeReadyMsg struct {
 	Err error
 	// Retire and RetireID name the program when this is a Retire deletion (retire.go).
 	Retire, RetireID string
-	// Choose is true when the deletion was ticked in the /clean list.
-	Choose bool
 }
 
 // removeProgressMsg is an item starting or finishing.
@@ -56,7 +54,6 @@ type removeState struct {
 	lineRisk  []model.Risk // the risk type of each finished item, in step with lines
 	current   string       // the item being removed
 	curRisk   model.Risk   // its risk type
-	choose    bool         // ticked in the /clean list: Delete or Cancel, no typed code
 	retire    string       // the program a Retire deletion removes; empty for every other removal
 	retireID  string       // its software ID
 	auto      bool         // /reclaim: started with no prompt; esc stops it between items
@@ -77,15 +74,12 @@ func (r *removeState) riskyItems() []model.PlanItem {
 }
 
 // needsCode reports whether any item is RISKY.
-func (r *removeState) needsCode() bool { return !r.choose && len(r.riskyItems()) > 0 }
+func (r *removeState) needsCode() bool { return len(r.riskyItems()) > 0 }
 
 // nextRisky returns the RISKY item still waiting for its own confirmation.
 // Each one is confirmed by typing its ID, so none is approved as a group
 // (P6-R1 Q2).
 func (r *removeState) nextRisky() (model.PlanItem, bool) {
-	if r.choose {
-		return model.PlanItem{}, false // ticked in /clean: Delete is the approval, no code
-	}
 	rs := r.riskyItems()
 	if r.confirmed < len(rs) {
 		return rs[r.confirmed], true
@@ -123,29 +117,37 @@ func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (exec
 	}, p, approved)
 }
 
-// startRemove seals a plan for the marked suggestions and opens the confirmation box.
-// It is what /reclaim runs for the items it chose; the scan view itself has no delete.
+// startRemove seals a plan for the marked suggestions (or the selected one)
+// and opens the confirmation box. Advice-only items have nothing to remove,
+// so Enter explains them instead.
 func (m TuiModel) startRemove() (tea.Model, tea.Cmd) {
+	// Enter on an advice row always explains it, even when other items are
+	// marked.
+	ops := m.Items()
+	if m.Cursor < len(ops) {
+		if op := ops[m.Cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
+			m.Detail = !m.Detail
+			m.Flash = "macdoc can't remove this one. The steps to do it yourself are below."
+			return m, nil
+		}
+	}
+	if n, _ := m.markedTotal(); n == 0 && m.Cursor >= len(ops) {
+		return m, nil
+	}
 	sel := m.MarkedSelector()
 	if sel == nil || m.Planning {
 		return m, nil
 	}
-	return m.sealRemoval(*sel, false)
-}
-
-// sealRemoval seals the plan for sel in the background; the box opens when it is ready.
-// choose marks a deletion ticked in the /clean list.
-func (m TuiModel) sealRemoval(sel planner.Selector, choose bool) (tea.Model, tea.Cmd) {
 	if m.Data == nil || m.Deps.MakePlan == nil {
 		m.Flash = "Check your Mac first."
 		return m, nil
 	}
 	m.Planning = true
 	m.Flash = "Checking…"
-	deps, pre := m.Deps, m.Data.PlanOps
+	deps, pre, s := m.Deps, m.Data.PlanOps, *sel
 	return m, func() tea.Msg {
-		res, err := deps.MakePlan(deps, sel, pre)
-		return removeReadyMsg{Res: res, Err: err, Choose: choose}
+		res, err := deps.MakePlan(deps, s, pre)
+		return removeReadyMsg{Res: res, Err: err}
 	}
 }
 
@@ -153,8 +155,7 @@ func (m TuiModel) removeReady(msg removeReadyMsg) (tea.Model, tea.Cmd) {
 	m.Planning = false
 	switch {
 	case msg.Err == nil:
-		m.removing = &removeState{Res: msg.Res, view: display(msg.Res), retire: msg.Retire, retireID: msg.RetireID, choose: msg.Choose}
-		m.Flash = ""                           // the "Checking…" that showed while the plan was sealed
+		m.removing = &removeState{Res: msg.Res, view: display(msg.Res), retire: msg.Retire, retireID: msg.RetireID}
 		m.Overlay, m.scroll = OverlayRemove, 0 // marks stay: esc must give them back
 		if m.reclaimAuto {
 			m.reclaimAuto = false
@@ -199,12 +200,6 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// typed before anything is deleted. Nothing here is automatic.
 			m.Overlay, m.removing, m.scroll = OverlayNone, nil, 0
 			return m.markChosenAndRemove([]model.Risk{model.RiskRisky})
-		case "c":
-			if !r.auto {
-				return m, nil
-			}
-			m.removing, m.scroll = nil, 0
-			return m.openChoose() // /reclaim's result: choose what is left
 		case "esc", "enter", "q":
 			m.Overlay, m.removing, m.scroll = m.closedOverlay(r), nil, 0
 			m.Deps.retire = nil
@@ -216,7 +211,7 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "esc", "n":
-		if msg.String() == "n" && r.retire == "" && !r.choose {
+		if msg.String() == "n" && r.retire == "" {
 			break // a typed letter for the code
 		}
 		m.Overlay, m.removing = m.closedOverlay(r), nil
@@ -224,7 +219,7 @@ func (m TuiModel) removeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.Flash = "Canceled. Nothing was removed."
 		return m, nil
 	case "y":
-		if r.retire != "" || r.choose {
+		if r.retire != "" {
 			return m.runRemove()
 		}
 	case "enter":
@@ -404,7 +399,7 @@ func (m TuiModel) removeView() string {
 	if r.auto && r.running {
 		return m.autoView(r, items)
 	}
-	if r.retire != "" || r.choose {
+	if r.retire != "" {
 		return m.retireView(r, items)
 	}
 	b.WriteString("\n " + t.heading(fmt.Sprintf("Remove %d item%s and free the space?", len(items), plural(len(items), "", "s"))) + "\n\n")
@@ -456,9 +451,6 @@ func (m TuiModel) removeView() string {
 		keys := t.accent.Render("Enter") + t.muted.Render(" or ") + t.accent.Render("esc") + t.muted.Render(" close")
 		if r.riskyN > 0 {
 			keys = t.accent.Render("d") + t.muted.Render(" review RISKY · ") + keys
-		}
-		if r.auto && len(m.chooseItems()) > 0 {
-			keys = t.accent.Render("c") + t.muted.Render(" choose items · ") + keys
 		}
 		b.WriteString("   " + keys + "\n")
 	case r.running:
@@ -549,9 +541,6 @@ func (m TuiModel) closedOverlay(r *removeState) overlay {
 	if r != nil && r.retire != "" {
 		return overlaySoftware
 	}
-	if r != nil && r.choose {
-		return overlayChoose
-	}
 	return OverlayNone
 }
 
@@ -577,13 +566,9 @@ func (m *TuiModel) dropRetired(id string) {
 func (m TuiModel) retireView(r *removeState, items []model.PlanItem) string {
 	t := m.t
 	var b strings.Builder
-	what := r.retire // a program, or "3 items" for the /clean list
-	if what == "" {
-		what = fmt.Sprintf("%d item%s", len(items), plural(len(items), "", "s"))
-	}
 	switch {
 	case r.running:
-		fmt.Fprintf(&b, "\n %s %s\n\n", m.spin.View(), t.heading("Deleting "+what+"…"))
+		fmt.Fprintf(&b, "\n %s %s\n\n", m.spin.View(), t.heading("Deleting "+r.retire+"…"))
 		for _, l := range r.lines {
 			b.WriteString("   " + l + "\n")
 		}
@@ -592,7 +577,7 @@ func (m TuiModel) retireView(r *removeState, items []model.PlanItem) string {
 		}
 		return b.String()
 	case r.finished:
-		b.WriteString("\n " + t.heading(what) + "\n\n")
+		b.WriteString("\n " + t.heading(r.retire) + "\n\n")
 		for _, l := range r.lines {
 			b.WriteString("   " + l + "\n")
 		}
@@ -606,7 +591,7 @@ func (m TuiModel) retireView(r *removeState, items []model.PlanItem) string {
 		b.WriteString("   " + t.accent.Render("Enter") + t.muted.Render(" or ") + t.accent.Render("esc") + t.muted.Render(" close") + "\n")
 		return b.String()
 	}
-	b.WriteString("\n " + t.heading("Delete "+what+"?") + "\n\n")
+	b.WriteString("\n " + t.heading("Delete "+r.retire+"?") + "\n\n")
 	var total int64
 	known := true
 	for _, it := range items {
@@ -615,11 +600,6 @@ func (m TuiModel) retireView(r *removeState, items []model.PlanItem) string {
 			known = false
 		} else {
 			total += it.ExpectedBytes
-		}
-		if r.choose { // the /clean list: what it is, how risky, and where
-			fmt.Fprintf(&b, "   %s %s  %s  %s\n", t.riskStyle(it.Risk).Render(fmt.Sprintf("%-7s", it.Risk)),
-				t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(it.Title), t.muted.Render(TildePath(m.Deps.Home, it.Target)))
-			continue
 		}
 		fmt.Fprintf(&b, "   %s  %s\n", t.size.Render(fmt.Sprintf("%9s", sizeCell(sz))), t.text.Render(TildePath(m.Deps.Home, it.Target)))
 	}

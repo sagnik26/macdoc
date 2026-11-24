@@ -163,71 +163,34 @@ func TestRenderPlanStatuses(t *testing.T) {
 	mustContain(t, buf.String(), "proposed by Claude")
 }
 
-// Dashboard: in /clean, space ticks rows (several can be deleted together with enter),
-// ticks again to untick, and a ticks all. Advice-only items are not in the list.
-func TestTUICleanTicks(t *testing.T) {
-	m := loaded(t, 100, 40)
-	next, _ := m.RunCommand("/clean")
-	m = next.(cli.TuiModel)
-	items := 0
-	for _, op := range m.Items() {
-		if op.Method != model.MethodAdvise && op.Risk != model.RiskAdvise && op.Risk != model.RiskBlocked {
-			items++
-		}
-	}
-	if len(m.Marked) != 0 {
-		t.Fatalf("nothing is ticked at the start: %v", m.Marked)
-	}
-	mustContain(t, m.Screen(), "Choose what to delete", "nothing ticked yet", "space ticks")
+// Dashboard: space marks suggestions (several can be removed together with
+// enter), unmarks them, and refuses advice-only items.
+func TestTUIMarkSuggestions(t *testing.T) {
+	m := step(t, loaded(t, 100, 40), keys("2")...)
+	ops := m.Items()
+	clear(m.Marked) // the dashboard pre-marks SAFE items; this test marks by hand
 
-	m = step(t, m, keys(" ")...) // ticks row 1, moves to 2
+	m = step(t, m, keys(" ")...) // marks item 1, moves to 2
 	m = step(t, m, keys("down", " ")...)
-	if len(m.Marked) != 2 {
-		t.Fatalf("two ticked: %v", m.Marked)
+	if len(m.Marked) != 2 || !m.Marked[ops[0].ID] || !m.Marked[ops[2].ID] || m.Cursor != 3 {
+		t.Fatalf("marked %v cursor %d", m.Marked, m.Cursor)
 	}
-	mustContain(t, m.Screen(), "2 ticked", "✓")
+	mustContain(t, m.Screen(), "✓ 2 marked", "enter remove", "✓", "space mark")
 
-	m = step(t, m, keys("up", " ")...) // unticks row 3
+	m = step(t, m, keys("up", " ")...) // unmark item 3
 	if len(m.Marked) != 1 {
-		t.Fatalf("unticking: %v", m.Marked)
+		t.Fatalf("unmark: %v", m.Marked)
 	}
-	m = step(t, m, keys("a")...)
-	if len(m.Marked) != items {
-		t.Errorf("a should tick all %d, got %d", items, len(m.Marked))
-	}
-	m = step(t, m, keys("a")...)
-	if len(m.Marked) != 0 {
-		t.Errorf("a again should untick all: %v", m.Marked)
-	}
-	for _, op := range m.Items() {
-		if (op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise) && strings.Contains(m.Screen(), op.Title) {
-			t.Errorf("the advice item %q must not be listed", op.Title)
+
+	// Advice-only items can't be marked.
+	for i, op := range ops {
+		if op.Risk == model.RiskAdvise {
+			m.Cursor = i
+			m = step(t, m, keys(" ")...)
+			mustContain(t, m.Screen(), "can't")
+			if m.Marked[op.ID] {
+				t.Error("an advice item was marked")
+			}
 		}
-	}
-}
-
-// Enter with nothing ticked deletes nothing: it never deletes the highlighted row.
-func TestTUICleanEnterWithNothingTicked(t *testing.T) {
-	m := loaded(t, 100, 40)
-	planned := 0
-	m.Deps.MakePlan = func(*cli.TuiDeps, planner.Selector, *engine.OpportunityResult) (engine.PlanResult, error) {
-		planned++
-		return samplePlan(), nil
-	}
-	next, _ := m.RunCommand("/clean")
-	m = step(t, next.(cli.TuiModel), keys("enter")...)
-	if planned != 0 || m.Overlay == cli.OverlayRemove {
-		t.Fatalf("nothing ticked: planned %d, overlay %d", planned, m.Overlay)
-	}
-	mustContain(t, m.Flash, "Tick something first")
-}
-
-// Without a scan, /clean says so.
-func TestTUICleanWithoutAScan(t *testing.T) {
-	m, _ := newIntroTUI(t, 100, 40, cli.IntroStatus{})
-	next, _ := m.RunCommand("/clean")
-	got := next.(cli.TuiModel)
-	if !got.Loading && !strings.Contains(got.Flash, "No scan yet") {
-		t.Errorf("/clean with no scan should load one or say so: loading=%v flash=%q", got.Loading, got.Flash)
 	}
 }

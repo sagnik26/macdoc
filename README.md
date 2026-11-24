@@ -68,7 +68,6 @@ claude mcp add macdoc -- macdoc mcp
 ```bash
 macdoc                           # Interactive dashboard (type / for commands: /scan /reclaim /retire /explore /vitals)
 macdoc reclaim                   # Lists cleanups by risk; at a Terminal, pick which risk types to clean
-macdoc reclaim --choose          # At a Terminal, tick the individual items to delete
 macdoc retire                    # Installed software and the data that belongs to it
 macdoc explore [path]            # Visual disk explorer (--growth, --projects)
 macdoc vitals                    # Live system health dashboard (--memory: is memory slowing your Mac?)

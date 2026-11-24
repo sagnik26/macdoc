@@ -4,8 +4,9 @@
  [1;38;2;28;28;28mKeys[m                                                                                               
    [38;2;90;86;224mtab / shift+tab, 1–5  [m [38;2;108;108;108mswitch tab (the scan view)[m                                                
    [38;2;90;86;224m↑ ↓  j k  pgup pgdn   [m [38;2;108;108;108mmove or scroll[m                                                            
-   [38;2;90;86;224menter, e              [m [38;2;108;108;108mexplain the selected suggestion (the scan only shows; it deletes nothing)[m 
-   [38;2;90;86;224m/clean                [m [38;2;108;108;108mchoose items to delete: space ticks, a ticks all, enter deletes after you [m
+   [38;2;90;86;224menter                 [m [38;2;108;108;108mremove the selected suggestion (or the marked ones), after you confirm[m    
+   [38;2;90;86;224mspace                 [m [38;2;108;108;108mmark several suggestions to remove together[m                               
+   [38;2;90;86;224me                     [m [38;2;108;108;108mexplain the selected suggestion[m                                           
    [38;2;90;86;224mx                     [m [38;2;108;108;108mhide this kind of suggestion from now on[m                                  
    [38;2;90;86;224md  (after /reclaim)   [m [38;2;108;108;108mreview the RISKY items it left alone; each needs its ID typed[m             
    [38;2;90;86;224m/                     [m [38;2;108;108;108mcommand palette[m                                                           
@@ -18,7 +19,6 @@
    [38;2;90;86;224m/scan                 [m [38;2;108;108;108mscan the disk again, then show the full report (esc stops a scan)[m         
    [38;2;90;86;224m/reclaim              [m [38;2;108;108;108mscan, then clean every SAFE and CAUTION item at once (esc stops it)[m       
    [38;2;90;86;224m/retire               [m [38;2;108;108;108minstalled software and its data folders; delete what you don't need[m       
-   [38;2;90;86;224m/clean                [m [38;2;108;108;108mchoose individual items from the last scan and delete them[m                
    [38;2;90;86;224m/explore              [m [38;2;108;108;108mwhere the space is, as a folder tree you can open[m                         
    [38;2;90;86;224m/vitals               [m [38;2;108;108;108mlive CPU, memory, disk, network and battery, with a health score[m          
                                                                                                     

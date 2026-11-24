@@ -131,7 +131,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.Tab != cli.TabSuggestions {
 		t.Fatalf("tab = %d", m.Tab)
 	}
-	mustContain(t, m.Screen(), "▶", "Xcode DerivedData", "Suggestion", "Restore", "SAFE 25.2 GB", "item 1 of 5", "enter explain", "/clean")
+	mustContain(t, m.Screen(), "▶", "Xcode DerivedData", "Suggestion", "Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
 	m = step(t, m, keys("down", "down")...)
 	if m.Cursor != 2 {
 		t.Fatalf("cursor = %d", m.Cursor)
@@ -1293,22 +1293,21 @@ func TestTUIPaletteMatchesTheWelcomeMenu(t *testing.T) {
 	view := home.Screen()
 	last := -1
 	for _, name := range want {
-		i := strings.Index(view[max(last, 0):], name) // the next one after the last, not a word inside a description
-		if i < 0 {
+		i := strings.Index(view, name)
+		if i < 0 || i < last {
 			t.Fatalf("the welcome menu should list %q after the one before it:\n%s", name, view)
 		}
-		last = max(last, 0) + i
+		last = i
 	}
 	for label, m := range map[string]cli.TuiModel{"welcome": home, "scan view": loaded(t, 110, 60)} {
 		v := step(t, m, keys("/")...).Screen()
-		last = 0
+		last = -1
 		for _, name := range want {
-			i := strings.Index(v[last:], name) // the next one after the last, not a word inside a description
-			if i < 0 {
+			i := strings.Index(v, name)
+			if i < 0 || i < last {
 				t.Errorf("%s palette: %q missing or out of order:\n%s", label, name, v)
-				break
 			}
-			last += i
+			last = i
 		}
 	}
 }
@@ -1424,7 +1423,7 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 func TestTUIHelpListsTheCurrentKeys(t *testing.T) {
 	out := step(t, loaded(t, 120, 60), keys("?")...).Screen()
 	mustContain(t, out, "hide this kind of suggestion", "review the RISKY items", "/reclaim removes every SAFE and CAUTION item",
-		"choose items to delete", "explain the selected suggestion", "back to the home screen")
+		"mark several suggestions", "explain the selected suggestion", "back to the home screen")
 	for _, gone := range []string{"dry-run plan", "apply it here", "(on a plan)"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("the help still mentions %q", gone)

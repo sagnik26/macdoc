@@ -16,8 +16,6 @@ import (
 
 	"github.com/sagnik26/macdoc/internal/cli"
 	"github.com/sagnik26/macdoc/internal/engine"
-	"github.com/sagnik26/macdoc/internal/model"
-	"github.com/sagnik26/macdoc/internal/planner"
 	"github.com/sagnik26/macdoc/internal/probe"
 )
 
@@ -122,26 +120,6 @@ func TestGoldenDashboardPages(t *testing.T) {
 		checkGolden(t, th.name+"-vitals-alert", step(t, vit, tight).Screen())
 
 		checkGolden(t, th.name+"-retire", openInstalled(t, goldenModel(t, th.make(w), w, h)).Screen())
-
-		// /clean: the list with two rows ticked, and the Delete box for them.
-		clean := goldenModel(t, th.make(w), w, h)
-		clean.Deps.MakePlan = func(_ *cli.TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
-			res := samplePlan()
-			res.Plan.Items, res.Refused = nil, nil
-			for _, op := range pre.Opportunities {
-				for _, id := range sel.IDs {
-					if op.ID == id {
-						res.Plan.Items = append(res.Plan.Items, model.PlanItem{OpportunityID: op.ID, Title: op.Title, Target: op.Target,
-							ExpectedBytes: op.Bytes.Value, BytesSource: op.Bytes.Source, Risk: op.Risk, Method: op.Method})
-					}
-				}
-			}
-			return res, nil
-		}
-		next, _ := clean.RunCommand("/clean")
-		clean = step(t, next.(cli.TuiModel), keys(" ", "down", " ")...)
-		checkGolden(t, th.name+"-clean", clean.Screen())
-		checkGolden(t, th.name+"-clean-box", press(t, clean, "enter").Screen())
 	}
 }
 

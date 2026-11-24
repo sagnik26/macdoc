@@ -37,4 +37,4 @@
 
 
 
- enter explain • /clean delete items • x hide this kind • ↑↓ move • ? help • esc home • q quit
+ enter remove • space mark • x hide this kind • e explain • ↑↓ move • ? help • esc home • q quit
