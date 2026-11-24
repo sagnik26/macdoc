@@ -170,39 +170,58 @@ func TestBackgroundColorRestylesTheDashboard(t *testing.T) {
 	}
 }
 
-// In color the welcome screen's lettering is the chunky eight-row wordmark with
-// a cat wearing a stethoscope in the place of the O. A plain layout, a narrow
-// terminal and a short one fall back to the block logo or a compact title.
-func TestWelcomeScreenWordmarkHasTheCatInTheO(t *testing.T) {
+// The welcome screen's lettering is the six-row block "macdoc" (no cat, no
+// larger wordmark): on the brand gradient in color, plain without color, and a
+// compact title on a small terminal.
+func TestWelcomeScreenKeepsTheBlockLogo(t *testing.T) {
 	status := cli.IntroStatus{HasScan: true, Age: "2h ago", Bytes: 128_000_000_000, Files: 1_031_292}
 	welcome := func(th *cli.Theme, w, h int) string {
 		m := goldenModel(t, th, w, h)
 		m.Intro, m.IntroStatus = true, status
 		return m.Screen()
 	}
-	const blockM = "███╗   ███╗" // the "m" of the plain block logo
-
-	wide := welcome(cli.ForcedColorTheme(true, 120), 120, 60)
-	if !strings.Contains(wide, "▀") || !strings.Contains(wide, "▄") || strings.Contains(wide, blockM) {
-		t.Errorf("a wide, tall colored terminal should show the wordmark, not the block logo:\n%s", wide)
-	}
-	mustContain(t, wide, "Why is my Mac full and slow?")
-
+	const blockM = "███╗   ███╗" // the "m" of the block logo
 	for name, c := range map[string]struct {
-		out        string
-		wantBlock  bool
-		wantHalves bool
+		out       string
+		wantBlock bool
 	}{
-		"plain layout": {welcome(cli.PlainLayoutTheme(), 120, 60), true, false},
-		"narrow":       {welcome(cli.ForcedColorTheme(true, 70), 70, 60), true, false},
-		"short":        {welcome(cli.ForcedColorTheme(true, 120), 120, 30), false, false},
+		"color, wide and tall": {welcome(cli.ForcedColorTheme(true, 120), 120, 60), true},
+		"plain layout":         {welcome(cli.PlainLayoutTheme(), 120, 60), true},
+		"short":                {welcome(cli.ForcedColorTheme(true, 120), 120, 30), false},
 	} {
 		if strings.Contains(c.out, blockM) != c.wantBlock {
 			t.Errorf("%s: block logo present = %v, want %v", name, !c.wantBlock, c.wantBlock)
 		}
-		if strings.Contains(c.out, "▀") != c.wantHalves {
-			t.Errorf("%s: the wordmark should not be drawn", name)
+		if strings.ContainsAny(c.out, "▀▄") {
+			t.Errorf("%s: there must be no pixel art (the cat is gone)", name)
 		}
 		mustContain(t, c.out, "Why is my Mac full and slow?")
+	}
+}
+
+// The Vitals metric bars (CPU, memory, disk, power) keep their full height and
+// take the design system's progress colors: "█" cells from #5A56E0 over a dim
+// #606060 "░" track. Without color they stay the plain text bar.
+func TestVitalsMetricBarsUseTheDesignSystem(t *testing.T) {
+	vitals := func(th *cli.Theme) string {
+		m, cmd := openVitals(t, goldenModel(t, th, 100, 40))
+		return deliverStatus(t, m, cmd).Screen()
+	}
+	color := vitals(cli.ForcedColorTheme(true, 100))
+	if !strings.Contains(color, "█") || !strings.Contains(color, "░") {
+		t.Errorf("a colored vitals page should draw full-height bars:\n%s", color)
+	}
+	if strings.Contains(color, "▄") {
+		t.Errorf("the vitals bars must not be shortened to half height")
+	}
+	if !strings.Contains(color, "38;2;90;86;224") { // #5A56E0, the start of the blend
+		t.Errorf("the bar should start on the purple of the blend")
+	}
+	if !strings.Contains(color, "38;2;96;96;96") { // #606060, the empty track
+		t.Errorf("the empty part of the bar should be the slate track")
+	}
+	plain := vitals(cli.PlainLayoutTheme())
+	if !strings.Contains(plain, "████") || strings.Contains(plain, "▄") || strings.Contains(plain, "\x1b") {
+		t.Errorf("without color the bar stays the plain text bar:\n%s", plain)
 	}
 }

@@ -114,9 +114,9 @@ func (m TuiModel) liveHeader() string {
 	return " " + dot + " " + t.text.Render("Live") + t.muted.Render(" · updated "+when+" · every "+fmt.Sprint(int(statusEvery.Seconds()))+"s") + "\n"
 }
 
-// whyBox is how macdoc decides whether memory is slowing the Mac down: where
-// memory pressure sits on its three levels, the two other facts it weighs with
-// their limits, and the rule. It shows with the red alert, and on the w key.
+// whyBox shows where memory pressure sits on its three levels, the two other
+// facts macdoc weighs (swap in use and free disk) against their limits, and the
+// rule. It shows with the red alert, and on the w key.
 func (m TuiModel) whyBox(res engine.StatusResult) string {
 	t := m.t
 	const lead = "   "
@@ -170,5 +170,5 @@ func (m TuiModel) whyBox(res engine.StatusResult) string {
 	}
 	rows = append(rows, "", lead+t.muted.Render("The red alert shows when pressure is Warn or Critical, or when the disk is low and swap is high."),
 		lead+t.text.Render(now))
-	return t.block("How macdoc decides if memory is slowing your Mac", "", strings.Join(rows, "\n")+"\n")
+	return indentLines(strings.Join(rows, "\n")+"\n", " ") + "\n" // no title line: just the pressure ladder and the checks
 }

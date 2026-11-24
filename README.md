@@ -10,7 +10,7 @@
 
 <p align="center">
 <pre>
- ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago · asks before removing
+ ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago
   1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space   6 Health
  SAFE 825 MB  ·  CAUTION 553 MB  ·  ADVICE 48.9 GB   item 1 of 12
  ╭───┬──────────┬─────────┬─────────┬────────────────────────────────┬──────────────────────────────╮

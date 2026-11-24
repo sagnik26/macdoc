@@ -105,7 +105,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	m := loaded(t, 100, 40)
 	clear(m.Marked) // layout test: the cursor row shows its own marker
 	out := m.Screen()
-	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Space", "asks before removing", "scan 2h ago", "What matters most", "Reclaimable",
+	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Space", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
 		"│ Metric", "│ Risk", "│ Tier", "Size │ Items", "SAFE", "RISKY", "ADVICE", "Critical", "╭", "╰")
@@ -307,7 +307,12 @@ func TestTUIWelcomeScreen(t *testing.T) {
 	mustContain(t, out, "███╗   ███╗", "Why is my Mac full and slow?", "Last scan 2h ago · 128 GB in 1,031,292 files",
 		"▶ scan", "reclaim", "retire", "explore", "vitals",
 		"Check your whole Mac", "See what can be cleaned", "Where the space is, as a folder tree",
-		"Read-only unless you confirm", "Nothing leaves your Mac", "enter run", "q quit")
+		"enter run", "q quit")
+	for _, gone := range []string{"Read-only unless you confirm", "Nothing leaves your Mac", "Every cleanup can be explained first", "✓ "} {
+		if strings.Contains(out, gone) {
+			t.Errorf("the welcome screen should not show the %q tick-mark line", gone)
+		}
+	}
 	for _, gone := range []string{"How it works", "From the shell", "1 Overview"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("the welcome screen should not show %q", gone)
@@ -317,9 +322,16 @@ func TestTUIWelcomeScreen(t *testing.T) {
 		t.Errorf("view is %d lines; want the window height", n+1)
 	}
 
-	// First run: says a scan will happen.
+	// First run: says a scan will happen. Nothing is written under the command
+	// box (the explanation of the highlighted command is gone).
 	m, _ = newIntroTUI(t, 70, 24, cli.IntroStatus{})
-	mustContain(t, m.Screen(), "◆ macdoc", "No scan yet", "First run: scans your disk once")
+	narrow := m.Screen()
+	mustContain(t, narrow, "◆ macdoc", "No scan yet")
+	for _, gone := range []string{"First run: scans your disk once", "Check your whole Mac"} {
+		if strings.Contains(narrow, gone) {
+			t.Errorf("nothing should be written under the command box, but the screen shows %q", gone)
+		}
+	}
 }
 
 func TestTUIWelcomeActions(t *testing.T) {
@@ -1066,31 +1078,37 @@ func TestTUIVitalsShowsTrendsAndHistory(t *testing.T) {
 	mustContain(t, m.Screen(), "▲") // CPU rose again
 }
 
-// The vitals page explains how memory-slowing is decided: with the red alert
-// it shows where pressure sits and what swap and free disk are against their
-// limits, and the w key shows the same without an alert.
-func TestTUIVitalsExplainsTheAlert(t *testing.T) {
+// The vitals page keeps the memory details: with the red alert it shows where
+// memory pressure sits and what swap and free disk are against their limits, and
+// the w key shows the same without an alert. The box has no title line (the text
+// "How macdoc decides if memory is slowing your Mac" is gone). The Health section
+// (the score and the reasons, such as "memory pressure is warn") is on the page.
+func TestTUIVitalsShowsTheMemoryDetailsWithoutATitle(t *testing.T) {
 	m, _ := statusModel(t)
 	m, _ = openVitals(t, m)
 	calm := cli.StatusMsg{Res: engine.StatusResult{Score: 90, Report: probe.Report{
 		Swap: probe.Swap{UsedBytes: 1 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 200e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 50, Pressure: probe.PressureNormal}}}}
 	m = step(t, m, calm)
-	if strings.Contains(m.Screen(), "How macdoc decides") {
-		t.Error("with no alert the explanation stays hidden until w")
+	if strings.Contains(m.Screen(), "Swap in use") {
+		t.Error("with no alert the memory details stay hidden until w")
 	}
 	m = step(t, m, keys("w")...)
-	mustContain(t, m.Screen(), "How macdoc decides", "Normal", "Warn", "Critical", "▲ now", "Swap in use", "Free disk", "Right now: no alert.")
+	mustContain(t, m.Screen(), "Normal", "Warn", "Critical", "▲ now", "Swap in use", "Free disk", "Right now: no alert.")
 	m = step(t, m, keys("w")...)
-	if strings.Contains(m.Screen(), "How macdoc decides") {
-		t.Error("w again hides it")
+	if strings.Contains(m.Screen(), "Swap in use") {
+		t.Error("w again hides them")
 	}
 
 	tight := cli.StatusMsg{Res: engine.StatusResult{Score: 60, Report: probe.Report{
 		Swap: probe.Swap{UsedBytes: 3 << 30}, Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: 8e9},
 		Memory: probe.Memory{TotalBytes: 16 << 30, FreePercent: 10, Pressure: probe.PressureWarn}}}}
 	m = step(t, m, tight)
-	mustContain(t, m.Screen(), "slowing your Mac down", "How macdoc decides", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
+	mustContain(t, m.Screen(), "slowing your Mac down", "Swap in use", "high", "low", "(from 2.0 GB)", "(under 10.0 GB)", "Right now: the alert is on.")
+	mustContain(t, m.Screen(), "Health 60 / 100")
+	if strings.Contains(m.Screen(), "How macdoc decides") {
+		t.Errorf("the title text \"How macdoc decides…\" stays removed")
+	}
 }
 
 // reclaim cleans caches, junk and what removed apps left behind. It never
@@ -1156,11 +1174,11 @@ func TestTUIScanAlwaysShowsAProgressBar(t *testing.T) {
 		m = step(t, m, cli.StepMsg("scan"), cli.ProgressMsg{Bytes: 32_000_000_000, Files: 1000})
 		return m.Screen()
 	}
-	// The bar is the Bubbles README bar: half-block fill, a dim ░ track, and the
-	// percentage right after it.
-	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "▌", "░", " 25%")
+	// The bar is the Bubbles README bar in half height: lower-half blocks for the
+	// fill and the track, and the percentage right after it.
+	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "▄", " 25%")
 	unknown := scanning(cli.IntroStatus{})
-	mustContain(t, unknown, "first scan, size unknown", "░")
+	mustContain(t, unknown, "first scan, size unknown", "▄")
 	if strings.Contains(unknown, "%") {
 		t.Errorf("a bar with an unknown total must not show a percentage:\n%s", unknown)
 	}
@@ -1288,7 +1306,7 @@ func TestTUIRetireShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading installed software", "starting") // a bar from the first frame
 	m = step(t, m, cli.SoftwareProgressMsg{Done: 3, Total: 12, Source: "homebrew"})
-	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew", "▌", "░", " 25%")
+	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew", "▄", " 25%")
 }
 
 // Until the first reading is in, the vitals page shows a progress bar over the
@@ -1299,7 +1317,7 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading CPU, memory", "starting")
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
-	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▌", "░", " 33%")
+	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▄", " 33%")
 }
 
 // The help overlay lists the keys the dashboard has now, and nothing that was
@@ -1329,6 +1347,24 @@ func TestTUIFooterFitsAndKeepsHelpAndQuit(t *testing.T) {
 			if !strings.Contains(footer, "? help") || !strings.Contains(footer, "q quit") {
 				t.Errorf("width %d, tab %s: the footer lost help or quit: %q", w, tab, footer)
 			}
+		}
+	}
+}
+
+// No page and no tab says "asks before removing" in its header.
+func TestTUIHeadersDoNotSayAsksBeforeRemoving(t *testing.T) {
+	m := loaded(t, 110, 40)
+	running, _, _ := reclaimRun(t, m)
+	vm, _ := statusModel(t)
+	vitals, _ := vm.RunCommand("/vitals")
+	screens := map[string]string{"reclaim": running.Screen(), "vitals": vitals.(cli.TuiModel).Screen()}
+	for i, tab := range []string{"1", "2", "3", "4", "5"} {
+		screens["tab "+tab] = step(t, m, keys(tab)...).Screen()
+		_ = i
+	}
+	for name, out := range screens {
+		if strings.Contains(out, "asks before removing") {
+			t.Errorf("%s: the header should not say \"asks before removing\"", name)
 		}
 	}
 }

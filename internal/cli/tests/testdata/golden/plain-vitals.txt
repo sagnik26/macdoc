@@ -1,4 +1,4 @@
- ◆ macdoc  ›  Vitals                                                           asks before removing 
+ ◆ macdoc  ›  Vitals
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
  ● Live · updated just now · every 3s                                                               
@@ -37,4 +37,4 @@
                                                                                                     
                                                                                                     
                                                                                                     
- w how it decides • ↑↓ move • esc back • q quit
+ w memory details • ↑↓ move • esc back • q quit

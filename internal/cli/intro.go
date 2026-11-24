@@ -82,38 +82,22 @@ func (m TuiModel) introView() string {
 	t := m.t
 	var blocks []string
 
-	// The wordmark (with the cat in the place of the O) in color when it fits, else
-	// the plain block logo, else a compact title on small screens.
+	// Logo (or a compact title on small screens).
 	logo := macdocLogo()
-	switch wm := wordmark(t); {
-	case wm != nil && m.w >= wordmarkWidth()+4 && m.h >= 36:
-		blocks = append(blocks, strings.Join(wm, "\n"))
-	case m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34:
+	if m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34 {
 		var lb strings.Builder
 		shades := logoShades()
 		for i, l := range logo {
 			lb.WriteString(t.fg(shades[i]).Bold(true).Render(l) + "\n")
 		}
 		blocks = append(blocks, strings.TrimRight(lb.String(), "\n"))
-	default:
+	} else {
 		blocks = append(blocks, t.brand.Render("◆ macdoc"))
 	}
 	blocks = append(blocks, t.text.Render("Why is my Mac full and slow? macdoc explains it,")+"\n"+
 		t.text.Render("and helps you get space back without surprises."))
 
 	compact := m.w < 104
-
-	// Promises.
-	promises := []string{"Read-only unless you confirm", "Nothing leaves your Mac", "Every cleanup can be explained first"}
-	var pp []string
-	for _, p := range promises {
-		pp = append(pp, t.Ok.Render("✓ ")+t.text.Render(p))
-	}
-	sep := t.faint.Render("   ")
-	if compact {
-		sep = "\n"
-	}
-	blocks = append(blocks, strings.Join(pp, sep))
 
 	// What macdoc already knows.
 	st := m.IntroStatus
@@ -124,9 +108,8 @@ func (m TuiModel) introView() string {
 	}
 	blocks = append(blocks, status)
 
-	// Commands, each with a short explanation; ↑↓ choose and Enter runs one.
-	// Narrow screens show only the highlighted command's explanation, under the
-	// box.
+	// Commands, each with a short explanation on wide screens; ↑↓ choose and
+	// Enter runs one. Nothing is written under the box.
 	var ab strings.Builder
 	for i, a := range m.introActions() {
 		name := fmt.Sprintf("%-9s", a.cmd)
@@ -142,9 +125,6 @@ func (m TuiModel) introView() string {
 	}
 	rows := strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")
 	actions := strings.TrimRight(t.Card(append(append([]string{""}, rows...), "")...), "\n")
-	if compact {
-		actions += "\n " + t.muted.Render(Truncate(m.introActions()[m.introPick].desc, m.w-4))
-	}
 	blocks = append(blocks, actions)
 
 	// Center the Column of blocks horizontally.

@@ -106,10 +106,15 @@ backgrounds. Check each palette change in a light and a dark terminal.
 
 ### 4.4 Progress bar and spinner
 These are the Bubbles README components, unchanged (`charm.land/bubbles/v2`).
-- **Bar:** `progress.New(progress.WithDefaultBlend())`: a fill of half blocks `▌`
+- **Bar:** `progress.New(progress.WithDefaultBlend())` in the Bubbles README's colors,
+  drawn in half height: the fill and the track are lower half blocks `▄`, the fill
   blended from `#5A56E0` to `#EE6FF8` (the blend spans the whole bar, so a half-full
-  bar shows only the first half of it), a dim `░` track in `#606060`, and the
-  percentage right after the bar (` 25%`). Up to 80 cells wide.
+  bar shows only the first half of it), the track dim `#606060`, and the percentage
+  right after the bar (` 25%`). Up to 80 cells wide. A blank line separates the bar from
+  the text under it.
+- **Metric bars** (the CPU, memory, disk and power bars on the Vitals page) keep their
+  full height: `█` cells on the same blend over a dim `░` track, with the percentage
+  after the bar. Only the loading bars are half height.
 - **Hint text** under a bar is `#626262`, as in the README example ("Press any key to quit").
 - **Unknown total:** the same bar sweeps back and forth with no percentage, and the
   hint says the size is unknown. One bar is shown for every scan, retire read and
@@ -136,16 +141,10 @@ These are the Bubbles README components, unchanged (`charm.land/bubbles/v2`).
 - **Removal box:** lists each item with its risk, size and path, the total, and
   what Enter and `esc` do; a RISKY item asks for its typed ID.
 
-### 4.9 Wordmark and mascot
-- In color the welcome screen's lettering is "macdoc" in chunky letters, eight terminal
-  rows tall (80 columns wide), on the brand gradient. In the place of the O sits a cat in
-  the style of the Bubbles README header (a round violet head, pink inner ears, upright
-  dark eyes, pink cheeks and whiskers, a small coral smile) wearing a doctor's
-  stethoscope, because macdoc is the doctor for your Mac.
-- It is drawn in half blocks (`internal/cli/wordmark.go`), in color only, and only when the
-  terminal is at least 84 columns wide and 36 rows tall. Otherwise the welcome screen
-  shows the six-row block logo, or a compact title on a small terminal. A plain layout
-  always shows the block logo.
+### 4.9 Welcome lettering
+- The welcome screen's lettering is "macdoc" in the six-row block (figlet "ANSI Shadow")
+  style, on the brand gradient in color and plain without it. There is no mascot. A small
+  terminal shows a compact `◆ macdoc` title instead.
 - The welcome text is airier when there is room: two blank lines between its blocks and
   padding inside the command box. A terminal app cannot change the size of ordinary text;
   that is the terminal's font size.

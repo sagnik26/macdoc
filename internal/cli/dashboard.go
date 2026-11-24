@@ -245,6 +245,7 @@ type TuiModel struct {
 	treeRoot        *treeNode             // the folder tree shown in /explore
 	treeCursor      int                   // the highlighted row of that tree
 	status          *engine.StatusResult  // the last live reading, shown by /vitals
+	vitalsWhy       bool                  // /vitals shows the memory pressure and swap details even with no alert
 	statusBusy      bool                  // a live reading is running
 	statusDone      int                   // probes of the first reading that have answered
 	statusTotal     int                   // how many there are (0 until the first report)
@@ -253,7 +254,6 @@ type TuiModel struct {
 	statusWait      bool                  // a reading was just taken; the next waits for the tick
 	statusAt        time.Time             // when the last reading finished
 	hist            vitalsHist            // the recent readings behind the arrows
-	vitalsWhy       bool                  // /vitals shows how it decides memory is slowing the Mac down
 	clockOn         bool                  // the once-a-second clock for "updated Ns ago" is running
 	reclaimFresh    bool                  // /reclaim's own rescan just finished
 	pending         string                // a command waiting for the latest scan to load
@@ -295,7 +295,7 @@ func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 func (m *TuiModel) applyTheme(t *Theme) {
 	m.t = t
 	m.spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	m.Bar = progress.New(progress.WithDefaultBlend())
+	m.Bar = progress.New(progress.WithDefaultBlend(), progress.WithFillCharacters(barChar, barChar))
 	m.Bar.SetWidth(barWidth(m.w))
 	m.input.SetStyles(textinput.DefaultStyles(t.dark))
 	h := help.New()
@@ -1000,7 +1000,6 @@ func (m TuiModel) headerView() string {
 		}
 		right = append(right, st.Render(age))
 	}
-	right = append(right, t.Ok.Render("asks before removing"))
 	r := strings.Join(right, t.faint.Render(" · ")) + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
 	return left + strings.Repeat(" ", gap) + r
@@ -1028,9 +1027,7 @@ func (m TuiModel) pageTitle() string {
 func (m TuiModel) pageHeader(title string) string {
 	t := m.t
 	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.chip(title)
-	r := t.Ok.Render("asks before removing") + " "
-	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
-	return left + strings.Repeat(" ", gap) + r + "\n" + t.gradientRule(m.w)
+	return left + "\n" + t.gradientRule(m.w)
 }
 
 func (m TuiModel) tabsView() string {
@@ -1069,7 +1066,7 @@ func (m TuiModel) footerView() string {
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
 	case m.Overlay == overlayVitals:
-		keys = []key.Binding{key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "how it decides")), m.keys.Move, m.keys.Back, m.keys.Quit}
+		keys = []key.Binding{key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "memory details")), m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareDetail:
@@ -1185,7 +1182,7 @@ func (m TuiModel) scanProgressView() string {
 	b.WriteString("\n")
 	if m.estimate > 0 {
 		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
-		fmt.Fprintf(&b, "    %s\n", m.barView(pct, true))
+		fmt.Fprintf(&b, "    %s\n\n", m.barView(pct, true)) // a blank line under the bar
 	} else {
 		// No earlier scan to estimate from: the bar still shows, sweeping
 		// back and forth, with no percentage (the total is unknown).

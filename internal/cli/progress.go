@@ -25,12 +25,19 @@ func ExpectedScanBytes(home string) int64 {
 // statusBarWidth is the width of the bar in a one-line status, with its percentage.
 const statusBarWidth = 30
 
+// barChar fills and draws the track of every progress bar: a lower half block, so
+// the bar is half as tall as a full cell. The colors are the Bubbles README's.
+const barChar = '▄'
+
+// barTrack is the color of the empty part of a bar: the Bubbles README's slate gray.
+const barTrack = "#606060"
+
 // statusBar is the progress bar as the Bubbles README draws it (half blocks in
 // the default purple-to-pink blend over a dim track), with its percentage
 // unless the total is unknown. It carries truecolor escapes: write it through
 // statusOut so the terminal's own depth is respected.
 func statusBar(pct float64, showPct bool) string {
-	b := progress.New(progress.WithDefaultBlend(), progress.WithWidth(statusBarWidth))
+	b := progress.New(progress.WithDefaultBlend(), progress.WithFillCharacters(barChar, barChar), progress.WithWidth(statusBarWidth))
 	b.ShowPercentage = showPct
 	return b.ViewAs(pct)
 }
