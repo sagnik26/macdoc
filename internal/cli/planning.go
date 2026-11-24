@@ -12,29 +12,8 @@ import (
 // NowFunc is the dashboard's clock (tests fix it).
 var NowFunc = time.Now
 
-// toggleMark marks or unmarks the selected suggestion for a plan.
-// Advice-only items can't be marked: macdoc takes no action on them.
-func (m *TuiModel) toggleMark() {
-	ops := m.Items()
-	if m.Cursor >= len(ops) {
-		return
-	}
-	op := ops[m.Cursor]
-	if op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
-		m.Flash = "Advice-only items can't go into a plan: macdoc takes no action on them."
-		return
-	}
-	if m.Marked[op.ID] {
-		delete(m.Marked, op.ID)
-	} else {
-		m.Marked[op.ID] = true
-	}
-	m.moveCursor("down")
-}
-
-// MarkedSelector plans the marked suggestions in ranked order, or the
-// selected one if none is marked. It returns nil (with a flash) if there is
-// nothing to plan.
+// MarkedSelector plans the marked suggestions in ranked order. It returns nil (with a
+// flash) if nothing is marked.
 func (m *TuiModel) MarkedSelector() *planner.Selector {
 	var ids []string
 	for _, op := range m.Items() {
@@ -43,17 +22,8 @@ func (m *TuiModel) MarkedSelector() *planner.Selector {
 		}
 	}
 	if len(ids) == 0 {
-		ops := m.Items()
-		if m.Cursor >= len(ops) {
-			m.Flash = "Nothing to plan."
-			return nil
-		}
-		op := ops[m.Cursor]
-		if op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {
-			m.Flash = "That one is advice only. Mark items with space, then press p."
-			return nil
-		}
-		ids = []string{op.ID}
+		m.Flash = "Nothing is ticked."
+		return nil
 	}
 	return &planner.Selector{IDs: ids}
 }
@@ -72,11 +42,19 @@ func (m TuiModel) markedTotal() (int, int64) {
 	return n, sum
 }
 
-// markedNote is the list header's marked summary, "" if nothing is marked.
+// markedNote is the /clean list's summary of what is ticked: "" if nothing is.
 func (m TuiModel) markedNote() string {
-	n, sum := m.markedTotal()
+	n, sum := 0, int64(0)
+	for _, op := range m.chooseItems() {
+		if m.Marked[op.ID] {
+			n++
+			if op.Bytes.Source != model.SourceUnknown {
+				sum += op.Bytes.Value
+			}
+		}
+	}
 	if n == 0 {
 		return ""
 	}
-	return m.t.accent.Render(fmt.Sprintf("✓ %d marked · %s", n, engine.DecimalBytes(sum))) + m.t.muted.Render(" · enter remove")
+	return m.t.accent.Render(fmt.Sprintf("%d ticked · %s", n, engine.DecimalBytes(sum)))
 }

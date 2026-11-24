@@ -32,9 +32,9 @@ func TestTUIShowsCleanedPlansRaw(t *testing.T) {
 		pre = p
 		return samplePlan(), nil
 	}
-	clear(m.Marked)
-	m.Cursor = 0
-	_, cmd := m.Update(keys("enter")[0]) // enter on a suggestion seals a plan to remove it
+	next, _ := m.RunCommand("/clean")
+	m = step(t, next.(cli.TuiModel), keys(" ")...) // tick the first item
+	_, cmd := m.Update(keys("enter")[0])           // enter seals a plan for what is ticked
 	if cmd == nil {
 		t.Fatal("enter should start sealing a plan")
 	}

@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Clean
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+ Choose what to delete  · item 4 of 4                                                               
+                                                                                                    
+ ┌─────────────────────────────────────────────────────────────────────────┐                        
+ │        Size  Risk   Suggestion                   Restore                │                        
+ ├─────────────────────────────────────────────────────────────────────────┤                        
+ │ ✓   14.2 GB  SAFE   Xcode DerivedData · MyApp    rebuilds on next build │                        
+ │    ~11.0 GB  SAFE   Docker build cache           rebuilds on next build │                        
+ │ ✓    8.4 GB  RISKY  Android system image API 29  re-download ~1.2 GB    │                        
+ │ ▶         —  RISKY  Something odd                                       │                        
+ └─────────────────────────────────────────────────────────────────────────┘                        
+                                                                                                    
+ 2 ticked · 22.6 GB  · space ticks · a ticks all · enter deletes the ticked ones, after you confirm 
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ space tick • a tick all • enter delete • ↑↓ move • esc back • q quit

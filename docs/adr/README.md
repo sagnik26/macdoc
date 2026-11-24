@@ -23,3 +23,4 @@ An accepted record is changed only by a new record that supersedes it.
 | [0015](0015-no-refresh-plan-apply-mcp-plans.md) | No `refresh`, no `apply` or `/plan`, no MCP plan tools: macdoc cleans on its own, asks, or only suggests | Accepted (owner decision, 2026-11-24); implemented |
 | [0016](0016-charm-v2-and-terminal-palette.md) | The terminal UI moves to Charm v2 with its own palette; the Suggestions table and the tier picker stay custom | Accepted (owner decision, 2026-11-24); implemented |
 | [0017](0017-retire-deletes-by-program.md) | The Retire tab deletes an installed program (its app and data folders) on Delete or Cancel, with no recipe shown and no typed code | Accepted (owner decision, 2026-11-24); implemented |
+| [0018](0018-scan-is-view-only-chooser-deletes.md) | The scan only shows; deleting one item at a time is `/clean` (dashboard) and `reclaim --choose` (terminal), with no code for RISKY | Accepted (owner decision, 2026-11-24); implemented |

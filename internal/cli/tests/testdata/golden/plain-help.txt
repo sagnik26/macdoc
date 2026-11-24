@@ -4,9 +4,8 @@
  Keys                                                                                               
    tab / shift+tab, 1–5   switch tab (the scan view)                                                
    ↑ ↓  j k  pgup pgdn    move or scroll                                                            
-   enter                  remove the selected suggestion (or the marked ones), after you confirm    
-   space                  mark several suggestions to remove together                               
-   e                      explain the selected suggestion                                           
+   enter, e               explain the selected suggestion (the scan only shows; it deletes nothing) 
+   /clean                 choose items to delete: space ticks, a ticks all, enter deletes after you 
    x                      hide this kind of suggestion from now on                                  
    d  (after /reclaim)    review the RISKY items it left alone; each needs its ID typed             
    /                      command palette                                                           
@@ -19,6 +18,7 @@
    /scan                  scan the disk again, then show the full report (esc stops a scan)         
    /reclaim               scan, then clean every SAFE and CAUTION item at once (esc stops it)       
    /retire                installed software and its data folders; delete what you don't need       
+   /clean                 choose individual items from the last scan and delete them                
    /explore               where the space is, as a folder tree you can open                         
    /vitals                live CPU, memory, disk, network and battery, with a health score          
                                                                                                     

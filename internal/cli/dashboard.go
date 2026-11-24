@@ -59,6 +59,7 @@ var SlashCommands = []slashCommand{
 	{"scan", "", "scan the disk again, then show the full report (esc stops a scan)"},
 	{"reclaim", "", "scan, then clean every SAFE and CAUTION item at once (esc stops it)"},
 	{"retire", "", "installed software and its data folders; delete what you don't need"},
+	{"clean", "", "choose individual items from the last scan and delete them"},
 	{"explore", "", "where the space is, as a folder tree you can open"},
 	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
 }
@@ -167,7 +168,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Remove, Hide                key.Binding
+	Run, Complete, Cancel, Hide                              key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -175,7 +176,6 @@ func newKeyMap() keyMap {
 		Tabs:     key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "switch view")),
 		Move:     key.NewBinding(key.WithKeys("up", "down", "j", "k"), key.WithHelp("↑↓", "move")),
 		Explain:  key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "explain")),
-		Remove:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "remove")),
 		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Scan:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "rescan")),
 		Slash:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "commands")),
@@ -185,7 +185,6 @@ func newKeyMap() keyMap {
 		Run:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
 		Complete: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")),
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
 		Hide:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "hide this kind")),
 	}
 }
@@ -199,6 +198,7 @@ const (
 	overlaySoftware
 	overlayExplore
 	overlayVitals
+	overlayChoose
 	OverlayRemove
 )
 
@@ -232,9 +232,10 @@ type TuiModel struct {
 
 	// plans: marked suggestion IDs (shared by copies of the model, cleared
 	// on every new load), the plan being sealed, and the last one made
-	Marked   map[string]bool
-	span     *spanState // the range walk and its results, shared by copies
-	Planning bool
+	Marked       map[string]bool // what /clean has ticked, and what /reclaim marks to clean
+	chooseCursor int             // the highlighted row of the /clean list
+	span         *spanState      // the range walk and its results, shared by copies
+	Planning     bool
 	// software: the last inventory shown in the /retire overlay
 	software        *engine.SoftwareResult
 	softwareBusy    bool
@@ -629,6 +630,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return next, cmd
 		}
 	}
+	if m.Overlay == overlayChoose {
+		if next, cmd, ok := m.chooseKey(k); ok {
+			return next, cmd
+		}
+	}
 	if m.Overlay != OverlayNone {
 		switch k {
 		case "esc", "q", "?", "enter":
@@ -669,19 +675,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.openExplore("")
 		}
 		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
-			if m.Detail {
-				m.Detail = false
-				break
-			}
-			return m.startRemove()
+			m.Detail = !m.Detail // the scan only shows: deleting is /reclaim and /clean
 		}
 	case "e":
 		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
 			m.Detail = !m.Detail
-		}
-	case "space":
-		if m.Tab == TabSuggestions {
-			m.toggleMark()
 		}
 	case "x":
 		if m.Tab == TabSuggestions && !m.Detail {
@@ -836,6 +834,11 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 			return m.loadThen(line)
 		}
 		return m.startSoftware()
+	case "clean":
+		if m.Data == nil {
+			return m.loadThen(line)
+		}
+		return m.openChoose()
 	case "help":
 		m.Overlay, m.scroll = overlayHelp, 0
 	case "quit", "exit", "q":
@@ -936,6 +939,8 @@ func (m TuiModel) bodyView() string {
 		return m.scrolled(m.exploreBody())
 	case m.Overlay == overlayVitals:
 		return m.scrolled(m.vitalsBody())
+	case m.Overlay == overlayChoose:
+		return m.scrolled(m.chooseView())
 	case m.Overlay == overlaySoftware:
 		return m.scrolled(m.softwareTables())
 	case m.Overlay == OverlayRemove:
@@ -1013,10 +1018,13 @@ func (m TuiModel) pageTitle() string {
 	titles := map[overlay]string{
 		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore",
 		overlayVitals: "Vitals",
-		OverlayRemove: "Reclaim",
+		OverlayRemove: "Reclaim", overlayChoose: "Clean",
 	}
 	if m.Overlay == OverlayRemove && m.removing != nil && m.removing.retire != "" {
 		return "Retire" // a deletion started from the Retire list
+	}
+	if m.Overlay == OverlayRemove && m.removing != nil && m.removing.choose {
+		return "Clean" // a deletion started from the /clean list
 	}
 	if t, ok := titles[m.Overlay]; ok {
 		return t
@@ -1072,6 +1080,13 @@ func (m TuiModel) footerView() string {
 		}
 	case m.Overlay == overlayVitals:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
+	case m.Overlay == overlayChoose:
+		keys = []key.Binding{
+			key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "tick")),
+			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "tick all")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "delete")),
+			m.keys.Move, m.keys.Back, m.keys.Quit,
+		}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware:
@@ -1087,7 +1102,7 @@ func (m TuiModel) footerView() string {
 	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions:
-		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
+		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explain")), key.NewBinding(key.WithKeys("/clean"), key.WithHelp("/clean", "delete items")), m.keys.Hide, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	default:
 		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	}
@@ -1267,10 +1282,7 @@ func (m TuiModel) listView(ops []model.Opportunity, w, h int) string {
 	end := min(len(ops), start+rowsFit)
 	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.Cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
-	if note := m.markedNote(); note != "" {
-		head += "   " + note
-	}
-	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w), " ")
+	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w, false), " ")
 }
 
 func (m TuiModel) detailView(op model.Opportunity, w int) string {
@@ -1295,9 +1307,8 @@ func (m TuiModel) HelpView() string {
 	keys := [][2]string{
 		{"tab / shift+tab, 1–5", "switch tab (the scan view)"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
-		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
-		{"space", "mark several suggestions to remove together"},
-		{"e", "explain the selected suggestion"},
+		{"enter, e", "explain the selected suggestion (the scan only shows; it deletes nothing)"},
+		{"/clean", "choose items to delete: space ticks, a ticks all, enter deletes after you confirm"},
 		{"x", "hide this kind of suggestion from now on"},
 		{"d  (after /reclaim)", "review the RISKY items it left alone; each needs its ID typed"},
 		{"/", "command palette"},

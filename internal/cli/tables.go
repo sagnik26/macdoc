@@ -555,32 +555,27 @@ func (m TuiModel) toolchainTables() string {
 
 	for _, g := range groups {
 		b.WriteString("\n")
-		b.WriteString(t.block(g.Toolchain, "· "+tierTotal(g.Bytes, g.Opportunities), m.opsTable(g.Opportunities, -1, w, false)))
+		b.WriteString(t.block(g.Toolchain, "· "+tierTotal(g.Bytes, g.Opportunities), m.opsTable(g.Opportunities, -1, w, false, false)))
 	}
 	return b.String()
 }
 
-// opsTable lists suggestions; sel is the selected row (-1 for none).
-// compact drops the restore Column (the details beside the list show it).
-func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) string {
-	t := m.t
-	// The ID is not a column: nobody types it here. A RISKY item's ID shows in
-	// the removal box, where it must be typed.
+// opsTable lists suggestions; sel is the selected row (-1 for none). compact drops the
+// restore Column (the details beside the list show it). ticks adds the Column of ticks
+// for the /clean list; the scan view has none, so it is read-only. Without color there is
+// no row highlight, so a pointer Column shows the selected row instead.
+func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact, ticks bool) string {
+	return opsGrid(m.t, m.Marked, ops, sel, w, compact, ticks)
+}
+
+// opsGrid is opsTable for any theme and set of ticked IDs: the dashboard and the
+// terminal's `reclaim --choose` list draw it the same way.
+func opsGrid(t *Theme, ticked map[string]bool, ops []model.Opportunity, sel, w int, compact, ticks bool) string {
+	// The ID is not a column: nobody types it here.
 	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Wrap: true}}
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
-		// The first column holds the mark only: a highlighted row needs no pointer. With
-		// no color there is no highlight, so the pointer stays (the selection must show).
-		mark := " "
-		switch {
-		case i == sel && !t.color && m.Marked[op.ID]:
-			mark = "▶✓"
-		case i == sel && !t.color:
-			mark = "▶"
-		case m.Marked[op.ID]:
-			mark = "✓"
-		}
-		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, restoreText(op)}
+		rows[i] = []string{markCell(t, op, i == sel, ticks && ticked[op.ID]), sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, restoreText(op)}
 	}
 	if compact {
 		cols = cols[:4]
@@ -589,33 +584,52 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		}
 	}
 	off := 0
-	if sel < 0 {
+	if sel < 0 || (!ticks && t.color) {
 		cols, rows = cols[1:], dropFirst(rows)
 		off = 1
 	}
 	return t.Grid(cols, rows, w, func(r, c int) *lipgloss.Style {
-		c += off
-		var s lipgloss.Style
-		switch c {
-		case 0:
-			s = t.brand.Bold(true)
-			if r == sel {
-				s = t.fg(colSelectFg).Bold(true)
-			}
-		case 1:
-			s = t.size
-		case 2:
-			s = t.riskStyle(ops[r].Risk).Bold(true)
-		case 4:
-			s = t.muted
-		default:
-			s = t.text
-		}
-		if r == sel {
-			s = t.selectedRow(s)
-		}
+		s := opsCellStyle(t, ops[r], c+off, r == sel)
 		return &s
 	})
+}
+
+// markCell is the first Column of a row: a tick when ticked, and, without color (where
+// no row highlight shows the selection), a pointer on the selected row.
+func markCell(t *Theme, _ model.Opportunity, selected, ticked bool) string {
+	switch {
+	case selected && !t.color && ticked:
+		return "▶✓"
+	case selected && !t.color:
+		return "▶"
+	case ticked:
+		return "✓"
+	}
+	return " "
+}
+
+// opsCellStyle is the style of one cell of the suggestions table.
+func opsCellStyle(t *Theme, op model.Opportunity, col int, selected bool) lipgloss.Style {
+	var s lipgloss.Style
+	switch col {
+	case 0:
+		s = t.brand.Bold(true)
+		if selected {
+			s = t.fg(colSelectFg).Bold(true)
+		}
+	case 1:
+		s = t.size
+	case 2:
+		s = t.riskStyle(op.Risk).Bold(true)
+	case 4:
+		s = t.muted
+	default:
+		s = t.text
+	}
+	if selected {
+		s = t.selectedRow(s)
+	}
+	return s
 }
 
 func dropFirst(rows [][]string) [][]string {
