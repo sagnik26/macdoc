@@ -51,7 +51,8 @@ Each color has a dark-background and a light-background value, and degrades to
 | `accent` | `#7571F9` | `#5A56E0` | IDs, links, command names |
 | `select` (foreground) | ANSI 212 | ANSI 162 | The selected row marker `▶` and its text |
 | `titleChip` | ANSI 62 on ANSI 230 | ANSI 62 on ANSI 230 | The page title chip |
-| `selectBg` | `#2F3340` | `#E3E7F2` | The selected row background (kept from today) |
+| `selectBg` | `#2F3340` | `#E3E7F2` | A quiet row tint (kept from today) |
+| `rowBg` / `rowFg` | ANSI 57 / 229 | ANSI 57 / 229 | The selected table row, as in the Bubbles README table |
 
 ### 3.2 Text neutrals (kept as they are)
 
@@ -89,10 +90,13 @@ backgrounds. Check each palette change in a light and a dark terminal.
 ## 4. Components
 
 ### 4.1 Table
-- Rounded border, one header row, no row separators.
+- The Bubbles README table: a square gray outline, one header row (not bold) with a
+  single rule under it, no lines between columns and no row separators.
 - Columns: the ID and the risk label never truncate; the title wraps or ellipsizes
   first; sizes are right-aligned and use one unit style (`1.2 GB`, `640 MB`).
-- The selected row shows `▶` and `selectBg`. A marked row shows `✓`.
+- The selected row is `rowFg` on `rowBg` (pale text on purple, as in the Bubbles README
+  table), with no pointer; only without color does it show `▶`, so the selection still
+  shows. A marked row shows `✓` in the first column.
 - A table that does not fit shows fewer rows and says "showing N of M", never
   clips a column.
 
@@ -107,14 +111,14 @@ backgrounds. Check each palette change in a light and a dark terminal.
 ### 4.4 Progress bar and spinner
 These are the Bubbles README components, unchanged (`charm.land/bubbles/v2`).
 - **Bar:** `progress.New(progress.WithDefaultBlend())` in the Bubbles README's colors,
-  drawn in half height: the fill and the track are lower half blocks `▄`, the fill
+  drawn at full height: the fill is `█` and the track `░`, the fill
   blended from `#5A56E0` to `#EE6FF8` (the blend spans the whole bar, so a half-full
   bar shows only the first half of it), the track dim `#606060`, and the percentage
   right after the bar (` 25%`). Up to 80 cells wide. A blank line separates the bar from
   the text under it.
-- **Metric bars** (the CPU, memory, disk and power bars on the Vitals page) keep their
-  full height: `█` cells on the same blend over a dim `░` track, with the percentage
-  after the bar. Only the loading bars are half height.
+- **Metric bars** (the CPU, memory, disk and power bars on the Vitals page) are drawn the
+  same way: `█` cells on the same blend over a dim `░` track, with the percentage
+  after the bar.
 - **Hint text** under a bar is `#626262`, as in the README example ("Press any key to quit").
 - **Unknown total:** the same bar sweeps back and forth with no percentage, and the
   hint says the size is unknown. One bar is shown for every scan, retire read and

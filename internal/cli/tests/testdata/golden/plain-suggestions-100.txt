@@ -2,16 +2,16 @@
   1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
- SAFE 25.2 GB  ·  RISKY 8.4 GB + unknown  ·  ADVICE 1 B   item 1 of 5   ✓ 2 marked · 25.2 GB · ente…
- ╭────┬──────────┬────────┬─────────────────────────────┬────────────────────────╮
- │    │     Size │ Risk   │ Suggestion                  │ Restore                │
- ├────┼──────────┼────────┼─────────────────────────────┼────────────────────────┤
- │ ▶✓ │  14.2 GB │ SAFE   │ Xcode DerivedData · MyApp   │ rebuilds on next build │
- │ ✓  │ ~11.0 GB │ SAFE   │ Docker build cache          │ rebuilds on next build │
- │    │   8.4 GB │ RISKY  │ Android system image API 29 │ re-download ~1.2 GB    │
- │    │        — │ RISKY  │ Something odd               │                        │
- │    │      1 B │ ADVICE │ Lost data                   │ can't be restored      │
- ╰────┴──────────┴────────┴─────────────────────────────┴────────────────────────╯
+ SAFE 25.2 GB  ·  RISKY 8.4 GB + unknown  ·  ADVICE 1 B   item 1 of 5
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │        Size  Risk    Suggestion                   Restore                │
+ ├──────────────────────────────────────────────────────────────────────────┤
+ │ ▶   14.2 GB  SAFE    Xcode DerivedData · MyApp    rebuilds on next build │
+ │    ~11.0 GB  SAFE    Docker build cache           rebuilds on next build │
+ │      8.4 GB  RISKY   Android system image API 29  re-download ~1.2 GB    │
+ │           —  RISKY   Something odd                                       │
+ │         1 B  ADVICE  Lost data                    can't be restored      │
+ └──────────────────────────────────────────────────────────────────────────┘
 
 
 

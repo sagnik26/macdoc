@@ -401,6 +401,9 @@ func (m TuiModel) installedTable(res engine.SoftwareResult) string {
 		rows = append(rows, []string{name, kindLabel(sw), data, newMark})
 	}
 	style := func(r, c int) *lipgloss.Style {
+		if r == m.softwareCursor {
+			return ptr(t.selectedRow(t.text))
+		}
 		sw := shown[r]
 		switch c {
 		case 0:

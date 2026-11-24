@@ -22,7 +22,7 @@ func TestStatusBarIsTheBubblesReadmeBar(t *testing.T) {
 	p := scanner.Progress{Bytes: 32_000_000_000, Files: 1000, Elapsed: 2 * time.Second}
 	line := cli.ScanStatusLine(p, 128_000_000_000, "/Users/me")
 	text := plainText(line)
-	for _, want := range []string{"Scanning…", "▄", " 25%", "32.0 GB", "1,000 files", "/Users/me"} {
+	for _, want := range []string{"Scanning…", "█", " 25%", "32.0 GB", "1,000 files", "/Users/me"} {
 		if want == "1,000 files" {
 			want = "1000 files"
 		}
@@ -43,7 +43,7 @@ func TestStatusBarIsTheBubblesReadmeBar(t *testing.T) {
 func TestScanStatusLineUnknownAndOverrun(t *testing.T) {
 	p := scanner.Progress{Bytes: 32_000_000_000, Files: 1000, Elapsed: 2 * time.Second}
 	unknown := plainText(cli.ScanStatusLine(p, 0, "/Users/me"))
-	if !strings.Contains(unknown, "size unknown") || !strings.Contains(unknown, "▄") || strings.Contains(unknown, "%") {
+	if !strings.Contains(unknown, "size unknown") || !strings.Contains(unknown, "█") || strings.Contains(unknown, "%") {
 		t.Errorf("unknown size: %q", unknown)
 	}
 	if over := plainText(cli.ScanStatusLine(scanner.Progress{Bytes: 999}, 10, "")); !strings.Contains(over, " 99%") {
@@ -54,7 +54,7 @@ func TestScanStatusLineUnknownAndOverrun(t *testing.T) {
 // The retire and vitals lines use the same bar and count what has finished.
 func TestSourceAndProbeStatusLines(t *testing.T) {
 	src := plainText(cli.SourceStatusLine(3, 12, "homebrew"))
-	for _, want := range []string{"Reading installed software", "▄", " 25%", "3 of 12 sources", "homebrew"} {
+	for _, want := range []string{"Reading installed software", "█", " 25%", "3 of 12 sources", "homebrew"} {
 		if !strings.Contains(src, want) {
 			t.Errorf("%q missing from %q", want, src)
 		}
@@ -63,7 +63,7 @@ func TestSourceAndProbeStatusLines(t *testing.T) {
 		t.Errorf("no sources yet: %q", z)
 	}
 	probe := plainText(cli.ProbeStatusLine(3, 6, "network"))
-	for _, want := range []string{"Reading your Mac", "▄", " 50%", "3 of 6 readings", "network"} {
+	for _, want := range []string{"Reading your Mac", "█", " 50%", "3 of 6 readings", "network"} {
 		if !strings.Contains(probe, want) {
 			t.Errorf("%q missing from %q", want, probe)
 		}

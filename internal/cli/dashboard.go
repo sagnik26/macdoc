@@ -301,7 +301,7 @@ func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
 func (m *TuiModel) applyTheme(t *Theme) {
 	m.t = t
 	m.spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	m.Bar = progress.New(progress.WithDefaultBlend(), progress.WithFillCharacters(barChar, barChar))
+	m.Bar = progress.New(progress.WithDefaultBlend(), progress.WithFillCharacters(barChar, barEmpty))
 	m.Bar.SetWidth(barWidth(m.w))
 	m.input.SetStyles(textinput.DefaultStyles(t.dark))
 	h := help.New()
@@ -539,7 +539,6 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 		m.Data, m.note = cleanData(msg.Data), ""
 		clear(m.Marked) // IDs belong to a scan
 		m.span.reset()
-		m.preMarkSafe()
 		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
 	case m.Stopping || errors.Is(msg.Err, context.Canceled):
 		if m.Data != nil {

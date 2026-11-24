@@ -126,8 +126,8 @@ func (m TuiModel) treeView(w int) string {
 func (m TuiModel) treeRow(n *treeNode, nameW int, selected bool) string {
 	t := m.t
 	paint := func(s lipgloss.Style, text string) string {
-		if selected && t.on {
-			s = s.Background(t.c(colSelect))
+		if selected {
+			s = t.selectedRow(s)
 		}
 		return s.Render(text)
 	}

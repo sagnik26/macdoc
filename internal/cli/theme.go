@@ -51,6 +51,10 @@ var (
 	// colChipBg and colChipFg are ANSI 62 and 230: the page title chip.
 	colChipBg = duo{"#5F5FD7", "#5F5FD7"}
 	colChipFg = duo{"#FFFFD7", "#FFFFD7"}
+	// colRowBg and colRowFg are ANSI 57 and 229: the selected row of a table, as in the
+	// Bubbles README table.
+	colRowBg = duo{"#5F00FF", "#5F00FF"}
+	colRowFg = duo{"#FFFFAF", "#FFFFAF"}
 	// colSelect is the selected-row background: a quiet tint that keeps
 	// every foreground color readable.
 	colSelect = duo{"#2F3340", "#E3E7F2"}
@@ -86,7 +90,7 @@ func Palette() map[string]PaletteEntry {
 	out := map[string]PaletteEntry{}
 	for name, d := range map[string]duo{
 		"brand": colBrand, "accent": colAccent, "selectFg": colSelectFg, "chipBg": colChipBg, "chipFg": colChipFg,
-		"selectBg": colSelect, "onBadge": colOnBadge, "text": colText, "muted": colMuted, "faint": colFaint,
+		"selectBg": colSelect, "rowBg": colRowBg, "rowFg": colRowFg, "onBadge": colOnBadge, "text": colText, "muted": colMuted, "faint": colFaint,
 		"safe": colGreen, "caution": colYellow, "risky": colOrange, "bad": colRed, "info": colBlue,
 	} {
 		out[name] = PaletteEntry{d.dark, d.light}
@@ -467,3 +471,12 @@ func (t *Theme) Wrap(s string, indent int) string {
 // Every human renderer starts from it. It is for showing only: never plan or
 // act on the copy.
 func display[T any](v T) T { return textsafe.Copy(v, textsafe.Terminal) }
+
+// selectedRow restyles s as the selected row of a table: pale text on purple, as in
+// the Bubbles README table. With no color it is left as it is (the marker shows it).
+func (t *Theme) selectedRow(s lipgloss.Style) lipgloss.Style {
+	if !t.color {
+		return s
+	}
+	return s.Foreground(t.c(colRowFg)).Background(t.c(colRowBg)).Bold(false)
+}

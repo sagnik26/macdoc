@@ -36,10 +36,14 @@ func (t *Theme) Grid(cols []Column, rows [][]string, width int, style cellStyle)
 		headers[i] = c.Title
 	}
 	rows = fitColumns(cols, rows, width)
+	// The Bubbles README table: a square gray outline, one rule under the header and
+	// no lines between columns.
 	return table.New().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderStyle(t.faint).
 		BorderRow(false).
+		BorderColumn(false).
+		BorderHeader(true).
 		Headers(headers...).
 		Rows(rows...).
 		Wrap(true).
@@ -47,7 +51,7 @@ func (t *Theme) Grid(cols []Column, rows [][]string, width int, style cellStyle)
 			var s lipgloss.Style
 			switch {
 			case row == table.HeaderRow:
-				s = t.Title.Underline(t.on)
+				s = t.text // not bold: the rule under it sets it apart
 			case style != nil && style(row, col) != nil:
 				s = *style(row, col)
 			default:
@@ -74,7 +78,7 @@ func fitColumns(cols []Column, rows [][]string, width int) [][]string {
 			widths[i] = max(widths[i], lipgloss.Width(cell))
 		}
 	}
-	total := len(cols) + 1 // borders
+	total := 2 // the outline
 	shrinkable := 0
 	for i, c := range cols {
 		total += widths[i] + 2 // padding
@@ -565,11 +569,13 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Wrap: true}}
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
+		// The first column holds the mark only: a highlighted row needs no pointer. With
+		// no color there is no highlight, so the pointer stays (the selection must show).
 		mark := " "
 		switch {
-		case i == sel && m.Marked[op.ID]:
+		case i == sel && !t.color && m.Marked[op.ID]:
 			mark = "▶✓"
-		case i == sel:
+		case i == sel && !t.color:
 			mark = "▶"
 		case m.Marked[op.ID]:
 			mark = "✓"
@@ -605,8 +611,8 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		default:
 			s = t.text
 		}
-		if r == sel && t.on {
-			s = s.Background(t.c(colSelect)).Bold(true)
+		if r == sel {
+			s = t.selectedRow(s)
 		}
 		return &s
 	})

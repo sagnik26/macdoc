@@ -122,7 +122,7 @@ func executorRemove(d *TuiDeps, p model.Plan, onItem func(executor.Event)) (exec
 // so Enter explains them instead.
 func (m TuiModel) startRemove() (tea.Model, tea.Cmd) {
 	// Enter on an advice row always explains it, even when other items are
-	// marked (the picker pre-marks SAFE items, so marks are the usual case).
+	// marked.
 	ops := m.Items()
 	if m.Cursor < len(ops) {
 		if op := ops[m.Cursor]; op.Method == model.MethodAdvise || op.Risk == model.RiskAdvise {

@@ -113,7 +113,7 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	mustContain(t, out, "◆ macdoc", "1 Overview", "5 Space", "scan 2h ago", "What matters most", "Reclaimable",
 		"tab switch view", "/ commands", "? help",
 		// Tables: headers, text risk labels, severities spelled out.
-		"│ Metric", "│ Risk", "│ Tier", "Size │ Items", "SAFE", "RISKY", "ADVICE", "Critical", "╭", "╰")
+		"Metric", "Risk", "Tier", "Size", "Items", "SAFE", "RISKY", "ADVICE", "Critical", "┌", "└")
 	if strings.Contains(out, "@") {
 		t.Error("the @ toolchain shortcut was removed")
 	}
@@ -131,12 +131,12 @@ func TestTUIOverviewAndTabs(t *testing.T) {
 	if m.Tab != cli.TabSuggestions {
 		t.Fatalf("tab = %d", m.Tab)
 	}
-	mustContain(t, m.Screen(), "│ ▶ │", "Xcode DerivedData", "│ Suggestion", "│ Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
+	mustContain(t, m.Screen(), "▶", "Xcode DerivedData", "Suggestion", "Restore", "SAFE 25.2 GB", "item 1 of 5", "enter remove", "e explain")
 	m = step(t, m, keys("down", "down")...)
 	if m.Cursor != 2 {
 		t.Fatalf("cursor = %d", m.Cursor)
 	}
-	mustContain(t, m.Screen(), "│ ▶ │", "Android system image", "item 3 of 5")
+	mustContain(t, m.Screen(), "▶", "Android system image", "item 3 of 5")
 
 	// Narrow: e swaps the list for the detail; esc goes back.
 	m = step(t, m, keys("e")...)
@@ -161,7 +161,7 @@ func TestTUIWideShowsDetailBesideList(t *testing.T) {
 	m := step(t, loaded(t, 140, 30), keys("2")...)
 	clear(m.Marked) // layout test: the cursor row shows its own marker
 	out := m.Screen()
-	mustContain(t, out, "│ ▶ │", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
+	mustContain(t, out, "▶", "SAFE  O-ab12cd · Xcode DerivedData · MyApp", "rebuilds on next build")
 }
 
 func TestTUISlashCommands(t *testing.T) {
@@ -287,7 +287,7 @@ func TestFitColumnsKeepsShortColumnsWhole(t *testing.T) {
 
 func TestTUINarrowSuggestionsKeepSizes(t *testing.T) {
 	m := step(t, loaded(t, 80, 30), keys("2")...)
-	mustContain(t, m.Screen(), "14.2 GB", "~11.0 GB", "RISKY", "│ Restore")
+	mustContain(t, m.Screen(), "14.2 GB", "~11.0 GB", "RISKY", "Restore")
 }
 
 // newIntroTUI is the dashboard as `macdoc` opens it: on the welcome screen.
@@ -482,22 +482,15 @@ func TestWelcomePaletteFitsWindow(t *testing.T) {
 	}
 }
 
-// Phase 10: a fresh scan pre-marks its SAFE suggestions, and only those, so
-// the picker starts with the safest items marked.
-func TestPicker_PreMarksSafeOnly(t *testing.T) {
+// A fresh scan marks nothing: the first column of the Suggestions table starts empty, and
+// only what the person ticks with space is marked.
+func TestPickerStartsWithNothingMarked(t *testing.T) {
 	m := loaded(t, 120, 40)
-	saw := 0
-	for _, op := range m.Items() {
-		want := op.Risk == model.RiskSafe && op.Method != model.MethodAdvise
-		if got := m.Marked[op.ID]; got != want {
-			t.Errorf("%s (%s, %s): marked = %v, want %v", op.ID, op.Risk, op.Method, got, want)
-		}
-		if want {
-			saw++
-		}
+	if len(m.Items()) == 0 {
+		t.Fatal("fixture has no suggestions; the test checks nothing")
 	}
-	if saw == 0 {
-		t.Fatal("fixture has no SAFE suggestion; the test checks nothing")
+	if len(m.Marked) != 0 {
+		t.Errorf("a fresh scan should mark nothing, got %v", m.Marked)
 	}
 }
 
@@ -1281,9 +1274,9 @@ func TestTUIScanAlwaysShowsAProgressBar(t *testing.T) {
 	}
 	// The bar is the Bubbles README bar in half height: lower-half blocks for the
 	// fill and the track, and the percentage right after it.
-	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "▄", " 25%")
+	mustContain(t, scanning(cli.IntroStatus{HasScan: true, Age: "1h ago", Bytes: 128_000_000_000}), "█", " 25%")
 	unknown := scanning(cli.IntroStatus{})
-	mustContain(t, unknown, "first scan, size unknown", "▄")
+	mustContain(t, unknown, "first scan, size unknown", "░")
 	if strings.Contains(unknown, "%") {
 		t.Errorf("a bar with an unknown total must not show a percentage:\n%s", unknown)
 	}
@@ -1411,7 +1404,7 @@ func TestTUIRetireShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading installed software", "starting") // a bar from the first frame
 	m = step(t, m, cli.SoftwareProgressMsg{Done: 3, Total: 12, Source: "homebrew"})
-	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew", "▄", " 25%")
+	mustContain(t, m.Screen(), "3 of 12 sources", "homebrew", "█", " 25%")
 }
 
 // Until the first reading is in, the vitals page shows a progress bar over the
@@ -1422,7 +1415,7 @@ func TestTUIVitalsShowsAProgressBar(t *testing.T) {
 	m = next.(cli.TuiModel)
 	mustContain(t, m.Screen(), "Reading CPU, memory", "starting", " 0%") // from zero, not a sweep
 	m = step(t, m, cli.StatusProgressMsg{Done: 2, Total: 6, Probe: "cpu"})
-	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "▄") // the bar eases toward it; TestTUIVitalsBarStartsAtZeroAndEases covers the fill
+	mustContain(t, m.Screen(), "2 of 6 readings", "cpu", "░") // the bar eases toward it; TestTUIVitalsBarStartsAtZeroAndEases covers the fill
 }
 
 // The help overlay lists the keys the dashboard has now, and nothing that was
@@ -1569,5 +1562,18 @@ func TestTUIVitalsBarStartsAtZeroAndEases(t *testing.T) {
 	tick(200)
 	if last != 100 {
 		t.Errorf("with every probe done the bar reaches 100%%, got %d%%", last)
+	}
+}
+
+// Tables follow the Bubbles README table: a square outline, one rule under the header,
+// no lines between the columns, and the selected row in pale text on purple. The old
+// rounded corners and column bars are gone.
+func TestTablesHaveTheBubblesReadmeLook(t *testing.T) {
+	out := loaded(t, 120, 50).Screen() // the Overview: its tables, with no boxes beside them
+	mustContain(t, out, "┌", "┐", "└", "┘", "├", "┤")
+	for _, gone := range []string{"╭", "╮", "╰", "╯", "┬", "┼", "┴", "│ Suggestion", "Size │"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("tables should have no %q:\n%s", gone, out)
+		}
 	}
 }

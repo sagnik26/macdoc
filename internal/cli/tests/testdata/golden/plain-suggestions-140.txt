@@ -2,16 +2,16 @@
   1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                      │ 
- SAFE 25.2 GB  ·  RISKY 8.4 GB + unknown  ·  ADVICE 1 B   item 1 of 5   ✓ 2 marked … │ ╭─────────────────────────────────────────────╮
- ╭────┬──────────┬────────┬─────────────────────────────╮                            │ │  SAFE  O-ab12cd · Xcode DerivedData · MyApp │
- │    │     Size │ Risk   │ Suggestion                  │                            │ ╰─────────────────────────────────────────────╯
- ├────┼──────────┼────────┼─────────────────────────────┤                            │ 
- │ ▶✓ │  14.2 GB │ SAFE   │ Xcode DerivedData · MyApp   │                            │   Size        14.2 GB (measured)
- │ ✓  │ ~11.0 GB │ SAFE   │ Docker build cache          │                            │               This is the space removing it is
- │    │   8.4 GB │ RISKY  │ Android system image API 29 │                            │               certain to free. It can be less than
- │    │        — │ RISKY  │ Something odd               │                            │               the folder's total when its files share
- │    │      1 B │ ADVICE │ Lost data                   │                            │               space with copies.
- ╰────┴──────────┴────────┴─────────────────────────────╯                            │   Risk        SAFE
+ SAFE 25.2 GB  ·  RISKY 8.4 GB + unknown  ·  ADVICE 1 B   item 1 of 5                │ ╭─────────────────────────────────────────────╮
+ ┌──────────────────────────────────────────────────┐                                │ │  SAFE  O-ab12cd · Xcode DerivedData · MyApp │
+ │        Size  Risk    Suggestion                  │                                │ ╰─────────────────────────────────────────────╯
+ ├──────────────────────────────────────────────────┤                                │ 
+ │ ▶   14.2 GB  SAFE    Xcode DerivedData · MyApp   │                                │   Size        14.2 GB (measured)
+ │    ~11.0 GB  SAFE    Docker build cache          │                                │               This is the space removing it is
+ │      8.4 GB  RISKY   Android system image API 29 │                                │               certain to free. It can be less than
+ │           —  RISKY   Something odd               │                                │               the folder's total when its files share
+ │         1 B  ADVICE  Lost data                   │                                │               space with copies.
+ └──────────────────────────────────────────────────┘                                │   Risk        SAFE
                                                                                      │   Idle        0 days since last change
                                                                                      │   Method      deleted by macdoc after you confirm
                                                                                      │               (checked again first)

@@ -76,6 +76,7 @@ func TestPaletteContrast(t *testing.T) {
 		{"badge text on RISKY", pick("onBadge"), pick("risky"), 3, "onBadge", "risky"},
 		{"badge text on the brand tab", pick("onBadge"), pick("brand"), 3, "onBadge", "brand"},
 		{"title chip text", pick("chipFg"), pick("chipBg"), 4.5, "chipFg", "chipBg"},
+		{"selected table row text", pick("rowFg"), pick("rowBg"), 4.5, "rowFg", "rowBg"},
 	} {
 		for _, dark := range []bool{true, false} {
 			got := contrast(c.fg(p[c.fgN], dark), c.bg(p[c.bgN], dark))

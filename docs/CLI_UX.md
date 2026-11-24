@@ -50,7 +50,7 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - Rounded border with column rules and an underlined, bold header row.
   - Right-aligned sizes and counts.
   - Text labels for risk and severity, so color is never the only signal.
-  - A `▶` marker on the selected row, plus a background tint that keeps every foreground readable.
+  - The selected row is pale text on purple (no pointer). Without color it shows a `▶` marker instead.
   - `fitColumns` shrinks only long text columns (wrap or cut with …), so IDs, sizes and risk labels are never truncated.
 - **Loading:**
   - The real engine stages appear as a checklist with timings (`engine.OverviewOptions.Step`).
