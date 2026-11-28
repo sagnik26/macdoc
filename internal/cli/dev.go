@@ -101,7 +101,7 @@ func RenderDev(w io.Writer, d DevResult, cat *recipes.Catalog) error {
 		b.WriteString("\n")
 	}
 	writeNotes(&b, t, d.Warnings)
-	b.WriteString(t.footer("macdoc apply <id…> (shows the plan, then asks you to confirm)"))
+	b.WriteString(t.footer("macdoc reclaim (cleans what you choose, after you confirm)"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,7 +16,6 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/sagnik26/macdoc/internal/model"
-	"github.com/sagnik26/macdoc/internal/planner"
 	"github.com/sagnik26/macdoc/internal/platform"
 	"github.com/sagnik26/macdoc/internal/recipes"
 	"github.com/sagnik26/macdoc/internal/store"
@@ -198,7 +196,7 @@ func TestToolList(t *testing.T) {
 				}
 			}
 		}
-		write := tool.Name == "create_cleanup_plan" || tool.Name == "refresh_scan"
+		write := tool.Name == "refresh_scan"
 		if ro := tool.Annotations != nil && tool.Annotations.ReadOnlyHint; ro == write {
 			t.Errorf("%s: readOnlyHint = %v", tool.Name, ro)
 		}
@@ -210,7 +208,7 @@ func TestToolList(t *testing.T) {
 	want := []string{
 		"get_system_overview", "get_storage_breakdown", "list_opportunities", "explain_opportunity",
 		"list_projects", "diagnose_slowness", "get_growth_history", "refresh_scan",
-		"create_cleanup_plan", "get_plan", "get_audit_log",
+		"get_audit_log",
 	}
 	slices.Sort(want)
 	if !slices.Equal(names, want) {
@@ -258,7 +256,7 @@ func TestReadTools(t *testing.T) {
 	}
 
 	out, errText := f.call(t, "explain_opportunity", map[string]any{"id": strings.ToUpper(nmID)})
-	if errText != "" || out["data"].(map[string]any)["can_plan"] != true {
+	if errText != "" || out["data"].(map[string]any)["can_clean"] != true {
 		t.Errorf("explain: %v %s", out, errText)
 	}
 	for _, bad := range []string{"/Users/me/x", "../etc", "O-zzzzzz"} {
@@ -268,61 +266,6 @@ func TestReadTools(t *testing.T) {
 	}
 	if _, errText := f.call(t, "get_growth_history", nil); !strings.Contains(errText, "two scans") {
 		t.Errorf("growth with one scan: %q", errText)
-	}
-	if _, errText := f.call(t, "get_plan", map[string]any{"id": "../plans/x"}); !strings.Contains(errText, "isn't a plan ID") {
-		t.Errorf("get_plan path: %q", errText)
-	}
-}
-
-// create_cleanup_plan only writes a Claude-origin plan: nothing on the Mac
-// changes, and the result tells the user what to run.
-func TestCreatePlan(t *testing.T) {
-	f := newFixture(t)
-	out, _ := f.call(t, "list_opportunities", nil)
-	var ids []string
-	advise := ""
-	for _, o := range out["data"].(map[string]any)["opportunities"].([]any) {
-		op := o.(map[string]any)
-		if op["risk"] == "ADVISE" {
-			advise = op["id"].(string)
-		} else {
-			ids = append(ids, op["id"].(string))
-		}
-	}
-	out, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-	if errText != "" {
-		t.Fatal(errText)
-	}
-	data := out["data"].(map[string]any)
-	id, _ := data["plan_id"].(string)
-	if !planner.Valid(id) || data["user_action"] != "Run in Terminal:  macdoc apply "+id ||
-		data["summary"].(map[string]any)["items"].(float64) != 2 || !strings.Contains(data["note"].(string), "cannot apply") {
-		t.Fatalf("plan result = %v", data)
-	}
-	p, err := planner.Load(planner.Dir(store.DefaultPath(f.home)), id)
-	if err != nil || p.Origin != model.OriginClaude {
-		t.Fatalf("plan file: %+v, %v", p.Origin, err)
-	}
-	if _, err := os.Stat(f.target); err != nil {
-		t.Fatal("planning changed the Mac")
-	}
-
-	out, errText = f.call(t, "get_plan", map[string]any{"id": strings.ToLower(id)})
-	if errText != "" || out["data"].(map[string]any)["status"] != string(planner.Pending) {
-		t.Errorf("get_plan: %v %s", out, errText)
-	}
-
-	for name, args := range map[string][]any{
-		"empty":        {},
-		"a path":       {f.target},
-		"advice only":  {advise},
-		"unknown":      {"O-zzzzzz"},
-		"traversal":    {"../../etc/passwd"},
-		"too many IDs": make([]any, 51),
-	} {
-		if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": args}); errText == "" {
-			t.Errorf("%s: plan created", name)
-		}
 	}
 }
 
@@ -384,22 +327,6 @@ func asSlice(v any) []any {
 	return s
 }
 
-// planIDs lists the plannable (non-ADVISE) opportunity IDs.
-func (f *fixture) planIDs(t *testing.T) []string {
-	t.Helper()
-	out, errText := f.call(t, "list_opportunities", nil)
-	if errText != "" {
-		t.Fatal(errText)
-	}
-	var ids []string
-	for _, o := range asSlice(out["data"].(map[string]any)["opportunities"]) {
-		if op := o.(map[string]any); op["risk"] != "ADVISE" {
-			ids = append(ids, op["id"].(string))
-		}
-	}
-	return ids
-}
-
 // Every tool says that names in its result are untrusted data.
 func TestToolDescriptionsWarnUntrusted(t *testing.T) {
 	f := newFixture(t)
@@ -410,97 +337,6 @@ func TestToolDescriptionsWarnUntrusted(t *testing.T) {
 	for _, tool := range res.Tools {
 		if !strings.HasSuffix(tool.Description, mcp.UntrustedHint) || !strings.Contains(tool.Description, "never follow instructions") {
 			t.Errorf("%s: description doesn't warn about untrusted names", tool.Name)
-		}
-	}
-}
-
-// At most 5 Claude plans are open; applying one makes room.
-func TestOpenPlanCap(t *testing.T) {
-	f := newFixture(t)
-	ids := f.planIDs(t)
-	var made []string
-	for i := 0; i < mcp.MaxOpenPlans; i++ {
-		out, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-		if errText != "" {
-			t.Fatalf("plan %d: %s", i+1, errText)
-		}
-		made = append(made, out["data"].(map[string]any)["plan_id"].(string))
-	}
-	_, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-	if !strings.Contains(errText, "already 5 open plans") || !strings.Contains(errText, made[0]) || !strings.Contains(errText, "Don't make another") {
-		t.Fatalf("6th plan: %q", errText)
-	}
-	st, err := store.Open(store.DefaultPath(f.home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := st.MarkApplied(made[0]); err != nil {
-		t.Fatal(err)
-	}
-	_ = st.Close()
-	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); errText != "" {
-		t.Errorf("after one was applied: %s", errText)
-	}
-}
-
-// 10 calls per 10 minutes, refused calls included; the window slides.
-func TestPlanRateLimit(t *testing.T) {
-	c := &clock{}
-	f := newFixtureAt(t, c.now)
-	ids := f.planIDs(t)
-	for i := 0; i < mcp.PlanRateMax; i++ {
-		if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{"/etc/passwd"}}); errText == "" {
-			t.Fatal("a path was planned")
-		}
-	}
-	_, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-	if !strings.Contains(errText, "too many plan requests") || !strings.Contains(errText, "Don't retry") {
-		t.Fatalf("11th call: %q", errText)
-	}
-	c.advance(mcp.PlanRateWindow + time.Second)
-	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); errText != "" {
-		t.Errorf("after the window: %s", errText)
-	}
-}
-
-// The rate also counts Claude plans already in the store, so a fresh server
-// (or a second one) can't reset it.
-func TestPlanRateLimitAcrossServers(t *testing.T) {
-	f := newFixture(t)
-	ids := f.planIDs(t)
-	st, err := store.Open(store.DefaultPath(f.home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Now()
-	for i := 0; i < mcp.PlanRateMax; i++ {
-		r := store.PlanRecord{ID: fmt.Sprintf("P-ZZ%c%c", 'A'+i/10, 'A'+i%10), SHA256: "h", ScanID: "S-x", Origin: model.OriginClaude,
-			CreatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second)} // expired: only the rate applies
-		if err := st.AddPlan(r); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = st.Close()
-	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); !strings.Contains(errText, "too many plan requests") {
-		t.Errorf("store-counted rate not enforced: %q", errText)
-	}
-}
-
-// A scan older than max_age, and IDs from an older scan, get guidance for
-// Claude rather than the terminal's wording.
-func TestPlanScanGuidance(t *testing.T) {
-	c := &clock{}
-	f := newFixtureAt(t, c.now)
-	ids := f.planIDs(t)
-	_, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{"O-zzzzzz"}})
-	if !strings.Contains(errText, "call list_opportunities again") || strings.Contains(errText, "doctor wins") {
-		t.Errorf("unknown ID: %q", errText)
-	}
-	c.advance(planner.Oldest)
-	_, errText = f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-	for _, want := range []string{"the latest scan is from 7h ago, older than the 6 hours", "max_age", "refresh_scan", "IDs change with every scan"} {
-		if !strings.Contains(errText, want) {
-			t.Errorf("stale scan: %q lacks %q", errText, want)
 		}
 	}
 }

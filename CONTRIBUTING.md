@@ -35,9 +35,9 @@ Each recipe needs three tests (see `docs/RECIPE_CATALOG.md` §3):
 3. a **precondition-failure** test: the recipe refuses when a precondition fails.
 
 A recipe must name its target by an identifier the tool itself lists. It must
-not use a shell or a path typed by the user. `sudo` is allowed only for the exact
-privileged commands in `recipes.PrivilegedArgvAllowed`, run by
-`internal/executor/privileged.go` (ADR 0009).
+not use a shell or a path typed by the user. `sudo` is allowed only for the
+`system` method's fixed commands (ADR 0014), run by
+`internal/executor/privileged.go`.
 
 ## Reporting security problems
 

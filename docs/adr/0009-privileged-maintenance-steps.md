@@ -1,6 +1,6 @@
 # 0009: Privileged maintenance steps run only through the OS password prompt
 
-**Status:** Accepted (owner decision, 2026-11-13). Supersedes only the "no `sudo`" part of `AGENTS.md` rule 4 and `docs/SAFETY_MODEL.md` §4.4/§5. Implemented. **Recorded in:** `internal/executor/privileged.go`, `internal/recipes/load.go` (`PrivilegedArgvAllowed`), `internal/recipes/catalog/maintenance.yaml`, `internal/planner/planner.go` (`ReasonPrivilegedFromClaude`), `tools/forbidcheck/check/check.go`.
+**Status:** **Retired (2026-11-24).** Accepted on 2026-11-13; superseded by [ADR 0014](0014-reclaim-system-cleanup.md) for the rules that still apply to `sudo`, and by [ADR 0015](0015-no-refresh-plan-apply-mcp-plans.md), which removed the maintenance steps and the three-command allow-list this record describes. Kept for history; the code it names no longer exists.
 
 ## Context
 
@@ -28,4 +28,4 @@ Until now macdoc ran unprivileged and never used `sudo`; anything needing admin 
 - Repair commands such as `diskutil repairVolume` stay advice-only.
 - A config whitelist to exclude individual maintenance tasks is not built.
 
-Tests: `internal/executor/tests.TestPrivilegedItemRunsThroughThePrivilegedFunction`, `internal/executor/tests.TestPrivilegedItemRefusals`, `internal/executor/tests.TestRealPrivilegedRefusesHere`, `internal/recipes/tests.TestPrivilegedAttacks`, `internal/recipes/tests.TestPrivilegedListIsPinned`, `internal/planner/tests.TestBuildPrivilegedSteps`, `tools/forbidcheck/check/tests.TestSudoOnlyInThePrivilegedFile`.
+Tests: the maintenance-step tests were deleted with the code (ADR 0015). The `sudo` guard that remains is `tools/forbidcheck/check/tests.TestSudoOnlyInThePrivilegedFile`, and the system-removal tests of ADR 0014 cover the rest.

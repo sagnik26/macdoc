@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Retire
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+ Summary                                                                                            
+  2 apps and system packages · 1 programs on PATH · 5.8 GB in their data folders                    
+  New since last scan: pipx                                                                         
+  Largest folder no software explains: ~/Downloads (723 MB)                                         
+                                                                                                    
+                                                                                                    
+ Installed software · deletable · 2 of 3                                                            
+ ┌─────────────────────────────────┐                                                                
+ │ Name      Kind        Data  New │                                                                
+ ├─────────────────────────────────┤                                                                
+ │ ▸ Docker  app 4.30  900 MB      │                                                                
+ │ Notion    app 7.4   4.9 GB      │                                                                
+ └─────────────────────────────────┘                                                                
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ f filter • enter delete • ↑↓ move • esc back • q quit

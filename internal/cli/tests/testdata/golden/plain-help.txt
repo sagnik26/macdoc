@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Help
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+ Keys                                                                                               
+   tab / shift+tab, 1–4   switch tab (the scan view)                                                
+   ↑ ↓  j k  pgup pgdn    move or scroll                                                            
+   enter                  remove the selected suggestion (or the marked ones), after you confirm    
+   space                  mark several suggestions to remove together                               
+   e                      explain the selected suggestion                                           
+   x                      hide this kind of suggestion from now on                                  
+   d  (after /reclaim)    review the RISKY items it left alone; each needs its ID typed             
+   /                      command palette                                                           
+   ?                      this help                                                                 
+   r                      rescan the disk                                                           
+   esc                    stop a scan · close a page · back to the home screen                      
+   q, ctrl+c              quit                                                                      
+                                                                                                    
+ Commands                                                                                           
+   /scan                  scan the disk again, then show the full report (esc stops a scan)         
+   /reclaim               scan, then clean every SAFE and CAUTION item at once (esc stops it)       
+   /retire                installed software and its data folders; delete what you don't need       
+   /explore               where the space is, as a folder tree you can open                         
+   /vitals                live CPU, memory, disk, network and battery, with a health score          
+                                                                                                    
+ Safety                                                                                             
+   /reclaim removes every SAFE and CAUTION item right after its scan, without                       
+   asking (esc stops it; nothing RISKY is ever included). Everything else asks:                     
+   Enter shows what will go and how                                                                 
+   much space comes back; Enter again removes it (SAFE and CAUTION items).                          
+   A RISKY item also needs its code typed. Each item is checked again just                          
+   before it's removed, and skipped if it changed. Removed items are deleted                        
+   for good, so the space is freed at once. Everything is in macdoc log.                            
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ ↑↓ move • esc back • q quit

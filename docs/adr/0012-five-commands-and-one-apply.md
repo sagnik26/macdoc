@@ -1,6 +1,6 @@
 # 0012: Five commands and one apply
 
-**Status:** Accepted (owner decision, 2026-11-14). Supersedes only the command names used in earlier records; it changes no safety rule. **Recorded in:** `internal/cli`, `schema/`, `docs/CLI_UX.md`, `README.md`.
+**Status:** Accepted (owner decision, 2026-11-14); **partly superseded by [ADR 0015](0015-no-refresh-plan-apply-mcp-plans.md)**: `refresh` and `apply` no longer exist. Supersedes only the command names used in earlier records; it changes no safety rule. **Recorded in:** `internal/cli`, `schema/`, `docs/CLI_UX.md`, `README.md`.
 
 ## Context
 

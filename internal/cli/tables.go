@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -36,10 +36,14 @@ func (t *Theme) Grid(cols []Column, rows [][]string, width int, style cellStyle)
 		headers[i] = c.Title
 	}
 	rows = fitColumns(cols, rows, width)
+	// The Bubbles README table: a square gray outline, one rule under the header and
+	// no lines between columns.
 	return table.New().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderStyle(t.faint).
 		BorderRow(false).
+		BorderColumn(false).
+		BorderHeader(true).
 		Headers(headers...).
 		Rows(rows...).
 		Wrap(true).
@@ -47,7 +51,7 @@ func (t *Theme) Grid(cols []Column, rows [][]string, width int, style cellStyle)
 			var s lipgloss.Style
 			switch {
 			case row == table.HeaderRow:
-				s = t.Title.Underline(t.on)
+				s = t.text // not bold: the rule under it sets it apart
 			case style != nil && style(row, col) != nil:
 				s = *style(row, col)
 			default:
@@ -74,7 +78,7 @@ func fitColumns(cols []Column, rows [][]string, width int) [][]string {
 			widths[i] = max(widths[i], lipgloss.Width(cell))
 		}
 	}
-	total := len(cols) + 1 // borders
+	total := 2 // the outline
 	shrinkable := 0
 	for i, c := range cols {
 		total += widths[i] + 2 // padding
@@ -252,7 +256,7 @@ func (m TuiModel) overviewTables() string {
 	// Where the space is.
 	b.WriteString("\n")
 	b.WriteString(t.block("Where your space is", fmt.Sprintf("(Data volume, %s measured)", engine.DecimalBytes(res.Scan.TotalBytes)),
-		m.foldersTable(res.TopLevel, overviewTopLevel, w)))
+		m.spaceChart(res.TopLevel, w)+m.foldersTable(res.TopLevel, overviewTopLevel, w)))
 	if du := res.DataVolume; du.Source != model.SourceUnknown && du.Value > res.Scan.TotalBytes+du.Value/50 {
 		b.WriteString("  " + t.muted.Render(engine.DecimalBytes(du.Value-res.Scan.TotalBytes)+" more is not visible to the scan (needs Full Disk Access).") + "\n")
 	}
@@ -380,22 +384,34 @@ func (m TuiModel) trendBlock(w int) string {
 	floor := engine.DecimalBytes(tr.KeptFloor)
 	span := engine.SpanText(tr.To.StartedAt.Sub(tr.From.StartedAt))
 	var rows [][]string
+	var changes []engine.Range // each row's change, for its bar
 	for _, a := range tr.Areas {
 		if c := changeText(a.Change, floor); c != "no change" && !strings.HasPrefix(c, "under ") {
-			rows = append(rows, []string{a.Name, sizeText(a.Before, floor), sizeText(a.After, floor), c})
+			rows = append(rows, []string{a.Name, sizeText(a.Before, floor), sizeText(a.After, floor), c, ""})
+			changes = append(changes, a.Change)
 		}
 	}
 	for _, f := range tr.Growing {
-		rows = append(rows, []string{TildePath(m.Deps.Home, f.Path), sizeText(f.Before, floor), engine.DecimalBytes(f.After), changeText(f.Change, floor)})
+		rows = append(rows, []string{TildePath(m.Deps.Home, f.Path), sizeText(f.Before, floor), engine.DecimalBytes(f.After), changeText(f.Change, floor), ""})
+		changes = append(changes, f.Change)
+	}
+	var biggest int64
+	for _, c := range changes {
+		biggest = max(biggest, sureChange(c))
+	}
+	for i, c := range changes {
+		rows[i][4] = t.changeBar(sureChange(c), biggest, c.High < 0, 12)
 	}
 	note := "in the last " + span + ", from macdoc's stored scans"
 	if len(rows) == 0 {
 		return t.block("What grew", note, " Nothing changed by more than "+floor+".\n")
 	}
 	return t.block("What grew", note, t.Grid(
-		[]Column{{Title: "Area or folder", Flex: true}, {Title: "Before", Right: true}, {Title: "Now", Right: true}, {Title: "Change", Right: true}}, rows, w,
+		[]Column{{Title: "Area or folder", Flex: true}, {Title: "Before", Right: true}, {Title: "Now", Right: true}, {Title: "Change", Right: true}, {Title: " "}}, rows, w,
 		func(r, c int) *lipgloss.Style {
 			switch c {
+			case 4:
+				return ptr(t.text)
 			case 1:
 				return ptr(t.muted)
 			case 2:
@@ -410,18 +426,35 @@ func (m TuiModel) trendBlock(w int) string {
 		}))
 }
 
+// riskTypes is the "Risk type" cell of a category: one line per risk type it has, the
+// label in its color and the size after it, in SAFE, CAUTION, RISKY, ADVICE order. A
+// category with none shows a dash.
+func (t *Theme) riskTypes(byRisk map[model.Risk]int64) string {
+	var lines []string
+	for _, r := range engine.TierOrder {
+		if v, ok := byRisk[r]; ok {
+			lines = append(lines, t.riskStyle(r).Render(fmt.Sprintf("%-7s", riskLabel(r)))+" "+t.size.Render(engine.DecimalBytes(v)))
+		}
+	}
+	if len(lines) == 0 {
+		return "—"
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m TuiModel) spaceTables() string {
 	t, w := m.t, m.w-2
-	sp := m.Data.space
+	sp := m.Data.Space
 	var b strings.Builder
 	b.WriteString("\n")
 
 	if len(sp.Categories) == 0 {
 		b.WriteString(t.block("Reclaimable, by category", "", " Nothing to reclaim was found in the latest scan.\n"))
 	} else {
-		cols := []Column{{Title: "Category", Flex: true}, {Title: "Size", Right: true}, {Title: "Items", Right: true}}
-		for _, r := range engine.TierOrder {
-			cols = append(cols, Column{Title: riskLabel(r), Right: true})
+		cols := []Column{{Title: "Category", Flex: true}, {Title: "Size", Right: true}, {Title: "Share"}, {Title: "Items", Right: true}, {Title: "Risk type"}}
+		var biggest int64
+		for _, c := range sp.Categories {
+			biggest = max(biggest, c.Bytes)
 		}
 		var rows [][]string
 		for _, c := range sp.Categories {
@@ -429,23 +462,19 @@ func (m TuiModel) spaceTables() string {
 			if c.UnknownCount > 0 {
 				size += " + unknown"
 			}
-			row := []string{c.Category, size, fmt.Sprint(c.Count)}
-			for _, r := range engine.TierOrder {
-				if v, ok := c.ByRisk[r]; ok {
-					row = append(row, engine.DecimalBytes(v))
-				} else {
-					row = append(row, "—")
-				}
+			frac := 0.0
+			if biggest > 0 {
+				frac = float64(c.Bytes) / float64(biggest)
 			}
-			rows = append(rows, row)
+			rows = append(rows, []string{c.Category, size, t.miniBar(frac, 12), fmt.Sprint(c.Count), t.riskTypes(c.ByRisk)})
 		}
 		b.WriteString(t.block("Reclaimable, by category", "", t.Grid(cols, rows, w, func(r, c int) *lipgloss.Style {
 			switch {
 			case c == 1:
 				return ptr(t.size)
-			case c >= 3 && rows[r][c] != "—":
-				return ptr(t.riskStyle(engine.TierOrder[c-3]))
-			case c >= 2:
+			case c == 2:
+				return ptr(t.text)
+			case c == 3:
 				return ptr(t.muted)
 			}
 			return nil
@@ -455,45 +484,8 @@ func (m TuiModel) spaceTables() string {
 	b.WriteString("\n")
 	b.WriteString(m.trendBlock(w))
 
-	if len(sp.SystemData) > 0 {
-		var rows [][]string
-		for _, p := range sp.SystemData {
-			size, src, explain := "—", "unknown", p.Explain
-			switch p.Bytes.Source {
-			case model.SourceUnknown:
-				if p.Bytes.Reason != "" {
-					explain = "Size unknown: " + p.Bytes.Reason + ". " + explain
-				}
-			case model.SourceEstimated:
-				size, src = "~"+engine.DecimalBytes(p.Bytes.Value), "estimated"
-			default:
-				size, src = engine.DecimalBytes(p.Bytes.Value), string(p.Bytes.Source)
-			}
-			rows = append(rows, []string{p.Name, size, src, explain})
-		}
-		b.WriteString("\n")
-		b.WriteString(t.block(`"System Data", decoded`, "", t.Grid(
-			[]Column{{Title: "Part", Wrap: true}, {Title: "Size", Right: true}, {Title: "Source"}, {Title: "What it is", Wrap: true}}, rows, w,
-			func(r, c int) *lipgloss.Style {
-				switch c {
-				case 1:
-					if rows[r][1] == "—" {
-						return ptr(t.muted)
-					}
-					return ptr(t.size)
-				case 2, 3:
-					return ptr(t.muted)
-				}
-				return nil
-			})))
-	}
-
 	b.WriteString("\n")
-	if len(sp.Large) == 0 {
-		b.WriteString(t.block("Large items with no recipe", "(≥ 1 GB, advice only)", " None.\n"))
-	} else {
-		b.WriteString(t.block("Large items with no recipe", "(≥ 1 GB, advice only: review them yourself)", m.foldersTable(sp.Large, 0, w)))
-	}
+	b.WriteString(m.restOfSpaceBlock(sp, w))
 	b.WriteString("\n")
 	b.WriteString(softwareBlock(t, m.Data.Res.Software))
 	return b.String()
@@ -513,68 +505,27 @@ func softwareBlock(t *Theme, sw *engine.SoftwareSummary) string {
 	return t.block("Installed software", "(macdoc retire for the list)", body)
 }
 
-func (m TuiModel) toolchainTables() string {
-	t, w := m.t, m.w-2
-	groups := m.Data.Dev.Toolchains
-	if len(groups) == 0 {
-		return "\n  " + t.muted.Render("Nothing to reclaim was found in the latest scan.")
-	}
-	var b strings.Builder
-	b.WriteString("\n")
-	var rows [][]string
-	for _, g := range groups {
-		biggest := ""
-		if len(g.Opportunities) > 0 {
-			top := g.Opportunities[0]
-			for _, op := range g.Opportunities {
-				if op.Bytes.Value > top.Bytes.Value {
-					top = op
-				}
-			}
-			biggest = top.Title + " (" + sizeCell(top.Bytes) + ")"
-		}
-		rows = append(rows, []string{g.Toolchain, tierTotal(g.Bytes, g.Opportunities), fmt.Sprint(len(g.Opportunities)), biggest})
-	}
-	b.WriteString(t.block("By toolchain", "", t.Grid(
-		[]Column{{Title: "Toolchain"}, {Title: "Size", Right: true}, {Title: "Items", Right: true}, {Title: "Biggest item", Flex: true}}, rows, w,
-		func(_, c int) *lipgloss.Style {
-			switch c {
-			case 0:
-				return ptr(t.accent.Bold(true))
-			case 1:
-				return ptr(t.size)
-			case 2, 3:
-				return ptr(t.muted)
-			}
-			return nil
-		})))
-
-	for _, g := range groups {
-		b.WriteString("\n")
-		b.WriteString(t.block(g.Toolchain, "· "+tierTotal(g.Bytes, g.Opportunities), m.opsTable(g.Opportunities, -1, w, false)))
-	}
-	return b.String()
-}
-
 // opsTable lists suggestions; sel is the selected row (-1 for none).
 // compact drops the restore Column (the details beside the list show it).
 func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) string {
 	t := m.t
 	// The ID is not a column: nobody types it here. A RISKY item's ID shows in
 	// the removal box, where it must be typed.
-	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Flex: true}}
+	cols := []Column{{Title: " "}, {Title: "Size", Right: true}, {Title: "Risk"}, {Title: "Suggestion", Flex: true}, {Title: "Restore", Wrap: true}}
 	rows := make([][]string, len(ops))
 	for i, op := range ops {
+		// The first column holds the mark only: a highlighted row needs no pointer. With
+		// no color there is no highlight, so the pointer stays (the selection must show).
 		mark := " "
 		switch {
-		case i == sel && m.Marked[op.ID]:
+		case i == sel && !t.color && m.Marked[op.ID]:
 			mark = "▶✓"
-		case i == sel:
+		case i == sel && !t.color:
 			mark = "▶"
 		case m.Marked[op.ID]:
 			mark = "✓"
 		}
-		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, Truncate(RestoreNote(op), 30)}
+		rows[i] = []string{mark, sizeCell(op.Bytes), riskLabel(op.Risk), op.Title, restoreText(op)}
 	}
 	if compact {
 		cols = cols[:4]
@@ -593,6 +544,9 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		switch c {
 		case 0:
 			s = t.brand.Bold(true)
+			if r == sel {
+				s = t.fg(colSelectFg).Bold(true)
+			}
 		case 1:
 			s = t.size
 		case 2:
@@ -602,8 +556,8 @@ func (m TuiModel) opsTable(ops []model.Opportunity, sel, w int, compact bool) st
 		default:
 			s = t.text
 		}
-		if r == sel && t.on {
-			s = s.Background(colSelect).Bold(true)
+		if r == sel {
+			s = t.selectedRow(s)
 		}
 		return &s
 	})

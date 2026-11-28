@@ -27,7 +27,7 @@ type PlanOptions struct {
 	Precomputed *OpportunityResult
 }
 
-// PlanResult is the data behind `macdoc apply --dry-run`.
+// PlanResult is a sealed plan, the input of every removal.
 type PlanResult struct {
 	Plan     model.Plan        `json:"plan"`
 	Status   planner.Status    `json:"status"`
@@ -86,8 +86,7 @@ func CreatePlan(ctx context.Context, o PlanOptions) (PlanResult, error) {
 	ops := o.Precomputed
 	if ops == nil || ops.Scan.ID != info.ID {
 		live := o.OpportunityOptions
-		live.Live = true // a plan is built from what the tools say now
-		live.OnRequest = true
+		live.Live = true         // a plan is built from what the tools say now
 		live.KeepExcluded = true // so the planner can say why it refuses them
 		res, err := Opportunities(ctx, live)
 		if err != nil {
@@ -191,47 +190,4 @@ func snapshotNote(ctx context.Context, r platform.Runner) SnapshotNote {
 		return SnapshotNote{Count: -1}
 	}
 	return SnapshotNote{Count: s.Count}
-}
-
-// PlanLoad is how many plans of one origin are open (pending and unexpired)
-// at o.Now, and how many were made since a given time.
-type PlanLoad struct {
-	Open   []store.PlanRecord
-	Recent int
-}
-
-// OriginPlanLoad reads the plan load of one origin. The MCP server uses it to
-// cap open Claude plans and limit how fast Claude makes them, across every
-// server process sharing the store.
-func OriginPlanLoad(o OpportunityOptions, origin model.Origin, since time.Time) (PlanLoad, error) {
-	if o.StorePath == "" {
-		o.StorePath = store.DefaultPath(o.Home)
-	}
-	if o.Now.IsZero() {
-		o.Now = time.Now()
-	}
-	st, err := store.Open(o.StorePath)
-	if err != nil {
-		return PlanLoad{}, err
-	}
-	defer func() { _ = st.Close() }()
-	open, err := st.OpenPlans(origin, o.Now)
-	if err != nil {
-		return PlanLoad{}, err
-	}
-	n, err := st.CountPlansSince(origin, since)
-	if err != nil {
-		return PlanLoad{}, err
-	}
-	return PlanLoad{Open: open, Recent: n}, nil
-}
-
-// LockPlans serializes plan creation with every other process using the same
-// store (see store.LockPlans). The MCP server holds it from its limit checks
-// until the plan is saved, so the open-plan cap holds across servers.
-func LockPlans(o OpportunityOptions) (func(), error) {
-	if o.StorePath == "" {
-		o.StorePath = store.DefaultPath(o.Home)
-	}
-	return store.LockPlans(o.StorePath)
 }

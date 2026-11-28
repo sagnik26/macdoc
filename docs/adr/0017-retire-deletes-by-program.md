@@ -1,0 +1,21 @@
+# 0017: The Retire tab deletes an installed program on Delete or Cancel, with no recipe and no typed code
+
+**Status:** Accepted (owner decision, 2026-11-24: "I dont want any recipe or advisory there, users [should] be able to click on any item and it [should] ask confirmation for whether to delete or cancel and based on that it should proceed" and, asked whether a program no recipe covers should be deletable, "I dont want the concept of recipe, please remove that concept and do what I mentioned"; for the RISKY app bundle and support folders, "Delete/Cancel only"). Implemented. **Recorded in:** `internal/cli/retire.go`, `internal/planner/retire.go`, `internal/cli/removal.go`, `internal/cli/software.go`, `internal/executor/tests/retire_test.go`.
+
+## Context
+
+The Retire tab listed installed software with a "cleanup recipe" or "advisory only" label, and Enter opened a read-only details page. A program could be acted on only when a catalog recipe named it (ADR 0007, ADR 0011), and a RISKY item needed its ID typed. The owner wants the tab to be: pick a program, see what would go, press Delete or Cancel.
+
+## Decision
+
+1. **Enter on a program asks, once.** The box reads "Delete <Name>?", lists the app bundle (an app found in `/Applications` or `~/Applications`) and the data folders the scan attributed to it, with sizes (an unknown size is shown as unknown), the total, and "Enter delete · esc cancel". `esc` or `n` cancels and nothing changes. A program with neither an app nor a data folder says there is nothing to delete and plans nothing. The tab shows no recipe, no "advisory", no "cleanup" and no risk label.
+2. **No catalog recipe is needed, and none is shown.** The deletion runs through the same sealed plan, the same executor, the same re-checks and the same audit log as every other removal. For that, `planner.RetireRecipe` builds one built-in entry for this deletion only: it allows exactly the listed absolute paths and an app bundle one level inside `/Applications` (`safety.AppsPattern`), needs the app to be closed (`app_bundle_not_running`), and is CAUTION so one group approval covers it and no code is typed. It is added to a copy of the catalog while the box is open and dropped afterwards; it is never in `internal/recipes/catalog`. A path with a wildcard character or one that is not absolute is left out of it.
+3. **The approval is the person at the terminal.** Delete is a key press in the dashboard at a real terminal (`executorRemove` still refuses without one). Nothing here is reachable from the command line, from a flag or from the MCP server, and none accepts a path: the dashboard builds the targets from a program the scan found, and the executor takes the plan, not a path (ADR 0002, ADR 0003).
+4. **What does not change.** The protected paths are refused whatever the entry allows (`Documents`, `Desktop`, Mail, Messages, Keychains, `.ssh`, macdoc's own folder, and the rest of `docs/SAFETY_MODEL.md` §3); a path outside home other than the one app bundle, a symlink, a path that changed since the plan, a folder holding a git repository or a `.env` file, and an app that is open are all skipped. Each item is re-validated just before it is moved, moved into quarantine and deleted at once (`DeleteNow`, ADR 0004), and written to the audit log with the recipe `retire.program`. `/reclaim` and `reclaim --yes` never see this entry.
+5. **It supersedes** the part of ADR 0007 that made the Retire tab's items advice-only unless a recipe covers them, and the typed-code step of ADR 0011 for what Retire deletes. The printed `macdoc retire` command is unchanged.
+
+## Consequences
+
+- Deleting an app's data folder is permanent. The box says so, and the tab never offers it without the Delete / Cancel choice.
+- Data folders are attributed to a program by name and bundle ID, with a match percentage; a wrong attribution would delete the wrong folder. The box lists every path so the person can cancel, and the protected paths and the re-checks bound the damage.
+- Programs from a package manager (a Homebrew formula, an npm package) are not uninstalled by this: only their app bundle, if any, and their data folders go. Uninstalling the package itself would need a fixed command, which is a separate decision.

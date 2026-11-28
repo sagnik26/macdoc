@@ -124,6 +124,11 @@ const ReasonExcluded = "excluded in your settings"
 // (ADR 0009).
 const ReasonPrivilegedFromClaude = "it needs administrator rights, and plans Claude proposes never include those; make the plan yourself in Terminal"
 
+// ReasonSweepFromClaude is the refusal for a .DS_Store sweep in a plan Claude
+// proposed: it deletes files with no quarantine copy, so only a person at the
+// terminal asks for one (ADR 0014).
+const ReasonSweepFromClaude = "it deletes files with no quarantine copy, and plans Claude proposes never include those; make the plan yourself in Terminal"
+
 // Errors from Build.
 var (
 	ErrStaleScan = errors.New("the latest scan is too old to plan from")
@@ -251,25 +256,75 @@ func item(in Input, op model.Opportunity) (model.PlanItem, string) {
 			return item, op.Command[0] + " isn't installed any more"
 		}
 		item.Argv = append([]string(nil), op.Command...)
-		if r.Privileged {
-			if in.Origin == model.OriginClaude {
-				return item, ReasonPrivilegedFromClaude
-			}
-			if !recipes.ArgvIn(item.Argv, recipes.PrivilegedArgvAllowed) {
-				return item, "its command isn't on the privileged allow-list"
-			}
-			item.Privileged = true
-		}
 	case model.MethodQuarantine:
 		fp, reason := target(in.Policy, op.Target, r.Allow)
 		if reason != "" {
 			return item, reason
 		}
 		item.Fingerprint = fp
+	case model.MethodSystem:
+		if in.Origin == model.OriginClaude {
+			return item, ReasonPrivilegedFromClaude
+		}
+		fp, reason := systemTarget(in.Policy, op.Target, recipes.SystemKindOf(r))
+		if reason != "" {
+			return item, reason
+		}
+		item.Fingerprint, item.Privileged = fp, true
+	case model.MethodSweep:
+		if in.Origin == model.OriginClaude {
+			return item, ReasonSweepFromClaude
+		}
+		if reason := sweepRoot(in.Policy, op.Target); reason != "" {
+			return item, reason
+		}
 	default:
 		return item, "unknown method"
 	}
 	return item, ""
+}
+
+// systemTarget re-checks a system item now and fingerprints it: still there,
+// not a symlink, at its canonical path, and still one item of its kind that
+// the safety rules accept.
+func systemTarget(pol *safety.Policy, target, kind string) (model.Fingerprint, string) {
+	fi, err := os.Lstat(target)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return model.Fingerprint{}, "it no longer exists"
+	case err != nil:
+		return model.Fingerprint{}, "it can't be read: " + err.Error()
+	case fi.Mode()&os.ModeSymlink != 0:
+		return model.Fingerprint{}, "it is now a symlink"
+	}
+	if c, err := safety.Canonicalize(target); err != nil || c != target {
+		return model.Fingerprint{}, "its path changed since the scan"
+	}
+	if err := pol.CheckSystemTarget(target, kind); err != nil {
+		return model.Fingerprint{}, "the safety rules refuse it: " + err.Error()
+	}
+	return Fingerprint(fi), ""
+}
+
+// sweepRoot re-checks a sweep's folder now: still a real folder at its
+// canonical path that the sweep rules accept.
+func sweepRoot(pol *safety.Policy, root string) string {
+	fi, err := os.Lstat(root)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return "it no longer exists"
+	case err != nil:
+		return "it can't be read: " + err.Error()
+	case fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir():
+		return "it is no longer a folder"
+	}
+	if c, err := safety.Canonicalize(root); err != nil || c != root {
+		return "its path changed since the scan"
+	}
+	if err := pol.CheckSweepRoot(root); err != nil {
+		return "the safety rules refuse it: " + err.Error()
+	}
+	return ""
 }
 
 // target re-checks a quarantine target now and fingerprints it.

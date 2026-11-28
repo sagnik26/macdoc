@@ -78,8 +78,8 @@ func (p *performer) do(item model.PlanItem, act func() (ItemResult, error)) erro
 		res.Outcome, res.Reason = OutcomeFailed, err.Error()
 	}
 	rec := audit.Record{Plan: p.plan.ID, Origin: string(p.plan.Origin), Item: item.OpportunityID, Recipe: item.RecipeID,
-		Target: item.Target, Method: string(item.Method), Privileged: item.Privileged, Argv: item.Argv, Entry: res.QuarantineID,
-		Expected: item.ExpectedBytes, Exit: res.ExitCode, Reason: res.Reason, Output: lastOutput(p, res)}
+		Target: item.Target, Method: string(item.Method), Privileged: item.Privileged, NonInteractive: p.cfg.NonInteractive, Argv: item.Argv, Entry: res.QuarantineID,
+		Items: res.Files, Expected: item.ExpectedBytes, Exit: res.ExitCode, Reason: res.Reason, Output: lastOutput(p, res)}
 	switch res.Outcome {
 	case OutcomeDone:
 		rec.Event, rec.Result = audit.Done, "ok"
@@ -122,6 +122,9 @@ func (p *performer) common(item model.PlanItem) error {
 	if r.Method != item.Method {
 		return skip{"its recipe's method changed"}
 	}
+	if p.cfg.NonInteractive && !nonInteractiveOK(item, p.plan.Origin) {
+		return skip{"--yes only cleans SAFE and CAUTION items that are moved into quarantine; this one needs you at the terminal"}
+	}
 	if !precond.Known(item.Preconditions) {
 		return skip{"it has a precondition macdoc can't check"}
 	}
@@ -138,8 +141,8 @@ func (p *performer) native(item model.PlanItem, argv []string) (ItemResult, erro
 	if !recipes.MatchesNative(r, argv) {
 		return res, skip{"its command doesn't match the recipe's"}
 	}
-	if r.Privileged != item.Privileged {
-		return res, skip{"its administrator-rights setting doesn't match its recipe's"}
+	if item.Privileged {
+		return res, skip{"a native command never runs with administrator rights"}
 	}
 	if !recipes.ToolInstalled(argv[0]) {
 		return res, skipf("%s isn't installed any more", argv[0])
@@ -158,14 +161,7 @@ func (p *performer) native(item model.PlanItem, argv []string) (ItemResult, erro
 			return res, skipf("%s is no longer listed by %s", arg, argv[0])
 		}
 	}
-	run := p.cfg.Exec
-	if item.Privileged {
-		if err := p.privilegedAllowed(r, argv); err != nil {
-			return res, err
-		}
-		run = p.cfg.Priv
-	}
-	out, code, err := run(p.ctx, argv, p.cfg.NativeTimeout)
+	out, code, err := p.cfg.Exec(p.ctx, argv, p.cfg.NativeTimeout)
 	res.ExitCode = &code
 	p.lastOut = out
 	if err != nil {
@@ -220,10 +216,19 @@ func stillListed(ctx context.Context, cfg Config, r recipes.Recipe, arg string) 
 }
 
 func lastOutput(p *performer, res ItemResult) string {
-	if res.Item.Method != model.MethodNative || p.lastOut == nil {
+	if (res.Item.Method != model.MethodNative && res.Item.Method != model.MethodSystem) || p.lastOut == nil {
 		return ""
 	}
 	out := audit.Tail(p.lastOut)
 	p.lastOut = nil
 	return out
+}
+
+// nonInteractiveOK reports whether item may run without a person confirming
+// it at the terminal: a SAFE or CAUTION quarantine move, no administrator
+// rights, from a plan made at the command line (ADR 0014 §5).
+func nonInteractiveOK(item model.PlanItem, origin model.Origin) bool {
+	return item.Method == model.MethodQuarantine && !item.Privileged &&
+		(item.Risk == model.RiskSafe || item.Risk == model.RiskCaution) &&
+		(origin == model.OriginCLI || origin == "")
 }

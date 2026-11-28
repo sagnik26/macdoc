@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/sagnik26/macdoc/internal/probe"
 
@@ -89,6 +89,39 @@ func statusClock() tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return statusClockMsg{} })
 }
 
+// statusBarMsg steps the first-reading bar's animation; gen says which opening of
+// the page it belongs to, so a stale chain stops.
+type statusBarMsg struct{ gen int }
+
+func statusBarTick(gen int) tea.Cmd {
+	return tea.Tick(33*time.Millisecond, func(time.Time) tea.Msg { return statusBarMsg{gen} })
+}
+
+// statusTarget is how far the first-reading bar should be: nothing but a sliver
+// before the first report, then each finished probe plus half the next (so it keeps
+// moving while the slowest one runs), and full once all have answered.
+func (m TuiModel) statusTarget() float64 {
+	switch {
+	case m.statusTotal <= 0:
+		return 0.03
+	case m.statusDone >= m.statusTotal:
+		return 1
+	}
+	return (float64(m.statusDone) + 0.5) / float64(m.statusTotal)
+}
+
+// barTick eases the drawn bar toward its target and keeps ticking until the first
+// reading arrives or the page closes.
+func (m TuiModel) barTick(msg statusBarMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.statusGen || m.Overlay != overlayVitals || m.status != nil {
+		return m, nil
+	}
+	if target := m.statusTarget(); m.statusShown < target {
+		m.statusShown = min(target, m.statusShown+max((target-m.statusShown)*0.15, 0.004))
+	}
+	return m, statusBarTick(m.statusGen)
+}
+
 // clockTick handles one tick: keep ticking while the page is open, and stop
 // (letting a later open start a new chain) once it is closed.
 func (m TuiModel) clockTick() (tea.Model, tea.Cmd) {
@@ -114,61 +147,78 @@ func (m TuiModel) liveHeader() string {
 	return " " + dot + " " + t.text.Render("Live") + t.muted.Render(" · updated "+when+" · every "+fmt.Sprint(int(statusEvery.Seconds()))+"s") + "\n"
 }
 
-// whyBox is how macdoc decides whether memory is slowing the Mac down: where
-// memory pressure sits on its three levels, the two other facts it weighs with
-// their limits, and the rule. It shows with the red alert, and on the w key.
-func (m TuiModel) whyBox(res engine.StatusResult) string {
+// gaugeStop is one stop of a gauge: its name and how it is drawn when it is the
+// current one.
+type gaugeStop struct {
+	name  string
+	style func(string) string
+}
+
+// gauge draws a three-stop gauge as two lines: the stops joined by rules, with the
+// current one lit, and a "▲" marker under it. extra follows the stops (a value
+// and its limit); unknown replaces the marker when cur is negative.
+func (m TuiModel) gauge(label string, stops []gaugeStop, cur int, extra, unknown string) []string {
 	t := m.t
 	const lead = "   "
-	levels := []struct {
-		name  string
-		level probe.Pressure
-		style func(string) string
-	}{
-		{"Normal", probe.PressureNormal, func(s string) string { return t.Ok.Bold(true).Render(s) }},
-		{"Warn", probe.PressureWarn, func(s string) string { return t.warn.Bold(true).Render(s) }},
-		{"Critical", probe.PressureCritical, func(s string) string { return t.bad.Bold(true).Render(s) }},
-	}
-	label := "Memory pressure   "
+	label = fmt.Sprintf("%-18s", label)
 	ladder, marker := lead+label, lead+strings.Repeat(" ", lipgloss.Width(label))
-	known := false
-	for i, l := range levels {
-		cell := t.faint.Render(l.name)
-		if l.level == res.Report.Memory.Pressure {
-			known = true
-			cell = l.style(l.name)
+	for i, s := range stops {
+		cell := t.faint.Render(s.name)
+		if i == cur {
+			cell = s.style(s.name)
 			if !t.on {
-				cell = "[" + l.name + "]"
+				cell = "[" + s.name + "]"
 			}
 		}
 		if i > 0 {
 			ladder += t.faint.Render(" ─── ")
 			marker += strings.Repeat(" ", 5)
 		}
-		if l.level == res.Report.Memory.Pressure {
-			marker += t.accent.Render("▲ now")
-			marker += strings.Repeat(" ", max(0, lipgloss.Width(l.name)-5))
+		if i == cur {
+			w := lipgloss.Width(cell)
+			pad := (w - 1) / 2 // under the middle of the word
+			marker += strings.Repeat(" ", pad) + t.accent.Render("▲") + strings.Repeat(" ", max(0, w-1-pad))
 		} else {
-			marker += strings.Repeat(" ", lipgloss.Width(l.name))
+			marker += strings.Repeat(" ", lipgloss.Width(cell))
 		}
 		ladder += cell
 	}
-	if !known {
-		marker = lead + strings.Repeat(" ", lipgloss.Width(label)) + t.muted.Render("pressure couldn't be read")
+	if cur < 0 {
+		marker = lead + strings.Repeat(" ", lipgloss.Width(label)) + t.muted.Render(unknown)
 	}
-	rows := []string{ladder, strings.TrimRight(marker, " ")}
+	if extra != "" {
+		ladder += "   " + t.muted.Render(extra)
+	}
+	return []string{ladder, strings.TrimRight(marker, " ")}
+}
+
+// whyBox shows where memory pressure, swap in use and free disk sit, each as a
+// gauge with a "▲" marker: pressure on Normal, Warn and Critical, and the two
+// other facts macdoc weighs against their limits. It shows with the red alert, and
+// on the w key.
+func (m TuiModel) whyBox(res engine.StatusResult) string {
+	t := m.t
+	ok := func(s string) string { return t.Ok.Bold(true).Render(s) }
+	warn := func(s string) string { return t.warn.Bold(true).Render(s) }
+	bad := func(s string) string { return t.bad.Bold(true).Render(s) }
+
+	cur := -1
+	switch res.Report.Memory.Pressure {
+	case probe.PressureNormal:
+		cur = 0
+	case probe.PressureWarn:
+		cur = 1
+	case probe.PressureCritical:
+		cur = 2
+	}
+	rows := m.gauge("Memory pressure", []gaugeStop{{"Normal", ok}, {"Warn", warn}, {"Critical", bad}}, cur, "", "pressure couldn't be read")
+
+	stops := map[string][]gaugeStop{
+		"Swap in use": {{"Low", ok}, {"Rising", warn}, {"High", bad}},
+		"Free disk":   {{"Plenty", ok}, {"Getting low", warn}, {"Low", bad}},
+	}
 	for _, c := range engine.SlowChecks(res.Report) {
-		mark, word := t.faint.Render("○"), t.muted.Render("fine")
-		if c.Tripped {
-			mark, word = t.warn.Render("●"), t.warn.Render(c.Flag)
-		}
-		rows = append(rows, fmt.Sprintf("%s%-17s %s %-10s %s  %s", lead, c.Name, mark, t.text.Render(c.Value), word, t.muted.Render("("+c.Limit+")")))
+		rows = append(rows, m.gauge(c.Name, stops[c.Name], c.Zone, c.Value+" ("+strings.ToUpper(c.Flag[:1])+c.Flag[1:]+" "+c.Limit+")", "couldn't be read")...)
 	}
-	now := "Right now: no alert."
-	if lvl, _ := engine.SlowVerdict(res.Report); lvl == engine.SeverityCritical || lvl == engine.SeverityWarn {
-		now = "Right now: the alert is on."
-	}
-	rows = append(rows, "", lead+t.muted.Render("The red alert shows when pressure is Warn or Critical, or when the disk is low and swap is high."),
-		lead+t.text.Render(now))
-	return t.block("How macdoc decides if memory is slowing your Mac", "", strings.Join(rows, "\n")+"\n")
+	return indentLines(strings.Join(rows, "\n")+"\n", " ") + "\n" // no title line: just the gauges
 }

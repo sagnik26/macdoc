@@ -1,0 +1,40 @@
+ ◆ macdoc  ›  Vitals
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+ ● Live · updated just now · every 3s                                                               
+                                                                                                    
+    Memory pressure   Normal ─── Warn ─── Critical                                                  
+                      pressure couldn't be read                                                     
+    Swap in use       Low ─── Rising ─── High   0 B (High from 2.0 GB)                              
+                       ▲                                                                            
+    Free disk         Plenty ─── Getting low ─── Low   unknown (Low under 10.0 GB)                  
+                      couldn't be read                                                              
+                                                                                                    
+                                                                                                    
+ Now                                                                                                
+  CPU      ████████░░░░░░░░░░░░  42.0% ▬   load 1.50 / 0.00 / 0.00 (8 cores)                        
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ ↑↓ move • esc back • q quit

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/sagnik26/macdoc/internal/cli"
 	"github.com/sagnik26/macdoc/internal/model"
@@ -51,7 +51,7 @@ func ticked(m cli.TierPicker) string {
 // SAFE starts ticked, the others do not, and advice-only items have no row.
 func TestTierPickerStartsWithSafeTicked(t *testing.T) {
 	m := cli.NewTierPicker(cli.PlainTheme(), pickerRows(false))
-	mustContain(t, m.View(), "[x] SAFE", "[ ] CAUTION", "[ ] RISKY", "2 items", "enter/space tick", "Clean 2 items")
+	mustContain(t, m.Screen(), "[x] SAFE", "[ ] CAUTION", "[ ] RISKY", "2 items", "enter/space tick", "Clean 2 items")
 	if got := ticked(m); got != "SAFE" {
 		t.Errorf("ticked = %q, want SAFE", got)
 	}
@@ -66,7 +66,7 @@ func TestTierPickerTicksAndSubmits(t *testing.T) {
 	if got := ticked(m); got != "SAFE,CAUTION,RISKY" {
 		t.Fatalf("ticked = %q", got)
 	}
-	mustContain(t, m.View(), "[x] CAUTION", "[x] RISKY")
+	mustContain(t, m.Screen(), "[x] CAUTION", "[x] RISKY")
 	m = pickerPress(t, m, keys(" ")[0]) // untick RISKY again
 	if got := ticked(m); got != "SAFE,CAUTION" {
 		t.Errorf("after unticking RISKY: %q", got)
@@ -82,7 +82,7 @@ func TestTierPickerTicksAndSubmits(t *testing.T) {
 	}
 	// Down to the Clean button; Enter there submits.
 	m = pickerPress(t, m, keys("down")...)
-	mustContain(t, m.View(), "▸ ", "Clean 3 items", "┏", "┗")
+	mustContain(t, m.Screen(), "▸ ", "Clean 3 items", "┏", "┗")
 	m = pickerPress(t, m, keys("enter")[0])
 	if !m.Done() || m.Canceled() || ticked(m) != "SAFE,CAUTION" {
 		t.Errorf("enter on Clean: done %v canceled %v ticked %q", m.Done(), m.Canceled(), ticked(m))
@@ -94,18 +94,18 @@ func TestTierPickerTicksAndSubmits(t *testing.T) {
 // ticks every row that can be cleaned (never ADVICE) and a second "a" unticks.
 func TestTierPickerAdviceAndEmptyRowsCannotBeTicked(t *testing.T) {
 	rows := pickerRows(true) // TierChoices gives no ADVICE row; the picker still refuses one if it is given
-	if strings.Contains(cli.NewTierPicker(cli.PlainTheme(), rows).View(), "ADVICE") {
+	if strings.Contains(cli.NewTierPicker(cli.PlainTheme(), rows).Screen(), "ADVICE") {
 		t.Error("an ADVICE row is shown")
 	}
 	rows = append(rows, cli.TierChoice{Risk: model.RiskAdvise, Note: "macdoc can't remove these",
 		Items: []model.Opportunity{{ID: "O-advi01", Risk: model.RiskAdvise, Method: model.MethodAdvise, Title: "x"}}})
 	m := cli.NewTierPicker(cli.PlainTheme(), rows)
-	if strings.Contains(m.View(), "RISKY") {
+	if strings.Contains(m.Screen(), "RISKY") {
 		t.Error("an empty RISKY row is shown")
 	}
 	m = pickerPress(t, m, keys("down", "down")...) // CAUTION, ADVICE
 	m = pickerPress(t, m, keys(" ")[0])
-	mustContain(t, m.View(), "can't remove advice-only", "[-] ADVICE")
+	mustContain(t, m.Screen(), "can't remove advice-only", "[-] ADVICE")
 	if got := ticked(m); got != "SAFE" {
 		t.Errorf("ADVICE was ticked: %q", got)
 	}
@@ -123,14 +123,14 @@ func TestTierPickerAdviceAndEmptyRowsCannotBeTicked(t *testing.T) {
 func TestTierPickerNeedsAChoiceAndCancels(t *testing.T) {
 	m := cli.NewTierPicker(cli.PlainTheme(), pickerRows(false))
 	m = pickerPress(t, m, keys(" ")[0]) // untick SAFE
-	mustContain(t, m.View(), "Clean: nothing ticked")
+	mustContain(t, m.Screen(), "Clean: nothing ticked")
 	m = pickerPress(t, m, keys("down", "down", "down", "down", "enter")...) // to the Clean button, then Enter
 	if m.Done() {
 		t.Error("Clean with nothing ticked should not submit")
 	}
-	mustContain(t, m.View(), "Tick at least one risk type")
+	mustContain(t, m.Screen(), "Tick at least one risk type")
 
-	for _, k := range []tea.Msg{keys("esc")[0], tea.KeyMsg{Type: tea.KeyCtrlC}} {
+	for _, k := range []tea.Msg{keys("esc")[0], tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}} {
 		c := pickerPress(t, cli.NewTierPicker(cli.PlainTheme(), pickerRows(false)), k)
 		if !c.Done() || !c.Canceled() {
 			t.Errorf("%v should cancel", k)

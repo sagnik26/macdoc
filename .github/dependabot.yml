@@ -7,7 +7,7 @@ updates:
     open-pull-requests-limit: 5
     groups:
       charm:
-        patterns: ["github.com/charmbracelet/*", "github.com/muesli/*"]
+        patterns: ["charm.land/*", "github.com/charmbracelet/*", "github.com/muesli/*"]
 
   - package-ecosystem: github-actions
     directory: /

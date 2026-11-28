@@ -1,9 +1,11 @@
 # macdoc: MCP Design (Phase C)
 
+> **Updated 2026-11-24 (ADR 0015):** the tools `create_cleanup_plan` and `get_plan` were removed, so the server now has nine tools and no way to create a plan. Sections 3 and 4 (handoff, plan limits, Claude-origin plans) and the plan parts of the example conversation describe the earlier design and are kept for history. Claude diagnoses and suggests; the person cleans with `macdoc reclaim` or the dashboard.
+
 ## 1. Shape
 - `macdoc mcp` runs a **stdio** MCP server inside the same binary and calls the same engine as the CLI.
-- **No executor code is reachable.** `internal/mcp` must not import `internal/executor` (or `internal/cli`, which does), and CI enforces this with an import guard. The binary contains the executor for `apply`, but nothing the MCP server can call leads to it.
-- It can read cached scans and trigger a read-only rescan. The only thing it writes is plan files (`origin: "claude"`).
+- **No executor code is reachable.** `internal/mcp` must not import `internal/executor` (or `internal/cli`, which does), and CI enforces this with an import guard. The binary contains the executor for `reclaim` and the dashboard, but nothing the MCP server can call leads to it.
+- It can read cached scans and trigger a read-only rescan. It writes nothing on the Mac (ADR 0015).
 
 Registration (documented, not automated):
 ```
@@ -11,7 +13,7 @@ claude mcp add macdoc -- macdoc mcp           # Claude Code
 # Claude Desktop: add to claude_desktop_config.json → "command": "macdoc", "args": ["mcp"]
 ```
 
-> **As built (Phase 8, 2026-10-30):** `internal/mcp` on `github.com/modelcontextprotocol/go-sdk` v1.8.0, started by `macdoc mcp`. All 11 tools below exist, with these differences:
+> **As built (Phase 8, 2026-10-30):** `internal/mcp` on `github.com/modelcontextprotocol/go-sdk` v1.8.0, started by `macdoc mcp`. Nine tools exist (it was 11 before ADR 0015), with these differences:
 > - Every result is `{"data": <the same shape as the CLI's --json>, "note": "<untrusted data>", "warnings": [...]}`. Strings are sanitized already (ANSI, control and bidi characters stripped, 1,000-character cap): that part of the Phase 9 hardening is done.
 > - `create_cleanup_plan` takes only `opportunity_ids` (1–50). The optional `note` was left out: free text from Claude stored in a plan would later be shown to the user at `apply`, a channel for persuasion. Advice-only, unknown, stale or path-like IDs are refused.
 > - `refresh_scan` starts the crawl in the background and reports `running`, then `done` (with the unmeasured count) on later calls.
@@ -31,11 +33,9 @@ claude mcp add macdoc -- macdoc mcp           # Claude Code
 | `diagnose_slowness` | none | Pressure, swap trend, top memory groups, explanation | none |
 | `get_growth_history` | `{ days?: int }` | Category deltas | none |
 | `refresh_scan` | none | Starts a background-priority crawl and returns its status | read-only crawl |
-| `create_cleanup_plan` | `{ opportunity_ids: ["O-…"] }` (1–50; no free-text `note`, see §1) | Plan ID, dry-run summary, totals, **command for the user to run** | Writes a plan file |
-| `get_plan` | `{ id: "P-…" }` | Plan contents and status (pending, applied, expired) | none |
 | `get_audit_log` | `{ limit?: int }` | Recent audit events | none |
 
-**Deliberately absent:** `apply_plan`, `delete_*`, `run_command`, any input that accepts a path, and any tool that purges or restores quarantine.
+**Deliberately absent:** `create_cleanup_plan`, `get_plan`, `apply_plan`, `delete_*`, `run_command`, any input that accepts a path, and any tool that purges or restores quarantine.
 
 ## 3. Handoff: Claude to terminal
 

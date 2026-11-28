@@ -5,8 +5,9 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sagnik26/macdoc/internal/model"
 )
@@ -68,7 +69,7 @@ func (m TierPicker) Init() tea.Cmd { return nil }
 
 // Update implements tea.Model.
 func (m TierPicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	k, ok := msg.(tea.KeyMsg)
+	k, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return m, nil
 	}
@@ -78,7 +79,7 @@ func (m TierPicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cursor = max(0, m.cursor-1)
 	case "down", "j":
 		m.cursor = min(len(m.rows), m.cursor+1) // the last stop is the Clean button
-	case " ", "x":
+	case "space", "x":
 		if m.cursor < len(m.rows) {
 			m = m.toggle(m.cursor)
 		}
@@ -134,7 +135,20 @@ func (m TierPicker) toggleAll() TierPicker {
 }
 
 // View implements tea.Model.
-func (m TierPicker) View() string {
+// View implements tea.Model: the picker, drawn in place (no alternate screen).
+func (m TierPicker) View() tea.View { return tea.NewView(m.Screen()) }
+
+// Screen is what the picker shows, as a string, with no escape sequence when
+// the theme draws no color.
+func (m TierPicker) Screen() string {
+	s := m.screen()
+	if !m.t.color {
+		s = ansi.Strip(s)
+	}
+	return s
+}
+
+func (m TierPicker) screen() string {
 	t := m.t
 	if m.done {
 		if m.canceled {
@@ -201,14 +215,14 @@ func (m TierPicker) cleanButton() string {
 	label, color, border := "Clean: nothing ticked", colMuted, lipgloss.RoundedBorder()
 	if len(items) > 0 {
 		label = fmt.Sprintf("Clean %d %s · %s", len(items), plural(len(items), "item", "items"), sizeSummary(items))
-		color = colDarkViolet
+		color = colBrand
 	}
 	if focused && len(items) > 0 {
 		border = lipgloss.ThickBorder() // a heavier frame while the cursor is on it
 	}
 	// A framed button in dark violet (its own color, so it isn't mistaken for a
 	// row); the arrow marks the middle line when the cursor is on it.
-	st := t.r.NewStyle().Border(border).BorderForeground(color).Foreground(color).Padding(0, 2)
+	st := t.style().Border(border).BorderForeground(t.c(color)).Foreground(t.c(color)).Padding(0, 2)
 	if focused {
 		st = st.Bold(true)
 	}

@@ -1,0 +1,107 @@
+# System locations `reclaim` may clean with administrator rights (ADR 0014
+# §1-3). The list of locations is code (safety.CheckSystemTarget), not these
+# files: a recipe names a kind and the loader pins its detector and risk. Every
+# removal is permanent (root-owned data can't be quarantined), asks for the
+# Mac password in Terminal, and needs its own y/N.
+
+- id: system.library_caches
+  title: System cache
+  category: system
+  toolchain: system
+  risk: CAUTION
+  method: system
+  detector: system_dir
+  params: {dir: "/Library/Caches", kind: caches}
+  stale_days: 30
+  restore:
+    kind: none
+    note: Gone for good, but the system and apps rebuild their caches.
+  explain: >-
+    Apps and background services keep caches in /Library/Caches, shared by
+    every user of this Mac. They are rebuilt when needed. Removing one needs
+    your Mac password and can't be undone by macdoc. Apple's own caches
+    (com.apple.*) are never offered.
+
+- id: system.library_logs
+  title: System log
+  category: logs
+  toolchain: system
+  risk: CAUTION
+  method: system
+  detector: system_dir
+  params: {dir: "/Library/Logs", kind: logs}
+  stale_days: 30
+  restore:
+    kind: none
+    note: Old logs aren't needed for anything to work.
+  explain: >-
+    Services write diagnostic logs to /Library/Logs. Logs that haven't changed
+    in a month are rarely needed. Removing one needs your Mac password and
+    can't be undone by macdoc.
+
+- id: system.var_logs
+  title: System log
+  category: logs
+  toolchain: system
+  risk: CAUTION
+  method: system
+  detector: system_dir
+  params: {dir: "/private/var/log", kind: logs}
+  stale_days: 30
+  restore:
+    kind: none
+    note: Old logs aren't needed for anything to work.
+  explain: >-
+    macOS and services write logs to /private/var/log. Ones that haven't
+    changed in a month are rarely needed, and macOS starts new ones. Removing
+    one needs your Mac password and can't be undone by macdoc.
+
+- id: system.launch_daemons
+  title: Orphaned background item
+  category: system
+  toolchain: system
+  risk: RISKY
+  method: system
+  detector: system_launchd
+  params: {dir: "/Library/LaunchDaemons", kind: launchd}
+  restore:
+    kind: none
+    note: The app that owned it is gone; reinstalling the app brings it back.
+  explain: >-
+    A background item in /Library/LaunchDaemons starts a program that no
+    longer exists, which is what an app leaves behind when it is deleted
+    without its helper being removed. macdoc removes only the item's file.
+    It needs your Mac password and can't be undone by macdoc.
+
+- id: system.helper_tools
+  title: Orphaned helper tool
+  category: system
+  toolchain: system
+  risk: RISKY
+  method: system
+  detector: system_helpers
+  params: {dir: "/Library/PrivilegedHelperTools", kind: helpers}
+  restore:
+    kind: none
+    note: The app that installed it is gone; reinstalling the app brings it back.
+  explain: >-
+    A helper tool in /Library/PrivilegedHelperTools is named after an app that
+    isn't installed any more, and no background item uses it. It needs your Mac
+    password to remove and can't be undone by macdoc.
+
+- id: system.tm_incomplete
+  title: Interrupted Time Machine backup
+  category: backups
+  toolchain: system
+  risk: RISKY
+  method: system
+  detector: system_backups
+  params: {kind: timemachine}
+  restore:
+    kind: irreplaceable
+    note: An interrupted backup isn't a usable backup, but it can't be brought back once deleted.
+  explain: >-
+    A Time Machine backup that was interrupted can leave a folder ending in
+    .inProgress on the backup disk. Time Machine usually removes it after the
+    next successful backup. macdoc deletes it with Time Machine's own
+    `tmutil delete`, which needs your Mac password; it can't be undone.

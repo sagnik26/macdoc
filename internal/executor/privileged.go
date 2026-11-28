@@ -10,16 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/recipes"
 	"github.com/sagnik26/macdoc/internal/sandbox"
 )
 
 // This file is the only place macdoc runs a command with administrator
 // rights, and the only file the forbidden-call guard lets name sudo
-// (docs/adr/0009-privileged-maintenance-steps.md). The bounds, all enforced
-// here and in the planner:
-//   - the command is one of recipes.PrivilegedArgvAllowed, exactly;
+// (docs/adr/0014-reclaim-system-cleanup.md, which took over the rules of the
+// retired docs/adr/0009-privileged-maintenance-steps.md). The bounds, all
+// enforced here and in the planner:
+//   - the command is exactly what recipes.SystemArgv builds for a named system
+//     location (recipes.SystemArgvOK);
 //   - the plan was made by a person, never by Claude;
 //   - the person is at a real terminal, and typed the confirmation for this
 //     item on its own (Approvals.approves);
@@ -33,27 +34,19 @@ const sudoPath = "/usr/bin/sudo"
 // systemToolDirs are the only folders a privileged program may live in.
 var systemToolDirs = []string{"/usr/bin", "/usr/sbin", "/bin", "/sbin"}
 
-// privilegedAllowed re-checks a privileged item right before it runs. It
-// returns a skip, never runs anything, and never "fixes up" the command.
-func (p *performer) privilegedAllowed(r recipes.Recipe, argv []string) error {
-	switch {
-	case p.plan.Origin == model.OriginClaude:
-		return skip{"it needs administrator rights, and a plan Claude proposed can't include that"}
-	case !r.Privileged:
-		return skip{"its recipe isn't marked as needing administrator rights"}
-	case !recipes.ArgvIn(argv, recipes.PrivilegedArgvAllowed):
-		return skip{"its command isn't on the privileged allow-list"}
+// realSystem removes one system item with administrator rights (ADR 0014 §2).
+// The command must be exactly what recipes.SystemArgv builds for a path that
+// has one of the named layouts; everything else is refused here, whatever the
+// caller says. It needs a terminal and no sandbox.
+func realSystem(ctx context.Context, argv []string, timeout time.Duration) ([]byte, int, error) {
+	if !recipes.SystemArgvOK(argv) {
+		return nil, -1, errors.New("command is not a removal of a named system location")
 	}
-	return nil
+	return runSudo(ctx, argv, timeout)
 }
 
-// realPrivileged runs argv with administrator rights through sudo, which asks
-// for the password on the terminal. It refuses unless stdin and stdout are a
-// terminal and the sandbox is off.
-func realPrivileged(ctx context.Context, argv []string, timeout time.Duration) ([]byte, int, error) {
-	if !recipes.ArgvIn(argv, recipes.PrivilegedArgvAllowed) {
-		return nil, -1, errors.New("command is not on the privileged allow-list")
-	}
+// runSudo runs an argv that the caller has already checked through sudo, which asks for the password on the terminal.
+func runSudo(ctx context.Context, argv []string, timeout time.Duration) ([]byte, int, error) {
 	if _, active, _ := sandbox.Root(); active {
 		return nil, -1, errors.New("privileged commands don't run in sandbox mode")
 	}

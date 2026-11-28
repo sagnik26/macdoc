@@ -1,19 +1,15 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/model"
 	"github.com/sagnik26/macdoc/internal/planner"
 )
 
-// NowFunc is the clock for plan expiry shown in the dashboard (tests fix it).
+// NowFunc is the dashboard's clock (tests fix it).
 var NowFunc = time.Now
 
 // toggleMark marks or unmarks the selected suggestion for a plan.
@@ -34,44 +30,6 @@ func (m *TuiModel) toggleMark() {
 		m.Marked[op.ID] = true
 	}
 	m.moveCursor("down")
-}
-
-// markCleanable marks the suggestions that the installed programs' cleanups
-// produce, and opens them in the Suggestions tab. Advice-only items are left
-// out, as toggleMark leaves them out. Nothing is planned or removed here.
-func (m TuiModel) markCleanable() (tea.Model, tea.Cmd) {
-	if m.software == nil || m.Data == nil {
-		m.Flash = "Nothing to mark yet: read the installed software first."
-		return m, nil
-	}
-	sum := softwareCleanups(display(*m.software), m.Items())
-	if len(sum.Items) == 0 {
-		m.Flash = "No installed program has a cleanup that can be marked."
-		return m, nil
-	}
-	if m.Marked == nil {
-		m.Marked = map[string]bool{}
-	}
-	for _, id := range sum.Items {
-		m.Marked[id] = true
-	}
-	m.Overlay = OverlayNone
-	m.setTab(TabSuggestions)
-	m.Flash = fmt.Sprintf("Marked %d suggestions from installed software (%s, + %d unknown). Nothing is removed yet: press p to plan it.",
-		len(sum.Items), engine.DecimalBytes(sum.Bytes), sum.Unknown)
-	return m, nil
-}
-
-// preMarkSafe marks the SAFE suggestions of a fresh scan, so the picker
-// starts with the items that are safest to remove (Phase 10). Advice-only
-// items can't be marked. Nothing is planned or removed by marking: a plan
-// still needs p, and removal still needs its confirmation.
-func (m *TuiModel) preMarkSafe() {
-	for _, op := range m.Items() {
-		if op.Risk == model.RiskSafe && op.Method != model.MethodAdvise {
-			m.Marked[op.ID] = true
-		}
-	}
 }
 
 // MarkedSelector plans the marked suggestions in ranked order, or the
@@ -112,64 +70,6 @@ func (m TuiModel) markedTotal() (int, int64) {
 		}
 	}
 	return n, sum
-}
-
-// startPlan seals a plan in the background. Making a plan writes only the
-// plan file; nothing on the Mac changes.
-func (m TuiModel) startPlan(sel *planner.Selector) (tea.Model, tea.Cmd) {
-	if sel == nil || m.Planning {
-		return m, nil
-	}
-	if m.Data == nil || m.Deps.MakePlan == nil {
-		m.Flash = "Check your Mac first: plans are made from the latest scan."
-		return m, nil
-	}
-	m.Planning = true
-	m.Flash = "Sealing a dry-run plan…"
-	deps, pre, s := m.Deps, m.Data.PlanOps, *sel
-	return m, func() tea.Msg {
-		res, err := deps.MakePlan(deps, s, pre)
-		return PlanMsg{Res: res, Err: err}
-	}
-}
-
-// planned shows a sealed plan, or why none was made.
-func (m TuiModel) planned(msg PlanMsg) (tea.Model, tea.Cmd) {
-	m.Planning = false
-	handOff := m.sealForApply // a refresh step: apply it as soon as it is sealed
-	m.sealForApply = false
-	switch {
-	case msg.Err == nil && handOff:
-		m.Flash = ""
-		return m.startApply(msg.Res.Plan.ID)
-	case msg.Err == nil:
-		m.Plan = &msg.Res
-		m.Overlay, m.scroll = OverlayPlan, 0
-		m.Flash = "Plan " + msg.Res.Plan.ID + " sealed. Nothing has been changed. Press a to apply it (you confirm in the terminal), esc to close."
-		clear(m.Marked)
-	case errors.Is(msg.Err, planner.ErrNothing):
-		reason := "none of them can be acted on"
-		if len(msg.Res.Refused) > 0 {
-			reason = msg.Res.Refused[0].ID + ": " + msg.Res.Refused[0].Reason
-		}
-		m.Flash = "Nothing to plan: " + reason
-	default:
-		m.Flash = "Couldn't make a plan: " + msg.Err.Error()
-	}
-	return m, nil
-}
-
-// planView is the sealed plan's dry run.
-func (m TuiModel) planView() string {
-	if m.Plan == nil {
-		return ""
-	}
-	var buf strings.Builder
-	saved := m.t.width
-	m.t.width = m.w - 2
-	_ = RenderPlan(&themedWriter{Writer: &buf, t: m.t}, *m.Plan, m.Deps.Home, NowFunc())
-	m.t.width = saved
-	return "\n" + indentLines(buf.String(), " ")
 }
 
 // markedNote is the list header's marked summary, "" if nothing is marked.

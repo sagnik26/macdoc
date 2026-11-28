@@ -46,6 +46,9 @@
         "method": {
           "type": "string"
         },
+        "non_interactive": {
+          "type": "boolean"
+        },
         "origin": {
           "type": "string"
         },

@@ -10,7 +10,7 @@
 
 <p align="center">
 <pre>
- ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago · asks before removing
+ ◆ macdoc  MacBookAir10,1 · M1                             51.2 GB free · scan 6m ago
   1 Overview   2 Suggestions   3 Toolchains   4 Projects   5 Space   6 Health
  SAFE 825 MB  ·  CAUTION 553 MB  ·  ADVICE 48.9 GB   item 1 of 12
  ╭───┬──────────┬─────────┬─────────┬────────────────────────────────┬──────────────────────────────╮
@@ -23,7 +23,7 @@
 </pre>
 </p>
 
-> 💡 macdoc makes **no network calls and sends no telemetry**. It removes only what you approve at a real Terminal. Claude can propose plans through MCP, but can never apply one.
+> 💡 macdoc makes **no network calls and sends no telemetry**. It removes only what you approve at a real Terminal. Claude can diagnose and suggest through MCP, but has no way to plan, apply or delete.
 
 ## Features
 
@@ -31,7 +31,6 @@
 - **Deep clean**: Finds caches, logs, build artifacts, installers, and leftovers from uninstalled apps, with an honest size and a restore cost for each
 - **Smart uninstaller**: Moves apps aside and finds the settings, caches, and background items they left behind
 - **Disk analyzer**: Shows where the space is inside any folder, with no rescan
-- **System maintenance**: Flushes DNS, frees inactive memory, and resets Quick Look through the system password prompt
 - **Live monitoring**: Shows real-time CPU, memory, disk I/O, network traffic, battery, and a health score with the reasons
 
 ## Quick Start
@@ -58,7 +57,7 @@ Tell your agent:
 
 > Install macdoc for me by reading https://raw.githubusercontent.com/sagnik26/macdoc/main/llms.txt
 
-Or give it the skill in [`skills/macdoc`](skills/macdoc/SKILL.md). With it, Claude Code and other agents run read-only checks and propose plans, and leave every apply to you in Terminal.
+Or give it the skill in [`skills/macdoc`](skills/macdoc/SKILL.md). With it, Claude Code and other agents run read-only checks and suggest cleanups, and leave every removal to you in Terminal.
 
 ```bash
 claude mcp add macdoc -- macdoc mcp
@@ -67,14 +66,12 @@ claude mcp add macdoc -- macdoc mcp
 **Run**
 
 ```bash
-macdoc                           # Interactive dashboard (type / for commands: /scan /reclaim /vitals /explore /retire /refresh)
+macdoc                           # Interactive dashboard (type / for commands: /scan /reclaim /retire /explore /vitals)
 macdoc reclaim                   # Lists cleanups by risk; at a Terminal, pick which risk types to clean
 macdoc retire                    # Installed software and the data that belongs to it
-macdoc refresh                   # Maintenance steps (flush DNS, free memory, reset Quick Look)
 macdoc explore [path]            # Visual disk explorer (--growth, --projects)
 macdoc vitals                    # Live system health dashboard (--memory: is memory slowing your Mac?)
-macdoc scan                      # Fresh scan or last data (it asks), then the full report; --fresh / --last skip the question
-macdoc apply <id…>               # Seal a plan, review it, and carry it out after you confirm in Terminal
+macdoc scan                      # Scan the disk afresh, then the full report
 
 # More: log, quarantine, config, schedule, mcp, completion, version
 macdoc --help                    # Show help
@@ -84,11 +81,6 @@ macdoc --help                    # Show help
 
 ```bash
 macdoc reclaim                   # See what could be reclaimed; at a Terminal, tick what to clean, then Enter
-macdoc apply --safe --dry-run    # Dry run of every SAFE suggestion (changes nothing)
-macdoc apply O-ab23cd O-k3m9pq --dry-run   # Dry run of the suggestions you pick
-macdoc apply --recipe apps.leftovers --dry-run
-macdoc apply P-ZDHP              # Applies a sealed plan: shows it again, asks you to type its code
-macdoc apply --list              # Pending plans
 macdoc quarantine restore <id>   # Put a moved folder back
 macdoc log --json                # Activity as JSON, with a run ID per command
 ```
@@ -128,8 +120,8 @@ macdoc is only distributed through Homebrew, this repository and its [GitHub rel
 
 macdoc can remove files, so it validates paths, protects system and personal locations, and asks for confirmation at a real Terminal before anything is removed.
 
-- `retire`, `refresh`, `explore`, `vitals` and `scan` are read-only, and `reclaim` is read-only unless you choose risk types and press Enter at its prompt in a real Terminal (SAFE only by default; RISKY keeps apply's confirmations), and `apply --dry-run` only seals a plan: review it before you apply it. `apply` always shows the plan and asks you to confirm in Terminal
-- Plans and tools take suggestion IDs, never paths, and there is no `--yes`: only a person at the Terminal approves a removal
+- `retire`, `explore`, `vitals` and `scan` are read-only, and `reclaim` is read-only unless you choose risk types and press Enter at its prompt in a real Terminal (SAFE only by default; each RISKY item needs its ID typed)
+- Plans and tools take suggestion IDs, never paths: a person at the Terminal approves a removal, except `macdoc reclaim --tier safe|caution --yes` and the dashboard's `/reclaim`, which only move SAFE or CAUTION items into quarantine with no prompt (RISKY is never part of them; `--yes` is marked `non_interactive` in the audit log; ADR 0014)
 - Every action comes from a fixed recipe catalog with exact command allow-lists: no shell, no `docker system prune`, no `--volumes`
 - Each item is checked again right before it is touched; anything that changed is skipped and recorded, never "fixed up"
 - Folders go to a private quarantine first and are deleted through the same checks; `macdoc quarantine restore` puts one back while it is there
@@ -139,6 +131,17 @@ macdoc can remove files, so it validates paths, protects system and personal loc
 
 Review [SECURITY.md](SECURITY.md), [docs/SAFETY_MODEL.md](docs/SAFETY_MODEL.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for reporting guidance, safety boundaries, and what each defence is tested by.
 
+### Colors
+
+macdoc draws in color only when the terminal supports it. The palette adapts to a
+light or dark background (detected from the terminal), and to 16, 256 or
+truecolor terminals. Risk is always written out (SAFE, CAUTION, RISKY), never
+shown by color alone.
+
+- `NO_COLOR=1` turns color off; piped output, files and `--quiet` are always plain
+  text with no escape sequences.
+- `MACDOC_THEME=light` or `MACDOC_THEME=dark` skips background detection.
+
 ## Configuration
 
 macdoc runs without configuration. Settings can only make it stricter or change timings. `macdoc config` shows them.
@@ -146,6 +149,8 @@ macdoc runs without configuration. Settings can only make it stricter or change 
 - `macdoc config protect ~/work/client`: never suggest or remove anything in that folder
 - `macdoc config set plan_minutes 60`: keep plans valid longer (default 30)
 - `macdoc config hide <id>` stops listing a kind of suggestion for good (an `O-…` ID from the list, or a recipe ID like `user.trash`); `macdoc config unhide <recipe id>` brings it back. In the dashboard, `x` on a suggestion does the same. It only hides: it never adds or enables anything, and the list's notes say how many items are hidden.
+- `.DS_Store` files are suggested too, one item per folder in your home folder (CAUTION; shown once they add up to 1 MB, or with `macdoc reclaim --small`). They are deleted at once with no quarantine copy, only files with that exact name, and never inside Library, `.git`, `node_modules` or photo and music libraries (ADR 0014).
+- `macdoc reclaim` also offers a few system locations (old items in `/Library/Caches`, `/Library/Logs` and `/private/var/log`, orphaned LaunchDaemons and helper tools, interrupted Time Machine backups). These need your Mac password, are permanent, and each asks for its own y/N (ADR 0014).
 - `"excluded_recipes": ["maintenance.*"]` in the settings file does the same by hand, for a whole family with a trailing `.*`
 
 These environment variables adapt macdoc to slow disks or stalled network mounts; raise a timeout only when macdoc reports that a command timed out:
@@ -165,7 +170,7 @@ The examples below are shortened. Available items, sizes, and restore costs depe
 
 ### Reclaim
 
-`macdoc reclaim` is the one-step cleaner. At a real Terminal it lists everything by risk, then asks "What do you want to clean?" with a row each for SAFE, CAUTION and RISKY (item count, size, a short note; RISKY only when something is in it). Tick the risk types to clean in a checkbox list (↑↓ move, Enter or space ticks and unticks the highlighted type so several can be ticked, `a` ticks all, Esc cancels; SAFE starts ticked). A separate `Clean N items` button below the list is the only thing that starts the cleanup, and only Enter on it does. Where there is no raw terminal it asks you to type `safe`, `caution`, `risky` or `all` instead, and Enter alone means SAFE. CAUTION is cleaned only when you name it. RISKY is cleaned only when you name it, and then keeps `apply`'s full confirmation (the plan is shown, each RISKY item asks y/N, and you type the plan's code), so one Enter never approves RISKY. Advice-only items are listed above but have no row and can never be chosen. Every cleanup runs with every re-check, quarantine step and audit entry. Piped, with `--json`, `--quiet` or `--dry-run`, it only lists. `macdoc reclaim <toolchain>` limits the list and the cleaning; `--tier X` skips the question and cleans only that tier on Enter; `--toolchains` and `--categories` are read-only reports. Items that would free under 1 MB are counted in a note; `--small` lists them too. Administrator steps and Claude-proposed plans are never cleaned this way, and there is no `--yes`. `macdoc apply` remains for specific IDs, other tiers, and sealed or Claude-proposed plans: it seals what you pick as a plan, shows the dry run, and removes it after you type the plan's code. Add `--dry-run` to only seal and show it; `macdoc apply P-ZDHP` applies a plan that already exists, including one Claude proposed.
+`macdoc reclaim` is the one-step cleaner. At a real Terminal it lists everything by risk, then asks "What do you want to clean?" with a row each for SAFE, CAUTION and RISKY (item count, size, a short note; RISKY only when something is in it). Tick the risk types to clean in a checkbox list (↑↓ move, Enter or space ticks and unticks the highlighted type so several can be ticked, `a` ticks all, Esc cancels; SAFE starts ticked). A separate `Clean N items` button below the list is the only thing that starts the cleanup, and only Enter on it does. Where there is no raw terminal it asks you to type `safe`, `caution`, `risky` or `all` instead, and Enter alone means SAFE. CAUTION is cleaned only when you name it. RISKY is cleaned only when you name it, and then each RISKY item asks y/N and you type its ID, so one Enter never approves RISKY. Advice-only items are listed above but have no row and can never be chosen. Every cleanup runs with every re-check, quarantine step and audit entry. Piped, with `--json`, `--quiet` or `--dry-run`, it only lists. `macdoc reclaim <toolchain>` limits the list and the cleaning; `--tier X` skips the question and cleans only that tier on Enter; `--toolchains` and `--categories` are read-only reports. Items that would free under 1 MB are counted in a note; `--small` lists them too. Administrator steps and Claude-proposed plans are never cleaned this way, and there is no `--yes`.
 
 ```text
 $ macdoc reclaim
@@ -179,19 +184,8 @@ $ macdoc reclaim
   O-yzbseg    3.2 MB  Data left by com.example.chat (HTTPStorages)  The app isn't installed
                       4 × Background item whose program is gone
 
- Your call (advice only) ──────────────────────────────────────── 8.8 GB
+ Do it yourself (macdoc can't clean these) ──────────────────────────────────────── 8.8 GB
   O-okj5vt    8.8 GB  Leftover iOS simulator runtime downloads      Runtimes can be downloaded again
-
-$ macdoc apply --safe --dry-run
-Plan P-ZDHP · 1 item(s) · 6.7 MB · expires in 30 min · made by you
-
- Nothing has been changed.
- To apply it: macdoc apply P-ZDHP · expires 15:41
-
-$ macdoc apply P-ZDHP
- Type "ZDHP" to apply 1 item(s), 6.7 MB (SAFE: 1): ZDHP
- Plan P-ZDHP applied: 1 done · 0 skipped · 0 failed
- Free space change (measured): +6.4 MB
 ```
 
 CAUTION and RISKY items, and every item of a plan Claude proposed, are confirmed one by one. Piped input is refused.
@@ -228,27 +222,6 @@ $ macdoc reclaim --tier risky
 ```
 
 `macdoc retire` also reports which universal apps still carry an Intel slice and about how many bytes it takes. This is advice only: macdoc doesn't remove the slice, because re-signing a thinned Developer-ID app makes Gatekeeper reject it ([ADR 0010](docs/adr/0010-slimming-universal-apps.md)).
-
-### Refresh
-
-`macdoc refresh` lists maintenance steps you can ask for: flush the DNS cache, restart the DNS responder, free inactive memory, and reset Quick Look. They are planned and applied through `macdoc apply`, like any other suggestion. Steps that need administrator rights say so in the dry run, and macOS asks for your password in Terminal; macdoc never sees it.
-
-```text
-$ macdoc refresh
-
-  O-anezgn  Reset the Quick Look cache
-  O-pauohd  Restart the Quick Look server
-  O-6jyde4  Flush the DNS cache  needs your Mac password
-  O-evcipg  Restart the DNS responder  needs your Mac password
-  O-p5h3jz  Free inactive memory  needs your Mac password
-
-$ macdoc apply O-6jyde4
- CAUTION ────────────────────────────────────────────────────────── 0 B
-  O-6jyde4  Flush the DNS cache
-            → runs dscacheutil -flushcache
-            Needs administrator rights: macOS asks for your password in Terminal.
- Nothing has been changed.
-```
 
 ### Explore
 

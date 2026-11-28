@@ -65,6 +65,10 @@ func cliFixture(t *testing.T) (home string) {
 			t.Fatal(err)
 		}
 	}
+	// reclaim always rescans; point that at an empty tree, never the real disk.
+	oldRoot := cli.ScanRoot
+	cli.ScanRoot = t.TempDir()
+	t.Cleanup(func() { cli.ScanRoot = oldRoot })
 	st, err := store.Open(store.DefaultPath(home))
 	if err != nil {
 		t.Fatal(err)
@@ -151,11 +155,11 @@ func TestWinsCommand(t *testing.T) {
 		"npm cache", "re-downloads on demand", "→ npm cache clean --force",
 		" Worth considering ─", "15.0 GB",
 		"5 × Stale node_modules folder · 15.0 GB", "(macdoc reclaim --all)",
-		" Your call (advice only) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
-		" macdoc apply <id…> (shows the plan, then asks you to confirm) · nothing has been changed")
+		" Do it yourself (macdoc can't clean these) ─", "size unknown", "iPhone backup (Mar 2025)", "Finder › iPhone › Manage Backups",
+		" macdoc reclaim (cleans what you choose, after you confirm) · nothing has been changed")
 	// Sections appear in tier order.
 	if strings.Index(out, "Free & safe") > strings.Index(out, "Worth considering") ||
-		strings.Index(out, "Worth considering") > strings.Index(out, "Your call") {
+		strings.Index(out, "Worth considering") > strings.Index(out, "Do it yourself") {
 		t.Error("sections out of order")
 	}
 	if strings.Contains(out, "Needs care") {
@@ -164,8 +168,8 @@ func TestWinsCommand(t *testing.T) {
 	if strings.Contains(out, "_cacache") || strings.Contains(out, "0 B") {
 		t.Error("single item got an instance suffix, or unknown shown as 0")
 	}
-	if !strings.Contains(out, "macdoc apply <id…>") {
-		t.Error("reclaim should point to apply, which asks before anything changes")
+	if !strings.Contains(out, "macdoc reclaim (cleans what you choose") {
+		t.Error("the list should point to reclaim, which asks before anything changes")
 	}
 
 	out, err = run(t, "reclaim", "--all")
@@ -181,7 +185,7 @@ func TestWinsCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out, "Free & safe") || !strings.Contains(out, "Your call") {
+	if strings.Contains(out, "Free & safe") || !strings.Contains(out, "Do it yourself") {
 		t.Errorf("--tier advise:\n%s", out)
 	}
 	out, err = run(t, "reclaim", "--tier", "risky")
@@ -327,7 +331,7 @@ func TestRenderWins(t *testing.T) {
 		" Needs care ─", "8.4 GB + unknown", "re-download ~1.2 GB", "—  ",
 		"can't be restored",
 		" Notes\n  · results are from a scan 9 hours old",
-		" macdoc apply <id…> (shows the plan, then asks you to confirm) · nothing has been changed")
+		" macdoc reclaim (cleans what you choose, after you confirm) · nothing has been changed")
 
 	buf.Reset()
 	empty := engine.OpportunityResult{Scan: model.ScanInfo{ID: "S-X"}, ScanAge: "just now"}

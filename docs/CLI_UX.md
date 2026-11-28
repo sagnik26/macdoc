@@ -2,21 +2,19 @@
 
 ## 1. Commands
 
-> **Command set (2026-11-14, ADR 0012):** bare `macdoc` is the overview (the dashboard in a terminal, the summary when piped), plus five commands that answer one question each: `reclaim` (what can I get back), `retire` (what software and leftovers can I remove), `refresh` (what maintenance can I run), `explore` (where did the space go, with `--growth` and `--projects`) and `vitals` (how is the Mac doing now, with `--memory` for the slowness verdict). `scan` rescans, and `apply` plans, confirms and applies in one command. The earlier `doctor` and `plan` commands were removed with no aliases. Older text below that says `doctor <section>` or `plan` means the command named in the table. `quarantine`, `log`, `config`, `schedule`, `mcp`, `completion` and `version` are unchanged. The "What grew" block is on Space, reached with `tab`.
+> **Command set (2026-11-14, ADR 0012):** bare `macdoc` is the overview (the dashboard in a terminal, the summary when piped), plus five commands that answer one question each: `reclaim` (what can I get back), `retire` (what software and leftovers can I remove), `explore` (where did the space go, with `--growth` and `--projects`) and `vitals` (how is the Mac doing now, with `--memory` for the slowness verdict). `scan` rescans, and `apply` plans, confirms and applies in one command. The earlier `doctor` and `plan` commands were removed with no aliases. Older text below that says `doctor <section>` or `plan` means the command named in the table. `quarantine`, `log`, `config`, `schedule`, `mcp`, `completion` and `version` are unchanged. The "What grew" block is on Space, reached with `tab`.
 
 | Command | Mode | Purpose |
 |---|---|---|
 | `macdoc` | read | One-screen health summary and top findings (dashboard in a terminal, summary when piped or with `--json`/`--quiet`) |
-| `macdoc scan [--fresh \| --last] [--workers N] [--foreground]` | read | The full report. In a terminal with an earlier scan it asks: fresh scan (reads the whole disk again) or the last data; `--fresh` and `--last` skip the question. Piped, `--json`, `--quiet` and the scheduled scan always scan fresh. Other commands reuse a scan < 6 h old. In the dashboard, `/scan` asks the same (`f` fresh, `enter` last data, `esc` cancel) |
-| `macdoc reclaim [toolchain] [--all] [--small] [--tier safe\|caution\|risky] [--toolchains] [--categories]` | read; cleans the chosen risk types at a real terminal (ADR 0013) | Top space wins, tiered. At a terminal (not `--json`, `--quiet`, piped or `--dry-run`) it lists everything by risk, then "What do you want to clean?" with a row each for SAFE, CAUTION and RISKY (count, size, note; RISKY only when something is in it). Type `safe`, `caution`, `risky` or `all` and press Enter to seal and apply through the executor; Enter alone is SAFE only, `n` or an unrecognised answer cancels. CAUTION only when named; RISKY only when named and it keeps apply's plan, y/N per item and typed code; advice-only items have no row (they are in the list above) and can never be chosen. `--tier X` skips the question and cleans only that tier on Enter. Administrator steps and Claude plans never. `--toolchains` and `--categories` stay read-only. `apply` is for specific IDs, other tiers and sealed plans. a toolchain name (xcode, android, node, homebrew, docker, python, ai, system) shows that toolchain and `--toolchains` all of them; `--categories` gives the category breakdown with "System Data" decoded and unknown big items |
+| `macdoc scan [--workers N] [--foreground]` | read | The full report. It always scans the disk afresh, with no question; other commands reuse a scan < 6 h old. In the dashboard, `/scan` does the same |
+| `macdoc reclaim [toolchain] [--all] [--small] [--tier safe\|caution\|risky] [--toolchains] [--categories]` | read; cleans the chosen risk types at a real terminal (ADR 0013) | Top space wins, tiered. At a terminal (not `--json`, `--quiet`, piped or `--dry-run`) it lists everything by risk, then "What do you want to clean?" with a row each for SAFE, CAUTION and RISKY (count, size, note; RISKY only when something is in it). Type `safe`, `caution`, `risky` or `all` and press Enter to seal and apply through the executor; Enter alone is SAFE only, `n` or an unrecognised answer cancels. CAUTION only when named; RISKY only when named and it keeps apply's plan, y/N per item and typed code; advice-only items have no row (they are in the list above) and can never be chosen. `--tier X` skips the question and cleans only that tier on Enter. `--tier safe|caution --yes` cleans that tier with no prompt and no terminal (quarantine moves only; audit `non_interactive`); a bare `--yes` is refused. Administrator steps and Claude plans never. `--toolchains` and `--categories` stay read-only. `apply` is for specific IDs, other tiers and sealed plans. a toolchain name (xcode, android, node, homebrew, docker, python, ai, system) shows that toolchain and `--toolchains` all of them; `--categories` gives the category breakdown with "System Data" decoded and unknown big items |
 | `macdoc explore --projects [--idle 90]` | read | Projects with idle days and artifact weight (§1b) |
 | `macdoc explore [path]` | read | Folder explorer from the last scan (ExploreResult: entries, share, largest files, `complete`/`partial`/`unavailable`). Dashboard: `enter` on the Space tab |
 | `macdoc retire` | read (stores a software snapshot with the scan) | Installed software, its data folders, the largest unowned folders under home (three levels deep, anywhere), and what is new since the previous scan (ADR 0007). A folder holding owned software is not listed whole; its unowned parts are listed instead |
-| `macdoc refresh` | read | Maintenance steps by ID (MaintenanceResult, `schema/refresh.json`). Privileged ones show "Needs administrator rights" and the exact command; the OS asks for the password at apply (ADR 0009) |
 | `macdoc vitals [--watch --interval D]` | read | Live status (StatusResult): health score and reasons, CPU, memory, disk and traffic, network, battery, top processes, process alerts (zombie parents, busy processes). `--watch` streams NDJSON (interval of at least 1s). the `/vitals` page shows the live block every 3s while open |
 | `macdoc vitals --memory [--days 7] [--tips]` | read (stores a vitals sample) | Verdict, biggest users against RAM, what each known group is, swap now and over the window |
 | `macdoc explore --growth [--days 30]` | read | Growth per area (Xcode, Gradle, Docker, …) and the folders that grew most, between the latest scan and one about N days old. Sizes of folders a scan didn't store are bounds ("<105 MB", "or more") |
-| `macdoc apply <O-id…> \| --safe \| --tier T \| --recipe <id> \| <P-id>` | **mutating, TTY** | Seals a plan, shows the dry run, then confirms, re-validates, executes and verifies. `--dry-run` only seals and shows. `P-id` applies an existing plan (including Claude's). `--list` and `--show P-id` replace plan list and show. With no arguments it applies nothing and lists pending plans and top suggestions |
 | `macdoc quarantine list\|restore <Q-id>\|purge [--expired]` | restore/purge mutating, TTY | Manage quarantine |
 | `macdoc log [--json]` | read | Audit history |
 | `macdoc config [set\|protect\|unprotect\|hide\|unhide\|path]` | writes macdoc's settings file | `hide <id>` takes an `O-…` ID from the list or a recipe ID and adds it to `excluded_recipes` (it only subtracts); `unhide` removes it; the list's notes count hidden items; in the dashboard `x` on a suggestion hides its kind and reads the list again. `plan_minutes`, `native_timeout_minutes`, extra protected folders (add-only on top of the built-in list), and `excluded_recipes` (recipe IDs or `prefix.*` to turn off; only subtracts, shown in `config` and its JSON). No `edit`: opening an editor would run a program outside the executor; `config path` prints the file |
@@ -33,25 +31,27 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
     - A gradient ANSI-Shadow logo, or `◆ macdoc` when the window is under 34 rows.
     - The tagline.
     - The last scan, from `engine.LastScan`, which only reads macdoc's own store.
-    - A box listing every command (`scan`, `reclaim`, `apply`, `retire`, `refresh`, `explore`, `vitals`) with a one-line explanation; `↑↓` choose and `enter` runs the highlighted one.
+    - A box listing every command (`scan`, `reclaim`, `retire`, `explore`, `vitals`) with a one-line explanation; `↑↓` choose and `enter` runs the highlighted one.
     - The promises. ("How it works" and "From the shell" were removed on 2026-11-16.)
   - Under 104 columns, the menu drops its descriptions and shows only the selected one's.
   - `/slow` starts the dashboard on that view.
 - **Layout:**
-  - Header: brand, machine, free space, scan age, and an `asks before removing` marker.
-  - Tab row (the scan view only): Overview, Suggestions, Toolchains, Projects, Space (`1`–`5`). Every other command opens a page of its own with the brand, its title and no tabs, and works without the scan view.
+  - Header: brand, machine, free space and scan age.
+  - Tab row (the scan view only): Overview, Suggestions, Projects, Space (`1`–`4`). Every other command opens a page of its own with the brand, its title and no tabs, and works without the scan view.
   - Body.
   - A context-sensitive help footer, generated from the key bindings.
 - **Suggestions:**
   - Tier totals, then a selectable table (marker, ID, size, risk, suggestion, restore).
   - At ≥ 120 columns, the selected item's detail view sits beside the list. Narrower, `e` swaps the list for it.
-- **`/` palette:** `/scan /reclaim /vitals /explore [folder] /retire /refresh`, with prefix completion. `/reclaim` opens its own page with the "What do you want to clean?" checkbox list; it reads the latest scan by itself (scanning only when there is none) instead of asking you to check the Mac first (Enter or space ticks and unticks the highlighted type, so several can be ticked; `a` ticks all; a separate "Clean N items" button at the bottom of the list is the only thing that applies, and only Enter on it marks the ticked risk types and opens the removal confirmation; Esc cancels; advice-only items have no row (the table shows them); the full table of every suggestion sits above the list, for reading, and the list is in a highlighted box under it; the table doesn't change as you tick; the RISKY row appears only when something is in it); there is no plans page: `/apply` goes to the Suggestions tab, where Enter on a suggestion starts a cleanup. A plan Claude proposed that can still be applied shows as one line there ("Claude proposed a plan: 3 items, 12.0 GB · a apply it in Terminal") and `a` hands it to `macdoc apply` in Terminal; `/apply P-id` hands any plan over directly. Plans you made, expired ones and applied ones are not listed. `/help` and `/quit` are not menu entries: the footer shows `? help` and `q quit` (and `/help`, `/quit` while typing), and typing them still works. `/vitals` is the live page (score, CPU, memory, disk, network, battery, biggest memory users). A "● Live · updated Ns ago" line shows it is current (the clock ticks every second, a reading is taken every 3), each number has an arrow for the way it moved since the last reading; a red alert appears only when memory pressure is warn or critical, or the disk is low (under 10 GB free) with high swap (2 GiB or more). With the alert, a "How macdoc decides if memory is slowing your Mac" box shows where pressure sits (Normal / Warn / Critical, marked "▲ now") and swap and free disk against their limits; `w` shows or hides the same box when there is no alert, `/explore` opens the folder tree (read-only, from the last scan; `→`/`enter` opens a folder in place, `←` closes it), and `/refresh` lists the maintenance steps as a table (ID, step, whether it needs your Mac password, risk, what happens afterwards, an Apply button) with the highlighted step explained below; Enter seals a plan for that step and hands it to apply, which asks you to confirm in Terminal. `/retire` shows the `retire` list in an overlay, read in the background: a summary (cleanups that can be reclaimed, new programs, the largest folder no software explains), tables filtered by `f`, `c` to mark the cleanups in Suggestions (nothing is removed until you plan and confirm), and `enter` on a program for its folders and cleanups. `/plan` and `/apply` still work when typed but aren't listed; the `p` and `a` keys do the same jobs. View-only tabs have no command; reach them with `tab` or `1`–`5`.
-- **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. The Toolchains view covers it. Nothing in the dashboard accepts a path (safety invariant 4).
+- **Charts (design system 4.10):** the Overview draws "Where your space is" as one stacked bar of the biggest folders (colors, or different glyphs without color) with a legend, and the Space tab draws a share bar per reclaimable category.
+- **`/` palette:** `/scan /reclaim /retire /explore /vitals`, with prefix completion. `/reclaim` asks nothing: it scans afresh, then, as soon as the scan ends, starts removing every SAFE and CAUTION suggestion (never RISKY, advice or an installed app) and shows progress by category (SAFE, then CAUTION), with no second bar after the scan's; `esc` stops it after the current item, and what it moved can be restored. When it ends, RISKY items it left alone are counted on the result screen ("N RISKY items left alone"); `d` there opens the normal removal box for them, where each one's ID must be typed (the table of suggestions is on the scan view, not repeated here); cleaning starts with Enter on a suggestion on the Suggestions tab, or with `/reclaim`. `/help` and `/quit` are not menu entries: the footer shows `? help` and `q quit` (and `/help`, `/quit` while typing), and typing them still works. `/vitals` is the live page (CPU, memory, disk, network, battery, biggest memory users; no Health section, which only the printed `macdoc vitals` has). A "● Live · updated Ns ago" line shows it is current (the clock ticks every second, a reading is taken every 3), each number has an arrow for the way it moved since the last reading; a red alert appears only when memory pressure is warn or critical, or the disk is low (under 10 GB free) with high swap (2 GiB or more). Three gauges are always shown under it, with no title line: memory pressure (Normal / Warn / Critical), swap in use (Low / Rising / High) and free disk (Plenty / Getting low / Low), each marked "▲" under the current stop, with the value and its alert limit; `/explore` opens the folder tree (read-only, from the last scan; `→`/`enter` opens a folder in place, `←` closes it), and `/refresh` lists the maintenance steps as a table (ID, step, whether it needs your Mac password, risk, what happens afterwards, an Apply button) with the highlighted step explained below; Enter seals a plan for that step and hands it to apply, which asks you to confirm in Terminal. `/retire` shows the `retire` list in an overlay, read in the background: a summary (cleanups that can be reclaimed, new programs, the largest folder no software explains), tables filtered by `f`, `c` to mark the cleanups in Suggestions (nothing is removed until you plan and confirm), and `enter` on a program for its folders and cleanups. View-only tabs have no command; reach them with `tab` or `1`–`5`.
+- **`/retire` (ADR 0017):** a list of installed programs (filter `f`: deletable, new, all; the Data column is what their folders hold). `enter` on a program asks "Delete <name>?" with the app bundle and data folders that go, their sizes and the total; `enter` deletes them for good, `esc` cancels. It shows no recipe, no advice and no risk label, and asks for no code. A program with no app and no data folder says there is nothing to delete.
+- **No `@` mentions.** A toolchain filter was tried and removed as unnecessary. `macdoc reclaim --toolchains` and `macdoc reclaim <toolchain>` cover it. Nothing in the dashboard accepts a path (safety invariant 4).
 - **Accessible tables** (`internal/cli/tables.go`). Every list in every view is a table:
   - Rounded border with column rules and an underlined, bold header row.
   - Right-aligned sizes and counts.
   - Text labels for risk and severity, so color is never the only signal.
-  - A `▶` marker on the selected row, plus a background tint that keeps every foreground readable.
+  - The selected row is pale text on purple (no pointer). Without color it shows a `▶` marker instead.
   - `fitColumns` shrinks only long text columns (wrap or cut with …), so IDs, sizes and risk labels are never truncated.
 - **Loading:**
   - The real engine stages appear as a checklist with timings (`engine.OverviewOptions.Step`).
@@ -59,15 +59,16 @@ Global flags: `--json`, `--quiet`. (`--no-color` and `--verbose` were dropped as
   - `esc` cancels. Results of a stopped scan are discarded, and the previous results stay.
   - `q` while loading stops the engine before exiting.
 - **Read-only:** the dashboard calls the same engine as the read-only commands and nothing else.
-- **Theme** (`internal/cli/theme.go`):
-  - Every color is a `CompleteAdaptiveColor`: truecolor, 256 and 16 values, for light and dark backgrounds. Lip Gloss picks the depth from the terminal.
+- **Theme** (`internal/cli/theme.go`, palette in `docs/DESIGN_SYSTEM.md`):
+  - Every color is a truecolor value for a dark and for a light background, reduced to 256 or 16 colors for terminals that show fewer (Charm v2: `colorprofile`).
   - Palette:
-    - coral brand
-    - cyan IDs and accents
-    - SAFE green, CAUTION yellow, RISKY orange, ADVISE blue
+    - indigo brand (`#7571F9` dark, `#5A56E0` light) for the mark, headings, the active tab and IDs
+    - a brand-to-pink gradient on the header rule, the welcome logo and the progress bar
+    - ANSI 212 (dark) or 162 (light) for the selected row's marker, ANSI 62 on 230 for the page title chip
+    - SAFE green, CAUTION yellow, RISKY orange, ADVISE and info blue, errors red (these never change with the look)
     - muted and faint grays
-  - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color.
-  - Non-terminal output uses a plain theme that renders the exact pre-color text, with no boxes, dots or escapes, so pipes, files and golden tests stay stable.
+  - `MACDOC_THEME=light|dark` skips background detection. `NO_COLOR` disables color. A colored dashboard also asks the terminal for its background color at start and restyles if the answer differs from the guess.
+  - Non-terminal output uses a plain theme with no color and no attributes, so it carries no escape sequence, with no boxes or dots, so pipes, files and golden tests stay stable. The golden snapshots are in `internal/cli/tests/testdata/golden`.
   - Native commands are highlighted: tool green, flags yellow, arguments plain.
 
 ### 1b. `macdoc explore --projects` (implemented 2026-10-28, Phase 4)
@@ -95,6 +96,8 @@ macdoc explore --projects · scan S-TEST · 2h ago
 - The dashboard's **Projects** tab shows the same as a table (Project, Idle, Size, Git, Biggest folders), with protected projects marked `(protected)`.
 - `--json` returns `engine.ProjectsResult`: `projects[]` (root, name, kinds, artifacts, artifact_bytes, last_active, activity_source, idle_days, git, git_note, protected) and `derived_data[]` (path, bytes, workspace, project, missing).
 
+> **Removed 2026-11-24 (ADR 0015):** `macdoc apply`, `/plan`, `/apply`, the `p` and `a` keys, the plan overlay and `macdoc refresh` with its `/refresh` page no longer exist. Cleaning is `macdoc reclaim` or Enter on a suggestion in the dashboard; a plan is still sealed inside every removal, but nobody creates or applies one by name. The sections below describe the earlier design and are kept for history.
+
 ### 1c. `macdoc apply --dry-run` (was `macdoc plan`) (implemented 2026-10-28, Phase 5)
 
 - A top-level command, as designed: `macdoc apply <O-id…> | --safe | --tier safe|caution|risky | --recipe <id>` (with `--dry-run` it only seals and shows the plan), plus `apply --show <P-id>` and `apply --list`. Exactly one selector. Arguments that look like paths are refused ("plans take suggestion IDs (O-…), never paths"), as are advice-only tiers and unknown recipes.
@@ -114,7 +117,7 @@ macdoc explore --projects · scan S-TEST · 2h ago
 - `macdoc quarantine restore <Q-id>` never overwrites. `macdoc quarantine purge --expired | <Q-id…>` lists what will go and asks for the word `purge` at a real terminal.
 - `macdoc log [-n N]`: one line per audit record (plan, apply started, done / skipped / failed with reason, apply finished with the measured change, restored, purged). `--json` returns the raw records. Each record has a `run` ID (`R-xxxxxxxx`) shared by everything one command wrote (the plan, or the apply's start, items and finish, or a restore or purge), plus the `plan` and `item` IDs, so a run can be matched to its plan and items.
 - **Timeouts:** read-only external commands stop after 10 s by default. `MACDOC_TIMEOUT=<seconds>` changes that for all of them, and `MACDOC_TIMEOUT_<COMMAND>=<seconds>` for one (command name upper-cased, other characters `_`, such as `MACDOC_TIMEOUT_SYSTEM_PROFILER`). Only whole seconds from 1 to 600 are accepted; anything else is ignored. Cleanup commands keep the `config` setting. Touch ID for sudo stays advice-only (ADR 0009).
-- **Dashboard remove (2026-10-28):** on Suggestions, `enter` on an item (or on the ones marked with `space`) seals a plan and opens a confirmation box: each item with its risk, size and path, the total, and "Enter remove · esc cancel". A second `enter` removes SAFE and CAUTION items; with any RISKY item the box asks to type the plan's 4-character code first. While it runs, the box shows each item as it finishes (removed, left alone with the reason, or failed). Afterwards the removed items leave the list and a flash gives "Removed n of m · freed X" (measured) and "Press r to rescan". `enter` on an advice-only item opens its explanation instead; `e` opens the explanation for any item. The footer is `enter remove • space mark • e explain • …`, and the header's status reads "asks before removing".
+- **Dashboard remove (2026-10-28):** on Suggestions, `enter` on an item (or on the ones marked with `space`) seals a plan and opens a confirmation box: each item with its risk, size and path, the total, and "Enter remove · esc cancel". A second `enter` removes SAFE and CAUTION items; with any RISKY item the box asks to type the plan's 4-character code first. While it runs, the box shows each item as it finishes (removed, left alone with the reason, or failed). Afterwards the removed items leave the list and a flash gives "Removed n of m · freed X" (measured) and "Press r to rescan". `enter` on an advice-only item opens its explanation instead; `e` opens the explanation for any item. The footer is `enter remove • space mark • e explain • …`.
 - **Dashboard range (ADR 0005, stage 3):** when the detail pane shows a measured folder whose files may share space with copies, the dashboard measures the range in the background. The pane shows a one-line "measuring the range…" under the size note, then replaces the note with "Removing this frees at least X and at most Y. The difference is space shared with copies of its files." If the walk fails, is skipped or finds nothing shared, the usual note stays and no error is shown. The keys never wait for it: moving the selection, switching tab, closing the detail or rescanning cancels the walk, and results are kept per suggestion until the next scan. The walked path is the suggestion's own, never typed.
 - **Delete at once:** `apply` and the dashboard delete each moved item right away (the quarantine is only a crash-safe staging step), so the plan's `→` line for a folder reads `→ deletes <path>` with "Not undoable by macdoc: …", the totals are one "Freed right away" line, and progress says `done`. An item whose purge is refused stays in quarantine and progress says `moved aside, not deleted: Q-XXXX`.
 - **Dashboard (the long way):** after `p` seals a plan, the overlay offers `a apply`, and typing `/apply [P-id]` (default: the plan sealed in this session) does the same. The dashboard pauses (`tea.Exec`) and runs the same `runApply` in-process on the real terminal: same TTY check, dry run, `[y/N]` questions and typed code. It then waits for Enter and returns, with a flash pointing to `macdoc log` and `r` to rescan. Both this and the dashboard remove act only through `internal/executor`, and no subprocess is started.
@@ -136,8 +139,8 @@ What matters most
   2. 31.4 GB is safely reclaimable (caches and build artifacts).
   3. Docker Desktop VM is using 3.1 GB of RAM while idle.
 
-Next:  macdoc reclaim     macdoc vitals --memory     macdoc apply --safe
-Nothing has been changed. macdoc is read-only unless you run `apply`.
+Next:  macdoc reclaim     macdoc vitals --memory
+Nothing has been changed. macdoc is read-only unless you clean something with `reclaim`.
 ```
 
 ### `macdoc reclaim`
@@ -152,43 +155,15 @@ Nothing has been changed. macdoc is read-only unless you run `apply`.
   O-z4n1ty   8.4 GB  Android system images API 29, 30 (no AVD uses)   re-download ~1.2 GB each
   O-c6h5ju   6.8 GB  Ollama llama3:8b · unused 41 days               re-download 4.7 GB
 
- Your call (advice only) ───────────────────────────────────── 18.0 GB
+ Do it yourself (macdoc can't clean these) ───────────────────────────────────── 18.0 GB
             18.0 GB  iPhone backup (Mar 2025)        Finder › iPhone › Manage Backups
 
- macdoc apply --safe   (creates a dry-run; nothing is deleted)
+ macdoc reclaim   (asks before anything is removed)
 ```
 
 - Homebrew suggestions (`brew cleanup -n`, `brew autoremove -n`) may be up to 10 minutes old: a repeat command reuses brew's last dry run (kept in macdoc's own database) while Homebrew's folders are unchanged. `apply` always re-checks with brew, and `macdoc apply` asks brew itself.
 
-### `macdoc apply --safe`
-```
-Plan P-7F3K · 3 items · 31.4 GB · expires in 30 min · made by you (macdoc apply --safe)
-
- SAFE
-  ✓ Xcode DerivedData (9 folders)          14.2 GB   → deletes ~/Library/Developer/Xcode/DerivedData/…
-  ✓ Docker build cache                     11.0 GB   → docker builder prune -f
-  ✓ npm · pnpm · Homebrew caches            6.2 GB   → npm cache clean --force
-                                                       pnpm store prune
-                                                       brew cleanup --prune=all
-
- Freed right away: ~31.4 GB
- ⓘ 2 local Time Machine snapshots may delay some space until macOS thins them.
-
- To apply:  macdoc apply P-7F3K
-```
-
-### `macdoc apply P-7F3K`
-```
-Re-checking 3 items… ✓ Xcode not running ✓ Docker reachable ✓ targets unchanged
-Type "7F3K" to apply 31.4 GB (SAFE: 3 items): 7F3K
-
-  ✓ Xcode DerivedData                      14.2 GB
-  ✓ Docker build cache                     10.6 GB
-  ✓ npm · pnpm · Homebrew caches            6.0 GB
-
-Free space change (measured): +30.8 GB   Expected: 31.4 GB
-Every step is in the audit log: macdoc log
-```
+> **Removed 2026-11-24 (ADR 0015):** `macdoc apply`, `/plan`, `/apply`, the `p` and `a` keys, the plan overlay and `macdoc refresh` with its `/refresh` page no longer exist. Cleaning is `macdoc reclaim` or Enter on a suggestion in the dashboard; a plan is still sealed inside every removal, but nobody creates or applies one by name. The sections below describe the earlier design and are kept for history.
 
 ## 3. Tone rules
 - Use neutral words: "regenerable", "idle", "duplicate", "held". Never use "junk", "threat", "danger" or "clean your Mac now".
@@ -202,7 +177,7 @@ Every step is in the audit log: macdoc log
 - Keep the overview to 80 columns and 20 lines at most.
 
 ## 4. JSON contract
-- Every command supports `--json` (except `apply`, which needs a person at a terminal) and outputs `{"schema_version": "3", "command": "...", "generated_at": "...", "data": {...}, "warnings": [...]}`. Scan details, where relevant, are inside `data`.
+- Every command supports `--json` (cleaning itself needs a person at a terminal) and outputs `{"schema_version": "3", "command": "...", "generated_at": "...", "data": {...}, "warnings": [...]}`. Scan details, where relevant, are inside `data`.
 - Byte values are integers. Every measurement has a `source`: `measured | tool | estimated | unknown`.
 - An opportunity's `bytes` (and so a plan item's `expected_bytes`) is the space removing it is certain to free: for a size measured from the scan, the node's private size when the volume reports it, else its allocated bytes (ADR 0005, stage 2). the suggestion's detail (`e`) carries optional `bytes_lower` and `bytes_upper` when a range was measured (`bytes_upper` is absent when the most is unknown). `explore --projects` keeps `bytes` as allocated and adds `reclaimable_bytes` (omitted when unknown) on artifacts and DerivedData, and `reclaimable_bytes` on each project.
 - JSON schemas live in `schema/` (one per command, generated from the Go types) and are contract-tested: `TestSchemasFrozen` fails on any change to an output type, and `TestJSONOutputMatchesSchema` validates real output. Additive changes regenerate them with `go test ./internal/cli -run TestSchemasFrozen -update`; renaming, removing or retyping a field bumps `schema_version`. The MCP tools return the same shapes.

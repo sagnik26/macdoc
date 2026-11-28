@@ -235,3 +235,30 @@ func TestSlimIntelSizeUnknownWhenDetailFails(t *testing.T) {
 		t.Fatalf("slim = %+v", sw.Slim)
 	}
 }
+
+// Progress is called once before any source starts (0 done) and once as each
+// source finishes, so a caller can draw a bar that ends at total of total.
+func TestDiscoverReportsProgress(t *testing.T) {
+	var calls [][2]int
+	var names []string
+	home := t.TempDir()
+	inventory.Discover(context.Background(), inventory.Env{Home: home, AppDirs: []string{t.TempDir()}, BinDirs: []string{t.TempDir()},
+		Runner: &platform.Fake{}, HasTool: func(string) bool { return false },
+		Progress: func(done, total int, source string) {
+			calls = append(calls, [2]int{done, total})
+			names = append(names, source)
+		}})
+	total := len(inventory.Sources())
+	if len(calls) != total+1 || calls[0] != [2]int{0, total} || names[0] != "" {
+		t.Fatalf("calls %v names %v; want a start call and one per source (%d)", calls, names, total)
+	}
+	last := calls[len(calls)-1]
+	if last != [2]int{total, total} {
+		t.Errorf("last call %v, want %d of %d", last, total, total)
+	}
+	for i, c := range calls {
+		if c[0] != i {
+			t.Errorf("call %d reported %d done; progress must count up by one", i, c[0])
+		}
+	}
+}

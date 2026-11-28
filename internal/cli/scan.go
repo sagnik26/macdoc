@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,40 +13,19 @@ import (
 	"github.com/sagnik26/macdoc/internal/model"
 )
 
-// ScanAsk reports whether `macdoc scan` may ask a question: only at an
-// interactive terminal. Tests replace it.
-var ScanAsk = interactive
-
 func newScanCmd(g *GlobalFlags) *cobra.Command {
-	var foreground, fresh, last bool
+	var foreground bool
 	var workers int
 	cmd := &cobra.Command{
 		Use:   "scan",
-		Short: "Scan the disk (fresh, or reuse the last one), then show the full report (read-only)",
+		Short: "Scan the disk, then show the full report (read-only)",
 		Long: `macdoc scan shows the full report: every section of the overview, the scan
-details, and every suggestion.
-
-In a terminal, when an earlier scan exists, it asks whether you want a fresh
-scan (the whole disk is read again) or the last data. Say which up front with
---fresh or --last. Piped, with --json or --quiet, it scans fresh, as the
-scheduled scan needs.`,
+details, and every suggestion.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if fresh && last {
-				return errors.New("use --fresh or --last, not both")
-			}
-			if !fresh && !last && !g.json && !g.quiet && ScanAsk(cmd) {
-				choice, err := askScanChoice(cmd)
-				if err != nil {
-					return err
-				}
-				last = choice == "last"
-			}
-			return runOverview(cmd, g, overviewMode{full: true, rescan: !last, foreground: foreground, workers: workers})
+			return runOverview(cmd, g, overviewMode{full: true, rescan: true, foreground: foreground, workers: workers})
 		},
 	}
-	cmd.Flags().BoolVar(&fresh, "fresh", false, "scan the disk again without asking")
-	cmd.Flags().BoolVar(&last, "last", false, "use the last scan's data without asking")
 	cmd.Flags().BoolVar(&foreground, "foreground", false, "scan at normal priority (faster, but competes with your apps)")
 	cmd.Flags().IntVar(&workers, "workers", 4, "concurrent directory readers (1-16)")
 	return cmd
@@ -143,32 +120,4 @@ func IsTerminal(w any) bool {
 	}
 	fi, err := f.Stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
-}
-
-// askScanChoice asks whether to scan again or keep the last data, when there is
-// a last scan. It returns "fresh" or "last"; with no scan to reuse it returns
-// "fresh" without asking.
-func askScanChoice(cmd *cobra.Command) (string, error) {
-	home, err := UserHome()
-	if err != nil {
-		return "", err
-	}
-	info, age, err := engine.LastScan(home, time.Now())
-	if err != nil {
-		return "fresh", nil //nolint:nilerr // no earlier scan: nothing to choose between
-	}
-	out := cmd.OutOrStdout()
-	_, _ = fmt.Fprintf(out, "Last scan: %s (%s measured).\n", age, engine.DecimalBytes(info.TotalBytes))
-	_, _ = fmt.Fprint(out, "Scan the disk again, or use the last data? [F]resh / [u]se last: ")
-	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
-	if err != nil && line == "" {
-		return "", errors.New("no answer; nothing was scanned (use --fresh or --last to skip the question)")
-	}
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "", "f", "fresh":
-		return "fresh", nil
-	case "u", "l", "last":
-		return "last", nil
-	}
-	return "", errors.New("answer f for a fresh scan or u for the last data")
 }

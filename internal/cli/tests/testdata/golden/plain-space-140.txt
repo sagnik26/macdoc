@@ -1,0 +1,45 @@
+ ◆ macdoc  MacBookAir10,1 · M1                                                                                    8.0 GB free · scan 2h ago 
+  1 Overview   2 Suggestions   3 Projects   4 Space 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                                            
+ Reclaimable, by category                                                                                                                   
+ ┌─────────────────────────────────────────────────────────────┐                                                                            
+ │ Category         Size  Share         Items  Risk type       │                                                                            
+ ├─────────────────────────────────────────────────────────────┤                                                                            
+ │ Build caches  20.0 GB  ████████████      4  SAFE    20.0 GB │                                                                            
+ │ Containers     5.0 GB  ███░░░░░░░░░      2  CAUTION 5.0 GB  │                                                                            
+ │ Old logs       1.0 GB  █░░░░░░░░░░░      9  SAFE    1.0 GB  │                                                                            
+ │ Dev tools      4.0 GB  ██░░░░░░░░░░      3  SAFE    3.0 GB  │                                                                            
+ │                                             RISKY   1.0 GB  │                                                                            
+ └─────────────────────────────────────────────────────────────┘                                                                            
+                                                                                                                                            
+                                                                                                                                            
+ What grew in the last 30 days, from macdoc's stored scans                                                                                  
+ ┌────────────────────────────────────────────────────────┐                                                                                 
+ │ Area or folder  Before      Now   Change               │                                                                                 
+ ├────────────────────────────────────────────────────────┤                                                                                 
+ │ Gradle          4.0 GB  10.0 GB  +6.0 GB  ████████████ │                                                                                 
+ │ Docker          8.0 GB   5.0 GB  −3.0 GB  ██████░░░░░░ │                                                                                 
+ │ Xcode           1.0 GB   2.5 GB  +1.5 GB  ███░░░░░░░░░ │                                                                                 
+ └────────────────────────────────────────────────────────┘                                                                                 
+                                                                                                                                            
+                                                                                                                                            
+ Where the rest of the space is                                                                                                             
+  macOS manages this                                                                                                                        
+  █████████████████████████████████████████████▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒░░░░░                                                                  
+  █ Not scanned (estimated)  36.8 GB  63%                                                                                                   
+  ▓ Temp files  9.3 GB  16%                                                                                                                 
+  ▒ Swap and sleep  8.6 GB  15%                                                                                                             
+  ░ Purgeable  4.1 GB  7%                                                                                                                   
+  Size unknown: Snapshots                                                                                                                   
+  macdoc only shows this and never deletes it.                                                                                              
+                                                                                                                                            
+  Your big folders, yours to review  · 1 GB and up                                                                                          
+  ███████████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒░░░░░░▪▪▪▪▪▪············                                                                  
+  █ ~/Library/Android  3.6 GB  31%                                                                                                          
+  ▓ ~/.local  2.8 GB  24%                                                                                                                   
+  ▒ ~/Library/Developer  1.1 GB  10%                                                                                                        
+  ░ ~/go  1.0 GB  9%                                                                                                                        
+  ▪ ~/.npm-global  1.0 GB  9%                                                                                                               
+  · other  2.0 GB  17%                                                                                                                      
+ enter explore folders • tab switch view • ↑↓ move • / commands • r rescan • ? help • esc home • q quit

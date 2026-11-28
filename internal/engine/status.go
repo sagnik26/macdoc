@@ -17,7 +17,14 @@ const statusInterval = time.Second
 type StatusOptions struct {
 	Runner   platform.Runner // default platform.Exec{}
 	Interval time.Duration   // how long traffic is measured over; default 1s
+	// Progress is called once before the probes start (0 done) and once as each
+	// of the statusProbes probes finishes, with its name. Calls are serialized and
+	// in order, and it must return quickly.
+	Progress func(done, total int, probe string)
 }
+
+// statusProbes is how many probes one reading runs, for the progress count.
+const statusProbes = 6
 
 // StatusResult is the data behind `macdoc vitals`: what the Mac is
 // doing right now. Each live section is a pointer that is absent when its
@@ -60,20 +67,34 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v", what, err))
 		mu.Unlock()
 	}
-	run := func(f func()) {
+	done := 0
+	report := func(name string) {
+		if o.Progress == nil {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		done++
+		o.Progress(done, statusProbes, name) // under the lock: calls are serialized and the count never goes back
+	}
+	if o.Progress != nil {
+		o.Progress(0, statusProbes, "")
+	}
+	run := func(name string, f func()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			f()
+			report(name)
 		}()
 	}
-	run(func() {
+	run("system", func() {
 		d := Doctor(ctx, o.Runner)
 		mu.Lock()
 		res.Report = d.Report
 		mu.Unlock()
 	})
-	run(func() {
+	run("cpu", func() {
 		if c, err := probe.CollectCPU(ctx, o.Runner); err != nil {
 			warn("cpu", err)
 		} else {
@@ -82,7 +103,7 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 			mu.Unlock()
 		}
 	})
-	run(func() {
+	run("disk traffic", func() {
 		if d, err := probe.CollectDiskIO(ctx, o.Runner); err != nil {
 			warn("disk traffic", err)
 		} else {
@@ -91,7 +112,7 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 			mu.Unlock()
 		}
 	})
-	run(func() {
+	run("network", func() {
 		if n, err := probe.CollectNetwork(ctx, o.Runner, o.Interval); err != nil {
 			warn("network", err)
 		} else {
@@ -100,7 +121,7 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 			mu.Unlock()
 		}
 	})
-	run(func() {
+	run("battery", func() {
 		if p, err := probe.CollectPower(ctx, o.Runner); err != nil {
 			warn("power", err)
 		} else {
@@ -109,7 +130,7 @@ func Status(ctx context.Context, o StatusOptions) StatusResult {
 			mu.Unlock()
 		}
 	})
-	run(func() {
+	run("processes", func() {
 		if a, err := probe.CollectProcessAlerts(ctx, o.Runner); err != nil {
 			warn("process alerts", err)
 		} else {

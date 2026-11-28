@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -36,28 +39,27 @@ type tab int
 const (
 	tabOverview tab = iota
 	TabSuggestions
-	tabToolchains
 	tabProjects
 	TabSpace
 )
 
 // The tabs belong to the scan view only. Every other command (reclaim, apply,
-// vitals, explore, refresh, retire) opens its own page without them.
-var tabTitles = []string{"Overview", "Suggestions", "Toolchains", "Projects", "Space"}
+// vitals, explore, retire) opens its own page without them.
+var tabTitles = []string{"Overview", "Suggestions", "Projects", "Space"}
 
 // slashCommand is one entry of the / palette.
 type slashCommand struct {
 	Name, args, desc string
 }
 
-// SlashCommands is the / palette, in display order.
+// SlashCommands is the / palette, in display order. It lists the same
+// commands, in the same order, as the welcome screen (introActions).
 var SlashCommands = []slashCommand{
-	{"scan", "", "scan again, or keep the last data (asks which; esc stops a scan)"},
-	{"reclaim", "", "choose which risk types to clean (a checkbox list), then confirm"},
+	{"scan", "", "scan the disk again, then show the full report (esc stops a scan)"},
+	{"reclaim", "", "scan, then clean every SAFE and CAUTION item at once (esc stops it)"},
+	{"retire", "", "installed software and its data folders; delete what you don't need"},
+	{"explore", "", "where the space is, as a folder tree you can open"},
 	{"vitals", "", "live CPU, memory, disk, network and battery, with a health score"},
-	{"explore", "[folder]", "where the space is inside a folder, from the last scan"},
-	{"retire", "", "installed software, its data folders and cleanups"},
-	{"refresh", "", "maintenance steps you can apply, such as flushing DNS"},
 }
 
 // stepLabels describe the loading stages.
@@ -86,18 +88,12 @@ type (
 		Data *TuiData
 		Err  error
 	}
-	// PlanMsg carries a created plan, or the error that stopped planning.
-	PlanMsg struct {
-		Res engine.PlanResult
-		Err error
-	}
 )
 
 // TuiData is everything the dashboard shows.
 type TuiData struct {
 	Res      engine.OverviewResult
-	space    engine.StorageResult
-	Dev      DevResult
+	Space    engine.StorageResult
 	Projects engine.ProjectsResult
 	Slow     engine.SlowResult
 	Trend    *engine.TrendResult // nil when there's nothing to compare yet
@@ -112,7 +108,13 @@ type TuiData struct {
 type TuiDeps struct {
 	Home string
 	cat  *recipes.Catalog
-	send func(tea.Msg) // set once the program exists; nil in tests
+	// AppDirs is where Retire looks for an app's bundle; nil means /Applications and
+	// ~/Applications. Tests set it.
+	AppDirs []string
+	// retire is cat plus the one entry a Retire deletion runs under, while that
+	// deletion is open (see retire.go); nil otherwise.
+	retire *recipes.Catalog
+	send   func(tea.Msg) // set once the program exists; nil in tests
 	// load and makePlan replace the engine in tests.
 	Load     func(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error)
 	MakePlan func(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error)
@@ -127,23 +129,26 @@ type TuiDeps struct {
 	Software func(ctx context.Context, d *TuiDeps) (engine.SoftwareResult, error)
 	// Explore reads a folder of the latest scan for the explorer; nil uses the engine.
 	Explore func(ctx context.Context, d *TuiDeps, path string) (engine.ExploreResult, error)
-	// Maintenance lists the maintenance steps; nil uses the engine.
-	Maintenance func(ctx context.Context, d *TuiDeps) (engine.OpportunityResult, error)
-	// Plans lists the stored plans for /apply; nil uses the engine.
-	Plans func(d *TuiDeps) ([]store.PlanRecord, error)
 	// Status takes a live reading for /vitals; nil uses the engine.
 	Status func(ctx context.Context, d *TuiDeps) engine.StatusResult
+
+	// removeCtx lets esc stop a /reclaim run between items; nil means no way to stop.
+	removeCtx context.Context
 }
 
 // enginePlan seals a plan with the real engine, reusing the dashboard's
 // opportunities when they are from the latest scan.
 func enginePlan(d *TuiDeps, sel planner.Selector, pre *engine.OpportunityResult) (engine.PlanResult, error) {
 	return engine.CreatePlan(context.Background(), engine.PlanOptions{
-		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.cat},
+		OpportunityOptions: engine.OpportunityOptions{Home: d.Home, Runner: Runner, Catalog: d.catalog()},
 		Selector:           sel,
 		Precomputed:        pre,
 	})
 }
+
+// SetSend sets where background work posts its progress messages. runTUI sets
+// it to the program's Send; tests set it to feed the model directly.
+func (d *TuiDeps) SetSend(send func(tea.Msg)) { d.send = send }
 
 func (d *TuiDeps) post(msg tea.Msg) {
 	if d.send != nil {
@@ -160,7 +165,7 @@ type loadStep struct {
 
 type keyMap struct {
 	Tabs, Move, Explain, Back, Scan, Slash, Help, Quit, Stop key.Binding
-	Run, Complete, Cancel, Mark, Plan, Apply, Remove, Hide   key.Binding
+	Run, Complete, Cancel, Mark, Remove, Hide                key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -179,9 +184,7 @@ func newKeyMap() keyMap {
 		Complete: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")),
 		Cancel:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		Mark:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "mark")),
-		Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
 		Hide:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "hide this kind")),
-		Apply:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "apply (you confirm in Terminal)")),
 	}
 }
 
@@ -193,11 +196,7 @@ const (
 	overlayHelp
 	overlaySoftware
 	overlayExplore
-	overlayMaintenance
-	overlayScan
-	overlayReclaim
 	overlayVitals
-	OverlayPlan
 	OverlayRemove
 )
 
@@ -234,32 +233,35 @@ type TuiModel struct {
 	Marked   map[string]bool
 	span     *spanState // the range walk and its results, shared by copies
 	Planning bool
-	Plan     *engine.PlanResult
 	// software: the last inventory shown in the /retire overlay
 	software        *engine.SoftwareResult
 	softwareBusy    bool
+	softwareDone    int    // discovery sources finished so far
+	softwareTotal   int    // how many there are (0 until the first report)
+	softwareSource  string // the one that finished last
 	softwareErr     error
 	softwareStarted time.Time
 	softwareFilter  softwareFilter
-	softwareCursor  int                       // the highlighted row of the filtered list
-	softwareDetail  bool                      // the details of the highlighted program are open
-	explore         *engine.ExploreResult     // the folder shown in the explorer
-	picker          *TierPicker               // the /reclaim checkbox list
-	maint           *engine.OpportunityResult // the maintenance steps shown in /refresh
-	maintCursor     int                       // the highlighted maintenance step
-	claude          []store.PlanRecord        // plans Claude proposed that can still be applied, newest first
-	treeRoot        *treeNode                 // the folder tree shown in /explore
-	treeCursor      int                       // the highlighted row of that tree
-	status          *engine.StatusResult      // the last live reading, shown by /vitals
-	statusBusy      bool                      // a live reading is running
-	statusWait      bool                      // a reading was just taken; the next waits for the tick
-	statusAt        time.Time                 // when the last reading finished
-	hist            vitalsHist                // the recent readings behind the arrows
-	vitalsWhy       bool                      // /vitals shows how it decides memory is slowing the Mac down
-	clockOn         bool                      // the once-a-second clock for "updated Ns ago" is running
-	pending         string                    // a command waiting for the latest scan to load
-	sealForApply    bool                      // hand the plan being sealed to apply as soon as it exists
-	removing        *removeState              // the remove confirmation box, while open
+	softwareCursor  int                   // the highlighted row of the filtered list
+	explore         *engine.ExploreResult // the folder shown in the explorer
+	reclaimAuto     bool                  // the removal being sealed is /reclaim's: it starts as soon as it is ready
+	treeRoot        *treeNode             // the folder tree shown in /explore
+	treeCursor      int                   // the highlighted row of that tree
+	status          *engine.StatusResult  // the last live reading, shown by /vitals
+	statusBusy      bool                  // a live reading is running
+	statusDone      int                   // probes of the first reading that have answered
+	statusTotal     int                   // how many there are (0 until the first report)
+	statusProbe     string                // the one that answered last
+	statusOpened    time.Time             // when the vitals page was opened
+	statusShown     float64               // how full the first-reading bar is drawn (0..1); it eases toward the real progress
+	statusGen       int                   // which opening of the page the bar animation belongs to
+	statusWait      bool                  // a reading was just taken; the next waits for the tick
+	statusAt        time.Time             // when the last reading finished
+	hist            vitalsHist            // the recent readings behind the arrows
+	clockOn         bool                  // the once-a-second clock for "updated Ns ago" is running
+	reclaimFresh    bool                  // /reclaim's own rescan just finished
+	pending         string                // a command waiting for the latest scan to load
+	removing        *removeState          // the remove confirmation box, while open
 
 	scroll  int
 	Overlay overlay
@@ -274,29 +276,47 @@ type TuiModel struct {
 	// welcome screen
 	Intro       bool
 	introPick   int
-	scanPick    int // the highlighted choice on the scan page: 0 last scan, 1 scan again
 	IntroStatus IntroStatus
 }
 
 // NewTUIModel returns a dashboard model that has not started loading.
 func NewTUIModel(deps *TuiDeps, t *Theme) TuiModel {
-	sp := spinner.New(spinner.WithSpinner(spinner.Spinner{
-		Frames: []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"},
-		FPS:    time.Second / 10,
-	}), spinner.WithStyle(t.brand))
-	bar := progress.New(progress.WithScaledGradient("#E8875F", "#F2CC60"), progress.WithoutPercentage(),
-		progress.WithFillCharacters('━', '━'), progress.WithColorProfile(t.r.ColorProfile()))
-	bar.EmptyColor = "#3A3A3A"
 	in := textinput.New()
 	in.Prompt = ""
 	in.CharLimit = 64
-	in.Cursor.Style = t.brand
+	in.SetVirtualCursor(true) // the input is drawn inside the dashboard's own view
+	m := TuiModel{Deps: deps, keys: newKeyMap(), spin: spinner.New(spinner.WithSpinner(spinner.Dot)),
+		input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
+	m.applyTheme(t)
+	return m
+}
+
+// applyTheme gives the model and its Bubbles components the colors of t. It
+// runs when the model is built and again if the terminal reports a different
+// background color. The components keep the look they have in the Bubbles
+// README: the dot spinner in ANSI 205, the half-block progress bar with the
+// default purple-to-pink blend, the default help and input styles.
+func (m *TuiModel) applyTheme(t *Theme) {
+	m.t = t
+	m.spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m.Bar = progress.New(progress.WithDefaultBlend(), progress.WithFillCharacters(barChar, barEmpty))
+	m.Bar.SetWidth(barWidth(m.w))
+	m.input.SetStyles(textinput.DefaultStyles(t.dark))
 	h := help.New()
-	h.Styles.ShortKey = t.accent
-	h.Styles.ShortDesc = t.muted
-	h.Styles.ShortSeparator = t.faint
-	h.ShortSeparator = " • "
-	return TuiModel{Deps: deps, t: t, keys: newKeyMap(), help: h, spin: sp, Bar: bar, input: in, w: 100, h: 30, Marked: map[string]bool{}, span: newSpanState()}
+	h.Styles = help.DefaultStyles(t.dark)
+	m.help = h
+}
+
+// barWidth is the progress bar's width, including its percentage: the terminal
+// less a margin, at most 80 cells, as in the Bubbles progress example.
+func barWidth(termWidth int) int { return min(80, max(20, termWidth-12)) }
+
+// barView draws the progress bar at pct, with its percentage unless the total
+// is unknown.
+func (m TuiModel) barView(pct float64, showPct bool) string {
+	b := m.Bar
+	b.ShowPercentage = showPct
+	return b.ViewAs(pct)
 }
 
 // runTUI starts the dashboard on the terminal.
@@ -310,7 +330,7 @@ func runTUI(home string, cat *recipes.Catalog) error {
 	m := NewTUIModel(deps, t)
 	// Open on the welcome screen; nothing runs until the user picks.
 	m.Intro, m.IntroStatus = true, loadIntroStatus(home)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	deps.send = p.Send
 	final, err := p.Run()
 	if err != nil {
@@ -363,7 +383,7 @@ func engineLoad(ctx context.Context, d *TuiDeps, rescan bool) (*TuiData, error) 
 	if err != nil {
 		return nil, err
 	}
-	data := &TuiData{Res: res, space: space, Dev: BuildDevResult(res.Opportunities, ""), Projects: FilterProjects(projs, 0),
+	data := &TuiData{Res: res, Space: space, Projects: FilterProjects(projs, 0),
 		Slow: engine.SlowFrom(res.Health, engine.SlowOptions{Home: d.Home})}
 	data.Trend, data.trendMsg = loadTrend(d.Home)
 	return data, nil
@@ -382,8 +402,15 @@ func loadTrend(home string) (*engine.TrendResult, string) {
 	return &tr, ""
 }
 
-// Init implements tea.Model.
-func (m TuiModel) Init() tea.Cmd { return m.InitCmd }
+// Init implements tea.Model. A colored theme also asks the terminal for its
+// background color, so the palette follows a light or dark terminal even if the
+// first guess was wrong (MACDOC_THEME overrides that).
+func (m TuiModel) Init() tea.Cmd {
+	if m.t.color && os.Getenv("MACDOC_THEME") == "" {
+		return tea.Batch(m.InitCmd, tea.RequestBackgroundColor)
+	}
+	return m.InitCmd
+}
 
 // StartLoad puts m into the loading state and returns the command that runs
 // the engine. Call it on the model that Update returns (or before the program
@@ -393,10 +420,7 @@ func (m *TuiModel) StartLoad(rescan bool) tea.Cmd {
 	m.cancel = cancel
 	m.Loading, m.Stopping = true, false
 	m.steps, m.prog = nil, scanner.Progress{}
-	m.estimate = 0
-	if m.Data != nil {
-		m.estimate = m.Data.Res.Scan.TotalBytes
-	}
+	m.estimate = m.expectedScanBytes()
 	deps := m.Deps
 	run := func() tea.Msg {
 		data, err := deps.Load(ctx, deps, rescan)
@@ -428,7 +452,15 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.t.width = msg.Width
-		m.Bar.Width = min(48, max(10, msg.Width-30))
+		m.Bar.SetWidth(barWidth(msg.Width))
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		// The terminal answered: restyle if its background is not the one the
+		// theme was built for.
+		if m.t.color && msg.IsDark() != m.t.dark {
+			m.applyTheme(ColorTheme(msg.IsDark(), m.t.profile, m.t.width))
+		}
 		return m, nil
 
 	case StepMsg:
@@ -448,8 +480,13 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LoadedMsg:
 		return m.loaded(msg)
 
-	case PlanMsg:
-		return m.planned(msg)
+	case StatusProgressMsg:
+		m.statusDone, m.statusTotal, m.statusProbe = msg.Done, msg.Total, msg.Probe
+		return m, nil
+
+	case SoftwareProgressMsg:
+		m.softwareDone, m.softwareTotal, m.softwareSource = msg.Done, msg.Total, msg.Source
+		return m, nil
 
 	case SoftwareMsg:
 		return m.softwareLoaded(msg)
@@ -464,8 +501,8 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusClockMsg:
 		return m.clockTick()
 
-	case AppliedMsg:
-		return m.applied(msg)
+	case statusBarMsg:
+		return m.barTick(msg)
 
 	case removeReadyMsg:
 		return m.removeReady(msg)
@@ -479,7 +516,7 @@ func (m TuiModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		return m.tick(msg)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		m.Flash = ""
 		if m.InputMode != 0 {
 			return m.updateInput(msg)
@@ -500,8 +537,6 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 		m.Data, m.note = cleanData(msg.Data), ""
 		clear(m.Marked) // IDs belong to a scan
 		m.span.reset()
-		m.preMarkSafe()
-		m.refreshClaudePlans()
 		m.Cursor = min(m.Cursor, max(0, len(m.Items())-1))
 	case m.Stopping || errors.Is(msg.Err, context.Canceled):
 		if m.Data != nil {
@@ -516,10 +551,12 @@ func (m TuiModel) loaded(msg LoadedMsg) (tea.Model, tea.Cmd) {
 			m.note = msg.Err.Error()
 		}
 	}
+	stopped := m.Stopping
 	m.Stopping = false
 	if p := m.pending; p != "" {
 		m.pending = ""
 		if m.Data != nil {
+			m.reclaimFresh = msg.Err == nil && !stopped && strings.HasPrefix(strings.TrimLeft(p, "/"), "reclaim")
 			return m.RunCommand(p)
 		}
 		if msg.Err != nil {
@@ -539,6 +576,17 @@ func (m TuiModel) loadThen(line string) (tea.Model, tea.Cmd) {
 	}
 	m.pending = line
 	cmd := m.StartLoad(false)
+	return m, cmd
+}
+
+// rescanThen scans afresh and then runs line. Only the scan view reuses a
+// stored scan; /reclaim cleans from what is on disk now.
+func (m TuiModel) rescanThen(line string) (tea.Model, tea.Cmd) {
+	if m.Loading {
+		return m, nil
+	}
+	m.pending = line
+	cmd := m.StartLoad(true)
 	return m, cmd
 }
 
@@ -569,14 +617,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.Overlay == overlayReclaim {
-		return m.reclaimKey(msg)
-	}
-	if m.Overlay == overlayMaintenance {
-		if next, cmd, ok := m.maintenanceKey(k); ok {
-			return next, cmd
-		}
-	}
 	if m.Overlay == overlaySoftware {
 		if next, cmd, ok := m.softwareKey(k); ok {
 			return next, cmd
@@ -587,19 +627,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return next, cmd
 		}
 	}
-	if m.Overlay == overlayScan {
-		if next, cmd, ok := m.scanKey(k); ok {
-			return next, cmd
-		}
-	}
-	if m.Overlay == overlayVitals && k == "w" {
-		m.vitalsWhy = !m.vitalsWhy
-		return m, nil
-	}
 	if m.Overlay != OverlayNone {
-		if k == "a" && m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending {
-			return m.startApply(m.Plan.Plan.ID)
-		}
 		switch k {
 		case "esc", "q", "?", "enter":
 			m.Overlay, m.scroll = OverlayNone, 0
@@ -614,7 +642,11 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch k {
 	case "esc":
-		m.Detail = false
+		if m.Detail {
+			m.Detail = false
+			break
+		}
+		return m.goHome()
 	case "?":
 		m.Overlay, m.scroll = overlayHelp, 0
 	case "/":
@@ -626,7 +658,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setTab((m.Tab + 1) % tab(len(tabTitles)))
 	case "shift+tab", "left", "h":
 		m.setTab((m.Tab + tab(len(tabTitles)) - 1) % tab(len(tabTitles)))
-	case "1", "2", "3", "4", "5":
+	case "1", "2", "3", "4":
 		m.setTab(tab(k[0] - '1'))
 	case "r":
 		return m, m.StartLoad(true)
@@ -645,7 +677,7 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Tab == TabSuggestions && len(m.Items()) > 0 {
 			m.Detail = !m.Detail
 		}
-	case " ":
+	case "space":
 		if m.Tab == TabSuggestions {
 			m.toggleMark()
 		}
@@ -653,15 +685,6 @@ func (m TuiModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Tab == TabSuggestions && !m.Detail {
 			return m.hideCurrent()
 		}
-	case "a":
-		if m.Tab == TabSuggestions && len(m.claude) > 0 {
-			return m.startApply(m.claude[0].ID)
-		}
-	case "p":
-		if m.Tab == TabSuggestions {
-			return m.startPlan(m.MarkedSelector())
-		}
-		m.Flash = "Plans are made on the Suggestions tab (2): mark items with space, then press p."
 	default:
 		if m.Tab == TabSuggestions && !m.Detail {
 			m.moveCursor(k)
@@ -734,7 +757,7 @@ func (m TuiModel) completions() []completion {
 	return out
 }
 
-func (m TuiModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m TuiModel) updateInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	comps := m.completions()
 	switch msg.String() {
 	case "ctrl+c":
@@ -793,43 +816,19 @@ func (m TuiModel) RunCommand(line string) (tea.Model, tea.Cmd) {
 	case "vitals":
 		return m.openVitals()
 	case "reclaim":
-		if m.Data == nil {
-			return m.loadThen(line) // runs on its own: it reads the latest scan, scanning only if there is none
+		if m.reclaimFresh { // the scan it asked for has just finished
+			m.reclaimFresh = false
+			return m.autoReclaim()
 		}
-		return m.openReclaimPicker()
+		return m.rescanThen(line) // reclaim never works from a stored scan
 	case "scan":
-		return m.askScan()
-	case "plan":
-		if m.Intro {
-			m.Flash = "Choose “Check my Mac” first: /plan needs results."
+		if m.Loading {
 			return m, nil
 		}
-		switch r := model.Risk(strings.ToUpper(arg)); r {
-		case "":
-			return m.startPlan(m.MarkedSelector())
-		case model.RiskSafe, model.RiskCaution, model.RiskRisky:
-			return m.startPlan(&planner.Selector{Tier: r})
-		}
-		m.Flash = "Usage: /plan (marked suggestions) or /plan safe|caution|risky"
-	case "apply":
-		if arg != "" {
-			return m.startApply(arg)
-		}
-		// There is no plans page: the suggestions are where cleaning starts.
-		if m.Data == nil {
-			return m.loadThen(line)
-		}
-		m.Overlay, m.scroll = OverlayNone, 0
-		m.setTab(TabSuggestions)
-		m.Flash = "Press enter on a suggestion to clean it; you confirm before anything is removed."
-		if len(m.claude) > 0 {
-			m.Flash = "Claude's plan " + m.claude[0].ID + " is waiting: press a to review and apply it in Terminal."
-		}
-		return m, nil
+		m.Intro = false
+		return m, m.StartLoad(true)
 	case "explore":
 		return m.openExplore(arg)
-	case "refresh":
-		return m.openMaintenance()
 	case "retire":
 		if m.Data == nil {
 			return m.loadThen(line)
@@ -862,7 +861,7 @@ func (m TuiModel) bodyHeight() int {
 	}
 	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
-		h -= 2 + end - start
+		h -= paletteChrome + end - start
 	} else if m.Flash != "" {
 		h--
 	}
@@ -870,15 +869,31 @@ func (m TuiModel) bodyHeight() int {
 }
 
 // View implements tea.Model.
-func (m TuiModel) View() string {
-	t := m.t
+// View implements tea.Model: the screen, on the alternate screen.
+func (m TuiModel) View() tea.View {
+	v := tea.NewView(m.Screen())
+	v.AltScreen = true
+	return v
+}
+
+// Screen is what the dashboard shows, as a string. A theme without color
+// carries no escape sequence at all, so the plain layout stays plain.
+func (m TuiModel) Screen() string {
+	s := m.screen()
+	if !m.t.color {
+		s = ansi.Strip(s)
+	}
+	return s
+}
+
+func (m TuiModel) screen() string {
 	var b strings.Builder
 	if m.Intro && m.Overlay == OverlayNone && !m.Loading {
 		b.WriteString(fitHeight(m.introView(), m.introHeight(), m.w))
 		if m.InputMode != 0 {
 			b.WriteString(m.inputView())
 		} else if m.Flash != "" {
-			b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
+			b.WriteString(m.flashLine())
 		}
 		if m.InputMode != 0 {
 			b.WriteString(m.footerView())
@@ -896,46 +911,45 @@ func (m TuiModel) View() string {
 		b.WriteString(m.tabsView() + "\n")
 	}
 
-	var body string
-	switch {
-	case m.Loading:
-		body = m.loadingView()
-	case m.Overlay == overlayHelp:
-		body = m.scrolled(m.HelpView())
-	case m.Overlay == overlayExplore:
-		body = m.scrolled(m.exploreBody())
-	case m.Overlay == overlayMaintenance:
-		body = m.scrolled(m.maintenanceBody())
-	case m.Overlay == overlayScan:
-		body = m.scanBody()
-	case m.Overlay == overlayReclaim:
-		body = m.reclaimBody()
-	case m.Overlay == overlayVitals:
-		body = m.scrolled(m.vitalsBody())
-	case m.Overlay == overlaySoftware && m.softwareDetail:
-		body = m.scrolled(m.softwareDetailView())
-	case m.Overlay == overlaySoftware:
-		body = m.scrolled(m.softwareTables())
-	case m.Overlay == OverlayPlan:
-		body = m.scrolled(m.planView())
-	case m.Overlay == OverlayRemove:
-		body = m.scrolled(m.removeView())
-	case m.Data == nil:
-		body = "\n  " + t.muted.Render(display(m.note))
-	case m.Tab == TabSuggestions:
-		body = m.suggestionsView()
-	default:
-		body = m.scrolled(m.textView())
-	}
-	b.WriteString(fitHeight(body, m.bodyHeight(), m.w))
+	b.WriteString(fitHeight(m.bodyView(), m.bodyHeight(), m.w))
 
 	if m.InputMode != 0 {
 		b.WriteString(m.inputView())
 	} else if m.Flash != "" {
-		b.WriteString(" " + t.warn.Render("›") + " " + truncateANSI(t.text.Render(display(m.Flash)), m.w-4) + "\n")
+		b.WriteString(m.flashLine())
 	}
 	b.WriteString(m.footerView())
 	return b.String()
+}
+
+// bodyView is the page's body: the loading view, an overlay, or the tab.
+func (m TuiModel) bodyView() string {
+	t := m.t
+	switch {
+	case m.Loading:
+		return m.loadingView()
+	case m.Overlay == overlayHelp:
+		return m.scrolled(m.HelpView())
+	case m.Overlay == overlayExplore:
+		return m.scrolled(m.exploreBody())
+	case m.Overlay == overlayVitals:
+		return m.scrolled(m.vitalsBody())
+	case m.Overlay == overlaySoftware:
+		return m.scrolled(m.softwareTables())
+	case m.Overlay == OverlayRemove:
+		return m.scrolled(m.removeView())
+	case m.Data == nil:
+		return "\n  " + t.muted.Render(display(m.note))
+	case m.Tab == TabSuggestions:
+		return m.suggestionsView()
+	default:
+		return m.scrolled(m.textView())
+	}
+}
+
+// flashLine is the one-line message under the body.
+func (m TuiModel) flashLine() string {
+	return " " + m.t.warn.Render("›") + " " + truncateANSI(m.t.text.Render(display(m.Flash)), m.w-4) + "\n"
 }
 
 // fitHeight pads or cuts s to exactly h lines, each at most w cells wide.
@@ -953,12 +967,14 @@ func fitHeight(s string, h, w int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// scrolled applies the scroll offset to a text body.
+// scrolled applies the scroll offset to a text body, through a Bubbles
+// viewport: the offset is kept within the body, and the part that fits is shown.
 func (m *TuiModel) scrolled(s string) string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
-	maxOff := max(0, len(lines)-m.bodyHeight())
-	m.scroll = min(m.scroll, maxOff)
-	return strings.Join(lines[m.scroll:], "\n")
+	vp := viewport.New(viewport.WithWidth(m.w), viewport.WithHeight(m.bodyHeight()))
+	vp.SetContent(strings.TrimRight(s, "\n"))
+	vp.SetYOffset(m.scroll)
+	m.scroll = vp.YOffset()
+	return vp.View()
 }
 
 func (m TuiModel) headerView() string {
@@ -984,7 +1000,6 @@ func (m TuiModel) headerView() string {
 		}
 		right = append(right, st.Render(age))
 	}
-	right = append(right, t.Ok.Render("asks before removing"))
 	r := strings.Join(right, t.faint.Render(" · ")) + " "
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
 	return left + strings.Repeat(" ", gap) + r
@@ -994,9 +1009,12 @@ func (m TuiModel) headerView() string {
 // the only one with tabs.
 func (m TuiModel) pageTitle() string {
 	titles := map[overlay]string{
-		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore", overlayMaintenance: "Refresh",
-		overlayScan: "Scan", overlayReclaim: "Reclaim", overlayVitals: "Vitals",
-		OverlayPlan: "Plan", OverlayRemove: "Reclaim",
+		overlayHelp: "Help", overlaySoftware: "Retire", overlayExplore: "Explore",
+		overlayVitals: "Vitals",
+		OverlayRemove: "Reclaim",
+	}
+	if m.Overlay == OverlayRemove && m.removing != nil && m.removing.retire != "" {
+		return "Retire" // a deletion started from the Retire list
 	}
 	if t, ok := titles[m.Overlay]; ok {
 		return t
@@ -1011,10 +1029,8 @@ func (m TuiModel) pageTitle() string {
 // pageHeader is the top of a page: the brand, the page's title and a rule.
 func (m TuiModel) pageHeader(title string) string {
 	t := m.t
-	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.Title.Render(title)
-	r := t.Ok.Render("asks before removing") + " "
-	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(r))
-	return left + strings.Repeat(" ", gap) + r + "\n" + t.rule(m.w)
+	left := " " + t.brand.Render("◆ macdoc") + t.faint.Render("  ›  ") + t.chip(title)
+	return left + "\n" + t.gradientRule(m.w)
 }
 
 func (m TuiModel) tabsView() string {
@@ -1023,7 +1039,7 @@ func (m TuiModel) tabsView() string {
 	for i, title := range tabTitles {
 		label := fmt.Sprintf("%d %s", i+1, title)
 		if tab(i) == m.Tab {
-			parts = append(parts, t.r.NewStyle().Background(colBrand).Foreground(colOnBadge).Bold(true).Padding(0, 1).Render(label))
+			parts = append(parts, t.style().Background(t.c(colBrand)).Foreground(t.c(colOnBadge)).Bold(true).Padding(0, 1).Render(label))
 		} else {
 			parts = append(parts, t.muted.Padding(0, 1).Render(label))
 		}
@@ -1045,16 +1061,6 @@ func (m TuiModel) footerView() string {
 		keys = []key.Binding{m.keys.Stop, m.keys.Quit}
 	case m.Overlay == OverlayRemove:
 		keys = nil
-	case m.Overlay == OverlayPlan && m.Plan != nil && m.Plan.Status == planner.Pending:
-		keys = []key.Binding{m.keys.Apply, m.keys.Move, m.keys.Back}
-	case m.Overlay == overlayReclaim:
-		keys = nil // the checkbox list shows its own keys
-	case m.Overlay == overlayScan:
-		keys = []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "choose")),
-			key.NewBinding(key.WithKeys("down"), key.WithHelp("↑↓", "move")),
-			m.keys.Back, m.keys.Quit,
-		}
 	case m.Overlay == overlayExplore:
 		keys = []key.Binding{
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter/→", "open")),
@@ -1062,45 +1068,53 @@ func (m TuiModel) footerView() string {
 			key.NewBinding(key.WithKeys("backspace"), key.WithHelp("backspace", "parent folder")),
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
-	case m.Overlay == overlayMaintenance:
-		keys = []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply this step")),
-			m.keys.Move, m.keys.Back, m.keys.Quit,
-		}
 	case m.Overlay == overlayVitals:
-		keys = []key.Binding{key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "how it decides")), m.keys.Move, m.keys.Back, m.keys.Quit}
+		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware && m.softwareBusy:
 		keys = []key.Binding{m.keys.Back, m.keys.Quit}
-	case m.Overlay == overlaySoftware && m.softwareDetail:
-		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Overlay == overlaySoftware:
 		keys = []key.Binding{
 			key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
-			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "mark cleanups")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "delete")),
 			m.keys.Move, m.keys.Back, m.keys.Quit,
 		}
 	case m.Overlay != OverlayNone:
 		keys = []key.Binding{m.keys.Move, m.keys.Back, m.keys.Quit}
 	case m.Tab == TabSpace:
-		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explore folders")), m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "explore folders")), m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	case m.Tab == TabSuggestions && m.Detail:
 		keys = []key.Binding{m.keys.Back, m.keys.Tabs, m.keys.Slash, m.keys.Help, m.keys.Quit}
 	case m.Tab == TabSuggestions:
-		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Remove, m.keys.Mark, m.keys.Hide, m.keys.Explain, m.keys.Move, m.keys.Tabs, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	default:
-		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, m.keys.Quit}
+		keys = []key.Binding{m.keys.Tabs, m.keys.Move, m.keys.Slash, m.keys.Scan, m.keys.Help, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "home")), m.keys.Quit}
 	}
-	m.help.Width = m.w - 2
-	return " " + m.help.ShortHelpView(keys)
+	// The footer starts with one space. A line that is too long loses hints from
+	// the middle, so the last three (help, home, quit) stay.
+	return " " + m.help.ShortHelpView(m.fitKeys(keys, m.w-1))
+}
+
+// fitKeys drops hints, from just before the last three backwards, until the
+// footer fits width. The last three always stay.
+func (m TuiModel) fitKeys(keys []key.Binding, width int) []key.Binding {
+	m.help.SetWidth(0) // measure without any cut
+	for len(keys) > 3 && lipgloss.Width(m.help.ShortHelpView(keys)) > width {
+		keys = slices.Concat(keys[:len(keys)-4], keys[len(keys)-3:])
+	}
+	return keys
 }
 
 // paletteWindow is the range of completions the / menu shows: all of them
 // when the window has room (up to half its height, and always leaving the
 // header, input line, footer and 3 body lines), otherwise a window that
 // keeps the picked one in view.
+// paletteChrome is the lines the command palette uses besides its list: a blank line above,
+// the rule, the input and a blank line below.
+const paletteChrome = 4
+
 func (m TuiModel) paletteWindow() (start, end int) {
 	n := len(m.completions())
-	rows := min(n, max(4, m.h/2), max(1, m.h-9))
+	rows := min(n, max(4, m.h/2), max(1, m.h-9-(paletteChrome-2)))
 	start = max(0, min(m.pick-rows+1, n-rows))
 	return start, start + rows
 }
@@ -1110,6 +1124,7 @@ func (m TuiModel) inputView() string {
 	var b strings.Builder
 	comps := m.completions()
 	start, end := m.paletteWindow()
+	b.WriteString("\n") // a blank line above the list
 	for i := start; i < end; i++ {
 		c := comps[i]
 		prefix := string(m.InputMode)
@@ -1122,6 +1137,7 @@ func (m TuiModel) inputView() string {
 	}
 	b.WriteString(t.rule(m.w) + "\n")
 	b.WriteString(" " + t.brand.Render("› "+string(m.InputMode)) + m.input.View() + "\n")
+	b.WriteString("\n") // and one below the input, before the footer
 	return b.String()
 }
 
@@ -1149,6 +1165,23 @@ func (m TuiModel) loadingView() string {
 	return b.String()
 }
 
+// expectedScanBytes is how much the scan is expected to measure, so the bar can
+// show a percentage: the scan on screen, else the one the welcome screen
+// reported, else the latest stored one. 0 means unknown (a first scan).
+func (m TuiModel) expectedScanBytes() int64 {
+	switch {
+	case m.Data != nil && m.Data.Res.Scan.TotalBytes > 0:
+		return m.Data.Res.Scan.TotalBytes
+	case m.IntroStatus.Bytes > 0:
+		return m.IntroStatus.Bytes
+	case m.Deps != nil && m.Deps.Home != "":
+		if info, _, err := engine.LastScan(m.Deps.Home, time.Now()); err == nil {
+			return info.TotalBytes
+		}
+	}
+	return 0
+}
+
 func (m TuiModel) scanProgressView() string {
 	t := m.t
 	p := m.prog
@@ -1156,7 +1189,11 @@ func (m TuiModel) scanProgressView() string {
 	b.WriteString("\n")
 	if m.estimate > 0 {
 		pct := min(0.99, float64(p.Bytes)/float64(m.estimate))
-		fmt.Fprintf(&b, "    %s %s\n", m.Bar.ViewAs(pct), t.muted.Render(fmt.Sprintf("~%d%%", int(pct*100))))
+		fmt.Fprintf(&b, "    %s\n\n", m.barView(pct, true)) // a blank line under the bar
+	} else {
+		// No earlier scan to estimate from: the bar still shows, sweeping
+		// back and forth, with no percentage (the total is unknown).
+		fmt.Fprintf(&b, "    %s\n\n    %s\n", m.barView(sweep(p.Elapsed), false), t.hint("first scan, size unknown"))
 	}
 	fmt.Fprintf(&b, "    %s  %s  %s\n", t.size.Render(engine.DecimalBytes(p.Bytes)),
 		t.muted.Render(fmt.Sprintf("%s files", groupDigits(p.Files))), t.faint.Render(p.Elapsed.Round(time.Second).String()))
@@ -1170,8 +1207,6 @@ func (m TuiModel) scanProgressView() string {
 // textView renders a non-list tab as tables.
 func (m TuiModel) textView() string {
 	switch m.Tab {
-	case tabToolchains:
-		return m.toolchainTables()
 	case tabProjects:
 		return m.projectTables()
 	case TabSpace:
@@ -1229,20 +1264,13 @@ func (m TuiModel) listView(ops []model.Opportunity, w, h int) string {
 				t.size.Render(tierTotal(m.Data.Res.Opportunities.Totals[tier], tierOps)))
 		}
 	}
-	claude := m.claudeLine()
 	rowsFit := max(1, h-6) // blank, totals, table top border, header, header rule, bottom border
-	if claude != "" {
-		rowsFit = max(1, rowsFit-1)
-	}
 	start := max(0, min(m.Cursor-rowsFit/2, len(ops)-rowsFit))
 	end := min(len(ops), start+rowsFit)
 	pos := t.muted.Render(fmt.Sprintf("item %d of %d", m.Cursor+1, len(ops)))
 	head := " " + strings.Join(totals, t.faint.Render("  ·  ")) + "   " + pos
 	if note := m.markedNote(); note != "" {
 		head += "   " + note
-	}
-	if claude != "" {
-		head += "\n" + claude
 	}
 	return "\n" + head + "\n" + indentLines(m.opsTable(ops[start:end], m.Cursor-start, w-2, w < m.w), " ")
 }
@@ -1267,17 +1295,17 @@ func (m TuiModel) HelpView() string {
 	var b strings.Builder
 	b.WriteString("\n " + t.heading("Keys") + "\n")
 	keys := [][2]string{
-		{"tab / shift+tab, 1–5", "switch tab (the scan view)"},
+		{"tab / shift+tab, 1–4", "switch tab (the scan view)"},
 		{"↑ ↓  j k  pgup pgdn", "move or scroll"},
 		{"enter", "remove the selected suggestion (or the marked ones), after you confirm"},
 		{"space", "mark several suggestions to remove together"},
 		{"e", "explain the selected suggestion"},
-		{"p", "seal a dry-run plan instead (marked, or the selected one)"},
-		{"a  (on a plan)", "apply it here in the terminal, after you confirm"},
+		{"x", "hide this kind of suggestion from now on"},
+		{"d  (after /reclaim)", "review the RISKY items it left alone; each needs its ID typed"},
 		{"/", "command palette"},
 		{"?", "this help"},
 		{"r", "rescan the disk"},
-		{"esc", "stop a scan · close"},
+		{"esc", "stop a scan · close a page · back to the home screen"},
 		{"q, ctrl+c", "quit"},
 	}
 	for _, k := range keys {
@@ -1288,11 +1316,13 @@ func (m TuiModel) HelpView() string {
 		fmt.Fprintf(&b, "   %s %s\n", t.accent.Render(fmt.Sprintf("%-22s", strings.TrimSpace("/"+c.Name+" "+c.args))), t.muted.Render(c.desc))
 	}
 	b.WriteString("\n " + t.heading("Safety") + "\n")
-	b.WriteString(t.muted.Render("   Nothing is removed until you confirm. Enter shows what will go and how\n"))
-	b.WriteString(t.muted.Render("   much space comes back; Enter again removes it (SAFE and CAUTION items).\n"))
-	b.WriteString(t.muted.Render("   A RISKY item also needs its code typed. Each item is checked again just\n"))
-	b.WriteString(t.muted.Render("   before it's removed, and skipped if it changed. Removed items are deleted\n"))
-	b.WriteString(t.muted.Render("   for good, so the space is freed at once. Everything is in macdoc log.\n"))
+	b.WriteString(t.muted.Render("   /reclaim removes every SAFE and CAUTION item right after its scan, without") + "\n")
+	b.WriteString(t.muted.Render("   asking (esc stops it; nothing RISKY is ever included). Everything else asks:") + "\n")
+	b.WriteString(t.muted.Render("   Enter shows what will go and how") + "\n")
+	b.WriteString(t.muted.Render("   much space comes back; Enter again removes it (SAFE and CAUTION items).") + "\n")
+	b.WriteString(t.muted.Render("   A RISKY item also needs its code typed. Each item is checked again just") + "\n")
+	b.WriteString(t.muted.Render("   before it's removed, and skipped if it changed. Removed items are deleted") + "\n")
+	b.WriteString(t.muted.Render("   for good, so the space is freed at once. Everything is in macdoc log.") + "\n")
 	return b.String()
 }
 
@@ -1334,7 +1364,18 @@ func cleanData(d *TuiData) *TuiData {
 	raw := d.Res.Opportunities
 	// TuiData's fields are unexported, which display (textsafe.Copy) leaves
 	// as they are, so each is cleaned on its own.
-	c := TuiData{Res: display(d.Res), space: display(d.space), Dev: display(d.Dev), Projects: display(d.Projects),
+	c := TuiData{Res: display(d.Res), Space: display(d.Space), Projects: display(d.Projects),
 		Slow: display(d.Slow), Trend: display(d.Trend), trendMsg: display(d.trendMsg), PlanOps: &raw}
 	return &c
+}
+
+// sweep is a position in [0,1] that moves back and forth with time, for a bar
+// whose total is unknown.
+func sweep(elapsed time.Duration) float64 {
+	const period = 3 * time.Second
+	x := float64(elapsed%period) / float64(period) // 0..1
+	if x > 0.5 {
+		x = 1 - x
+	}
+	return 2 * x
 }

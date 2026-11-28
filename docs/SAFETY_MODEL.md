@@ -2,7 +2,7 @@
 
 ## 1. Principles
 
-1. **Read-only by default.** Only `apply`, the dashboard's confirmed remove (Enter) and `quarantine purge` / `restore` change anything on disk outside macdoc's own state.
+1. **Read-only by default.** Only `macdoc reclaim`, the dashboard's remove (Enter on a suggestion, and `/reclaim`) and `quarantine purge` / `restore` change anything on disk outside macdoc's own state.
 2. **Actions are recipes, not paths.** Nothing outside the recipe catalog can be acted on, and nothing a human or Claude types is interpreted as a path to delete.
 3. **Dry-run always comes first.** Every change is preceded by an immutable, hash-sealed plan the user has seen.
 4. **A human at a terminal is the only approver.** TTY plus typed confirmation. Claude can only propose.
@@ -15,8 +15,8 @@
 
 | Class | Meaning | Confirmation | Default in `plan --safe` |
 |---|---|---|---|
-| **SAFE** | Regenerable cache or artifact, managed by the owning tool, no user-authored data | One typed plan confirmation (`apply`), or a second Enter (dashboard) | Included |
-| **CAUTION** | Regenerable but expensive (re-download/rebuild), or possibly in use | Typed plan confirmation (`apply`), or a second Enter (dashboard) | Excluded |
+| **SAFE** | Regenerable cache or artifact, managed by the owning tool, no user-authored data | One Enter (`reclaim`), or a second Enter (dashboard) | Included |
+| **CAUTION** | Regenerable but expensive (re-download/rebuild), or possibly in use | Named in `reclaim`, then Enter; or a second Enter (dashboard) | Excluded |
 | **RISKY** | May contain unique data (dSYMs, container volumes, venvs with local edits) | Per-item y/N plus typed confirmation. No batch | Excluded |
 | **ADVISE-ONLY** | macdoc explains how to do it yourself and never acts | n/a | n/a |
 | **BLOCKED** | Never actionable under any input | n/a | n/a |
@@ -45,6 +45,10 @@ Checked **after** canonicalization: input containing `..`, a trailing `/` or `/.
 - Suggestions you hide with `macdoc config hide <id>` (or the dashboard's `x`) are stored as `excluded_recipes`. Hiding only removes a kind of suggestion from view; it can never add, enable or loosen anything, and the list says how many items are hidden. The `~/.Trash` carve-out (ADR 0013) lets the one quarantined-Trash recipe name `~/.Trash` as `keep_children_of`, so small Trash items are seen.
 - Folders you add with `macdoc config protect <folder>` (stored as `protect` in `~/Library/Application Support/macdoc/config.json`, Phase 7). They only add protection: the built-in list above can't be changed or removed. Opportunities, planning and the executor's re-check all read them, so a folder protected after a plan was made is still refused at apply. An unreadable or invalid settings file stops opportunities, planning and apply with an error rather than dropping a protected folder. Paths with a `..` component are rejected. The future MCP server must never expose `config` (unprotecting loosens safety).
 
+- **`.DS_Store` sweep (ADR 0014 §4).** The one case where a protected folder is acted on by path: the `sweep` method removes regular files named exactly `.DS_Store` below a folder directly in home, including Documents, Desktop and the other built-in protected folders, and nothing else. It never enters `Library`, hidden folders, `.git`, `node_modules`, photo or music libraries, a folder you protected, or another volume, and it is never part of a Claude plan (`safety.Policy.CheckSweepRoot`).
+
+- **System locations (ADR 0014 §1-3).** The `system` method may remove one item of a short list of system locations with administrator rights: `/Library/Caches/<item>` (never `com.apple.*`), `/Library/Logs/<item>`, `/private/var/log/<item>`, `/Library/LaunchDaemons/<file>.plist` (its program gone), `/Library/PrivilegedHelperTools/<file>` (no installed app owns it), and `<destination>/Backups.backupdb/<machine>/<name>.inProgress`. Each must be root-owned, not a symlink and not in a folder you protected (`safety.Policy.CheckSystemTarget`); everything else under `/Library` and `/private`, and all of `/System`, `/usr`, `/bin`, `/sbin` and `/cores`, stays protected. The removals are permanent, and each needs its own y/N and the Mac password.
+
 The home directory itself, any top-level home folder, and any path with fewer than 2 components below `$HOME` (e.g. `~/.gradle` itself) can never be a target, even if a recipe glob matched it.
 
 ## 4. Lifecycle
@@ -65,20 +69,22 @@ The home directory itself, any top-level home folder, and any path with fewer th
   - Files live in `~/Library/Application Support/macdoc/plans/P-XXXX.json`. They're created with `O_CREAT|O_EXCL` (never overwritten, never renamed), mode 0600, in a 0700 folder. The `plans` table (store migration v2) holds the second copy of the hash, with the scan, origin, expiry and status.
   - "Canonical JSON" means `encoding/json` of `model.Plan` (fields in declaration order) with `sha256` empty. `Load` rejects unknown fields and trailing data.
   - Plan IDs use four characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no look-alikes, because the code is typed to confirm). `Load` accepts only `^P-[A-HJ-NP-Z2-9]{4}$`, so an ID can't name a path.
-  - `planner.Verify` is the gate the executor must call. It fails on any of: hash ≠ seal, seal ≠ store row, a different scan or expiry, already applied, expired. It then re-checks every item against the catalog: a known recipe, the same method, a risk not below the recipe's, the native argv exactly the recipe's (`{id}` passing `CheckNativeArg`), and the quarantine target passing `CheckTarget`. So even a plan whose file *and* store row were forged can't carry a command or path the planner wouldn't produce.
+  - `planner.Verify` is the gate the executor must call. It fails on any of: hash ≠ seal, seal ≠ store row, a different scan or expiry, already applied, expired. It then re-checks every item against the catalog: a known recipe, the same method, a risk not below the recipe's (a sweep or system removal must also be a person's plan, and a sweep must start at an allowed folder, a system removal at one of the named locations), the native argv exactly the recipe's (`{id}` passing `CheckNativeArg`), and the quarantine target passing `CheckTarget`. So even a plan whose file *and* store row were forged can't carry a command or path the planner wouldn't produce.
   - The fingerprint's `alloc_bytes` is the target entry's own allocated blocks, not its tree size (that's `expected_bytes`, from the scan). Phase 6 re-sizes when `mtime` changed.
   - Plans are built only from a complete scan at most 6 hours old.
 
 ### 4.2 Confirm
+> **Since 2026-11-24 (ADR 0015) there is no `macdoc apply`, `/plan` or `/apply`.** Every removal still seals a plan and runs the executor's apply, with the confirmations below, from `macdoc reclaim` or the dashboard; the confirmation text below is what `reclaim` shows for RISKY items.
 - `stdin` and `stdout` must be TTYs. Piped input is refused.
 - Show the full dry-run again, then: `Type "7F3K" to apply 32.4 GB (SAFE: 3 items):`.
 - RISKY items: per-item `Apply this item? [y/N]`, with the default as No.
 - Claude-origin plans show a banner and use per-item confirmation the first time.
-- There is no `--yes` flag for CAUTION or RISKY items. `--yes` exists only for SAFE-only plans and still requires a TTY.
+- There is no `macdoc apply` command any more (ADR 0015); "apply" in this section means the executor's apply, which every removal runs. The one no-prompt path besides the dashboard's `/reclaim` is `macdoc reclaim --tier safe|caution --yes` (ADR 0014 §5): it needs an explicit tier, seals a plan made here, and the executor (`Config.NonInteractive`) skips every item that is not a SAFE or CAUTION quarantine move with no administrator rights; sweeps, native commands, RISKY items and Claude plans always need a person. Its audit records carry `non_interactive: true`.
 
 - **As built (Phase 6):** apply checks stdin and stdout with `isatty` (ioctl), so pipes and `/dev/null` are refused. There is no `--yes` at all, not even for SAFE-only plans. The confirmation code is the plan ID's four characters. A Claude-origin plan asks `[y/N]` for every item, every time.
 - **Dashboard remove (2026-10-28, the user's decision):** Enter on a suggestion (or on marked ones) seals a plan and opens a box listing each item, its size and the total. A second Enter removes SAFE and CAUTION items. Each RISKY item needs its own confirmation: its ID is typed, one item after another, in plan order, and the last Enter removes. Esc cancels. The dashboard only runs in a real terminal, and the removal checks stdin and stdout with `isatty` again. Dashboard plans are always user-origin.
 - **`reclaim` chooser (2026-11-16, the owner's decision, ADR 0013):** at a real terminal (isatty on stdin and stdout, not `--json`, `--quiet` or `--dry-run`), `macdoc reclaim` lists everything by risk, then asks "What do you want to clean?" with a row each for SAFE, CAUTION, RISKY and ADVICE. The person types the risk types (`safe`, `caution`, `risky`, `all`) and presses Enter, which seals a plan and runs it through the executor with every re-check, the quarantine-then-delete step and the audit. Enter alone is SAFE only; `n` or an answer it does not understand changes nothing. CAUTION is cleaned only when named. RISKY is cleaned only when named and keeps apply's full confirmation (plan shown, y/N per RISKY item, the plan's code typed), so one Enter never approves RISKY. ADVICE can never be chosen, and `all` excludes it. `--tier X` skips the question and cleans only that tier on Enter. Administrator steps and Claude-origin plans are never cleaned this way. There is still no `--yes`.
+- **Dashboard `/reclaim` (2026-11-24, the owner's decision, ADR 0014 §5):** in the dashboard, `/reclaim` starts removing SAFE and CAUTION suggestions as soon as its own fresh scan ends, with no list and no confirmation, and shows progress by category. RISKY, advice items and installed apps are never included. `esc` stops it between items. Each item is still re-validated, quarantined before deletion and audited. The result screen counts the RISKY items it left alone and offers `d` to review them; that opens the ordinary removal box, so each RISKY item still needs its own ID typed (no group approval).
 
 ### 4.3 Re-validate (per item, immediately before acting)
 1. The plan hash matches the store and the plan hasn't expired.
@@ -96,7 +102,7 @@ The home directory itself, any top-level home folder, and any path with fewer th
 ### 4.4 Execute
 - **Native:** `exec.Command(argv...)` with a fixed argv from the recipe and no shell. Dynamic identifiers (simulator runtime ID, model name, SDK package) must exactly match an entry from that tool's own listing captured at plan time. Each command has a timeout.
 - **Quarantine:** `os.Rename(target, quarantine/Q-XXXX/payload/<basename>)` on the same volume. Write the manifest first (`pending`), then rename, then mark the manifest `done`. A crash leaves a recoverable state.
-- **Never:** recursive deletion of a user-supplied path, `rm -rf`, `sh -c`, or `sudo` anywhere except `internal/executor/privileged.go`. Admin rights are used only for the exact argvs in `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`), through `/usr/bin/sudo -- <system tool>` so the OS asks for the password (never read, stored or logged; never `sudo -S`; `sudo -k` after). It needs a real terminal, is refused in plans Claude proposed, and each such item is confirmed on its own (ADR 0009). Any other command needing admin rights is advise-only.
+- **Never:** recursive deletion of a user-supplied path, `rm -rf`, `sh -c`, or `sudo` anywhere except `internal/executor/privileged.go`. Admin rights are used only by the `system` method's fixed commands (ADR 0014), through `/usr/bin/sudo -- <system tool>` so the OS asks for the password (never read, stored or logged; never `sudo -S`; `sudo -k` after). It needs a real terminal, is refused in plans Claude proposed, and each such item is confirmed on its own (the rules ADR 0009 set, now in ADR 0014). Any other command needing admin rights is advise-only.
 
 - **As built (Phase 6):**
   - Quarantine moves: create `Q-XXXX/payload/` (0700), record the entry in the store (`quarantine` table, migration v3) and write the manifest (`pending`, create-only, fsync). Open the target's parent and the payload folder one component at a time (`openDirStrict`: `openat` with `O_DIRECTORY|O_NOFOLLOW` from `/`), so a symlink in any ancestor makes the open fail. Check with `fstatat` that the name in the opened parent is still the fingerprinted inode, then `renameatx_np(…, RENAME_EXCL)` between the two folder descriptors. Before and after the move, reopen the parent path the same strict way and compare it with the held descriptor (`sameDir`); if the after-check fails, move the item back.
@@ -155,6 +161,6 @@ The fuller version, with assets, adversaries, trust boundaries and the test behi
 | A recipe glob is too broad | Recipe validation rejects globs that resolve to protected roots or fewer than 2 components below `$HOME`. Per-recipe negative tests |
 | A native tool removes more than expected (e.g. `docker system prune --volumes`) | Recipes pin exact argv. Volume-affecting flags are forbidden by a recipe lint rule |
 | Accidental batch approval | Typed plan-ID confirmation, per-item for RISKY, no `--yes` beyond SAFE |
-| Claude floods the user with plans | At most 5 open Claude plans and 10 `create_cleanup_plan` calls per 10 minutes, checked and saved under a file lock shared by every server process (`store.LockPlans`). IDs are normalized and de-duplicated, so one ID asked for twice is one item |
-| A privileged step is run without a person, or widened to another command | `sudo` is named only in `internal/executor/privileged.go` (build guard); the argv must match a three-entry allow-list; the planner and executor refuse privileged items from Claude plans; a real terminal and a separate y/N per item are required (ADR 0009) |
+| Claude creates plans or applies them | The MCP server has no plan or apply tool (ADR 0015); the tool list is pinned by `TestToolList` |
+| A privileged step is run without a person, or widened to another command | `sudo` is named only in `internal/executor/privileged.go` (build guard); the command must be the exact fixed shape of a named system location; the planner and executor refuse privileged items from Claude plans; a real terminal and a separate y/N per item are required (ADR 0014) |
 | Crash during apply | Manifest-first quarantine, audit fsync, resumable state |

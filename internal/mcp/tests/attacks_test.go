@@ -9,7 +9,6 @@ package tests
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,15 +16,12 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unicode"
 
 	"github.com/sagnik26/macdoc/internal/mcp"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/sagnik26/macdoc/internal/audit"
 	"github.com/sagnik26/macdoc/internal/model"
-	"github.com/sagnik26/macdoc/internal/planner"
 	"github.com/sagnik26/macdoc/internal/platform"
 	"github.com/sagnik26/macdoc/internal/recipes"
 	"github.com/sagnik26/macdoc/internal/store"
@@ -67,40 +63,6 @@ func connect(t *testing.T, home string, now func() time.Time) *fixture {
 // is safe to use from several goroutines.
 func (f *fixture) rawCall(name string, args map[string]any) (*sdk.CallToolResult, error) {
 	return f.cs.CallTool(context.Background(), &sdk.CallToolParams{Name: name, Arguments: args})
-}
-
-func storePlans(t *testing.T, home string) []store.PlanRecord {
-	t.Helper()
-	st, err := store.Open(store.DefaultPath(home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = st.Close() }()
-	ps, err := st.Plans(10000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ps
-}
-
-func planFiles(t *testing.T, home string) []string {
-	t.Helper()
-	m, _ := filepath.Glob(filepath.Join(planner.Dir(store.DefaultPath(home)), "*"))
-	return m
-}
-
-func openClaudePlans(t *testing.T, home string, now time.Time) int {
-	t.Helper()
-	st, err := store.Open(store.DefaultPath(home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = st.Close() }()
-	open, err := st.OpenPlans(model.OriginClaude, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return len(open)
 }
 
 // nmID is the CAUTION node_modules opportunity's ID.
@@ -151,9 +113,7 @@ func TestRedteamHeldToolsDontTouchTheMac(t *testing.T) {
 		"list_projects":         {"idle_days": -5},
 		"diagnose_slowness":     nil,
 		"get_growth_history":    {"days": 365},
-		"get_plan":              {"id": "P-AAAA"},
 		"get_audit_log":         {"limit": 1 << 30},
-		"create_cleanup_plan":   {"opportunity_ids": []any{id}},
 	} {
 		if _, err := f.rawCall(name, args); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -179,41 +139,6 @@ func snapshotTree(t *testing.T, root string) string {
 
 // --- Attack 2: paths and odd values in tool inputs --------------------------
 
-// HELD. Extra JSON fields can't smuggle a path, an origin or a TTL: either
-// the call is refused, or the plan is still a Claude plan of IDs only.
-func TestRedteamHeldExtraFields(t *testing.T) {
-	f := newFixture(t)
-	id := f.nmID(t)
-	res, err := f.rawCall("create_cleanup_plan", map[string]any{
-		"opportunity_ids": []any{id},
-		"origin":          "cli",
-		"paths":           []any{"/etc"},
-		"target":          f.home,
-		"ttl":             "1000h",
-		"Selector":        map[string]any{"Tier": "RISKY"},
-	})
-	// The SDK rejects unknown fields (additionalProperties: false); either way is fine.
-	if err == nil && !res.IsError {
-		for _, r := range storePlans(t, f.home) {
-			if r.Origin != model.OriginClaude {
-				t.Errorf("extra field changed the origin: %+v", r)
-			}
-			if r.ExpiresAt.Sub(r.CreatedAt) > planner.TTL {
-				t.Errorf("extra field changed the TTL: %+v", r)
-			}
-		}
-		for _, p := range planFiles(t, f.home) {
-			pl, err := planner.Load(filepath.Dir(p), strings.TrimSuffix(filepath.Base(p), ".json"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if pl.Origin != model.OriginClaude || len(pl.Items) != 1 || pl.Items[0].OpportunityID != id {
-				t.Errorf("plan = %+v", pl)
-			}
-		}
-	}
-}
-
 // HELD. Huge, negative and wrongly typed numbers never panic and never make
 // an unbounded result.
 func TestRedteamHeldNumbers(t *testing.T) {
@@ -238,7 +163,7 @@ func TestRedteamHeldNumbers(t *testing.T) {
 }
 
 // HELD. IDs that try to name paths, use look-alike Unicode, or are very long
-// never reach the planner as anything but an ID that matches nothing.
+// never reach anything as more than an ID that matches nothing.
 func TestRedteamHeldIDInputs(t *testing.T) {
 	f := newFixture(t)
 	for _, bad := range []string{
@@ -246,94 +171,13 @@ func TestRedteamHeldIDInputs(t *testing.T) {
 		"O-\u0430bcdef", // Cyrillic \u0430
 		"O-abcdef\u202e", "O-" + strings.Repeat("a", 10000), "O-abc def",
 	} {
-		_, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{bad}})
+		_, errText := f.call(t, "explain_opportunity", map[string]any{"id": bad})
 		if errText == "" {
-			t.Errorf("%q: plan created", bad)
+			t.Errorf("explain %q accepted", bad)
 		}
 		if n := len([]rune(errText)); n > mcp.MaxString {
 			t.Errorf("%q: error text is %d runes, over the cap", bad, n)
 		}
-		if _, errText := f.call(t, "explain_opportunity", map[string]any{"id": bad}); errText == "" {
-			t.Errorf("explain %q accepted", bad)
-		}
-		if _, errText := f.call(t, "get_plan", map[string]any{"id": bad}); errText == "" {
-			t.Errorf("get_plan %q accepted", bad)
-		}
-	}
-	if len(planFiles(t, f.home)) != 0 || len(storePlans(t, f.home)) != 0 {
-		t.Error("a refused call wrote a plan")
-	}
-}
-
-// FIXED 2026-11-02 (finding F2, low). create_cleanup_plan checks IDs with its own
-// regexp (after TrimSpace, "O-" optional, any case) but hands the raw strings
-// to the planner, which only lower-cases them. An ID the tool accepts and
-// explain_opportunity finds ("abcdef" without the prefix, or with
-// surrounding whitespace) is refused as "not in the latest scan ... call
-// list_opportunities again", which sends Claude round a retry loop against
-// the rate limit. The raw strings (whitespace, \r, \v, U+2028 ...) also land in
-// the sealed plan's Request and the audit log's reason. The CLI uses
-// planner.ParseIDs, which normalizes; MCP doesn't.
-func TestRedteamFixedIDNormalization(t *testing.T) {
-	f := newFixture(t)
-	id := f.nmID(t) // "O-xxxxxx"
-	bare := strings.TrimPrefix(id, "O-")
-	if _, errText := f.call(t, "explain_opportunity", map[string]any{"id": bare}); errText != "" {
-		t.Fatalf("explain_opportunity accepts the bare ID, so create_cleanup_plan should too: %s", errText)
-	}
-	for _, variant := range []string{bare, " " + id + "\n", "\r" + id + "\v", id + "\u2028"} {
-		out, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{variant}})
-		if errText != "" {
-			t.Errorf("%q passes the tool's own ID check but is refused: %s", variant, errText)
-			continue
-		}
-		pid := out["data"].(map[string]any)["plan_id"].(string)
-		p, err := planner.Load(planner.Dir(store.DefaultPath(f.home)), pid)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if p.Request != id {
-			t.Errorf("%q: sealed plan request = %q, want the normalized %q", variant, p.Request, id)
-		}
-	}
-	// Mixed with a valid ID, the raw string reaches the plan file and the
-	// audit log even though it matched nothing.
-	f2 := newFixture(t)
-	id2 := f2.nmID(t)
-	if _, errText := f2.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{id2, "\r" + id2 + "\v"}}); errText != "" {
-		t.Fatal(errText)
-	}
-	recs, _, _ := audit.Read(audit.Path(store.DefaultPath(f2.home)), 100)
-	for _, r := range recs {
-		if strings.IndexFunc(r.Reason, func(r rune) bool { return unicode.IsControl(r) || r == '\u2028' }) >= 0 {
-			t.Errorf("control characters from Claude's input in the audit log: %q", r.Reason)
-		}
-	}
-}
-
-// FIXED 2026-11-02 (finding F1, medium). The same ID twice (or in two cases) gives a
-// plan with the item twice: Claude is shown double the bytes, and the plan
-// fails planner.Verify ("appears twice"), so the user can never apply it,
-// yet it takes one of Claude's 5 open-plan slots. The CLI's ParseIDs
-// de-duplicates; MCP doesn't.
-func TestRedteamFixedDuplicateIDs(t *testing.T) {
-	f := newFixture(t)
-	id := f.nmID(t)
-	out, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{id, strings.ToLower(id), id}})
-	if errText != "" {
-		return // refusing duplicates is a fine fix
-	}
-	data := out["data"].(map[string]any)
-	if n := data["summary"].(map[string]any)["items"].(float64); n != 1 {
-		t.Errorf("plan has %v items for one opportunity; bytes shown = %v (double-counted)", n, data["summary"].(map[string]any)["bytes"])
-	}
-	pid := data["plan_id"].(string)
-	got, errText := f.call(t, "get_plan", map[string]any{"id": pid})
-	if errText != "" {
-		t.Fatal(errText)
-	}
-	if st := got["data"].(map[string]any)["status"]; st != string(planner.Pending) {
-		t.Errorf("the plan Claude just handed the user is %v, so macdoc apply %s will refuse it: %v", st, pid, got["warnings"])
 	}
 }
 
@@ -456,182 +300,7 @@ func TestRedteamFixedNumberPrecision(t *testing.T) {
 
 // --- Attack 4: plan limits --------------------------------------------------
 
-// HELD. No refused call writes a plan file, a store row or a plan_created
-// audit record: empty, too many, a path, advice-only, unknown, rate-limited.
-func TestRedteamHeldRefusedCallsWriteNothing(t *testing.T) {
-	c := &clock{}
-	f := newFixtureAt(t, c.now)
-	var advise string
-	out, _ := f.call(t, "list_opportunities", map[string]any{"risk": []string{"ADVISE"}})
-	advise = asSlice(out["data"].(map[string]any)["opportunities"])[0].(map[string]any)["id"].(string)
-	for _, ids := range [][]any{{}, make([]any, 51), {f.target}, {advise}, {"O-zzzzzz"}, {advise, "O-zzzzzz"}} {
-		if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); errText == "" {
-			t.Errorf("%v: planned", ids)
-		}
-	}
-	// Stale scan.
-	c.advance(planner.Oldest + time.Minute)
-	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": []any{f.nmIDAt(t)}}); errText == "" {
-		t.Error("stale scan planned")
-	}
-	if len(planFiles(t, f.home)) != 0 || len(storePlans(t, f.home)) != 0 {
-		t.Errorf("refused calls wrote plans: %v", planFiles(t, f.home))
-	}
-	recs, _, _ := audit.Read(audit.Path(store.DefaultPath(f.home)), 100)
-	for _, r := range recs {
-		if r.Event == audit.Planned {
-			t.Errorf("audit records a plan: %+v", r)
-		}
-	}
-}
-
-// nmIDAt is nmID that tolerates a stale scan (listing still works).
-func (f *fixture) nmIDAt(t *testing.T) string { return f.nmID(t) }
-
-// HELD. Origin case and spelling: the store queries match exactly what the
-// MCP server writes, and a plan expiring exactly at now is expired for both
-// the cap and Verify (no window where an applicable plan isn't counted).
-func TestRedteamHeldExpiryEdge(t *testing.T) {
-	fixed := time.Now().UTC().Round(0)
-	f := newFixtureAt(t, func() time.Time { return fixed })
-	ids := f.planIDs(t)
-	st, err := store.Open(store.DefaultPath(f.home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := range mcp.MaxOpenPlans {
-		r := store.PlanRecord{ID: "P-ZZZ" + string(rune('A'+i)), SHA256: "h", ScanID: "S-x", Origin: model.OriginClaude,
-			CreatedAt: fixed.Add(-mcp.PlanRateWindow - time.Minute), ExpiresAt: fixed}
-		if err := st.AddPlan(r); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = st.Close()
-	// Verify treats ExpiresAt == now as expired, so these don't hold slots.
-	vp := model.Plan{SchemaVersion: model.SchemaVersion, ID: "P-ZZZA", ScanID: "S-x", ExpiresAt: fixed}
-	vp.SHA256, _ = planner.Hash(vp)
-	vrec := store.PlanRecord{ID: vp.ID, SHA256: vp.SHA256, ScanID: vp.ScanID, ExpiresAt: fixed, Status: store.PlanPending}
-	if err := planner.Verify(vp, vrec, nil, nil, fixed); !errors.Is(err, planner.ErrExpired) {
-		t.Fatalf("Verify at ExpiresAt = %v; the cap's boundary (expires_at > now) no longer matches", err)
-	}
-	if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); errText != "" {
-		t.Errorf("plans expiring exactly now still count as open: %s", errText)
-	}
-	// One nanosecond later they would be open: the 6th is refused.
-	f2 := newFixtureAt(t, func() time.Time { return fixed })
-	ids2 := f2.planIDs(t)
-	st2, _ := store.Open(store.DefaultPath(f2.home))
-	for i := range mcp.MaxOpenPlans {
-		_ = st2.AddPlan(store.PlanRecord{ID: "P-ZZY" + string(rune('A'+i)), SHA256: "h", ScanID: "S-x", Origin: model.OriginClaude,
-			CreatedAt: fixed.Add(-mcp.PlanRateWindow - time.Minute), ExpiresAt: fixed.Add(time.Nanosecond)})
-	}
-	_ = st2.Close()
-	if _, errText := f2.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids2}); !strings.Contains(errText, "already 5 open plans") {
-		t.Errorf("open cap at the boundary: %q", errText)
-	}
-}
-
-// HELD. Within one server, concurrent calls can't race past the open-plan
-// cap or the rate limit (planMu).
-func TestRedteamHeldConcurrentOneServer(t *testing.T) {
-	f := newFixture(t)
-	ids := f.planIDs(t)
-	var wg sync.WaitGroup
-	for range 20 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, _ = f.rawCall("create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-		}()
-	}
-	wg.Wait()
-	if n := len(storePlans(t, f.home)); n > mcp.MaxOpenPlans {
-		t.Errorf("%d plans from one server, cap is %d", n, mcp.MaxOpenPlans)
-	}
-}
-
-// FIXED 2026-11-02 (finding F6, low). The open-plan cap and the store half of the
-// rate limit are check-then-act across processes: planMu is per server, and
-// planLimits reads the store, then CreatePlan writes it, with no lock or
-// transaction around both. Several servers on one Mac (Claude Desktop and
-// Claude Code each start one) calling at once all see the same count and
-// all create a plan. Here 8 servers start from 0 open plans and each makes
-// one call at the same moment.
-func TestRedteamFixedOpenCapAcrossServers(t *testing.T) {
-	base := newFixture(t)
-	ids := base.planIDs(t)
-	const servers = 8
-	var fs []*fixture
-	for range servers {
-		fs = append(fs, connect(t, base.home, nil))
-	}
-	start := make(chan struct{})
-	var wg sync.WaitGroup
-	for _, f := range fs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			_, _ = f.rawCall("create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-		}()
-	}
-	close(start)
-	wg.Wait()
-	if n := openClaudePlans(t, base.home, time.Now()); n > mcp.MaxOpenPlans {
-		t.Errorf("%d open Claude plans after %d concurrent calls from %d servers; the cap is %d", n, servers, servers, mcp.MaxOpenPlans)
-	}
-}
-
-// HELD. Restarting the server doesn't reset the open-plan cap or the
-// store-counted rate: a fresh server on the same home sees the plans.
-func TestRedteamHeldRestartKeepsLimits(t *testing.T) {
-	f := newFixture(t)
-	ids := f.planIDs(t)
-	for range mcp.MaxOpenPlans {
-		if _, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); errText != "" {
-			t.Fatal(errText)
-		}
-	}
-	g := connect(t, f.home, nil)
-	if _, errText := g.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids}); !strings.Contains(errText, "open plans") {
-		t.Errorf("a restarted server ignored the open cap: %q", errText)
-	}
-}
-
 // --- Attack 5: plan integrity ----------------------------------------------
-
-// HELD. Every plan the MCP server writes is sealed as Claude's, whatever
-// the input; nothing Claude sends becomes a title, target or command.
-func TestRedteamHeldPlanIsClaudeOrigin(t *testing.T) {
-	f := newFixture(t)
-	ids := f.planIDs(t)
-	out, errText := f.call(t, "create_cleanup_plan", map[string]any{"opportunity_ids": ids})
-	if errText != "" {
-		t.Fatal(errText)
-	}
-	pid := out["data"].(map[string]any)["plan_id"].(string)
-	p, err := planner.Load(planner.Dir(store.DefaultPath(f.home)), pid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Origin != model.OriginClaude {
-		t.Fatalf("origin = %q", p.Origin)
-	}
-	for _, r := range storePlans(t, f.home) {
-		if r.Origin != model.OriginClaude {
-			t.Errorf("store origin = %q", r.Origin)
-		}
-	}
-	for _, it := range p.Items {
-		for _, s := range append([]string{it.Title, it.Target}, it.Argv...) {
-			for _, id := range ids {
-				if s == id {
-					t.Errorf("Claude's input became plan content: %q", s)
-				}
-			}
-		}
-	}
-}
 
 // --- Attack 6: refresh_scan ---------------------------------------------------
 

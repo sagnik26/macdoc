@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 )
@@ -45,8 +45,7 @@ func (m TuiModel) introActions() []introAction {
 	return []introAction{
 		{"scan", scan},
 		{"reclaim", "See what can be cleaned and choose which risk types to clean"},
-		{"retire", "Installed software, its data folders and cleanups"},
-		{"refresh", "Maintenance steps, such as flushing DNS, one Apply away"},
+		{"retire", "Installed software and its data folders; delete what you don't need"},
 		{"explore", "Where the space is, as a folder tree you can open"},
 		{"vitals", "Live CPU, memory, disk, network and battery"},
 	}
@@ -70,14 +69,13 @@ func macdocLogo() []string {
 	return rows
 }
 
-// logoShades run from the brand coral to warm yellow, top to bottom.
-var logoShades = []lipgloss.TerminalColor{
-	pc("#E8875F", "173", "3", "#C15F3C", "167", "1"),
-	pc("#EA9460", "173", "3", "#C4663A", "167", "1"),
-	pc("#EDA261", "179", "3", "#C76E37", "173", "1"),
-	pc("#EFB061", "179", "11", "#B8742F", "172", "3"),
-	pc("#F1BE60", "221", "11", "#A97A22", "136", "3"),
-	pc("#F2CC60", "221", "11", "#9A6D00", "136", "3"),
+// logoShades are the logo's six rows, top to bottom, along the gradient.
+func logoShades() []duo {
+	var out []duo
+	for _, h := range gradient(6) {
+		out = append(out, duo{h, h})
+	}
+	return out
 }
 
 func (m TuiModel) introView() string {
@@ -88,8 +86,9 @@ func (m TuiModel) introView() string {
 	logo := macdocLogo()
 	if m.w >= lipgloss.Width(logo[0])+4 && m.h >= 34 {
 		var lb strings.Builder
+		shades := logoShades()
 		for i, l := range logo {
-			lb.WriteString(t.r.NewStyle().Foreground(logoShades[i]).Bold(true).Render(l) + "\n")
+			lb.WriteString(t.fg(shades[i]).Bold(true).Render(l) + "\n")
 		}
 		blocks = append(blocks, strings.TrimRight(lb.String(), "\n"))
 	} else {
@@ -100,18 +99,6 @@ func (m TuiModel) introView() string {
 
 	compact := m.w < 104
 
-	// Promises.
-	promises := []string{"Read-only unless you confirm", "Nothing leaves your Mac", "Every cleanup can be explained first"}
-	var pp []string
-	for _, p := range promises {
-		pp = append(pp, t.Ok.Render("✓ ")+t.text.Render(p))
-	}
-	sep := t.faint.Render("   ")
-	if compact {
-		sep = "\n"
-	}
-	blocks = append(blocks, strings.Join(pp, sep))
-
 	// What macdoc already knows.
 	st := m.IntroStatus
 	status := t.warn.Render("● ") + t.muted.Render("No scan yet. Your first check scans the disk once.")
@@ -121,9 +108,8 @@ func (m TuiModel) introView() string {
 	}
 	blocks = append(blocks, status)
 
-	// Commands, each with a short explanation; ↑↓ choose and Enter runs one.
-	// Narrow screens show only the highlighted command's explanation, under the
-	// box.
+	// Commands, each with a short explanation on wide screens; ↑↓ choose and
+	// Enter runs one. Nothing is written under the box.
 	var ab strings.Builder
 	for i, a := range m.introActions() {
 		name := fmt.Sprintf("%-9s", a.cmd)
@@ -137,14 +123,16 @@ func (m TuiModel) introView() string {
 			fmt.Fprintf(&ab, "  %s%s\n", t.accent.Render(name), t.muted.Render(desc))
 		}
 	}
-	actions := strings.TrimRight(t.Card(strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")...), "\n")
-	if compact {
-		actions += "\n " + t.muted.Render(Truncate(m.introActions()[m.introPick].desc, m.w-4))
-	}
+	rows := strings.Split(strings.TrimRight(ab.String(), "\n"), "\n")
+	actions := strings.TrimRight(t.Card(append(append([]string{""}, rows...), "")...), "\n")
 	blocks = append(blocks, actions)
 
 	// Center the Column of blocks horizontally.
+	// Airier when there is room: two blank lines between the blocks, not one.
 	body := strings.Join(blocks, "\n\n")
+	if airy := strings.Join(blocks, "\n\n\n"); strings.Count(airy, "\n")+1 <= m.introHeight() {
+		body = airy
+	}
 	width := 0
 	for _, l := range strings.Split(body, "\n") {
 		width = max(width, lipgloss.Width(l))
@@ -159,7 +147,7 @@ func (m TuiModel) introHeight() int {
 	h := m.h - 1
 	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
-		h -= 2 + end - start
+		h -= paletteChrome + end - start
 	} else if m.Flash != "" {
 		h--
 	}
@@ -192,8 +180,16 @@ func (m *TuiModel) leaveIntro(rescan bool) tea.Cmd {
 	return m.StartLoad(rescan)
 }
 
+// goHome returns from the scan view to the welcome screen, with its last-scan
+// line brought up to date. Esc does this from any tab.
+func (m TuiModel) goHome() (tea.Model, tea.Cmd) {
+	m.Intro, m.Overlay, m.Detail, m.scroll, m.InputMode = true, OverlayNone, false, 0, 0
+	m.IntroStatus = loadIntroStatus(m.Deps.Home)
+	return m, nil
+}
+
 func (m TuiModel) introFooter() string {
-	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"?", "help"}, {"q", "quit"}}
+	keys := [][2]string{{"enter", "run"}, {"↑↓", "choose"}, {"/", "commands"}, {"q", "quit"}}
 	var parts []string
 	for _, k := range keys {
 		parts = append(parts, m.t.accent.Render(k[0])+" "+m.t.muted.Render(k[1]))

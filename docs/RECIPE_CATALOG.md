@@ -15,9 +15,7 @@ Recipes are the **only** things macdoc can act on. Each recipe is an embedded YA
 | `method` | `native` (argv template) or `quarantine` |
 | `native.argv` | Fixed argv. Placeholders only for identifiers validated against the tool's own listing |
 | `native.dry_run_argv` | Tool's own dry-run if it has one (e.g. `brew cleanup -n`) |
-| `privileged` | `true` for a native step that needs administrator rights. The argv must exactly match `recipes.PrivilegedArgvAllowed` (`dscacheutil -flushcache`, `killall -HUP mDNSResponder`, `purge`). Run only by `internal/executor/privileged.go` through the OS password prompt; never in a plan Claude proposed (ADR 0009) |
 | `regenerable` | `true` on a SAFE recipe whose data the tool simply rebuilds (a cache). Using it recently does not raise it to CAUTION (the 7-day rule), because an active Mac rewrites caches all the time; preconditions such as "app not running" still apply. Lint refuses it on any other tier |
-| `on_request` | `true` to keep the recipe out of scans, reclaim and MCP listings. It is shown only by `macdoc refresh` and planned by ID |
 | `preconditions` | Named checks: `app_not_running:Xcode`, `docker_reachable`, `emulator_not_running`, `gradle_daemons_stopped`, `git_clean`, `no_installed_app` |
 | `staleness` | Signal + threshold (e.g. `mtime_max > 60d`) |
 | `restore` | How it comes back plus cost: `rebuild` / `redownload:<GB>` / `irreplaceable` |
@@ -144,6 +142,7 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 | `app.container_caches` | `~/Library/Containers/<bundle-id>/Data/Library/Caches` of sandboxed non-Apple apps, 50 MB or more. Only that folder, never the rest of the container (`container_caches` detector; `catalog/containers.yaml`) | CAUTION | Q | none (quit the app first) | Regenerated |
 | `user.logs` | `~/Library/Logs/**` older than 30d, > 100 MB total | SAFE | Q | none | n/a |
 | `user.trash` | Each item in `~/.Trash`, any size (under 1 MB with `--small`) | CAUTION | Q (moved into macdoc's quarantine first) | none | Restorable from quarantine until it expires, then gone |
+| `system.ds_store` | Finder `.DS_Store` files, one item per folder directly in home (not hidden, not `Library`); never inside `.git`, `node_modules`, `.Trash`, photo or music libraries or a folder you protected. Method `sweep`: deleted at once with no quarantine copy, exact file name only (ADR 0014 §4) | CAUTION | S (sweep) | none | Finder writes them again; only that folder's view settings reset |
 | `user.downloads_large_old` | `~/Downloads` installers and archives of at least 20 MB (`.dmg .pkg .mpkg .iso .xip` at any size, other archives from 100 MB) not changed in 30 days | CAUTION | Q | none | Re-download if available |
 | `user.downloads_large_other` | Other large old files in `~/Downloads` (videos, documents…) | ADVISE | A | n/a | May be the only copy |
 | `ios.device_backups` | MobileSync backups | ADVISE | A (Finder › device › Manage Backups) | n/a | Irreplaceable |
@@ -162,23 +161,23 @@ The exact list is in `internal/recipes/catalog/devcaches.yaml`.
 
 `no_installed_app` runs right before the move. It fails if the folder's bundle ID is owned by an installed app now, or if the list can't be read, so the item is skipped and audited.
 
-## 2b. What `reclaim` does not do, and the rule behind each
+## 2b. What `reclaim` does beyond a person's own files (ADR 0014)
 
-`mo clean` cleans some things `macdoc reclaim` does not. Each is held back by a rule, not forgotten:
+`mo clean` also cleans system locations, sweeps `.DS_Store` files and runs without a prompt. `reclaim` does each under named limits, recorded in [ADR 0014](docs/adr/0014-reclaim-system-cleanup.md); the rules elsewhere are unchanged:
 
-| Not done | Rule that stops it |
-|---|---|
-| System caches and logs (`/Library/Caches`, `/private/var/log`) | Protected paths (`docs/SAFETY_MODEL.md` §3: `/Library`, `/private`, everything outside `$HOME`) and ADR 0009 (administrator rights only for three fixed commands that take no path) |
-| Orphaned LaunchDaemons and helper tools | The same two rules (`/Library/LaunchDaemons`, `/Library/PrivilegedHelperTools`) |
-| Deleting interrupted Time Machine backups | ADR 0009: `tmutil delete` needs a path and administrator rights; the recipe is advice only |
-| `.DS_Store` files | The recipe lint rejects a pattern that overlaps protected folders such as Documents and Desktop, where Finder writes most of them |
-| A `--yes` flag | ADR 0001: only a person at a real terminal approves a removal |
+| What | Recipe | How it is bounded |
+|---|---|---|
+| `.DS_Store` files | `system.ds_store` (CAUTION, method `sweep`) | exact file name, folders directly in home only, never Library, hidden folders, `.git`, `node_modules`, media libraries or what you protected |
+| System caches and logs | `system.library_caches`, `system.library_logs`, `system.var_logs` (CAUTION, method `system`) | one item below `/Library/Caches`, `/Library/Logs` or `/private/var/log`, root-owned, not a symlink, never `com.apple.*` (caches); idle 30 days |
+| Orphaned LaunchDaemons and helpers | `system.launch_daemons`, `system.helper_tools` (RISKY, method `system`) | one file in `/Library/LaunchDaemons` (its program gone) or `/Library/PrivilegedHelperTools` (no installed app owns it); never `com.apple.*` |
+| Interrupted Time Machine backups | `system.tm_incomplete` (RISKY, method `system`) | `tmutil delete` on one `.inProgress` folder under a destination's `Backups.backupdb` |
+| No prompt | `reclaim --tier safe\|caution --yes` | only SAFE and CAUTION quarantine moves; see [docs/CLI_UX.md](docs/CLI_UX.md) |
 
-Changing any of these is an owner decision recorded in a new ADR, not a recipe edit.
+Method `system` removals ask for the Mac password through `sudo` (only in `internal/executor/privileged.go`), need their own y/N each, are permanent (root-owned data can't be quarantined), and are never in a plan Claude proposed. The list of locations is code (`safety.CheckSystemTarget`), not recipe data; widening it needs a new ADR.
 
 ## 2a. Allowed native commands
 
-Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test. Privileged argvs are a separate, exact list, `PrivilegedArgvAllowed` (3 entries); `qlmanage -r cache` and `qlmanage -r` are in the ordinary list. The `maintenance.*` recipes (`flush_dns`, `restart_mdnsresponder`, `purge_memory`, `quicklook_cache`, `quicklook_reset`) are in `catalog/maintenance.yaml`.
+Native argv must exactly match one entry of `nativeArgvAllowed` in `internal/recipes/load.go`, and dry-run argv one entry of `dryRunArgvAllowed` (P3-W4). Adding a new command means adding it there, with a test. `qlmanage -r cache` and `qlmanage -r` are still in the ordinary list. The `maintenance.*` recipes and the privileged-argv list were removed with `refresh` (ADR 0015).
 
 ## 3. Adding a recipe (checklist)
 1. YAML with every field filled in, including `explain` and `restore`.

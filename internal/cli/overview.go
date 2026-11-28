@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -54,7 +53,7 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 	tty := !g.json && !g.quiet && IsTerminal(errOut)
 	status := func(s string) {
 		if tty {
-			_, _ = fmt.Fprintf(errOut, "\r\033[K%s", s)
+			_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", s)
 		}
 	}
 	opts := engine.OverviewOptions{Home: home, Runner: Runner, Version: version, Rescan: m.rescan, Catalog: cat, Workers: m.workers, ScanRoot: ScanRoot}
@@ -65,10 +64,8 @@ func runOverview(cmd *cobra.Command, g *GlobalFlags, m overviewMode) error {
 		opts.Step = Background(scanner.SetBackgroundPriority, errOut)
 	}
 	if tty {
-		opts.Progress = func(p scanner.Progress) {
-			status(fmt.Sprintf("Scanning… %s · %d files · %s · %s",
-				engine.DecimalBytes(p.Bytes), p.Files, p.Elapsed.Round(time.Second), Truncate(p.CurrentDir, 50)))
-		}
+		expected := ExpectedScanBytes(home)
+		opts.Progress = func(p scanner.Progress) { status(ScanStatusLine(p, expected, p.CurrentDir)) }
 		if !m.rescan {
 			status("Checking your Mac…")
 		}

@@ -50,6 +50,10 @@ type Env struct {
 	Runner   platform.Runner
 	HasTool  func(name string) bool // whether a native tool is installed
 	Now      time.Time
+	// Progress, when set, is called as each source finishes: done of total so
+	// far and the name of the one that just finished ("" for the first call,
+	// made before any source starts). It must return quickly.
+	Progress func(done, total int, source string)
 }
 
 // Source finds one kind of software. Discover must be read-only and must
@@ -108,7 +112,12 @@ func Discover(ctx context.Context, env Env) Result {
 		wg  sync.WaitGroup
 		res Result
 	)
-	for _, s := range Sources() {
+	sources := Sources()
+	done := 0
+	if env.Progress != nil {
+		env.Progress(0, len(sources), "")
+	}
+	for _, s := range sources {
 		wg.Add(1)
 		go func(s Source) {
 			defer wg.Done()
@@ -126,6 +135,10 @@ func Discover(ctx context.Context, env Env) Result {
 			defer mu.Unlock()
 			res.Software = append(res.Software, found...)
 			res.Statuses = append(res.Statuses, st)
+			done++
+			if env.Progress != nil {
+				env.Progress(done, len(sources), s.Name())
+			}
 		}(s)
 	}
 	wg.Wait()

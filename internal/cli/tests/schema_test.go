@@ -20,7 +20,6 @@ import (
 	"github.com/sagnik26/macdoc/internal/engine"
 	"github.com/sagnik26/macdoc/internal/executor"
 	"github.com/sagnik26/macdoc/internal/model"
-	"github.com/sagnik26/macdoc/internal/store"
 )
 
 // The JSON contract (CLI_UX §5): every --json output is an envelope whose
@@ -43,15 +42,11 @@ var jsonCommands = map[string]any{
 	"reclaim toolchain":  cli.DevResult{},
 	"reclaim categories": engine.StorageResult{},
 	"retire":             engine.SoftwareResult{},
-	"refresh":            engine.OpportunityResult{},
 	"explore":            engine.ExploreResult{},
 	"explore growth":     engine.TrendResult{},
 	"explore projects":   engine.ProjectsResult{},
 	"vitals":             engine.StatusResult{},
 	"vitals memory":      engine.SlowResult{},
-	"apply":              engine.PlanResult{},
-	"apply show":         engine.PlanResult{},
-	"apply list":         []store.PlanRecord{},
 	"schedule enable":    cli.ScheduleResult{},
 	"schedule disable":   cli.ScheduleResult{},
 	"log":                engine.AuditResult{},
@@ -129,7 +124,7 @@ func TestJSONOutputMatchesSchema(t *testing.T) {
 	cliFixture(t)
 	for _, args := range [][]string{
 		{"version"}, {}, {"vitals"}, {"vitals", "--memory"}, {"reclaim", "--all"}, {"reclaim", "--toolchains"}, {"reclaim", "--categories"},
-		{"explore", "--projects"}, {"retire"}, {"refresh"}, {"explore", "/nowhere"}, {"config"}, {"log"}, {"apply", "--list"}, {"quarantine", "list"},
+		{"explore", "--projects"}, {"retire"}, {"explore", "/nowhere"}, {"config"}, {"log"}, {"quarantine", "list"},
 	} {
 		out, err := run(t, append(args, "--json")...)
 		if err != nil {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/sagnik26/macdoc/internal/engine"
 )
@@ -126,8 +126,8 @@ func (m TuiModel) treeView(w int) string {
 func (m TuiModel) treeRow(n *treeNode, nameW int, selected bool) string {
 	t := m.t
 	paint := func(s lipgloss.Style, text string) string {
-		if selected && t.on {
-			s = s.Background(colSelect)
+		if selected {
+			s = t.selectedRow(s)
 		}
 		return s.Render(text)
 	}

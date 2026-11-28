@@ -140,3 +140,34 @@ func TestSlowChecks(t *testing.T) {
 		t.Errorf("an unreadable disk is unknown, not zero or low: %+v", got[1])
 	}
 }
+
+// Each check says which of the gauge's three stops its value is on: swap is
+// comfortable below half its limit, rising up to it, high from it; free disk is
+// plentiful from twice its limit, getting low down to it, low under it; an
+// unreadable disk is on no stop.
+func TestSlowCheckZones(t *testing.T) {
+	zones := func(swap, free int64) (int, int) {
+		got := engine.SlowChecks(probe.Report{Swap: probe.Swap{UsedBytes: swap},
+			Disk: probe.Disk{ContainerTotalBytes: 500e9, ContainerFreeBytes: free}})
+		return got[0].Zone, got[1].Zone
+	}
+	for _, c := range []struct {
+		swap, free int64
+		wantSwap   int
+		wantDisk   int
+	}{
+		{0, 200e9, 0, 0},
+		{(1 << 30) - 1, 20e9, 0, 0},
+		{1 << 30, 19_999_999_999, 1, 1},
+		{(2 << 30) - 1, 10e9, 1, 1},
+		{2 << 30, 9_999_999_999, 2, 2},
+		{8 << 30, 0, 2, 2},
+	} {
+		if sw, dk := zones(c.swap, c.free); sw != c.wantSwap || dk != c.wantDisk {
+			t.Errorf("swap %d, free %d: zones %d, %d; want %d, %d", c.swap, c.free, sw, dk, c.wantSwap, c.wantDisk)
+		}
+	}
+	if got := engine.SlowChecks(probe.Report{}); got[1].Zone != -1 {
+		t.Errorf("an unreadable disk is on no stop: %+v", got[1])
+	}
+}

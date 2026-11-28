@@ -421,30 +421,14 @@ func (r *recorder) Quarantine(it model.PlanItem, target string) error {
 	return nil
 }
 
-// A step that needs administrator rights is refused in a plan Claude proposed
-// and planned in one a person makes, flagged as privileged.
-func TestBuildPrivilegedSteps(t *testing.T) {
-	w := newWorld(t)
-	w.cat.Recipes = append(w.cat.Recipes, recipes.Recipe{ID: "maintenance.purge_memory", Risk: model.RiskCaution, Method: model.MethodNative,
-		Privileged: true, Native: &recipes.Native{Argv: []string{"purge"}}})
-	w.ops = append(w.ops, model.Opportunity{ID: "O-purgea", RecipeID: "maintenance.purge_memory", Title: "Free inactive memory",
-		Risk: model.RiskCaution, Method: model.MethodNative, Bytes: model.Bytes{Source: model.SourceUnknown}, Command: []string{"purge"}})
+func (r *recorder) System(it model.PlanItem, target string) error {
+	r.calls = append(r.calls, "system "+it.OpportunityID+" "+target)
+	return nil
+}
 
-	in := w.input()
-	plan, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
-	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Privileged || len(refused) != 0 {
-		t.Fatalf("a person's plan: items %+v refused %+v err %v", plan.Items, refused, err)
-	}
-	in.Origin = model.OriginClaude
-	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-purgea"}})
-	if err == nil || len(refused) != 1 || refused[0].Reason != planner.ReasonPrivilegedFromClaude {
-		t.Errorf("Claude's plan: refused %+v err %v; want the privileged refusal", refused, err)
-	}
-	// Look-alike: an ordinary native step is still fine in Claude's plan.
-	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-brewaa"}})
-	if err != nil || len(refused) != 0 {
-		t.Errorf("an ordinary native step was refused for Claude: %+v %v", refused, err)
-	}
+func (r *recorder) Sweep(it model.PlanItem, root string) error {
+	r.calls = append(r.calls, "sweep "+it.OpportunityID+" "+root)
+	return nil
 }
 
 func TestBuildRefusesExcludedRecipes(t *testing.T) {
@@ -466,4 +450,103 @@ func TestBuildRefusesExcludedRecipes(t *testing.T) {
 	if p, _, err = planner.Build(in, planner.Selector{IDs: []string{"O-logsaa"}}); err != nil || len(p.Items) != 1 {
 		t.Errorf("no exclusion: %v %v", p.Items, err)
 	}
+}
+
+// A .DS_Store sweep is planned for a person, and refused in a plan Claude
+// proposed (ADR 0014).
+func TestBuildSweep(t *testing.T) {
+	w := newWorld(t)
+	docs := filepath.Join(w.home, "Documents")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	w.cat.Recipes = append(w.cat.Recipes, recipes.Recipe{ID: "system.ds_store", Risk: model.RiskCaution, Method: model.MethodSweep, Detector: "ds_store"})
+	w.ops = append(w.ops, model.Opportunity{ID: "O-sweepa", RecipeID: "system.ds_store", Title: "Finder view files in ~/Documents",
+		Risk: model.RiskCaution, Method: model.MethodSweep, Bytes: model.Bytes{Value: 8192, Source: model.SourceMeasured}, Target: docs})
+
+	in := w.input()
+	plan, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-sweepa"}})
+	if err != nil || len(plan.Items) != 1 || plan.Items[0].Method != model.MethodSweep || len(refused) != 0 {
+		t.Fatalf("a person's plan: items %+v refused %+v err %v", plan.Items, refused, err)
+	}
+	if a := planner.Actions(plan); len(a) != 1 || a[0].Kind != planner.Sweep || a[0].Target != docs {
+		t.Errorf("actions = %+v", a)
+	}
+	rec := &recorder{}
+	if res := planner.Perform(plan, rec); len(res) != 1 || len(rec.calls) != 1 || rec.calls[0] != "sweep O-sweepa "+docs {
+		t.Errorf("perform: %v %v", res, rec.calls)
+	}
+	in.Origin = model.OriginClaude
+	_, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-sweepa"}})
+	if err == nil || len(refused) != 1 || refused[0].Reason != planner.ReasonSweepFromClaude {
+		t.Errorf("Claude's plan: refused %+v err %v", refused, err)
+	}
+	buildSweepLibrary(t, w)
+}
+
+// Look-alike: a sweep root the rules refuse (Library) is refused for a person too.
+func buildSweepLibrary(t *testing.T, w world) {
+	t.Helper()
+	lib := filepath.Join(w.home, "Library")
+	w.ops = append(w.ops, model.Opportunity{ID: "O-sweepb", RecipeID: "system.ds_store", Title: "x", Risk: model.RiskCaution,
+		Method: model.MethodSweep, Bytes: model.Bytes{Value: 1, Source: model.SourceMeasured}, Target: lib})
+	if _, refused, err := planner.Build(w.input(), planner.Selector{IDs: []string{"O-sweepb"}}); err == nil || len(refused) != 1 {
+		t.Errorf("Library: refused %+v err %v", refused, err)
+	}
+}
+
+// A system removal is planned for a person, flagged as needing administrator
+// rights, and refused in a plan Claude proposed and for a path the rules refuse.
+func TestBuildSystem(t *testing.T) {
+	w, cache := systemWorld(t)
+	in := w.input()
+	plan, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-sysaaa"}})
+	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Privileged || plan.Items[0].Method != model.MethodSystem || len(plan.Items[0].Argv) != 0 || len(refused) != 0 {
+		t.Fatalf("a person's plan: items %+v refused %+v err %v", plan.Items, refused, err)
+	}
+	if a := planner.Actions(plan); len(a) != 1 || a[0].Kind != planner.System || a[0].Target != cache {
+		t.Errorf("actions = %+v", a)
+	}
+	rec := &recorder{}
+	if planner.Perform(plan, rec); len(rec.calls) != 1 || rec.calls[0] != "system O-sysaaa "+cache {
+		t.Errorf("perform: %v", rec.calls)
+	}
+	if _, refused, err = planner.Build(in, planner.Selector{IDs: []string{"O-sysbbb"}}); err == nil || len(refused) != 1 {
+		t.Errorf("an Apple cache: refused %+v err %v", refused, err)
+	}
+	systemFromClaude(t, in)
+}
+
+// systemFromClaude expects a Claude plan to refuse the system item.
+func systemFromClaude(t *testing.T, in planner.Input) {
+	t.Helper()
+	in.Origin = model.OriginClaude
+	_, refused, err := planner.Build(in, planner.Selector{IDs: []string{"O-sysaaa"}})
+	if err == nil || len(refused) != 1 || refused[0].Reason != planner.ReasonPrivilegedFromClaude {
+		t.Errorf("Claude's plan: refused %+v err %v", refused, err)
+	}
+}
+
+// systemWorld adds a system cache recipe and two items (one Apple's) in a
+// fixture standing in for /Library, and returns the first item's path.
+func systemWorld(t *testing.T) (world, string) {
+	t.Helper()
+	w := newWorld(t)
+	base := filepath.Join(w.home, "sysbase")
+	w.pol.SetSystemBase(base)
+	cache := filepath.Join(base, "Library", "Caches", "Acme")
+	apple := filepath.Join(base, "Library", "Caches", "com.apple.thing")
+	for _, d := range []string{cache, apple} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.cat.Recipes = append(w.cat.Recipes, recipes.Recipe{ID: "system.library_caches", Risk: model.RiskCaution, Method: model.MethodSystem,
+		Detector: "system_dir", Params: map[string]string{"dir": "/Library/Caches", "kind": "caches"}})
+	op := func(id, target string) model.Opportunity {
+		return model.Opportunity{ID: id, RecipeID: "system.library_caches", Title: "System cache", Risk: model.RiskCaution,
+			Method: model.MethodSystem, Bytes: model.Bytes{Value: 4096, Source: model.SourceMeasured}, Target: target}
+	}
+	w.ops = append(w.ops, op("O-sysaaa", cache), op("O-sysbbb", apple))
+	return w, cache
 }

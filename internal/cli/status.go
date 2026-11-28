@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/sagnik26/macdoc/internal/engine"
@@ -41,7 +41,19 @@ func newStatusCmd(g *GlobalFlags) *cobra.Command {
 				return fmt.Errorf("--interval must be at least %s", minWatchInterval)
 			}
 			if !watch {
-				return writeStatus(cmd.OutOrStdout(), g.json, engine.Status(context.Background(), engine.StatusOptions{Runner: Runner}), false)
+				errOut := cmd.ErrOrStderr()
+				opts := engine.StatusOptions{Runner: Runner}
+				tty := !g.json && !g.quiet && IsTerminal(errOut)
+				if tty {
+					opts.Progress = func(done, total int, probe string) {
+						_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", ProbeStatusLine(done, total, probe))
+					}
+				}
+				res := engine.Status(context.Background(), opts)
+				if tty {
+					_, _ = fmt.Fprint(errOut, "\r\033[K")
+				}
+				return writeStatus(cmd.OutOrStdout(), g.json, res, false)
 			}
 			parent := cmd.Context()
 			if parent == nil {
@@ -134,10 +146,12 @@ func statusBlocksLive(t *Theme, res engine.StatusResult, withProcesses bool, h *
 	if len(res.Reasons) > 0 {
 		reasons = " " + strings.Join(res.Reasons, "\n ") + "\n"
 	}
-	b.WriteString(t.block(title, "· "+note, reasons))
+	if h == nil { // the live Vitals tab has no Health section; the printed command does
+		b.WriteString(t.block(title, "· "+note, reasons) + "\n")
+	}
 
-	rows := nowRows(res, tail)
-	b.WriteString("\n" + t.block("Now", "", " "+strings.Join(rows, "\n ")+"\n"))
+	rows := nowRows(t, res, tail)
+	b.WriteString(t.block("Now", "", " "+strings.Join(rows, "\n ")+"\n"))
 
 	if withProcesses {
 		b.WriteString(processBlock(t, res))
@@ -147,22 +161,22 @@ func statusBlocksLive(t *Theme, res engine.StatusResult, withProcesses bool, h *
 
 // nowRows are the lines of the "Now" block. tail adds the arrow and history
 // bar after a number (nothing when the page is not live).
-func nowRows(res engine.StatusResult, tail func(func(*vitalsHist) []float64, float64, bool) string) []string {
+func nowRows(t *Theme, res engine.StatusResult, tail func(func(*vitalsHist) []float64, float64, bool) string) []string {
 	var rows []string
 	if c := res.CPU; c != nil {
 		rows = append(rows, fmt.Sprintf("CPU      %s %5.1f%%%s   load %.2f / %.2f / %.2f (%d cores)",
-			meter(c.UsagePercent/100), c.UsagePercent, tail(func(h *vitalsHist) []float64 { return h.cpu }, 1, true), c.Load1, c.Load5, c.Load15, c.LogicalCores))
+			t.metricBar(c.UsagePercent/100), c.UsagePercent, tail(func(h *vitalsHist) []float64 { return h.cpu }, 1, true), c.Load1, c.Load5, c.Load15, c.LogicalCores))
 	}
 	if m := res.Report.Memory; m.TotalBytes > 0 && m.FreePercent >= 0 {
 		used := 100 - m.FreePercent
 		rows = append(rows, fmt.Sprintf("Memory   %s %5d%%%s   %s of %s, pressure %s, swap %s",
-			meter(float64(used)/100), used, tail(func(h *vitalsHist) []float64 { return h.mem }, 0.5, true), engine.BinaryBytes(m.TotalBytes*int64(used)/100), engine.BinaryBytes(m.TotalBytes),
+			t.metricBar(float64(used)/100), used, tail(func(h *vitalsHist) []float64 { return h.mem }, 0.5, true), engine.BinaryBytes(m.TotalBytes*int64(used)/100), engine.BinaryBytes(m.TotalBytes),
 			m.Pressure, engine.BinaryBytes(res.Report.Swap.UsedBytes)))
 	}
 	if d := res.Report.Disk; d.ContainerTotalBytes > 0 {
 		used := d.ContainerTotalBytes - d.ContainerFreeBytes
 		line := fmt.Sprintf("Disk     %s %5.1f%%%s   %s free of %s",
-			meter(float64(used)/float64(d.ContainerTotalBytes)), float64(used)*100/float64(d.ContainerTotalBytes),
+			t.metricBar(float64(used)/float64(d.ContainerTotalBytes)), float64(used)*100/float64(d.ContainerTotalBytes),
 			tail(func(h *vitalsHist) []float64 { return h.disk }, 0.05, true), engine.DecimalBytes(d.ContainerFreeBytes), engine.DecimalBytes(d.ContainerTotalBytes))
 		if io := res.DiskIO; io != nil {
 			line += fmt.Sprintf(", %.1f MB/s", io.MBPerSec)
@@ -175,7 +189,7 @@ func nowRows(res engine.StatusResult, tail func(func(*vitalsHist) []float64, flo
 			engine.DecimalBytes(int64(n.OutBytesPerSec)), tail(func(h *vitalsHist) []float64 { return h.up }, 1024, false)))
 	}
 	if p := res.Power; p != nil && p.Present {
-		line := powerLine(*p)
+		line := powerLine(t, *p)
 		line = strings.Replace(line, "%   ", "%"+tail(func(h *vitalsHist) []float64 { return h.power }, 0.5, false)+"   ", 1)
 		rows = append(rows, line)
 	}
@@ -205,12 +219,12 @@ func processBlock(t *Theme, res engine.StatusResult) string {
 }
 
 // powerLine describes the battery or power source in one line.
-func powerLine(p probe.Power) string {
+func powerLine(t *Theme, p probe.Power) string {
 	src := "on AC power"
 	if p.OnBattery {
 		src = "on battery"
 	}
-	line := fmt.Sprintf("Power    %s %5d%%   %s, %s", meter(float64(p.Percent)/100), p.Percent, src, p.State)
+	line := fmt.Sprintf("Power    %s %5d%%   %s, %s", t.metricBar(float64(p.Percent)/100), p.Percent, src, p.State)
 	if p.Remaining != "" {
 		line += ", " + p.Remaining + " left"
 	}
@@ -230,11 +244,25 @@ func powerLine(p probe.Power) string {
 	return line
 }
 
-// meter draws a fraction (0 to 1) as a bar of meterWidth cells.
-func meter(frac float64) string {
+// metricBar draws a fraction (0 to 1) as a bar of meterWidth cells, full height.
+// In color it takes the design system's progress colors (docs/DESIGN_SYSTEM.md
+// 4.4): "█" cells on the purple-to-pink blend over a dim "░" track. Without
+// color it is the plain text bar, so plain output does not change.
+func (t *Theme) metricBar(frac float64) string {
 	n := int(frac*meterWidth + 0.5)
 	n = max(0, min(meterWidth, n))
-	return strings.Repeat("█", n) + strings.Repeat("░", meterWidth-n)
+	if !t.color {
+		return strings.Repeat("█", n) + strings.Repeat("░", meterWidth-n)
+	}
+	var b strings.Builder
+	for i, hex := range gradient(meterWidth) {
+		cell, col := "█", t.profile.Convert(lipgloss.Color(hex))
+		if i >= n {
+			cell, col = "░", t.profile.Convert(lipgloss.Color(barTrack))
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(col).Render(cell))
+	}
+	return b.String()
 }
 
 // statusEvery is how long the vitals page waits between live readings.
@@ -252,7 +280,15 @@ func (d *TuiDeps) status(ctx context.Context) engine.StatusResult {
 	if d.Status != nil {
 		return d.Status(ctx, d)
 	}
-	return engine.Status(ctx, engine.StatusOptions{Runner: Runner})
+	return engine.Status(ctx, engine.StatusOptions{Runner: Runner,
+		Progress: func(done, total int, probe string) { d.post(StatusProgressMsg{Done: done, Total: total, Probe: probe}) }})
+}
+
+// StatusProgressMsg says how many probes of the first vitals reading have
+// answered, for the bar the page shows until the reading is in.
+type StatusProgressMsg struct {
+	Done, Total int
+	Probe       string
 }
 
 // syncStatus starts a live reading while the vitals page is open and none is
@@ -272,12 +308,15 @@ func (m TuiModel) syncStatus(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 // from the machine as it is now, so it needs no scan.
 func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 	m.Overlay, m.scroll = overlayVitals, 0
-	m.status, m.hist, m.vitalsWhy = nil, vitalsHist{}, false // start from a fresh reading and an empty history
+	m.statusDone, m.statusTotal, m.statusProbe, m.statusOpened = 0, 0, "", time.Now()
+	m.statusShown, m.statusGen = 0, m.statusGen+1 // the bar starts from zero
+	m.status, m.hist = nil, vitalsHist{}          // start from a fresh reading and an empty history
+	bar := statusBarTick(m.statusGen)
 	if m.clockOn {
-		return m, nil
+		return m, bar
 	}
 	m.clockOn = true
-	return m, statusClock()
+	return m, tea.Batch(statusClock(), bar)
 }
 
 // vitalsBody is the vitals page: the live readings, and a red alert only when
@@ -285,20 +324,24 @@ func (m TuiModel) openVitals() (tea.Model, tea.Cmd) {
 func (m TuiModel) vitalsBody() string {
 	t := m.t
 	if m.status == nil {
-		return "\n  " + m.spin.View() + " " + t.text.Render("Reading CPU, memory, disk, network and battery…")
+		head := "\n  " + m.spin.View() + " " + t.text.Render("Reading CPU, memory, disk, network and battery…") + "\n\n"
+		tail := "starting"
+		if m.statusTotal > 0 {
+			tail = fmt.Sprintf("%d of %d readings", m.statusDone, m.statusTotal)
+			if m.statusProbe != "" {
+				tail += " · " + m.statusProbe
+			}
+		}
+		return head + "  " + m.barView(m.statusShown, true) + "\n\n  " + t.hint(tail) + "\n"
 	}
 	res := display(*m.status)
 	var b strings.Builder
 	b.WriteString("\n" + m.liveHeader() + "\n")
-	alert := false
 	if lvl, verdict := engine.SlowVerdict(res.Report); lvl == engine.SeverityCritical || lvl == engine.SeverityWarn {
-		alert = true
 		b.WriteString(t.alertBox("Memory is slowing your Mac down", verdict))
 		b.WriteString("\n")
 	}
-	if alert || m.vitalsWhy {
-		b.WriteString(m.whyBox(res) + "\n")
-	}
+	b.WriteString(m.whyBox(res) + "\n") // the three gauges are always shown
 	b.WriteString(statusBlocksLive(t, res, true, &m.hist))
 	if len(res.Warnings) > 0 {
 		var rows [][]string
@@ -317,7 +360,7 @@ func (t *Theme) alertBox(title, text string) string {
 	if !t.on {
 		return " ! " + title + "\n   " + text + "\n"
 	}
-	box := t.r.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colRed).Padding(0, 1).Render(body)
+	box := t.style().Border(lipgloss.RoundedBorder()).BorderForeground(t.c(colRed)).Padding(0, 1).Render(body)
 	return indentLines(box, " ") + "\n"
 }
 

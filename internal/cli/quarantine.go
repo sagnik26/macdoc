@@ -20,7 +20,7 @@ import (
 func newQuarantineCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "quarantine",
-		Short: "See, restore or purge folders that apply moved aside",
+		Short: "See, restore or purge folders that macdoc moved aside",
 		Long: `Folders that apply cleans are moved into macdoc's quarantine instead of
 being deleted. They stay restorable for 7 days; after that they're reported
 as ready to purge, but nothing is ever purged without you.

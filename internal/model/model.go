@@ -46,6 +46,12 @@ const (
 	MethodNative     Method = "native"
 	MethodQuarantine Method = "quarantine"
 	MethodAdvise     Method = "advise"
+	// MethodSweep removes every file named exactly .DS_Store below a folder
+	// (ADR 0014 §4); nothing else is touched and nothing is quarantined.
+	MethodSweep Method = "sweep"
+	// MethodSystem removes one item of a named system location with
+	// administrator rights (ADR 0014 §1): permanent, never quarantined.
+	MethodSystem Method = "system"
 )
 
 // RestoreKind describes what it costs to get reclaimed data back.

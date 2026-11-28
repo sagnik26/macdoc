@@ -22,10 +22,10 @@ import (
 
 // This file is `macdoc reclaim` at a real terminal: it shows what will be
 // cleaned, and cleans it when the person presses Enter (ADR 0013). It is the
-// same executor path as `macdoc apply`, with the confirmation being that one
-// Enter instead of a typed code. Only SAFE items (or CAUTION when asked for
+// same executor path as the dashboard's remove, with the confirmation being
+// that one Enter instead of a typed code. Only SAFE items (or CAUTION when asked for
 // with --tier caution) are ever cleaned this way; RISKY items, administrator
-// steps and Claude-proposed plans still need apply's own confirmations.
+// steps and Claude-proposed plans still need their own confirmations.
 
 // cleanOpts is what reclaim was asked to show and clean.
 type cleanOpts struct {
@@ -101,7 +101,7 @@ func cleanOneTier(cmd *cobra.Command, g *GlobalFlags, o cleanOpts) error {
 	}
 	plan, home, err := sealPlan(g, planner.Selector{IDs: ids})
 	if err != nil {
-		return finishPlan(out, g, plan, home, err)
+		return finishPlan(out, plan, err)
 	}
 	var b strings.Builder
 	writeRefused(&b, t, plan.Refused)
@@ -175,12 +175,12 @@ func sizeSummary(ops []model.Opportunity) string {
 // from a plan made here by a person.
 func confirmEnteredList(_ *bufio.Reader, out io.Writer, _ *Theme, p model.Plan) (executor.Approvals, bool, error) {
 	if p.Origin != model.OriginCLI && p.Origin != "" {
-		return nil, false, errors.New("only a plan you made here is cleaned on Enter; use macdoc apply " + p.ID)
+		return nil, false, errors.New("only a plan you made here is cleaned on Enter")
 	}
 	approved := executor.Approvals{}
 	for _, it := range p.Items {
 		if it.Risk == model.RiskRisky || it.Privileged || it.Method == model.MethodAdvise {
-			return nil, false, fmt.Errorf("%s needs your own confirmation; use macdoc apply %s", it.OpportunityID, p.ID)
+			return nil, false, fmt.Errorf("%s needs your own confirmation; choose it by name (risky) so each one is confirmed", it.OpportunityID)
 		}
 		approved[it.OpportunityID] = executor.Approval{} // a group approval, like the dashboard's
 	}
@@ -188,21 +188,18 @@ func confirmEnteredList(_ *bufio.Reader, out io.Writer, _ *Theme, p model.Plan) 
 	return approved, true, nil
 }
 
-// ensureFreshScan scans first, at a terminal, when there is no scan or the last
-// one is too old to plan from.
+// ensureFreshScan always scans first: reclaim cleans from what is on disk now,
+// never from a stored scan. Only the scan view reuses a stored scan.
 func ensureFreshScan(cmd *cobra.Command, home string) error {
-	info, _, err := engine.LastScan(home, time.Now())
-	if err == nil && time.Since(info.FinishedAt) <= planner.Oldest {
-		return nil
-	}
 	errOut := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), " Scanning your Mac first…")
 	Background(scanner.SetBackgroundPriority, errOut)(engine.StepScan)
-	_, err = engine.Scan(context.Background(), engine.ScanOptions{
+	expected := ExpectedScanBytes(home)
+	_, err := engine.Scan(context.Background(), engine.ScanOptions{
 		Home: home, Version: version, Workers: 4, Runner: Runner, Root: ScanRoot,
 		Progress: func(p scanner.Progress) {
 			if IsTerminal(errOut) {
-				_, _ = fmt.Fprintf(errOut, "\r\033[KScanning… %s · %d files · %s", engine.DecimalBytes(p.Bytes), p.Files, Truncate(p.CurrentDir, 50))
+				_, _ = fmt.Fprintf(statusOut(errOut), "\r\033[K%s", ScanStatusLine(p, expected, p.CurrentDir))
 			}
 		},
 	})
@@ -321,6 +318,11 @@ func chosenItems(rows []TierChoice, tiers []model.Risk) (pick []model.Opportunit
 		if r.Risk == model.RiskRisky && len(r.Items) > 0 {
 			risky = true
 		}
+		for _, op := range r.Items {
+			if op.Method == model.MethodSystem {
+				risky = true // administrator removals keep apply's per-item y/N and typed code
+			}
+		}
 	}
 	return pick, risky
 }
@@ -337,7 +339,7 @@ func sealAndClean(cmd *cobra.Command, g *GlobalFlags, pick []model.Opportunity, 
 	}
 	plan, home, err := sealPlan(g, planner.Selector{IDs: ids})
 	if err != nil {
-		return finishPlan(out, g, plan, home, err)
+		return finishPlan(out, plan, err)
 	}
 	var b strings.Builder
 	writeRefused(&b, themeFor(out), plan.Refused)
@@ -351,7 +353,7 @@ func sealAndClean(cmd *cobra.Command, g *GlobalFlags, pick []model.Opportunity, 
 
 // TierChoices groups the actionable items by risk type (SAFE, CAUTION, RISKY)
 // in a fixed order. Advice-only items have no row: macdoc can't remove them,
-// and the list above shows them under "Your call".
+// and the list above shows them under "Do it yourself".
 func TierChoices(ops []model.Opportunity) []TierChoice {
 	rows := []TierChoice{
 		{Risk: model.RiskSafe, Note: "caches and files the tools rebuild"},

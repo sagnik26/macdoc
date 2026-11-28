@@ -73,6 +73,10 @@ func RenderExplain(w io.Writer, ex ExplainResult, busy string) error {
 		}
 	case model.MethodQuarantine:
 		row("Method", "deleted by macdoc after you confirm (checked again first)")
+	case model.MethodSystem:
+		row("Method", "macdoc removes it with administrator rights after you confirm it on its own; permanent, no quarantine copy")
+	case model.MethodSweep:
+		row("Method", "macdoc deletes the files named .DS_Store in this folder after you confirm, with no quarantine copy (each checked again first)")
 	default:
 		row("Method", "advice only; macdoc takes no action")
 	}
