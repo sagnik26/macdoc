@@ -195,7 +195,7 @@ func TestR1LintAllowsDockerVolumeDeletion(t *testing.T) {
 
 // R1-03: dry_run_argv is linted like argv but never checked to be a dry run,
 // and the brew/conda detectors run it through the Runner during detection.
-// A catalog typo (e.g. a missing -n) would make `macdoc scan`/`wins` mutate
+// A catalog typo (e.g. a missing -n) would make `macdoc scan`/`reclaim` mutate
 // the system outside internal/executor.
 func TestR1DryRunArgvNotCheckedAndExecutedByDetector(t *testing.T) {
 	r := w2Recipe(t, "brew.cleanup")

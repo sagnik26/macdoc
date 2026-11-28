@@ -244,10 +244,11 @@ func RenderOverview(w io.Writer, res engine.OverviewResult, cat *recipes.Catalog
 	switch {
 	case t.on:
 		b.WriteString("\n" + t.faint.Render("More: ") + t.accent.Render("macdoc scan") + t.muted.Render(" (rescan + full report) · ") +
-			t.accent.Render("wins") + t.muted.Render(" (every item + ID) · ") +
-			t.accent.Render("space") + t.muted.Render(" · ") + t.accent.Render("health") + "\n")
+			t.accent.Render("reclaim") + t.muted.Render(" (every item + ID) · ") +
+			t.accent.Render("reclaim --categories") + t.muted.Render(" · ") +
+			t.accent.Render("vitals") + "\n")
 	default:
-		b.WriteString("\nMore: macdoc scan (rescan + full report) · wins (every item + ID) · space · health\n")
+		b.WriteString("\nMore: macdoc scan (rescan + full report) · reclaim (every item + ID) · reclaim --categories · vitals\n")
 	}
 	b.WriteString(t.done("Nothing has been changed.") + "\n")
 	_, err := io.WriteString(w, b.String())

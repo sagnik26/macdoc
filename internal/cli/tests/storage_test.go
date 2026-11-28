@@ -20,7 +20,10 @@ func TestStorageCommand(t *testing.T) {
 	}
 	mustContain(t, out, "macdoc reclaim categories · scan S-", "Reclaimable, by category", "package-caches", "18.0 GB+", "7 item(s)",
 		"SAFE 3.0 GB · CAUTION 15.0 GB", `"System Data", decoded`, "Local Time Machine snapshots", "—  unknown (",
-		" Notes\n", "nothing has been changed")
+		" Notes\n", "macdoc reclaim --toolchains · nothing has been changed")
+	if strings.Contains(out, "macdoc reclaim · macdoc reclaim ·") {
+		t.Error("categories footer repeats reclaim and names no other command")
+	}
 	if strings.Contains(out, "Large items") {
 		t.Error("large shown without --large")
 	}

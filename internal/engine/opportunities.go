@@ -48,7 +48,7 @@ type OpportunityOptions struct {
 	KeepExcluded bool
 }
 
-// OpportunityResult is the data behind `macdoc reclaim`, `doctor dev` and `doctor explain`.
+// OpportunityResult is the data behind `macdoc reclaim`.
 type OpportunityResult struct {
 	Scan          model.ScanInfo       `json:"scan"`
 	ScanAge       string               `json:"scan_age"`      // e.g. "2h ago"

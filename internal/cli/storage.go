@@ -82,7 +82,7 @@ func RenderStorage(w io.Writer, res engine.StorageResult, large bool) error {
 	}
 	b.WriteString("\n")
 	writeNotes(&b, t, res.Warnings)
-	b.WriteString(t.footer("macdoc reclaim · macdoc reclaim"))
+	b.WriteString(t.footer("macdoc reclaim · macdoc reclaim --toolchains"))
 	_, err := io.WriteString(w, b.String())
 	return err
 }

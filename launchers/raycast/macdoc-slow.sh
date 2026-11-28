@@ -2,7 +2,7 @@
 
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title macdoc slow
+# @raycast.title macdoc vitals memory
 # @raycast.mode fullOutput
 
 # Optional parameters:

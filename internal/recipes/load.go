@@ -126,7 +126,7 @@ var PrivilegedArgvAllowed = [][]string{
 }
 
 // DryRunArgvAllowed is the exact allow-list of dry_run_argv values. Detectors
-// run these during scan and wins, so each must be the tool's own read-only
+// run these during scan and reclaim, so each must be the tool's own read-only
 // dry run. None takes "{id}".
 var DryRunArgvAllowed = [][]string{
 	{"brew", "cleanup", "-n", "--prune=all"},
