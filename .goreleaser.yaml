@@ -55,6 +55,24 @@ changelog:
     exclude:
       - "^Merge "
 
+# Sign and notarize the darwin binaries with GoReleaser's quill integration
+# only when the Apple secrets are present and non-empty. With none of them
+# set, this block is skipped and the release is the same unsigned tar.gz as
+# before. Setup: docs/RELEASING.md. This is not the Pro-only macos_native
+# path; macdoc ships a binary, not an app bundle or a DMG.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - macdoc
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+
 release:
   # Review the notes and the attached files, then publish by hand.
   draft: true
