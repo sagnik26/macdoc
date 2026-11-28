@@ -23,6 +23,7 @@ Plans and removal (Terminal, person only):
 ## Docs
 
 - [README](README.md)
+- [Commands](docs/COMMANDS.md)
 - [Agent rules](AGENTS.md)
 - [Safety model](docs/SAFETY_MODEL.md)
 - [Threat model](docs/THREAT_MODEL.md)
