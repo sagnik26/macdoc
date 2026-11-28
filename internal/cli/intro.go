@@ -147,7 +147,7 @@ func (m TuiModel) introHeight() int {
 	h := m.h - 1
 	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
-		h -= 2 + end - start
+		h -= paletteChrome + end - start
 	} else if m.Flash != "" {
 		h--
 	}

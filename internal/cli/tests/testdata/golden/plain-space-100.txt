@@ -24,17 +24,17 @@
  └────────────────────────────────────────────────────────┘                                         
                                                                                                     
                                                                                                     
- Large items with no recipe (≥ 1 GB, advice only)                                                   
-  None.                                                                                             
+ Where the rest of the space is                                                                     
+  macOS manages this                                                                                
+  █████████████████████████████████████████████▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒░░░░░                          
+  █ Not scanned (estimated)  36.8 GB  63%                                                           
+  ▓ Temp files  9.3 GB  16%                                                                         
+  ▒ Swap and sleep  8.6 GB  15%                                                                     
+  ░ Purgeable  4.1 GB  7%                                                                           
+  Size unknown: Snapshots                                                                           
+  macdoc only shows this and never deletes it.                                                      
                                                                                                     
-                                                                                                    
- Installed software                                                                                 
-  Run macdoc scan to see the software on this Mac.                                                  
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
+  Your big folders, yours to review  · 1 GB and up                                                  
+  ███████████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒░░░░░░▪▪▪▪▪▪············                          
+  █ ~/Library/Android  3.6 GB  31%                                                                  
  enter explore folders • tab switch view • ↑↓ move • / commands • ? help • esc home • q quit

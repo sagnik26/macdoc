@@ -53,7 +53,9 @@ func StackedBar(t *Theme, segs []Segment, width int) (bar string, legend []strin
 			glyph, style = "█", style.Foreground(t.c(segColor(i, s.Rest)))
 		}
 		b.WriteString(style.Render(strings.Repeat(glyph, cells[i])))
-		legend = append(legend, fmt.Sprintf("%s %s  %s  %s", style.Render(glyph), s.Label, engine.DecimalBytes(s.Bytes), share(s.Bytes, total)))
+		// the name in plain text, the size in the accent color and the share muted, so the three read apart
+		legend = append(legend, fmt.Sprintf("%s %s  %s  %s", style.Render(glyph), t.text.Render(s.Label),
+			t.accent.Render(engine.DecimalBytes(s.Bytes)), t.muted.Render(share(s.Bytes, total))))
 	}
 	return b.String(), legend
 }
@@ -196,4 +198,87 @@ func (t *Theme) changeBar(amount, biggest int64, shrank bool, width int) string 
 		fill = t.Ok
 	}
 	return fill.Render(strings.Repeat("█", n)) + track.Render(strings.Repeat("░", width-n))
+}
+
+// systemDataNames are the short names of the parts of "System Data", for the chart. A part
+// that is not here is shortened by cutting what is in brackets.
+var systemDataNames = []struct{ prefix, short string }{
+	{"Local Time Machine snapshots", "Snapshots"},
+	{"Swap and sleep image", "Swap and sleep"},
+	{"Purgeable space", "Purgeable"},
+	{"Not visible to the scan", "Not scanned"},
+	{"Temporary and per-app cache files", "Temp files"},
+	{"Shared simulator data", "Simulators"},
+}
+
+// shortPartName is the name a "System Data" part has in the chart.
+func shortPartName(name string) string {
+	for _, n := range systemDataNames {
+		if strings.HasPrefix(name, n.prefix) {
+			return n.short
+		}
+	}
+	if i := strings.Index(name, " ("); i > 0 {
+		name = name[:i]
+	}
+	if r := []rune(name); len(r) > 24 {
+		name = string(r[:23]) + "…"
+	}
+	return name
+}
+
+// restOfSpaceBlock is the Space tab's "Where the rest of the space is": two bars of the same
+// kind, one for what macOS manages (System Data) and one for your own big folders, each with a
+// plain label of who decides. They are two bars on purpose: the sizes come from different
+// places and are not added together.
+func (m TuiModel) restOfSpaceBlock(sp engine.StorageResult, w int) string {
+	t := m.t
+	var b strings.Builder
+	if len(sp.SystemData) > 0 {
+		b.WriteString(" " + t.accent.Bold(true).Render("macOS manages this") + "\n")
+		b.WriteString(m.systemDataChart(sp.SystemData, w))
+		b.WriteString("\n")
+	}
+	b.WriteString(" " + t.accent.Bold(true).Render("Your big folders, yours to review") + t.muted.Render("  · 1 GB and up") + "\n")
+	if chart := m.spaceChart(sp.Large, w); chart != "" {
+		b.WriteString(strings.TrimRight(chart, "\n") + "\n")
+		b.WriteString(" " + t.muted.Render("macdoc has no cleanup for these. Open them with /explore and decide yourself.") + "\n")
+	} else {
+		b.WriteString(" " + t.muted.Render("None found.") + "\n")
+	}
+	return t.block("Where the rest of the space is", "", b.String())
+}
+
+// systemDataChart shows what macOS counts as "System Data" as one stacked bar with a short
+// legend, not a table of sentences. Only parts with a size are in the bar; a part whose size
+// is unknown is named under it as unknown, never drawn as zero, and an estimate says so.
+func (m TuiModel) systemDataChart(parts []engine.SystemDataPart, w int) string {
+	t := m.t
+	var sized []engine.SystemDataPart
+	var unknown []string
+	for _, p := range parts {
+		if p.Bytes.Source == model.SourceUnknown {
+			unknown = append(unknown, shortPartName(p.Name))
+			continue
+		}
+		sized = append(sized, p)
+	}
+	sort.SliceStable(sized, func(i, j int) bool { return sized[i].Bytes.Value > sized[j].Bytes.Value })
+	segs := make([]Segment, len(sized))
+	for i, p := range sized {
+		label := shortPartName(p.Name)
+		if p.Bytes.Source == model.SourceEstimated {
+			label += " (estimated)"
+		}
+		segs[i] = Segment{Label: label, Bytes: p.Bytes.Value}
+	}
+	var b strings.Builder
+	if bar, legend := StackedBar(t, segs, max(20, min(w-4, 72))); bar != "" {
+		b.WriteString(" " + bar + "\n" + indentLines(strings.Join(legend, "\n"), " ") + "\n")
+	}
+	if len(unknown) > 0 {
+		b.WriteString(" " + t.muted.Render("Size unknown: "+strings.Join(unknown, ", ")) + "\n")
+	}
+	b.WriteString(" " + t.muted.Render("macdoc only shows this and never deletes it.") + "\n")
+	return b.String()
 }

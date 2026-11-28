@@ -49,11 +49,20 @@ func tuiFixture() *cli.TuiData {
 	res.TopLevel = []model.Node{
 		{Path: "/Users/me/Library", Bytes: 40 * gb}, {Path: "/Users/me/Developer", Bytes: 25 * gb}, {Path: "/Users/me/Downloads", Bytes: 12 * gb},
 		{Path: "/Users/me/Movies", Bytes: 9 * gb}, {Path: "/Users/me/code", Bytes: 6 * gb}, {Path: "/Users/me/Music", Bytes: 5 * gb}, {Path: "/Users/me/tmp", Bytes: 3 * gb}}
-	space := engine.StorageResult{Categories: []engine.CategoryTotal{
-		{Category: "Build caches", Bytes: 20 * gb, Count: 4, ByRisk: map[model.Risk]int64{model.RiskSafe: 20 * gb}},
-		{Category: "Containers", Bytes: 5 * gb, Count: 2, ByRisk: map[model.Risk]int64{model.RiskCaution: 5 * gb}},
-		{Category: "Old logs", Bytes: gb, Count: 9, ByRisk: map[model.Risk]int64{model.RiskSafe: gb}},
-		{Category: "Dev tools", Bytes: 4 * gb, Count: 3, ByRisk: map[model.Risk]int64{model.RiskSafe: 3 * gb, model.RiskRisky: gb}}}}
+	space := engine.StorageResult{Large: []model.Node{
+		{Path: "/Users/me/Library/Android", Bytes: 3_600_000_000}, {Path: "/Users/me/.local", Bytes: 2_800_000_000}, {Path: "/Users/me/go", Bytes: 844_000_000 + 156_000_000},
+		{Path: "/Users/me/Library/Developer", Bytes: 1_100_000_000}, {Path: "/Users/me/.npm-global", Bytes: 1_000_000_000}, {Path: "/Users/me/.gluestack", Bytes: 1_000_000_000}, {Path: "/Users/me/old", Bytes: 1_000_000_000}},
+		SystemData: []engine.SystemDataPart{
+			{Name: "Local Time Machine snapshots (3)", Bytes: model.Bytes{Source: model.SourceUnknown, Reason: "macOS doesn't report how much space snapshots hold"}, Explain: "Snapshots keep deleted files' space in use until macOS thins them."},
+			{Name: "Swap and sleep image (VM volume)", Bytes: model.Bytes{Value: 8_600_000_000, Source: model.SourceTool}, Explain: "Swap grows when RAM is overcommitted."},
+			{Name: "Purgeable space", Bytes: model.Bytes{Value: 4_100_000_000, Source: model.SourceMeasured}, Explain: "Caches and iCloud copies macOS can remove on its own."},
+			{Name: "Not visible to the scan", Bytes: model.Bytes{Value: 36_800_000_000, Source: model.SourceEstimated}, Explain: "Space APFS reports as used that the scan could not see."},
+			{Name: "Temporary and per-app cache files (/private/var/folders)", Bytes: model.Bytes{Value: 9_300_000_000, Source: model.SourceMeasured}, Explain: "Per-user temporary files and caches."}},
+		Categories: []engine.CategoryTotal{
+			{Category: "Build caches", Bytes: 20 * gb, Count: 4, ByRisk: map[model.Risk]int64{model.RiskSafe: 20 * gb}},
+			{Category: "Containers", Bytes: 5 * gb, Count: 2, ByRisk: map[model.Risk]int64{model.RiskCaution: 5 * gb}},
+			{Category: "Old logs", Bytes: gb, Count: 9, ByRisk: map[model.Risk]int64{model.RiskSafe: gb}},
+			{Category: "Dev tools", Bytes: 4 * gb, Count: 3, ByRisk: map[model.Risk]int64{model.RiskSafe: 3 * gb, model.RiskRisky: gb}}}}
 	return &cli.TuiData{Res: res, Space: space, Slow: slow, Trend: trend, Projects: engine.ProjectsResult{
 		Projects: []projects.Project{
 			{Root: "/Users/me/code/app", IdleDays: 120, ActivitySource: projects.ActivityCommit, Git: projects.GitDirty, ArtifactBytes: 800_000_000, ReclaimableBytes: 800_000_000,

@@ -484,45 +484,8 @@ func (m TuiModel) spaceTables() string {
 	b.WriteString("\n")
 	b.WriteString(m.trendBlock(w))
 
-	if len(sp.SystemData) > 0 {
-		var rows [][]string
-		for _, p := range sp.SystemData {
-			size, src, explain := "—", "unknown", p.Explain
-			switch p.Bytes.Source {
-			case model.SourceUnknown:
-				if p.Bytes.Reason != "" {
-					explain = "Size unknown: " + p.Bytes.Reason + ". " + explain
-				}
-			case model.SourceEstimated:
-				size, src = "~"+engine.DecimalBytes(p.Bytes.Value), "estimated"
-			default:
-				size, src = engine.DecimalBytes(p.Bytes.Value), string(p.Bytes.Source)
-			}
-			rows = append(rows, []string{p.Name, size, src, explain})
-		}
-		b.WriteString("\n")
-		b.WriteString(t.block(`"System Data", decoded`, "", t.Grid(
-			[]Column{{Title: "Part", Wrap: true}, {Title: "Size", Right: true}, {Title: "Source"}, {Title: "What it is", Wrap: true}}, rows, w,
-			func(r, c int) *lipgloss.Style {
-				switch c {
-				case 1:
-					if rows[r][1] == "—" {
-						return ptr(t.muted)
-					}
-					return ptr(t.size)
-				case 2, 3:
-					return ptr(t.muted)
-				}
-				return nil
-			})))
-	}
-
 	b.WriteString("\n")
-	if len(sp.Large) == 0 {
-		b.WriteString(t.block("Large items with no recipe", "(≥ 1 GB, advice only)", " None.\n"))
-	} else {
-		b.WriteString(t.block("Large items with no recipe", "(≥ 1 GB, advice only: review them yourself)", m.foldersTable(sp.Large, 0, w)))
-	}
+	b.WriteString(m.restOfSpaceBlock(sp, w))
 	b.WriteString("\n")
 	b.WriteString(softwareBlock(t, m.Data.Res.Software))
 	return b.String()

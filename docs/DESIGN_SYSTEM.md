@@ -164,6 +164,15 @@ A terminal draws in blocks, so a chart is a row of colored cells with a legend. 
   color (brand, green, yellow, orange, blue, pink); without color each is a different glyph
   (`█ ▓ ▒ ░ ▪ ·`), so the segments are still told apart. Every segment with bytes gets at least one cell.
   A legend line under it gives each segment its size and share.
+- **The rest of the space** (the Space tab, one heading, two bars of the same kind, never added together
+  because their sizes come from different places):
+  - "macOS manages this": the parts macOS lumps into "System Data", biggest first, each with a short
+    name, size and share ("Swap and sleep 8.6 GB"), not a table of sentences. An estimate says
+    "(estimated)", and a part with no known size is named under the bar as unknown and never drawn
+    as zero. A line says macdoc only shows it. The long explanations stay in `macdoc reclaim --categories`.
+  - "Your big folders, yours to review": the five biggest folders of 1 GB and up and "other", in the
+    same bar, with a line that macdoc has no cleanup for them and they can be opened with `/explore`.
+    No recipe wording.
 - **Share bar** (the Space tab's "Reclaimable, by category"): a 12-cell bar per row, scaled to the
   biggest category, drawn like the metric bars (the blend over a dim `░` track).
 

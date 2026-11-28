@@ -861,7 +861,7 @@ func (m TuiModel) bodyHeight() int {
 	}
 	if m.InputMode != 0 {
 		start, end := m.paletteWindow()
-		h -= 2 + end - start
+		h -= paletteChrome + end - start
 	} else if m.Flash != "" {
 		h--
 	}
@@ -1108,9 +1108,13 @@ func (m TuiModel) fitKeys(keys []key.Binding, width int) []key.Binding {
 // when the window has room (up to half its height, and always leaving the
 // header, input line, footer and 3 body lines), otherwise a window that
 // keeps the picked one in view.
+// paletteChrome is the lines the command palette uses besides its list: a blank line above,
+// the rule, the input and a blank line below.
+const paletteChrome = 4
+
 func (m TuiModel) paletteWindow() (start, end int) {
 	n := len(m.completions())
-	rows := min(n, max(4, m.h/2), max(1, m.h-9))
+	rows := min(n, max(4, m.h/2), max(1, m.h-9-(paletteChrome-2)))
 	start = max(0, min(m.pick-rows+1, n-rows))
 	return start, start + rows
 }
@@ -1120,6 +1124,7 @@ func (m TuiModel) inputView() string {
 	var b strings.Builder
 	comps := m.completions()
 	start, end := m.paletteWindow()
+	b.WriteString("\n") // a blank line above the list
 	for i := start; i < end; i++ {
 		c := comps[i]
 		prefix := string(m.InputMode)
@@ -1132,6 +1137,7 @@ func (m TuiModel) inputView() string {
 	}
 	b.WriteString(t.rule(m.w) + "\n")
 	b.WriteString(" " + t.brand.Render("› "+string(m.InputMode)) + m.input.View() + "\n")
+	b.WriteString("\n") // and one below the input, before the footer
 	return b.String()
 }
 
