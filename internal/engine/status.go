@@ -24,7 +24,7 @@ type StatusOptions struct {
 // probe failed, so an unknown value is never shown as zero.
 type StatusResult struct {
 	// Report is the hardware, memory, swap, disk and top-process snapshot
-	// that `doctor health` shows.
+	// that `macdoc vitals` shows.
 	Report  probe.Report        `json:"report"`
 	CPU     *probe.CPU          `json:"cpu,omitempty"`
 	DiskIO  *probe.DiskIO       `json:"disk_io,omitempty"`

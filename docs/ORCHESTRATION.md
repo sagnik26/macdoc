@@ -2,6 +2,8 @@
 
 The build is run by a **tech-lead Claude session** (the orchestrator), which delegates bounded tasks to **worker Claude sessions** running in visible tmux panes, then verifies and merges their work.
 
+The phase table below uses the command names from when each phase was built. The current commands are in [ADR 0012](adr/0012-five-commands-and-one-apply.md): `reclaim` (was `wins`, `dev`, `space`), `retire` (was `software`), `refresh` (was `maintenance`), `explore` (was `explore`, `trend`, `projects`), `vitals` (was `status`, `health`, `slow`), `scan`, and `apply` (was `plan` plus `apply`).
+
 ## 1. Decisions (2026-10-26)
 
 | Topic | Decision |
@@ -10,7 +12,7 @@ The build is run by a **tech-lead Claude session** (the orchestrator), which del
 | Concurrency | **1 implementer at a time**, plus 1 reviewer only when needed. The dev Mac has 8 GB of RAM and was already using ~2.8 GB of swap at baseline |
 | Permissions | **Narrow allowlist passed as CLI flags** to each headless worker; anything else is refused automatically. Never "skip all permissions". (Interactive workers were dropped: the tech lead may not drive another Claude session via tmux keystrokes, and the user chose headless mode.) |
 | Checkpoints | Pause for user review **after Phase 0, after Phase 3, after Phase 6 (before any real apply), at v0.1 (Phase 7), and after Phase 9** |
-| Tooling | Go 1.27.3 (auto toolchain via `GOTOOLCHAIN=auto`), tmux 3.8, golangci-lint 2.15, jq, git, Claude Code CLI |
+| Tooling | Go 1.27.4 (auto toolchain via `GOTOOLCHAIN=auto`; same as `go.mod`), tmux 3.8, golangci-lint 2.15, jq, git, Claude Code CLI |
 
 ## 2. Roles
 

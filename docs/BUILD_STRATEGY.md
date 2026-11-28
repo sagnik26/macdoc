@@ -1,5 +1,7 @@
 # macdoc: Build Strategy
 
+The diagram in §1 is the current binary. The phase table in §2 uses the command names from when each phase was built; [ADR 0012](adr/0012-five-commands-and-one-apply.md) is the current set (`reclaim`, `retire`, `refresh`, `explore`, `vitals`, `scan`, `apply`).
+
 ## 1. One engine, two front doors
 
 macdoc is **one Go binary** with two ways in. Both sit on the same engine.
@@ -8,9 +10,9 @@ macdoc is **one Go binary** with two ways in. Both sit on the same engine.
                         ┌──────────── one Go binary: macdoc ────────────┐
                         │                                               │
  You in Terminal ─────▶ │  CLI commands        macdoc mcp (stdio)       │ ◀───── Claude Code /
- macdoc doctor wins     │  doctor, wins,       MCP tools: overview,     │        Claude Desktop
- macdoc plan            │  plan, apply …       opportunities, explain,  │        (launches `macdoc mcp`
- macdoc apply P-7F3K    │       │              create_cleanup_plan      │         as a subprocess)
+ macdoc reclaim         │  reclaim, retire,    MCP tools: overview,     │        Claude Desktop
+ macdoc vitals          │  explore, vitals,    opportunities, explain,  │        (launches `macdoc mcp`
+ macdoc apply P-7F3K    │  scan, apply …       create_cleanup_plan      │         as a subprocess)
                         │       └──────┬──────────────┘                 │
                         │          ENGINE (probe, scan, recipes,        │
                         │          opportunities, planner)              │

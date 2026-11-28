@@ -1,5 +1,7 @@
 # macdoc: Full Development Plan
 
+This plan uses the command names from when it was written. [ADR 0012](adr/0012-five-commands-and-one-apply.md) renamed them: read `doctor wins`, `dev` and `space` as `reclaim`, `doctor software` as `retire`, `doctor maintenance` as `refresh`, `doctor explore`, `trend` and `projects` as `explore`, `doctor status`, `health` and `slow` as `vitals`, and `plan` as `apply --dry-run`.
+
 ## 1. Goals and non-goals
 
 ### Goals

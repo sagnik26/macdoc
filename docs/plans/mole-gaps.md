@@ -1,5 +1,7 @@
 # Close the Mole gaps in macdoc
 
+Command names in the "done" sections are the ones in use when each step was written. [ADR 0012](../adr/0012-five-commands-and-one-apply.md) renamed them: `doctor explore` is `explore`, `doctor status` / `doctor health` / `doctor slow` are `vitals` (`vitals --memory` for the slowness verdict), `doctor software` is `retire`, `doctor maintenance` is `refresh`, and `doctor wins` / `doctor space` / `doctor dev` are `reclaim`.
+
 ## Context
 Mole (github.com/tw93/mole, GPL-3.0, shell + Go) is the reference cleaner. macdoc already matches or beats it on
 safety (sealed plans, terminal-only approval, quarantine + restore, audit log, MCP propose-only), project

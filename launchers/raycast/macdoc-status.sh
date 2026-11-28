@@ -2,7 +2,7 @@
 
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title macdoc status
+# @raycast.title macdoc vitals
 # @raycast.mode fullOutput
 
 # Optional parameters:

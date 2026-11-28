@@ -61,6 +61,8 @@ func loadOpportunities(ctx context.Context, minBytes int64) (engine.OpportunityR
 	return res, cat, err
 }
 
+// newWinsCmd is the list behind `macdoc reclaim`. It is not its own command
+// (the old `wins` name was removed; ADR 0012).
 func newWinsCmd(g *GlobalFlags) *cobra.Command {
 	var all bool
 	var tier string

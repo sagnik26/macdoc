@@ -23,7 +23,8 @@ func TestOverviewCommand(t *testing.T) {
 		}
 		mustContain(t, out, "scan 2h ago", "What matters most", "Where your space is (Data volume, 100 GB measured)",
 			"Reclaimable", "Free & safe", "npm cache 3.0 GB", "Worth considering", "5 × Stale node_modules folder 15.0 GB",
-			"Your call", "size unknown", "macdoc scan (rescan + full report)", "Nothing has been changed.")
+			"Your call", "size unknown", "macdoc scan (rescan + full report)", "reclaim (every item + ID)",
+			"reclaim --categories", "vitals", "Nothing has been changed.")
 		if strings.Contains(out, "is old. Run") {
 			t.Errorf("%v: 2h-old scan flagged stale", args)
 		}
@@ -170,4 +171,82 @@ func TestOverviewReportsQuarantine(t *testing.T) {
 	mustContain(t, buf.String(), "Quarantine 2 entries · 12.3 GB held, restorable (macdoc quarantine)")
 	mustContain(t, buf.String(), "800 MB ready to purge: macdoc quarantine purge --expired")
 	mustContain(t, buf.String(), "Nothing has been changed.")
+}
+
+// The overview footer is the line people follow next. It must name commands
+// that exist. wins, space and health were removed (ADR 0012): reclaim,
+// reclaim --categories and vitals took their place.
+func TestOverviewMoreLine(t *testing.T) {
+	var buf bytes.Buffer
+	res := engine.OverviewResult{Health: engine.DoctorResult{Report: probe.Report{Memory: probe.Memory{FreePercent: -1}}},
+		Scan: model.ScanInfo{ID: "S-1"}, ScanAge: "1h ago"}
+	if err := cli.RenderOverview(&buf, res, nil); err != nil {
+		t.Fatal(err)
+	}
+	more := moreLine(t, buf.String())
+	mustContain(t, more, "macdoc scan (rescan + full report)", "reclaim (every item + ID)", "reclaim --categories", "vitals")
+	for _, gone := range []string{" wins", " space", " health", " doctor", " dev", " slow", " plan"} {
+		if strings.Contains(more, gone) {
+			t.Errorf("More line names a removed command via %q: %s", strings.TrimSpace(gone), more)
+		}
+	}
+}
+
+func moreLine(t *testing.T, out string) string {
+	t.Helper()
+	const mark = "\nMore: "
+	i := strings.Index(out, mark)
+	if i < 0 {
+		t.Fatalf("no More line:\n%s", out)
+	}
+	line := out[i+1:]
+	if nl := strings.IndexByte(line, '\n'); nl >= 0 {
+		line = line[:nl]
+	}
+	return line
+}
+
+// Help text lists the command tree. Bash, zsh and fish completions ask the
+// same tree through cobra's hidden __complete command, so a removed name
+// must be absent from both.
+func TestHelpAndCompletionOmitRemovedCommands(t *testing.T) {
+	helpOut, err := run(t, "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	helpCmds := map[string]bool{}
+	for _, line := range strings.Split(helpOut, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		helpCmds[fields[0]] = true
+	}
+	compOut, err := run(t, "__complete", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compCmds := map[string]bool{}
+	for _, line := range strings.Split(compOut, "\n") {
+		name, _, ok := strings.Cut(line, "\t")
+		if ok {
+			compCmds[name] = true
+		}
+	}
+	for _, want := range []string{"reclaim", "retire", "refresh", "explore", "vitals", "scan", "apply"} {
+		if !helpCmds[want] {
+			t.Errorf("help does not list %s\n%s", want, helpOut)
+		}
+		if !compCmds[want] {
+			t.Errorf("completion does not offer %s\n%s", want, compOut)
+		}
+	}
+	for _, gone := range []string{"wins", "space", "health", "doctor", "plan", "dev", "slow", "status", "software", "maintenance", "trend", "projects"} {
+		if helpCmds[gone] {
+			t.Errorf("help still lists %s", gone)
+		}
+		if compCmds[gone] {
+			t.Errorf("completion still offers %s", gone)
+		}
+	}
 }

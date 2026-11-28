@@ -7,7 +7,7 @@
 3. `.github/workflows/release.yml` runs on a macOS runner (the purgeable-space shim uses cgo, so this cannot be built on Linux). It repeats the tests and guards, runs `govulncheck`, builds with GoReleaser, attests the build provenance, and creates a **draft** GitHub release.
 4. Review the draft: the changelog, the two archives (`darwin_arm64`, `darwin_amd64`) and `checksums.txt`. Publish it by hand.
 
-Nothing is published automatically. The workflow needs no secrets beyond the built-in `GITHUB_TOKEN`.
+Nothing is published automatically. A release still needs no secrets beyond the built-in `GITHUB_TOKEN`. Developer ID signing and notarization run only when the Apple secrets below are set; empty secrets leave the binaries unsigned, which is what ships today.
 
 ## Dry run
 
@@ -34,9 +34,38 @@ What has **not** been verified: that a build on GitHub's runner matches a build 
 
 A universal (arm64 + x86_64) binary was tried first. Its two slices were byte-identical across builds, but GoReleaser's fat-file wrapper was not, so the universal file could not be verified by hash. Per-architecture archives can, so that is what ships.
 
+## Developer ID signing and notarization
+
+`.goreleaser.yaml` signs and notarizes the darwin binaries with GoReleaser's quill integration (`notarize.macos`) only when `MACOS_SIGN_P12` is set and non-empty. That is the open-source path for a bare binary. The Pro-only `notarize.macos_native` path (codesign, app bundles, DMGs) is not used: macdoc ships one binary per architecture in a tar.gz, not an app.
+
+Until those secrets exist, a downloaded binary is still blocked by Gatekeeper until the person clears the quarantine attribute (`xattr -d com.apple.quarantine macdoc`).
+
+What you need from Apple (an Apple Developer Program membership, paid yearly):
+
+1. A **Developer ID Application** certificate. Import the `.cer` into Keychain, export it as a `.p12`, and note the export password.
+2. An **App Store Connect API key** (a `.p8` file). Note the key's ID and the issuer ID shown when you create the key.
+
+Base64-encode the two files (no line wraps) and store them as GitHub Actions secrets on this repository. Do not commit the files or the password.
+
+| Secret | Value |
+|---|---|
+| `MACOS_SIGN_P12` | base64 of the `.p12` certificate |
+| `MACOS_SIGN_PASSWORD` | password for that `.p12` |
+| `MACOS_NOTARY_KEY` | base64 of the `.p8` API key |
+| `MACOS_NOTARY_KEY_ID` | the key ID (also in the `.p8` filename) |
+| `MACOS_NOTARY_ISSUER_ID` | the issuer UUID |
+
+```sh
+base64 < Certificates.p12 | tr -d '\n'
+base64 < ApiKey_XXXXXXXXXX.p8 | tr -d '\n'
+```
+
+`.github/workflows/release.yml` already passes those secret names into the GoReleaser step. When a secret is missing, GitHub sets it to empty and GoReleaser skips the block (`isEnvSet` is false for an empty value), so a tag push still builds the unsigned archives.
+
+Notarization is submitted and not waited on (`wait` is left at its default, false). Apple can take a while, and the release job's timeout is 30 minutes. A binary signed this way is notarized once Apple accepts it; Gatekeeper on a Mac that is online can check that. Stapling the ticket into the binary means setting `wait: true` under `notarize.macos[].notarize` (capped at 20 minutes by GoReleaser). Do that only after a release with the secrets has succeeded once.
+
 ## Not done yet
 
-- Developer ID signing and notarization. Without them, a downloaded binary is blocked by Gatekeeper until the person clears the quarantine attribute (`xattr -d com.apple.quarantine macdoc`). This needs an Apple Developer account and is the owner's decision.
 - A Homebrew tap: create the `homebrew-macdoc` repository yourself and copy `packaging/homebrew/macdoc.rb` into `Formula/`.
 - A tagged release: v0.1.0 is published (its first build was blocked by govulncheck, GO-2026-6859, fixed by requiring Go 1.27.4, and the tag was moved to the fixed commit before any release existed).
 

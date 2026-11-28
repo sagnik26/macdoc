@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # print a stack trace.
 LDFLAGS := -s -w -X github.com/sagnik26/macdoc/internal/cli.version=$(VERSION)
 
-.PHONY: build install uninstall test cover lint importcheck forbidcheck threatcheck vulncheck fuzz check clean
+.PHONY: build install uninstall test cover lint importcheck forbidcheck threatcheck vulncheck fuzz check clean demo
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/macdoc ./cmd/macdoc
@@ -51,6 +51,11 @@ fuzz:
 	$(GO) test -run='^$$' -fuzz=FuzzCheckTarget -fuzztime=30s ./internal/safety
 
 check: test lint importcheck forbidcheck threatcheck
+
+# Record docs/demo.gif from docs/demo.tape. Needs VHS
+# (https://github.com/charmbracelet/vhs) and a Mac: the tape runs macdoc.
+demo: build
+	PATH="$(CURDIR)/bin:$$PATH" vhs docs/demo.tape
 
 clean:
 	rm -rf bin

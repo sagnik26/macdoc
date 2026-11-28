@@ -139,7 +139,7 @@ func (d *TuiDeps) software(ctx context.Context) (engine.SoftwareResult, error) {
 }
 
 // startSoftware reads the software inventory in the background. Reading it
-// stores a snapshot with the latest scan, as `doctor software` does.
+// stores a snapshot with the latest scan, as `macdoc retire` does.
 func (m TuiModel) startSoftware() (tea.Model, tea.Cmd) {
 	if m.softwareBusy {
 		return m, nil
